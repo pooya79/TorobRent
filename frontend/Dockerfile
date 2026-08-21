@@ -12,8 +12,15 @@ CMD ["pnpm", "dev"]
 FROM development AS build
 RUN pnpm build
 
-FROM nginx:1.30.4-alpine AS production
-COPY infra/nginx/default.conf.template /etc/nginx/templates/default.conf.template
-COPY --from=build /app/frontend/dist /usr/share/nginx/html
-ENV BACKEND_UPSTREAM=backend:8000
-EXPOSE 80
+FROM base AS production-dependencies
+RUN pnpm install --prod --frozen-lockfile
+
+FROM node:24.19.0-alpine AS production
+WORKDIR /app/frontend
+COPY frontend/package.json frontend/pnpm-lock.yaml frontend/pnpm-workspace.yaml ./
+COPY --from=production-dependencies /app/frontend/node_modules ./node_modules
+COPY --from=build /app/frontend/build ./build
+ENV HOST=0.0.0.0
+ENV PORT=3000
+EXPOSE 3000
+CMD ["./node_modules/.bin/react-router-serve", "./build/server/index.js"]

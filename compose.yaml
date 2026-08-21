@@ -93,11 +93,24 @@ services:
     volumes:
       - ./frontend:/app/frontend
       - frontend-node-modules:/app/frontend/node_modules
-    ports:
-      - "5173:5173"
+    expose:
+      - "5173"
     depends_on:
       backend:
         condition: service_started
+
+  nginx:
+    build:
+      context: .
+      dockerfile: infra/nginx/Dockerfile
+    environment:
+      BACKEND_UPSTREAM: backend:8000
+      FRONTEND_UPSTREAM: frontend:5173
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend
+      - frontend
 
 volumes:
   postgres-data:

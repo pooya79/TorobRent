@@ -3,25 +3,31 @@ import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 import { expect, test } from "vitest";
 
+import { ProductShell } from "@/app/ProductShell";
 import { HomePage } from "@/pages/HomePage";
-import { api } from "@/lib/api/client";
 
-test("renders anonymous ready state", async () => {
-  const health = await api.GET("/api/v1/system/ready/");
-  expect(health.data).toEqual({ status: "ok" });
-
+test("presents Persian search and primary destinations", async () => {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
   render(
     <QueryClientProvider client={queryClient}>
       <MemoryRouter>
-        <HomePage />
+        <ProductShell>
+          <HomePage />
+        </ProductShell>
       </MemoryRouter>
     </QueryClientProvider>,
   );
 
-  expect(screen.getByRole("heading", { name: /TorobRent/i })).toBeVisible();
-  expect(await screen.findByText("Ready")).toBeVisible();
-  expect(await screen.findByText("Anonymous")).toBeVisible();
+  expect(
+    screen.getByRole("heading", { name: "خانه‌ای برای اجاره پیدا کنید" }),
+  ).toBeVisible();
+  expect(screen.getByRole("searchbox", { name: "شهر یا محله" })).toBeVisible();
+
+  for (const name of ["خانه", "راهنما", "تماس", "ورود", "ثبت آگهی"]) {
+    expect(screen.getByRole("link", { name })).toBeVisible();
+  }
+
+  expect(await screen.findByText("سامانه در دسترس است")).toBeVisible();
 });

@@ -11,6 +11,10 @@
 - `make api-client`: regenerate OpenAPI and TypeScript API types.
 - `make lint`, `make format`, `make format-check`, `make typecheck`, `make test`, `make build`:
   focused checks.
+- `cd frontend && pnpm test:e2e`: run the SSR/browser smoke suite with local frontend and Django
+  test runtimes.
+- `cd frontend && pnpm test:e2e:compose`: run the same smoke suite through the nginx gateway after
+  `make dev` is ready.
 - `make check`: run the full local validation suite.
 - `make docker-build`: verify both production images.
 
@@ -23,9 +27,10 @@ Node type definitions intentionally track the Node 24 runtime. TypeScript is pin
 6.x release until `typescript-eslint` supports TypeScript 7; `npm outdated` will report those two
 expected differences from the registry's unrestricted latest tags.
 
-The default `compose.yaml` is development-only: it bind-mounts source and runs Vite plus Uvicorn
-with reload enabled. `compose.prod.yaml` builds immutable production targets, keeps data services
-private, runs migrations as a one-shot service, and uses Uvicorn and nginx. Copy
+The default `compose.yaml` is development-only: it bind-mounts source and runs the React Router
+development runtime plus Uvicorn with reload enabled, behind nginx on port 5173.
+`compose.prod.yaml` builds immutable production targets, keeps data services private, runs
+migrations as a one-shot service, and uses the React Node runtime, Uvicorn, and nginx. Copy
 `.env.production.example` to `.env.production` and replace all placeholder credentials before
 starting it.
 

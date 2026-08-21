@@ -9,7 +9,7 @@ export function rememberCsrfToken(token: string) {
 }
 
 export const api = createClient<paths>({
-  baseUrl: window.location.origin,
+  baseUrl: typeof window === "undefined" ? "" : window.location.origin,
   credentials: "include",
 });
 

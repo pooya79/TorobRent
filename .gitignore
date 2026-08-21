@@ -12,6 +12,8 @@ backend/staticfiles/
 frontend/node_modules/
 .pnpm-store/
 frontend/dist/
+frontend/build/
+frontend/.react-router/
 frontend/coverage/
 frontend/playwright-report/
 frontend/test-results/

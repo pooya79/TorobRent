@@ -2,10 +2,10 @@
 
 ## System shape
 
-This repository is a modular Django monolith with a separately built React single-page
-application. PostgreSQL is the system of record. Redis provides cache and Celery transport. The
-browser and API must be presented on the same origin in production; the frontend development
-server and production Nginx image proxy Django routes.
+This repository is a modular Django monolith with a separately built, server-rendered React
+Router application. PostgreSQL is the system of record. Redis provides cache and Celery
+transport. The browser and API are presented on the same origin: Nginx routes domain API paths to
+Django and document requests to the React runtime.
 
 TorobRent deliberately has no product domain. `accounts` owns the replaceable user identity
 foundation, `system` owns operational probes, and `common` owns cross-cutting transport behavior.
@@ -44,5 +44,5 @@ operational cost.
 
 Build backend and frontend as separate images. Run web, worker, and an explicit migration/release
 job from the backend image. Do not let every web replica run migrations. Route `/api`, `/admin`, and
-`/static` to Django and all other paths to the SPA. PostgreSQL and Redis must be managed, backed up,
-and monitored outside these application images.
+`/static` to Django and all other paths to the React runtime. PostgreSQL and Redis must be managed,
+backed up, and monitored outside these application images.

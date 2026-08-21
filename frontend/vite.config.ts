@@ -1,9 +1,10 @@
+import { reactRouter } from "@react-router/dev/vite";
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vitest/config";
 
 export default defineConfig({
-  plugins: [react(), tailwindcss()],
+  plugins: [tailwindcss(), process.env.VITEST ? react() : reactRouter()],
   resolve: { tsconfigPaths: true },
   server: {
     host: "0.0.0.0",

@@ -70,3 +70,4 @@ check: lint format-check typecheck test api-check build
 docker-build:
 	docker build -f backend/Dockerfile -t app-backend .
 	docker build -f frontend/Dockerfile -t app-frontend .
+	docker build -f infra/nginx/Dockerfile -t app-gateway .
