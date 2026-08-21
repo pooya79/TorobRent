@@ -53,3 +53,27 @@ export const propertyDetail: components["schemas"]["PropertyDetail"] = {
     },
   ],
 };
+
+export const propertySearchPage: components["schemas"]["PaginatedPropertySummaryList"] =
+  {
+    count: 1,
+    next: null,
+    previous: null,
+    results: [
+      {
+        id: propertyDetail.id,
+        title: propertyDetail.title,
+        canonical_slug: propertyDetail.canonical_slug,
+        location: propertyDetail.location,
+        property_type: propertyDetail.property_type,
+        property_type_label: propertyDetail.property_type_label,
+        area_sqm: propertyDetail.area_sqm,
+        room_count: propertyDetail.room_count,
+        construction_year: propertyDetail.construction_year,
+        listing_count: 2,
+        rental_terms: propertyDetail.listings[0]!.rental_terms,
+        availability_confirmed_at:
+          propertyDetail.listings[0]!.availability_confirmed_at,
+      },
+    ],
+  };

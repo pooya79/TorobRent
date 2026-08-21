@@ -2,12 +2,23 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
-import { MemoryRouter } from "react-router";
+import { MemoryRouter, Route, Routes, useLocation } from "react-router";
 import { expect, test } from "vitest";
 
 import { ProductShell } from "@/app/ProductShell";
 import { HomePage } from "@/pages/HomePage";
 import { server } from "./server";
+
+function SearchLocationProbe() {
+  const location = useLocation();
+  const params = new URLSearchParams(location.search);
+  return (
+    <p>
+      {location.pathname}|{params.get("location")}|
+      {params.get("location_label")}
+    </p>
+  );
+}
 
 test("presents Persian search and primary destinations", async () => {
   const queryClient = new QueryClient({
@@ -97,4 +108,36 @@ test("lets an authenticated Submitter log out from primary navigation", async ()
 
   expect(loggedOut).toBe(true);
   expect(await screen.findByRole("link", { name: "ورود" })).toBeVisible();
+});
+
+test("selects a Persian autocomplete result and navigates to a shareable Results URL", async () => {
+  const user = userEvent.setup();
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  render(
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter initialEntries={["/"]}>
+        <Routes>
+          <Route path="/" element={<HomePage />} />
+          <Route path="/search" element={<SearchLocationProbe />} />
+        </Routes>
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+
+  await user.type(
+    screen.getByRole("combobox", { name: "شهر یا محله" }),
+    "سعادت اباد",
+  );
+  await user.click(
+    await screen.findByRole("option", {
+      name: "سعادت‌آباد، منطقه ۲، تهران",
+    }),
+  );
+  await user.click(screen.getByRole("button", { name: "جست‌وجوی خانه" }));
+
+  expect(
+    screen.getByText("/search|30000000-0000-4000-8000-000000000043|سعادت‌آباد"),
+  ).toBeVisible();
 });

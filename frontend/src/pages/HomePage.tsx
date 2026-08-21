@@ -5,7 +5,9 @@ import {
   Search,
   ShieldCheck,
 } from "lucide-react";
-import { Link } from "react-router";
+import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
+import { Link, useNavigate } from "react-router";
 
 import { PropertyCard } from "@/components/properties/PropertyCard";
 import { Button } from "@/components/ui/button";
@@ -18,11 +20,21 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { prototypeRepository } from "@/features/prototype/fixtures";
+import { locationAutocompleteQueryOptions } from "@/features/catalog/queries";
 
 const popularPlaces = ["تهران", "کرج", "مشهد", "شیراز"] as const;
 
 export function HomePage() {
   const properties = prototypeRepository.getProperties();
+  const navigate = useNavigate();
+  const [locationQuery, setLocationQuery] = useState("");
+  const [selectedLocationId, setSelectedLocationId] = useState<string | null>(
+    null,
+  );
+  const [suggestionsOpen, setSuggestionsOpen] = useState(false);
+  const { data: suggestions = [] } = useQuery(
+    locationAutocompleteQueryOptions(locationQuery),
+  );
 
   return (
     <main id="main-content" tabIndex={-1}>
@@ -45,8 +57,27 @@ export function HomePage() {
           action="/search"
           method="get"
           role="search"
+          onSubmit={(event) => {
+            event.preventDefault();
+            const params = new URLSearchParams(
+              new FormData(event.currentTarget) as unknown as Record<
+                string,
+                string
+              >,
+            );
+            for (const [name, value] of [...params.entries()]) {
+              if (!value) params.delete(name);
+            }
+            if (selectedLocationId) {
+              params.set("location", selectedLocationId);
+              params.set("location_label", locationQuery);
+            }
+            void navigate(
+              `/search${params.size ? `?${params.toString()}` : ""}`,
+            );
+          }}
         >
-          <label className="focus-within:ring-ring flex min-h-15 items-center gap-3 rounded-full px-4 focus-within:ring-2">
+          <label className="focus-within:ring-ring relative flex min-h-15 items-center gap-3 rounded-full px-4 focus-within:ring-2">
             <MapPin
               className="text-muted-foreground size-5 shrink-0"
               aria-hidden="true"
@@ -57,16 +88,47 @@ export function HomePage() {
                 className="h-auto border-0 bg-transparent p-0 text-sm shadow-none focus-visible:ring-0"
                 type="search"
                 name="location"
-                list="prototype-locations"
+                role="combobox"
+                aria-autocomplete="list"
+                aria-controls="location-suggestions"
+                aria-expanded={suggestionsOpen && suggestions.length > 0}
                 aria-label="شهر یا محله"
                 placeholder="مثلاً تهران، سعادت‌آباد"
+                value={locationQuery}
+                onInput={(event) => {
+                  setLocationQuery(event.currentTarget.value);
+                  setSelectedLocationId(null);
+                  setSuggestionsOpen(true);
+                }}
+                onFocus={() => setSuggestionsOpen(true)}
+                onBlur={() => setSuggestionsOpen(false)}
               />
-              <datalist id="prototype-locations">
-                <option value="تهران، سعادت‌آباد" />
-                <option value="تهران، یوسف‌آباد" />
-                <option value="تهران، تهران‌پارس" />
-                <option value="کرج، عظیمیه" />
-              </datalist>
+              {suggestionsOpen && suggestions.length > 0 && (
+                <ul
+                  id="location-suggestions"
+                  className="border-border bg-popover absolute top-full right-0 left-0 z-20 mt-2 overflow-hidden rounded-xl border p-1 shadow-md"
+                  role="listbox"
+                >
+                  {suggestions.map((suggestion) => (
+                    <li key={suggestion.id} role="none">
+                      <button
+                        className="hover:bg-accent focus-visible:bg-accent min-h-11 w-full rounded-lg px-3 text-start text-sm"
+                        type="button"
+                        role="option"
+                        aria-selected={locationQuery === suggestion.name}
+                        onMouseDown={(event) => event.preventDefault()}
+                        onClick={() => {
+                          setLocationQuery(suggestion.name);
+                          setSelectedLocationId(suggestion.id);
+                          setSuggestionsOpen(false);
+                        }}
+                      >
+                        {suggestion.label}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </span>
           </label>
           <label className="border-border focus-within:ring-ring flex min-h-15 items-center gap-3 rounded-full border-t px-4 focus-within:ring-2 sm:border-s sm:border-t-0">

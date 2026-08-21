@@ -218,7 +218,9 @@ class RentalTerms(models.Model):
 
 class ListingState(models.TextChoices):
     DRAFT = "draft", "پیش‌نویس"
+    PENDING = "pending", "در انتظار بررسی"
     PUBLISHED = "published", "منتشرشده"
+    REJECTED = "rejected", "ردشده"
     UNAVAILABLE = "unavailable", "ناموجود"
     ARCHIVED = "archived", "بایگانی‌شده"
 

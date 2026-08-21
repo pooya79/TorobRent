@@ -60,6 +60,22 @@ test("Operator publishes a curated Property that a Renter opens through SSR", as
   await page.locator('button[name="index"]').click();
   await expect(page.getByText("یک آگهی منتشر شد.")).toBeVisible();
 
+  await page.goto("/");
+  await expect(page.getByText("سامانه در دسترس است")).toBeVisible();
+  const locationInput = page.getByRole("combobox", { name: "شهر یا محله" });
+  await locationInput.pressSequentially("سعادت اباد");
+  await page
+    .getByRole("option", { name: "سعادت‌آباد، منطقه ۲، تهران" })
+    .click();
+  await page.getByRole("button", { name: "جست‌وجوی خانه" }).click();
+  await expect(page).toHaveURL(/\/search\?location=/);
+  await expect(
+    page.getByRole("heading", { name: "آپارتمان در سعادت‌آباد" }),
+  ).toBeVisible();
+  await expect(page.getByText("۱ آگهی فعال")).toBeVisible();
+  await expect(page.getByText("ودیعه ۱٬۰۰۰٬۰۰۰٬۰۰۰ تومان")).toBeVisible();
+  await expect(page.getByText("اجاره ماهانه ۲۵٬۰۰۰٬۰۰۰ تومان")).toBeVisible();
+
   await page.goto(`/properties/${propertyId}/نشانی-قدیمی`);
   await expect(page).toHaveURL(new RegExp(`/properties/${propertyId}/.+`));
   await expect(

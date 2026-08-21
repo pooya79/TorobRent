@@ -1,5 +1,6 @@
 from typing import Any
 
+from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
 from .models import FeatureState, Listing, OutboundPolicy, Property, PropertyType
@@ -11,6 +12,13 @@ class LocationSerializer(serializers.Serializer[Any]):
     district = serializers.CharField()
     district_number = serializers.IntegerField()
     neighborhood = serializers.CharField()
+
+
+class LocationSuggestionSerializer(serializers.Serializer[Any]):
+    id = serializers.UUIDField()
+    kind = serializers.ChoiceField(choices=("city", "district", "neighborhood"))
+    name = serializers.CharField()
+    label = serializers.CharField()  # type: ignore[assignment]
 
 
 class FeaturesSerializer(serializers.Serializer[Any]):
@@ -34,6 +42,49 @@ class RentalTermsPublicSerializer(serializers.Serializer[Any]):
     currency = serializers.ChoiceField(choices=("IRR",))
     deposit_toman = serializers.IntegerField()
     monthly_rent_toman = serializers.IntegerField()
+
+
+class PropertySummarySerializer(serializers.Serializer[Any]):
+    id = serializers.UUIDField()
+    title = serializers.CharField()
+    canonical_slug = serializers.CharField()
+    location = serializers.SerializerMethodField()
+    property_type = serializers.ChoiceField(choices=PropertyType.choices)
+    property_type_label = serializers.CharField(source="get_property_type_display")
+    area_sqm = serializers.IntegerField()
+    room_count = serializers.IntegerField()
+    construction_year = serializers.IntegerField(allow_null=True)
+    listing_count = serializers.IntegerField()
+    rental_terms = serializers.SerializerMethodField()
+    availability_confirmed_at = serializers.DateTimeField(
+        source="freshest_availability_confirmed_at"
+    )
+
+    @extend_schema_field(LocationSerializer)
+    def get_location(self, property_: Property) -> dict[str, Any]:
+        city = property_.city
+        district = property_.district
+        neighborhood = property_.neighborhood
+        if city is None or district is None or neighborhood is None:
+            raise ValueError("A searchable Property must have a complete location")
+        return {
+            "city": city.name_fa,
+            "district": district.name_fa,
+            "district_number": district.number,
+            "neighborhood": neighborhood.name_fa,
+        }
+
+    @extend_schema_field(RentalTermsPublicSerializer)
+    def get_rental_terms(self, property_: Property) -> dict[str, Any]:
+        deposit_rial = property_.freshest_deposit_rial  # type: ignore[attr-defined]
+        monthly_rent_rial = property_.freshest_monthly_rent_rial  # type: ignore[attr-defined]
+        return {
+            "deposit_rial": deposit_rial,
+            "monthly_rent_rial": monthly_rent_rial,
+            "currency": property_.freshest_currency,  # type: ignore[attr-defined]
+            "deposit_toman": rial_to_toman(deposit_rial),
+            "monthly_rent_toman": rial_to_toman(monthly_rent_rial),
+        }
 
 
 class ListingPublicSerializer(serializers.Serializer[Any]):
