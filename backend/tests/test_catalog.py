@@ -204,6 +204,14 @@ def test_anonymous_renter_autocompletes_tehran_locations_with_tolerant_persian_i
     api_client: APIClient,
 ):
     call_command("loaddata", "catalog_seed", verbosity=0)
+    other_city = City.objects.create(
+        name_fa="تهرانک",
+        source_code="outside-tehran",
+        source_year=1403,
+        provenance_url="https://example.com/locations",
+        imported_at=timezone.localdate(),
+        reviewed=True,
+    )
 
     response = api_client.get("/api/v1/catalog/locations/", {"q": "سعادت اباد"})
 
@@ -223,6 +231,7 @@ def test_anonymous_renter_autocompletes_tehran_locations_with_tolerant_persian_i
     assert city_response.data[0]["name"] == "تهران"
     assert district_response.data[0]["kind"] == "district"
     assert district_response.data[0]["name"] == "منطقه ۲"
+    assert all(item["id"] != str(other_city.id) for item in city_response.data)
 
 
 @pytest.mark.django_db
@@ -380,6 +389,58 @@ def test_property_search_excludes_every_non_active_listing_state(api_client: API
 
 
 @pytest.mark.django_db
+def test_property_search_excludes_active_properties_outside_tehran(api_client: APIClient):
+    call_command("loaddata", "catalog_seed", verbosity=0)
+    location_fields = {
+        "source_year": 1403,
+        "provenance_url": "https://example.com/locations",
+        "imported_at": timezone.localdate(),
+        "reviewed": True,
+    }
+    city = City.objects.create(name_fa="کرج", source_code="karaj", **location_fields)
+    district = District.objects.create(
+        city=city,
+        number=1,
+        name_fa="منطقه ۱",
+        source_code="karaj-1",
+        **location_fields,
+    )
+    neighborhood = Neighborhood.objects.create(
+        district=district,
+        name_fa="جهانشهر",
+        source_code="jahanshahr",
+        **location_fields,
+    )
+    property_ = Property.objects.create(
+        city=city,
+        district=district,
+        neighborhood=neighborhood,
+        property_type=PropertyType.APARTMENT,
+        area_sqm=90,
+        room_count=2,
+    )
+    now = timezone.now()
+    Listing.objects.create(
+        property=property_,
+        source=Source.objects.get(is_builtin=True),
+        terms=RentalTerms.objects.create(
+            deposit_rial=5_000_000_000,
+            monthly_rent_rial=200_000_000,
+        ),
+        state=ListingState.PUBLISHED,
+        direct_phone="۰۹۱۲۱۲۳۴۵۶۷",
+        availability_confirmed_at=now,
+        available_until=now + timedelta(days=1),
+    )
+
+    response = api_client.get("/api/v1/catalog/properties/", {"location": str(neighborhood.id)})
+
+    assert response.status_code == 200
+    assert response.data["count"] == 0
+    assert response.data["results"] == []
+
+
+@pytest.mark.django_db
 def test_property_search_orders_deterministically_and_limits_the_first_page_to_25(
     api_client: APIClient,
 ):
@@ -411,11 +472,11 @@ def test_property_search_orders_deterministically_and_limits_the_first_page_to_2
             available_until=confirmed_at + timedelta(days=20),
         )
 
-    response = api_client.get("/api/v1/catalog/properties/")
+    response = api_client.get("/api/v1/catalog/properties/", {"page_size": 100})
 
     assert response.status_code == 200
     assert response.data["count"] == 26
     assert len(response.data["results"]) == 25
-    assert response.data["next"].endswith("?page=2")
+    assert "page=2" in response.data["next"]
     expected_ids = [str(property_.id) for property_ in sorted(properties, key=lambda item: item.id)]
     assert [result["id"] for result in response.data["results"]] == expected_ids[:25]

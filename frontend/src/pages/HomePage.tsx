@@ -28,6 +28,9 @@ export function HomePage() {
   const properties = prototypeRepository.getProperties();
   const navigate = useNavigate();
   const [locationQuery, setLocationQuery] = useState("");
+  const [selectedLocationId, setSelectedLocationId] = useState<string | null>(
+    null,
+  );
   const [suggestionsOpen, setSuggestionsOpen] = useState(false);
   const { data: suggestions = [] } = useQuery(
     locationAutocompleteQueryOptions(locationQuery),
@@ -65,6 +68,10 @@ export function HomePage() {
             for (const [name, value] of [...params.entries()]) {
               if (!value) params.delete(name);
             }
+            if (selectedLocationId) {
+              params.set("location", selectedLocationId);
+              params.set("location_label", locationQuery);
+            }
             void navigate(
               `/search${params.size ? `?${params.toString()}` : ""}`,
             );
@@ -90,6 +97,7 @@ export function HomePage() {
                 value={locationQuery}
                 onInput={(event) => {
                   setLocationQuery(event.currentTarget.value);
+                  setSelectedLocationId(null);
                   setSuggestionsOpen(true);
                 }}
                 onFocus={() => setSuggestionsOpen(true)}
@@ -111,6 +119,7 @@ export function HomePage() {
                         onMouseDown={(event) => event.preventDefault()}
                         onClick={() => {
                           setLocationQuery(suggestion.name);
+                          setSelectedLocationId(suggestion.id);
                           setSuggestionsOpen(false);
                         }}
                       >

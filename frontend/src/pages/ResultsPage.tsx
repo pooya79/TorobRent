@@ -92,7 +92,10 @@ export function ResultsPage() {
   const [searchParams] = useSearchParams();
   const search = useQuery(propertySearchQueryOptions(searchParams));
   const currentPage = Number(searchParams.get("page") ?? "1");
-  const location = searchParams.get("location") || "تهران";
+  const location =
+    searchParams.get("location_label") ||
+    searchParams.get("location") ||
+    "تهران";
   const hrefForPage = (page: number) => {
     const next = new URLSearchParams(searchParams);
     next.set("page", String(page));

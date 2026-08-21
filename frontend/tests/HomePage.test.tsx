@@ -11,9 +11,11 @@ import { server } from "./server";
 
 function SearchLocationProbe() {
   const location = useLocation();
+  const params = new URLSearchParams(location.search);
   return (
     <p>
-      {location.pathname}|{new URLSearchParams(location.search).get("location")}
+      {location.pathname}|{params.get("location")}|
+      {params.get("location_label")}
     </p>
   );
 }
@@ -135,5 +137,7 @@ test("selects a Persian autocomplete result and navigates to a shareable Results
   );
   await user.click(screen.getByRole("button", { name: "جست‌وجوی خانه" }));
 
-  expect(screen.getByText("/search|سعادت‌آباد")).toBeVisible();
+  expect(
+    screen.getByText("/search|30000000-0000-4000-8000-000000000043|سعادت‌آباد"),
+  ).toBeVisible();
 });

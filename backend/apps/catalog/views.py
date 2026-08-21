@@ -1,4 +1,5 @@
 import uuid
+from typing import cast
 
 from django.db.models import QuerySet
 from drf_spectacular.utils import (
@@ -47,6 +48,10 @@ class LocationAutocompleteView(APIView):
         return Response(LocationSuggestionSerializer(suggestions, many=True).data)
 
 
+class CatalogSearchPagination(StandardPageNumberPagination):
+    page_size_query_param = cast(str, None)
+
+
 @extend_schema_view(
     get=extend_schema(
         summary="Search Properties with an Active Listing",
@@ -63,7 +68,7 @@ class LocationAutocompleteView(APIView):
 class PropertySearchView(ListAPIView[Property]):
     permission_classes = [AllowAny]
     serializer_class = PropertySummarySerializer
-    pagination_class = StandardPageNumberPagination
+    pagination_class = CatalogSearchPagination
 
     def get_queryset(self) -> QuerySet[Property]:
         return search_properties(self.request.query_params.get("location", ""))
