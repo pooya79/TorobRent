@@ -1,5 +1,7 @@
 coverage/
+build/
 dist/
+.react-router/
 node_modules/
 playwright-report/
 test-results/

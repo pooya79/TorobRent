@@ -87,12 +87,24 @@ services:
       dockerfile: frontend/Dockerfile
       target: production
     restart: unless-stopped
+    expose:
+      - "3000"
+    depends_on:
+      - backend
+
+  nginx:
+    build:
+      context: .
+      dockerfile: infra/nginx/Dockerfile
+    restart: unless-stopped
     environment:
       BACKEND_UPSTREAM: backend:8000
+      FRONTEND_UPSTREAM: frontend:3000
     ports:
       - "${APP_PORT:-80}:80"
     depends_on:
       - backend
+      - frontend
 
 volumes:
   postgres-data:

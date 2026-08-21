@@ -7,6 +7,8 @@ export default tseslint.config(
   {
     ignores: [
       "dist",
+      "build",
+      ".react-router",
       "coverage",
       "playwright-report",
       "src/lib/api/schema.d.ts",

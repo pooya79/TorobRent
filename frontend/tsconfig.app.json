@@ -19,7 +19,8 @@
     "noUncheckedIndexedAccess": true,
     "noFallthroughCasesInSwitch": true,
     "paths": { "@/*": ["./src/*"] },
-    "types": ["vite/client", "vitest/globals", "@testing-library/jest-dom"]
+    "types": ["vite/client", "vitest/globals", "@testing-library/jest-dom"],
+    "rootDirs": [".", "./.react-router/types"]
   },
-  "include": ["src", "tests"]
+  "include": ["src", "tests", ".react-router/types/**/*"]
 }
