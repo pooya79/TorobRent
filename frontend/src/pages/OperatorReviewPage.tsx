@@ -6,8 +6,9 @@ import {
   ShieldX,
   UserRound,
 } from "lucide-react";
-import { useSearchParams } from "react-router";
+import { Link, useSearchParams } from "react-router";
 
+import { PageMain } from "@/components/layout/PageMain";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   AlertDialog,
@@ -35,11 +36,7 @@ export function OperatorReviewPage() {
 
   if (searchParams.get("prototypeState") === "permission") {
     return (
-      <main
-        id="main-content"
-        className="mx-auto flex min-h-[70vh] w-full max-w-360 items-center px-4 py-16 sm:px-6 lg:px-10"
-        tabIndex={-1}
-      >
+      <PageMain className="flex min-h-[70vh] items-center py-16">
         <Card className="mx-auto max-w-lg text-center shadow-none">
           <CardContent className="flex flex-col items-center py-8">
             <span className="bg-muted mb-5 flex size-14 items-center justify-center rounded-full">
@@ -50,21 +47,17 @@ export function OperatorReviewPage() {
               این صف فقط برای کارکنانی نمایش داده می‌شود که مجوز بررسی آگهی‌ها
               را دارند.
             </p>
-            <Button className="mt-6" variant="outline">
-              بازگشت به خانه
+            <Button asChild className="mt-6" variant="outline">
+              <Link to="/">بازگشت به خانه</Link>
             </Button>
           </CardContent>
         </Card>
-      </main>
+      </PageMain>
     );
   }
 
   return (
-    <main
-      id="main-content"
-      className="mx-auto w-full max-w-360 px-4 py-8 sm:px-6 lg:px-10"
-      tabIndex={-1}
-    >
+    <PageMain>
       <header className="mb-8 flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="text-muted-foreground mb-2 text-sm">فضای اپراتور</p>
@@ -193,7 +186,7 @@ export function OperatorReviewPage() {
           </ol>
         </aside>
       </div>
-    </main>
+    </PageMain>
   );
 }
 

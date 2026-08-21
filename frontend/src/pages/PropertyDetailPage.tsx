@@ -1,6 +1,8 @@
 import { AlertTriangle, Building2, CheckCircle2, MapPin } from "lucide-react";
+import { useState } from "react";
 import { useParams } from "react-router";
 
+import { PageMain } from "@/components/layout/PageMain";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -11,13 +13,13 @@ export function PropertyDetailPage() {
   const { propertyId = "saadat-abad-101" } = useParams();
   const property = prototypeRepository.getProperty(propertyId);
   const listings = prototypeRepository.getListings(propertyId);
+  const [contactRevealed, setContactRevealed] = useState(false);
+  const hasDepositDisagreement =
+    new Set(listings.map((listing) => listing.rentalTerms.depositLabel)).size >
+    1;
 
   return (
-    <main
-      id="main-content"
-      className="mx-auto w-full max-w-360 px-4 py-8 sm:px-6 lg:px-10"
-      tabIndex={-1}
-    >
+    <PageMain>
       <div className="grid gap-8 lg:grid-cols-[minmax(0,1.45fr)_minmax(18rem,.55fr)]">
         <div>
           <div className="bg-muted text-muted-foreground flex aspect-[16/9] items-center justify-center rounded-xl">
@@ -51,10 +53,26 @@ export function PropertyDetailPage() {
             <p>اجاره ماهانه {property.rentalTerms.monthlyRentLabel}</p>
           </CardHeader>
           <CardContent>
-            <Button className="w-full rounded-full">مشاهده راه ارتباطی</Button>
-            <p className="text-muted-foreground mt-3 text-xs">
-              اطلاعات تماس فقط پس از درخواست شما نمایش داده می‌شود.
-            </p>
+            {contactRevealed ? (
+              <p
+                className="bg-muted rounded-lg p-4 text-center font-semibold"
+                aria-live="polite"
+              >
+                {property.contactLabel}
+              </p>
+            ) : (
+              <>
+                <Button
+                  className="w-full rounded-full"
+                  onClick={() => setContactRevealed(true)}
+                >
+                  مشاهده راه ارتباطی
+                </Button>
+                <p className="text-muted-foreground mt-3 text-xs">
+                  اطلاعات تماس فقط پس از درخواست شما نمایش داده می‌شود.
+                </p>
+              </>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -72,14 +90,16 @@ export function PropertyDetailPage() {
             شده‌اند
           </Badge>
         </div>
-        <Alert className="mb-5" variant="destructive">
-          <AlertTriangle aria-hidden="true" />
-          <AlertTitle>اختلاف در مبلغ ودیعه</AlertTitle>
-          <AlertDescription>
-            یکی از منابع مبلغ متفاوتی اعلام کرده است. پیش از ادامه شرایط را
-            بررسی کنید.
-          </AlertDescription>
-        </Alert>
+        {hasDepositDisagreement && (
+          <Alert className="mb-5" variant="destructive">
+            <AlertTriangle aria-hidden="true" />
+            <AlertTitle>اختلاف در مبلغ ودیعه</AlertTitle>
+            <AlertDescription>
+              یکی از منابع مبلغ متفاوتی اعلام کرده است. پیش از ادامه شرایط را
+              بررسی کنید.
+            </AlertDescription>
+          </Alert>
+        )}
         <div className="border-border overflow-x-auto rounded-xl border">
           <table className="w-full min-w-180 border-collapse text-sm">
             <thead className="bg-muted text-muted-foreground">
@@ -111,7 +131,7 @@ export function PropertyDetailPage() {
           </table>
         </div>
       </section>
-    </main>
+    </PageMain>
   );
 }
 

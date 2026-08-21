@@ -17,12 +17,14 @@ type PrototypeListing = {
   rentalTerms: PrototypeRentalTerms;
   freshness: string;
   status: string;
+  contactLabel: string;
 };
 
 export type PrototypePropertySummary = PrototypeProperty & {
   listingCountLabel: string;
   rentalTerms: PrototypeRentalTerms;
   freshnessLabel: string;
+  contactLabel: string;
 };
 
 const properties: readonly PrototypeProperty[] = [
@@ -56,6 +58,7 @@ const listings: readonly PrototypeListing[] = [
     },
     freshness: "امروز",
     status: "تأییدشده",
+    contactLabel: "۰۹۱۲ ۱۲۳ ۴۵۶۷",
   },
   {
     propertyId: "saadat-abad-101",
@@ -66,6 +69,7 @@ const listings: readonly PrototypeListing[] = [
     },
     freshness: "امروز",
     status: "فعال",
+    contactLabel: "۰۹۱۲ ۲۳۴ ۵۶۷۸",
   },
   {
     propertyId: "saadat-abad-101",
@@ -76,6 +80,7 @@ const listings: readonly PrototypeListing[] = [
     },
     freshness: "دیروز",
     status: "فعال",
+    contactLabel: "۰۲۱ ۸۸۷۷ ۶۵۴۳",
   },
   {
     propertyId: "yousef-abad-204",
@@ -86,6 +91,7 @@ const listings: readonly PrototypeListing[] = [
     },
     freshness: "دیروز",
     status: "تأییدشده",
+    contactLabel: "۰۹۱۲ ۳۴۵ ۶۷۸۹",
   },
   {
     propertyId: "yousef-abad-204",
@@ -96,6 +102,7 @@ const listings: readonly PrototypeListing[] = [
     },
     freshness: "۲ روز پیش",
     status: "فعال",
+    contactLabel: "۰۲۱ ۸۸۰۰ ۱۲۳۴",
   },
   {
     propertyId: "tehran-pars-12",
@@ -106,6 +113,7 @@ const listings: readonly PrototypeListing[] = [
     },
     freshness: "امروز",
     status: "تأییدشده",
+    contactLabel: "۰۹۱۲ ۴۵۶ ۷۸۹۰",
   },
 ];
 
@@ -123,6 +131,7 @@ function summarizeProperty(
     listingCountLabel: `${persianCounts[propertyListings.length]} آگهی فعال`,
     rentalTerms: freshestListing.rentalTerms,
     freshnessLabel: `به‌روزرسانی ${freshestListing.freshness}`,
+    contactLabel: freshestListing.contactLabel,
   };
 }
 
@@ -142,7 +151,7 @@ const submissions = [
     detail: "ارسال کامل است و در صف بررسی قرار دارد.",
     time: "ارسال در ۲۸ مرداد ۱۴۰۵",
     action: "مشاهده جزئیات آگهی یوسف‌آباد",
-    href: "/dashboard/submissions/yousef-abad",
+    href: "/dashboard?submission=yousef-abad",
     state: "pending",
   },
   {

@@ -6,6 +6,7 @@ import {
   Plus,
 } from "lucide-react";
 
+import { PageMain } from "@/components/layout/PageMain";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -21,11 +22,7 @@ export function SubmitterDashboardPage() {
   const submissions = prototypeRepository.getSubmissions();
 
   return (
-    <main
-      id="main-content"
-      className="mx-auto w-full max-w-360 px-4 py-8 sm:px-6 lg:px-10"
-      tabIndex={-1}
-    >
+    <PageMain>
       <header className="mb-8 flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="text-muted-foreground mb-2 text-sm">پنل ثبت‌کننده</p>
@@ -70,7 +67,7 @@ export function SubmitterDashboardPage() {
           );
         })}
       </section>
-    </main>
+    </PageMain>
   );
 }
 

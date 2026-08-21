@@ -1,6 +1,7 @@
 import { Check, Circle, Save } from "lucide-react";
 import { Link, useSearchParams } from "react-router";
 
+import { PageMain } from "@/components/layout/PageMain";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -158,11 +159,7 @@ export function AddSubmissionPage() {
   };
 
   return (
-    <main
-      id="main-content"
-      className="mx-auto w-full max-w-360 px-4 py-8 sm:px-6 lg:px-10"
-      tabIndex={-1}
-    >
+    <PageMain>
       <header className="mb-8 flex flex-wrap items-end justify-between gap-4">
         <div>
           <Badge variant="secondary" className="mb-3">
@@ -261,7 +258,7 @@ export function AddSubmissionPage() {
           </CardContent>
         </Card>
       </div>
-    </main>
+    </PageMain>
   );
 }
 

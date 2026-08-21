@@ -13,4 +13,7 @@ test("shows a Submitter the status and next action for each Submission", () => {
   expect(
     screen.getByRole("link", { name: "رفع ایرادهای آگهی سعادت‌آباد" }),
   ).toBeVisible();
+  expect(
+    screen.getByRole("link", { name: "مشاهده جزئیات آگهی یوسف‌آباد" }),
+  ).toHaveAttribute("href", "/dashboard?submission=yousef-abad");
 });

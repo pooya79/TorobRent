@@ -37,6 +37,10 @@ test("does not expose the review queue without Operator permission", () => {
   expect(
     screen.queryByText("مدرک مالکیت نیاز به بررسی دارد"),
   ).not.toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "بازگشت به خانه" })).toHaveAttribute(
+    "href",
+    "/",
+  );
 });
 
 test("asks the Operator to confirm a review decision", async () => {

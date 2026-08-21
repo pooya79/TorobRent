@@ -54,6 +54,35 @@ test("keeps applied filters and pagination shareable in the URL", () => {
   );
 });
 
+test("shows every applied filter as a removable chip", () => {
+  render(
+    <MemoryRouter
+      initialEntries={[
+        "/search?deposit_min=500&rent_max=40&feature=parking&feature=elevator",
+      ]}
+    >
+      <ResultsPage />
+    </MemoryRouter>,
+  );
+
+  for (const name of [
+    "ودیعه از 500 ×",
+    "اجاره تا 40 ×",
+    "پارکینگ ×",
+    "آسانسور ×",
+  ]) {
+    expect(screen.getByRole("link", { name })).toBeVisible();
+  }
+  const depositHref = screen
+    .getByRole("link", { name: "ودیعه از 500 ×" })
+    .getAttribute("href");
+  expect(
+    new URL(depositHref ?? "", "http://localhost").searchParams.has(
+      "deposit_min",
+    ),
+  ).toBe(false);
+});
+
 test("filters with complete Rental Terms and offers a working error recovery", () => {
   const { unmount } = render(
     <MemoryRouter initialEntries={["/search"]}>

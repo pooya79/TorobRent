@@ -46,7 +46,7 @@ const navigationClass = ({ isActive }: { isActive: boolean }) =>
 function Brand() {
   return (
     <NavLink
-      className="flex items-center gap-3 font-bold"
+      className="flex min-h-11 items-center gap-3 font-bold"
       to="/"
       aria-label="ترب‌رنت، خانه"
     >

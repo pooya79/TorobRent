@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router";
 import { expect, test } from "vitest";
 
@@ -58,4 +59,20 @@ test("shows only Listings belonging to the routed Property", () => {
   const listing = screen.getByRole("row", { name: /منبع مستقیم/ });
   expect(listing).toHaveTextContent("۷۰۰ میلیون تومان");
   expect(listing).toHaveTextContent("۱۸ میلیون تومان");
+  expect(
+    screen.queryByRole("heading", { name: "اختلاف در مبلغ ودیعه" }),
+  ).not.toBeInTheDocument();
+});
+
+test("reveals the prototype contact only after the Renter asks", async () => {
+  const user = userEvent.setup();
+  render(
+    <MemoryRouter>
+      <PropertyDetailPage />
+    </MemoryRouter>,
+  );
+
+  expect(screen.queryByText("۰۹۱۲ ۱۲۳ ۴۵۶۷")).not.toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "مشاهده راه ارتباطی" }));
+  expect(screen.getByText("۰۹۱۲ ۱۲۳ ۴۵۶۷")).toBeVisible();
 });

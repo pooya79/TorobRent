@@ -1,6 +1,7 @@
 import { SlidersHorizontal } from "lucide-react";
 import { Link, useSearchParams } from "react-router";
 
+import { PageMain } from "@/components/layout/PageMain";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { PropertyCard } from "@/components/properties/PropertyCard";
 import { Button } from "@/components/ui/button";
@@ -147,13 +148,51 @@ export function ResultsPage() {
     const query = next.toString();
     return query ? `/search?${query}` : "/search";
   };
+  const hrefWithout = (name: string, value?: string) => {
+    const next = new URLSearchParams(searchParams);
+    if (value === undefined) {
+      next.delete(name);
+    } else {
+      const remaining = next.getAll(name).filter((item) => item !== value);
+      next.delete(name);
+      remaining.forEach((item) => next.append(name, item));
+    }
+    const query = next.toString();
+    return query ? `/search?${query}` : "/search";
+  };
+  const appliedFilters = [
+    ...(location
+      ? [{ key: "location", label: location, value: undefined }]
+      : []),
+    ...(propertyType
+      ? [
+          {
+            key: "property_type",
+            label: propertyType === "apartment" ? "آپارتمان" : "خانه",
+            value: undefined,
+          },
+        ]
+      : []),
+    ...[
+      ["deposit_min", "ودیعه از"],
+      ["deposit_max", "ودیعه تا"],
+      ["rent_min", "اجاره از"],
+      ["rent_max", "اجاره تا"],
+    ].flatMap(([key, label]) => {
+      const value = searchParams.get(key!);
+      return value
+        ? [{ key: key!, label: `${label} ${value}`, value: undefined }]
+        : [];
+    }),
+    ...searchParams.getAll("feature").map((value) => ({
+      key: "feature",
+      label: features.find(([feature]) => feature === value)?.[1] ?? value,
+      value,
+    })),
+  ];
 
   return (
-    <main
-      id="main-content"
-      className="mx-auto w-full max-w-360 px-4 py-8 sm:px-6 lg:px-10"
-      tabIndex={-1}
-    >
+    <PageMain>
       <header className="mb-8 flex items-end justify-between gap-4">
         <div>
           <p className="text-muted-foreground mb-2 text-sm">۱۲۴ ملک پیدا شد</p>
@@ -185,18 +224,16 @@ export function ResultsPage() {
         className="mb-6 flex flex-wrap gap-2"
         aria-label="فیلترهای اعمال‌شده"
       >
-        {location && (
-          <Button asChild size="sm" variant="secondary">
-            <Link to={hrefWith("location")}>{location} ×</Link>
+        {appliedFilters.map(({ key, label, value }) => (
+          <Button
+            asChild
+            size="sm"
+            variant="secondary"
+            key={`${key}-${value ?? ""}`}
+          >
+            <Link to={hrefWithout(key, value)}>{label} ×</Link>
           </Button>
-        )}
-        {propertyType && (
-          <Button asChild size="sm" variant="secondary">
-            <Link to={hrefWith("property_type")}>
-              {propertyType === "apartment" ? "آپارتمان" : "خانه"} ×
-            </Link>
-          </Button>
-        )}
+        ))}
         {searchParams.size > 0 && (
           <Button asChild size="sm" variant="ghost">
             <Link to="/search">پاک کردن همه</Link>
@@ -295,7 +332,7 @@ export function ResultsPage() {
           </PaginationItem>
         </PaginationContent>
       </Pagination>
-    </main>
+    </PageMain>
   );
 }
 
