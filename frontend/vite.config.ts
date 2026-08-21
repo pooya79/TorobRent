@@ -6,6 +6,18 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   plugins: [tailwindcss(), process.env.VITEST ? react() : reactRouter()],
   resolve: { tsconfigPaths: true },
+  optimizeDeps: {
+    // Prevent cold CI starts from reloading the page during browser hydration.
+    include: [
+      "@radix-ui/react-slot",
+      "@tanstack/react-query",
+      "class-variance-authority",
+      "clsx",
+      "lucide-react",
+      "openapi-fetch",
+      "tailwind-merge",
+    ],
+  },
   server: {
     host: "0.0.0.0",
     port: 5173,
