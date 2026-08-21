@@ -5,6 +5,7 @@ import {
   Clock3,
   Plus,
 } from "lucide-react";
+import { useSearchParams } from "react-router";
 
 import { PageMain } from "@/components/layout/PageMain";
 import { Badge } from "@/components/ui/badge";
@@ -19,7 +20,11 @@ const submissionState = {
 };
 
 export function SubmitterDashboardPage() {
+  const [searchParams] = useSearchParams();
   const submissions = prototypeRepository.getSubmissions();
+  const selectedSubmission = submissions.find(
+    (submission) => submission.id === searchParams.get("submission"),
+  );
 
   return (
     <PageMain>
@@ -37,6 +42,23 @@ export function SubmitterDashboardPage() {
           </a>
         </Button>
       </header>
+
+      {selectedSubmission && (
+        <Card className="border-primary mb-6 shadow-none">
+          <CardContent className="space-y-3">
+            <h2 className="text-lg font-semibold">
+              جزئیات ارسال {selectedSubmission.title}
+            </h2>
+            <p>{selectedSubmission.detail}</p>
+            <p className="text-muted-foreground text-sm">
+              {selectedSubmission.time}
+            </p>
+            <p className="text-sm font-semibold">
+              گام بعدی: منتظر بررسی اپراتور بمانید.
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
       <section className="grid gap-4" aria-label="ارسال‌های شما">
         {submissions.map((submission) => {

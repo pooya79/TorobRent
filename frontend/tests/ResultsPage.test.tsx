@@ -66,15 +66,15 @@ test("shows every applied filter as a removable chip", () => {
   );
 
   for (const name of [
-    "ودیعه از 500 ×",
-    "اجاره تا 40 ×",
+    "ودیعه از ۵۰۰ ×",
+    "اجاره تا ۴۰ ×",
     "پارکینگ ×",
     "آسانسور ×",
   ]) {
     expect(screen.getByRole("link", { name })).toBeVisible();
   }
   const depositHref = screen
-    .getByRole("link", { name: "ودیعه از 500 ×" })
+    .getByRole("link", { name: "ودیعه از ۵۰۰ ×" })
     .getAttribute("href");
   expect(
     new URL(depositHref ?? "", "http://localhost").searchParams.has(

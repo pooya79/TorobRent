@@ -137,6 +137,7 @@ function summarizeProperty(
 
 const submissions = [
   {
+    id: "saadat-abad",
     title: "آگهی سعادت‌آباد",
     status: "نیازمند اصلاح",
     detail: "تصویر سند مالکیت خوانا نیست.",
@@ -146,6 +147,7 @@ const submissions = [
     state: "needs-change",
   },
   {
+    id: "yousef-abad",
     title: "آگهی یوسف‌آباد",
     status: "در انتظار بررسی",
     detail: "ارسال کامل است و در صف بررسی قرار دارد.",
@@ -155,6 +157,7 @@ const submissions = [
     state: "pending",
   },
   {
+    id: "tehran-pars",
     title: "آگهی تهران‌پارس",
     status: "منتشر شده",
     detail: "تا ۱۲ شهریور ۱۴۰۵ فعال است.",

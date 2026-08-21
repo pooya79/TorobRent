@@ -34,6 +34,10 @@ const features = [
   ["storage", "انباری"],
 ] as const;
 
+const persianDigits = "۰۱۲۳۴۵۶۷۸۹";
+const toPersianDigits = (value: string) =>
+  value.replace(/\d/g, (digit) => persianDigits[Number(digit)]!);
+
 function FilterPanel({ searchParams }: { searchParams: URLSearchParams }) {
   return (
     <form className="space-y-7" action="/search" method="get">
@@ -181,7 +185,13 @@ export function ResultsPage() {
     ].flatMap(([key, label]) => {
       const value = searchParams.get(key!);
       return value
-        ? [{ key: key!, label: `${label} ${value}`, value: undefined }]
+        ? [
+            {
+              key: key!,
+              label: `${label} ${toPersianDigits(value)}`,
+              value: undefined,
+            },
+          ]
         : [];
     }),
     ...searchParams.getAll("feature").map((value) => ({
