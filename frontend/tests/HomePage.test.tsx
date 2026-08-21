@@ -39,7 +39,7 @@ test("recovers when the readiness check fails during startup", async () => {
   server.use(
     http.get("*/api/v1/system/ready/", () => {
       attempts += 1;
-      return attempts === 1
+      return attempts <= 2
         ? HttpResponse.json({ status: "unavailable" }, { status: 503 })
         : HttpResponse.json({ status: "ok" });
     }),
@@ -58,6 +58,10 @@ test("recovers when the readiness check fails during startup", async () => {
     </QueryClientProvider>,
   );
 
-  expect(await screen.findByText("سامانه در دسترس است")).toBeVisible();
-  expect(attempts).toBe(2);
+  expect(
+    await screen.findByText("سامانه در دسترس است", undefined, {
+      timeout: 2_500,
+    }),
+  ).toBeVisible();
+  expect(attempts).toBe(3);
 });

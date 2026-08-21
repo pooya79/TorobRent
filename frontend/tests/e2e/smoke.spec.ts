@@ -15,11 +15,28 @@ test("serves a meaningful Persian document before hydration", async ({
 test("hydrates the application shell and reports API health", async ({
   page,
 }) => {
+  let readinessAttempts = 0;
+  await page.route("**/api/v1/system/ready/", async (route) => {
+    readinessAttempts += 1;
+    if (readinessAttempts <= 2) {
+      await route.fulfill({
+        status: 503,
+        contentType: "application/json",
+        body: JSON.stringify({ status: "unavailable" }),
+      });
+      return;
+    }
+    await route.continue();
+  });
+
   await page.goto("/");
   await expect(
     page.getByRole("heading", { name: "خانه‌ای برای اجاره پیدا کنید" }),
   ).toBeVisible();
-  await expect(page.getByText("سامانه در دسترس است")).toBeVisible();
+  await expect(page.getByText("سامانه در دسترس است")).toBeVisible({
+    timeout: 10_000,
+  });
+  expect(readinessAttempts).toBe(3);
 
   const navigation = page.getByRole("navigation", { name: "راهبری اصلی" });
   for (const name of ["خانه", "راهنما", "تماس", "ورود", "ثبت آگهی"]) {

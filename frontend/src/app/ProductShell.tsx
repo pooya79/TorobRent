@@ -16,6 +16,8 @@ const navigation = [
 export function ProductShell({ children }: { children: ReactNode }) {
   const health = useQuery({
     queryKey: ["health"],
+    refetchInterval: (query) =>
+      query.state.status === "error" ? 1_000 : false,
     queryFn: async () => {
       const { data, error } = await api.GET("/api/v1/system/ready/");
       if (error || !data) {
