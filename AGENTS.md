@@ -49,3 +49,18 @@ OpenAPI/client artifacts whenever their source changes; never hand-edit generate
 
 Never commit secrets or production credentials. Copy the provided environment examples locally,
 and review `docs/development.md` before changing deployment, migrations, or Celery jobs.
+
+## Agent skills
+
+### Issue tracker
+
+Issues are tracked in GitHub Issues for `pooya79/TorobRent`. See
+`docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Triage uses the default five-label vocabulary. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Domain documentation uses a single-context layout. See `docs/agents/domain.md`.
