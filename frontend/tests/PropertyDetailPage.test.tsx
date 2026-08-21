@@ -1,78 +1,38 @@
 import { render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { MemoryRouter, Route, Routes } from "react-router";
 import { expect, test } from "vitest";
 
 import { PropertyDetailPage } from "@/pages/PropertyDetailPage";
+import { propertyDetail as property } from "./fixtures/catalog";
 
-test("keeps source Listings and their disagreements visible", () => {
-  render(
-    <MemoryRouter>
-      <PropertyDetailPage />
-    </MemoryRouter>,
-  );
+test("shows normalized facts, paired toman terms, and freshness", () => {
+  render(<PropertyDetailPage property={property} />);
 
   expect(
-    screen.getByRole("heading", { name: "آپارتمان روشن در سعادت‌آباد" }),
+    screen.getByRole("heading", { name: "آپارتمان در سعادت‌آباد" }),
   ).toBeVisible();
-  expect(
-    screen.getByRole("heading", { name: "مقایسه ۳ آگهی فعال" }),
-  ).toBeVisible();
-  expect(screen.getByText("اختلاف در مبلغ ودیعه")).toBeVisible();
-  for (const source of ["منبع مستقیم", "ملک‌رادار", "خانه‌نما"]) {
-    expect(screen.getByRole("row", { name: new RegExp(source) })).toBeVisible();
-  }
+  expect(screen.getByText("تهران، منطقه ۲، سعادت‌آباد")).toBeVisible();
+  expect(screen.getByText("۱۱۰ متر")).toBeVisible();
+  expect(screen.getByText("۲ خواب")).toBeVisible();
+  expect(screen.getByText("سال ساخت ۱٬۴۰۰")).toBeVisible();
+  expect(screen.getByText("۶ طبقه")).toBeVisible();
+  expect(screen.getByText("۲ واحد در هر طبقه")).toBeVisible();
+  expect(screen.getByText("گرمایش: پکیج")).toBeVisible();
+  expect(screen.getByText("سرمایش: کولر آبی")).toBeVisible();
+  const listing = screen.getByRole("article", {
+    name: "آگهی منبع مستقیم ترب‌رنت",
+  });
+  expect(listing).toHaveTextContent("۱٬۰۰۰٬۰۰۰٬۰۰۰ تومان");
+  expect(listing).toHaveTextContent("۲۵٬۰۰۰٬۰۰۰ تومان");
+  expect(listing).toHaveTextContent("آخرین تأیید موجودی");
 });
 
-test("loads Property facts from the routed prototype fixture", () => {
-  render(
-    <MemoryRouter initialEntries={["/properties/yousef-abad-204"]}>
-      <Routes>
-        <Route
-          path="/properties/:propertyId"
-          element={<PropertyDetailPage />}
-        />
-      </Routes>
-    </MemoryRouter>,
-  );
+test("keeps unknown features distinct and shows the neutral media placeholder", () => {
+  render(<PropertyDetailPage property={property} />);
 
   expect(
-    screen.getByRole("heading", { name: "خانه آرام نزدیک پارک شفق" }),
+    screen.getByText("تصویر مجازی برای این ملک منتشر نشده است"),
   ).toBeVisible();
-  expect(
-    screen.getByRole("heading", { name: "مقایسه ۲ آگهی فعال" }),
-  ).toBeVisible();
-});
-
-test("shows only Listings belonging to the routed Property", () => {
-  render(
-    <MemoryRouter initialEntries={["/properties/tehran-pars-12"]}>
-      <Routes>
-        <Route
-          path="/properties/:propertyId"
-          element={<PropertyDetailPage />}
-        />
-      </Routes>
-    </MemoryRouter>,
-  );
-
-  const listing = screen.getByRole("row", { name: /منبع مستقیم/ });
-  expect(listing).toHaveTextContent("۷۰۰ میلیون تومان");
-  expect(listing).toHaveTextContent("۱۸ میلیون تومان");
-  expect(
-    screen.queryByRole("heading", { name: "اختلاف در مبلغ ودیعه" }),
-  ).not.toBeInTheDocument();
-});
-
-test("reveals the prototype contact only after the Renter asks", async () => {
-  const user = userEvent.setup();
-  render(
-    <MemoryRouter>
-      <PropertyDetailPage />
-    </MemoryRouter>,
-  );
-
-  expect(screen.queryByText("۰۹۱۲ ۱۲۳ ۴۵۶۷")).not.toBeInTheDocument();
-  await user.click(screen.getByRole("button", { name: "مشاهده راه ارتباطی" }));
-  expect(screen.getByText("۰۹۱۲ ۱۲۳ ۴۵۶۷")).toBeVisible();
+  expect(screen.getByText("آسانسور: نامشخص")).toBeVisible();
+  expect(screen.getByText("انباری: ندارد")).toBeVisible();
+  expect(screen.getByText("پارکینگ: دارد")).toBeVisible();
 });

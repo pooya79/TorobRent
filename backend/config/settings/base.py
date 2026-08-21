@@ -28,6 +28,7 @@ INSTALLED_APPS = [
     "drf_spectacular_sidecar",
     "apps.common",
     "apps.accounts",
+    "apps.catalog",
     "apps.system",
 ]
 
@@ -132,6 +133,11 @@ SPECTACULAR_SETTINGS = {
     "VERSION": "1.0.0",
     "OAS_VERSION": "3.1.0",
     "SERVE_INCLUDE_SCHEMA": False,
+    "ENUM_NAME_OVERRIDES": {
+        "FeatureStateEnum": "apps.catalog.models.FeatureState.choices",
+        "OutboundPolicyEnum": "apps.catalog.models.OutboundPolicy.choices",
+        "PropertyTypeEnum": "apps.catalog.models.PropertyType.choices",
+    },
     "SWAGGER_UI_DIST": "SIDECAR",
     "SWAGGER_UI_FAVICON_HREF": "SIDECAR",
     "REDOC_DIST": "SIDECAR",
