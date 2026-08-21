@@ -1,7 +1,7 @@
 [project]
-name = "fintech-template-backend"
+name = "torobrent-backend"
 version = "0.1.0"
-description = "Domain-neutral Django API template"
+description = "TorobRent — a smart rental search platform that aggregates, normalizes, and ranks property listings from multiple sources."
 requires-python = ">=3.14,<3.15"
 dependencies = [
   "argon2-cffi>=25.1,<26",

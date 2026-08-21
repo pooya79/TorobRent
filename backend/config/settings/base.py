@@ -115,8 +115,11 @@ REST_FRAMEWORK = {
 }
 
 SPECTACULAR_SETTINGS = {
-    "TITLE": "Application API",
-    "DESCRIPTION": "Domain-neutral Django and React application API",
+    "TITLE": "TorobRent API",
+    "DESCRIPTION": (
+        "TorobRent — a smart rental search platform that aggregates, normalizes, and ranks "
+        "property listings from multiple sources."
+    ),
     "VERSION": "1.0.0",
     "OAS_VERSION": "3.1.0",
     "SERVE_INCLUDE_SCHEMA": False,

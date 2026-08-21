@@ -21,9 +21,7 @@ test("renders anonymous ready state", async () => {
     </QueryClientProvider>,
   );
 
-  expect(
-    screen.getByRole("heading", { name: /Django and React are connected/i }),
-  ).toBeVisible();
+  expect(screen.getByRole("heading", { name: /TorobRent/i })).toBeVisible();
   expect(await screen.findByText("Ready")).toBeVisible();
   expect(await screen.findByText("Anonymous")).toBeVisible();
 });

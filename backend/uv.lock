@@ -508,7 +508,7 @@ wheels = [
 ]
 
 [[package]]
-name = "fintech-template-backend"
+name = "torobrent-backend"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [

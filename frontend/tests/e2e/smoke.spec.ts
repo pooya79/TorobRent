@@ -8,8 +8,6 @@ test("loads the application shell", async ({ page }) => {
     await route.fulfill({ json: { status: "ok" } });
   });
   await page.goto("/");
-  await expect(
-    page.getByRole("heading", { name: /Django and React are connected/i }),
-  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: /TorobRent/i })).toBeVisible();
   await expect(page.getByText("Ready", { exact: true })).toBeVisible();
 });

@@ -25,7 +25,7 @@ Authentication uses an HTTP-only, `SameSite=Lax` Django session cookie. The appl
 same-origin and CORS is disabled. `GET /api/v1/auth/session/` returns session state and a CSRF token;
 the centralized frontend client attaches it as `X-CSRFToken` to unsafe requests.
 
-The template does not define login, logout, registration, recovery, verification, roles, or
+TorobRent does not define login, logout, registration, recovery, verification, roles, or
 invitations. Add those as explicit product requirements. Rotate sessions at authentication and
 permission-boundary changes when implementing them.
 
@@ -34,4 +34,3 @@ permission-boundary changes when implementing them.
 Run `make api-client` after changing an endpoint or serializer. Review the OpenAPI and TypeScript
 diff together. CI regenerates both artifacts and rejects drift. Breaking changes require a new URL
 version or an explicitly coordinated migration; additions remain within `/api/v1/`.
-

@@ -1,8 +1,9 @@
 openapi: 3.1.0
 info:
-  title: Application API
+  title: TorobRent API
   version: 1.0.0
-  description: Domain-neutral Django and React application API
+  description: TorobRent — a smart rental search platform that aggregates, normalizes,
+    and ranks property listings from multiple sources.
 paths:
   /api/v1/auth/session/:
     get:

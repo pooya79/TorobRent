@@ -7,7 +7,7 @@ application. PostgreSQL is the system of record. Redis provides cache and Celery
 browser and API must be presented on the same origin in production; the frontend development
 server and production Nginx image proxy Django routes.
 
-The template deliberately has no product domain. `accounts` owns the replaceable user identity
+TorobRent deliberately has no product domain. `accounts` owns the replaceable user identity
 foundation, `system` owns operational probes, and `common` owns cross-cutting transport behavior.
 
 ## Backend module contract

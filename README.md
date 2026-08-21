@@ -1,7 +1,7 @@
-# Django + React Application Template
+# TorobRent
 
-A domain-neutral foundation for a future SaaS or web application. It intentionally provides no
-business entities, registration workflow, tenancy model, or role system.
+TorobRent is a smart rental search platform that aggregates, normalizes, and ranks property
+listings from multiple sources.
 
 ## Quick start
 

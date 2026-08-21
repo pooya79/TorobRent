@@ -54,15 +54,15 @@ export function HomePage() {
       <div className="mb-10 flex items-start justify-between gap-6">
         <div>
           <div className="bg-card text-muted-foreground mb-4 inline-flex items-center gap-2 rounded-full border px-3 py-1 text-sm">
-            <ShieldCheck className="text-primary size-4" /> Domain-neutral
-            foundation
+            <ShieldCheck className="text-primary size-4" /> Smart rental search
+            platform
           </div>
           <h1 className="max-w-2xl text-4xl font-bold tracking-tight sm:text-5xl">
-            Django and React are connected.
+            TorobRent
           </h1>
           <p className="text-muted-foreground mt-4 max-w-2xl text-lg">
-            Add domain modules when the product is ready. The infrastructure and
-            typed API boundary are already in place.
+            A smart rental search platform that aggregates, normalizes, and
+            ranks property listings from multiple sources.
           </p>
         </div>
         <Button
