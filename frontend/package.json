@@ -11,7 +11,7 @@
     "dev": "react-router dev",
     "build": "react-router typegen && tsc -b && react-router build",
     "start": "react-router-serve ./build/server/index.js",
-    "lint": "eslint . --max-warnings=0",
+    "lint": "react-router typegen && eslint . --max-warnings=0",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "typecheck": "react-router typegen && tsc -b --pretty false",
