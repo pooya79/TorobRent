@@ -87,7 +87,7 @@ function PrimaryNavigation({ mobile = false }: { mobile?: boolean }) {
   return (
     <nav className="grid gap-1" aria-label="راهبری اصلی">
       {links}
-      <Button asChild className="mt-4 min-h-11 rounded-full">
+      <Button asChild className="mt-4 min-h-11 rounded-full" variant="outline">
         <NavLink to="/add-submission">
           <Plus aria-hidden="true" /> ثبت آگهی
         </NavLink>
@@ -157,10 +157,30 @@ export function ProductShell({ children }: { children: ReactNode }) {
           <div className="flex flex-wrap items-center justify-between gap-4">
             <p>ترب‌رنت؛ راه شفاف‌تر پیدا کردن خانه اجاره‌ای</p>
             <div className="text-muted-foreground flex flex-wrap gap-4">
-              <NavLink to="/guide">راهنما</NavLink>
-              <NavLink to="/contact">تماس</NavLink>
-              <NavLink to="/privacy">حریم خصوصی</NavLink>
-              <NavLink to="/terms">شرایط استفاده</NavLink>
+              <NavLink
+                className="inline-flex min-h-11 items-center"
+                to="/guide"
+              >
+                راهنما
+              </NavLink>
+              <NavLink
+                className="inline-flex min-h-11 items-center"
+                to="/contact"
+              >
+                تماس
+              </NavLink>
+              <NavLink
+                className="inline-flex min-h-11 items-center"
+                to="/privacy"
+              >
+                حریم خصوصی
+              </NavLink>
+              <NavLink
+                className="inline-flex min-h-11 items-center"
+                to="/terms"
+              >
+                شرایط استفاده
+              </NavLink>
             </div>
           </div>
           <div

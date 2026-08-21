@@ -42,3 +42,20 @@ test("loads Property facts from the routed prototype fixture", () => {
     screen.getByRole("heading", { name: "مقایسه ۲ آگهی فعال" }),
   ).toBeVisible();
 });
+
+test("shows only Listings belonging to the routed Property", () => {
+  render(
+    <MemoryRouter initialEntries={["/properties/tehran-pars-12"]}>
+      <Routes>
+        <Route
+          path="/properties/:propertyId"
+          element={<PropertyDetailPage />}
+        />
+      </Routes>
+    </MemoryRouter>,
+  );
+
+  const listing = screen.getByRole("row", { name: /منبع مستقیم/ });
+  expect(listing).toHaveTextContent("۷۰۰ میلیون تومان");
+  expect(listing).toHaveTextContent("۱۸ میلیون تومان");
+});

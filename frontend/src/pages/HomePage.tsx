@@ -31,7 +31,7 @@ export function HomePage() {
           <p className="text-muted-foreground mb-4 text-sm font-medium">
             آگهی‌های چند منبع، یک‌جا و قابل مقایسه
           </p>
-          <h1 className="text-4xl leading-tight font-semibold tracking-tight sm:text-5xl lg:text-6xl">
+          <h1 className="text-4xl leading-tight font-semibold tracking-tight sm:text-5xl">
             خانه‌ای برای اجاره پیدا کنید
           </h1>
           <p className="text-muted-foreground mx-auto mt-5 max-w-2xl leading-8">

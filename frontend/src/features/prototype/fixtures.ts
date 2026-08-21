@@ -3,11 +3,26 @@ export type PrototypeProperty = {
   title: string;
   location: string;
   facts: readonly string[];
-  listingCountLabel: string;
-  depositLabel: string;
-  rentLabel: string;
-  freshnessLabel: string;
   imageUrl?: string;
+};
+
+export type PrototypeRentalTerms = {
+  depositLabel: string;
+  monthlyRentLabel: string;
+};
+
+type PrototypeListing = {
+  propertyId: string;
+  source: string;
+  rentalTerms: PrototypeRentalTerms;
+  freshness: string;
+  status: string;
+};
+
+export type PrototypePropertySummary = PrototypeProperty & {
+  listingCountLabel: string;
+  rentalTerms: PrototypeRentalTerms;
+  freshnessLabel: string;
 };
 
 const properties: readonly PrototypeProperty[] = [
@@ -16,56 +31,100 @@ const properties: readonly PrototypeProperty[] = [
     title: "آپارتمان روشن در سعادت‌آباد",
     location: "تهران، سعادت‌آباد",
     facts: ["۱۱۰ متر", "۲ خواب", "طبقه چهارم"],
-    listingCountLabel: "۳ آگهی فعال",
-    depositLabel: "ودیعه ۱ میلیارد تومان",
-    rentLabel: "اجاره ماهانه ۲۵ میلیون تومان",
-    freshnessLabel: "به‌روزرسانی امروز",
   },
   {
     id: "yousef-abad-204",
     title: "خانه آرام نزدیک پارک شفق",
     location: "تهران، یوسف‌آباد",
     facts: ["۸۵ متر", "۲ خواب", "آسانسور"],
-    listingCountLabel: "۲ آگهی فعال",
-    depositLabel: "ودیعه ۸۰۰ میلیون تومان",
-    rentLabel: "اجاره ماهانه ۲۱ میلیون تومان",
-    freshnessLabel: "به‌روزرسانی دیروز",
   },
   {
     id: "tehran-pars-12",
     title: "آپارتمان خانوادگی در تهران‌پارس",
     location: "تهران، تهران‌پارس",
     facts: ["۹۵ متر", "۲ خواب", "پارکینگ"],
-    listingCountLabel: "۱ آگهی فعال",
-    depositLabel: "ودیعه ۷۰۰ میلیون تومان",
-    rentLabel: "اجاره ماهانه ۱۸ میلیون تومان",
-    freshnessLabel: "به‌روزرسانی امروز",
   },
 ];
 
-const listings = [
+const listings: readonly PrototypeListing[] = [
   {
+    propertyId: "saadat-abad-101",
     source: "منبع مستقیم",
-    deposit: "۱ میلیارد تومان",
-    rent: "۲۵ میلیون تومان",
+    rentalTerms: {
+      depositLabel: "۱ میلیارد تومان",
+      monthlyRentLabel: "۲۵ میلیون تومان",
+    },
     freshness: "امروز",
     status: "تأییدشده",
   },
   {
+    propertyId: "saadat-abad-101",
     source: "ملک‌رادار",
-    deposit: "۹۵۰ میلیون تومان",
-    rent: "۲۶ میلیون تومان",
+    rentalTerms: {
+      depositLabel: "۹۵۰ میلیون تومان",
+      monthlyRentLabel: "۲۶ میلیون تومان",
+    },
     freshness: "امروز",
     status: "فعال",
   },
   {
+    propertyId: "saadat-abad-101",
     source: "خانه‌نما",
-    deposit: "۱ میلیارد تومان",
-    rent: "۲۵ میلیون تومان",
+    rentalTerms: {
+      depositLabel: "۱ میلیارد تومان",
+      monthlyRentLabel: "۲۵ میلیون تومان",
+    },
     freshness: "دیروز",
     status: "فعال",
   },
-] as const;
+  {
+    propertyId: "yousef-abad-204",
+    source: "منبع مستقیم",
+    rentalTerms: {
+      depositLabel: "۸۰۰ میلیون تومان",
+      monthlyRentLabel: "۲۱ میلیون تومان",
+    },
+    freshness: "دیروز",
+    status: "تأییدشده",
+  },
+  {
+    propertyId: "yousef-abad-204",
+    source: "خانه‌نما",
+    rentalTerms: {
+      depositLabel: "۸۵۰ میلیون تومان",
+      monthlyRentLabel: "۲۰ میلیون تومان",
+    },
+    freshness: "۲ روز پیش",
+    status: "فعال",
+  },
+  {
+    propertyId: "tehran-pars-12",
+    source: "منبع مستقیم",
+    rentalTerms: {
+      depositLabel: "۷۰۰ میلیون تومان",
+      monthlyRentLabel: "۱۸ میلیون تومان",
+    },
+    freshness: "امروز",
+    status: "تأییدشده",
+  },
+];
+
+const persianCounts = ["۰", "۱", "۲", "۳"] as const;
+
+function summarizeProperty(
+  property: PrototypeProperty,
+): PrototypePropertySummary {
+  const propertyListings = listings.filter(
+    (listing) => listing.propertyId === property.id,
+  );
+  const freshestListing = propertyListings[0]!;
+  return {
+    ...property,
+    listingCountLabel: `${persianCounts[propertyListings.length]} آگهی فعال`,
+    rentalTerms: freshestListing.rentalTerms,
+    freshnessLabel: `به‌روزرسانی ${freshestListing.freshness}`,
+  };
+}
 
 const submissions = [
   {
@@ -129,9 +188,9 @@ const reviewSummary = {
 } as const;
 
 export interface PrototypeRepository {
-  getProperties(): readonly PrototypeProperty[];
-  getProperty(id: string): PrototypeProperty;
-  getListings(propertyId: string): readonly (typeof listings)[number][];
+  getProperties(): readonly PrototypePropertySummary[];
+  getProperty(id: string): PrototypePropertySummary;
+  getListings(propertyId: string): readonly PrototypeListing[];
   getSubmissions(): typeof submissions;
   getReviewQueue(): typeof reviewQueue;
   getReviewFacts(): typeof reviewFacts;
@@ -140,18 +199,13 @@ export interface PrototypeRepository {
 }
 
 export const prototypeRepository: PrototypeRepository = {
-  getProperties: () => properties,
+  getProperties: () => properties.map(summarizeProperty),
   getProperty: (id) =>
-    properties.find((property) => property.id === id) ?? properties[0]!,
-  getListings: (propertyId) =>
-    listings.slice(
-      0,
-      propertyId === "tehran-pars-12"
-        ? 1
-        : propertyId === "yousef-abad-204"
-          ? 2
-          : 3,
+    summarizeProperty(
+      properties.find((property) => property.id === id) ?? properties[0]!,
     ),
+  getListings: (propertyId) =>
+    listings.filter((listing) => listing.propertyId === propertyId),
   getSubmissions: () => submissions,
   getReviewQueue: () => reviewQueue,
   getReviewFacts: () => reviewFacts,

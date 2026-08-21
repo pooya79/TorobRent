@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
 import { expect, test } from "vitest";
 
@@ -34,4 +35,20 @@ test("connects Persian validation guidance to the invalid field", () => {
     "true",
   );
   expect(screen.getByText("متراژ باید بیشتر از صفر باشد.")).toBeVisible();
+});
+
+test("lets reviewers navigate the guided Submission steps", async () => {
+  const user = userEvent.setup();
+  render(
+    <MemoryRouter initialEntries={["/add-submission?step=3"]}>
+      <AddSubmissionPage />
+    </MemoryRouter>,
+  );
+
+  await user.click(screen.getByRole("link", { name: "ادامه به شرایط اجاره" }));
+
+  expect(screen.getByText(/مرحله ۴ از ۷/)).toBeVisible();
+  expect(screen.getByRole("heading", { name: "شرایط اجاره" })).toBeVisible();
+  expect(screen.getByLabelText("ودیعه، تومان")).toBeVisible();
+  expect(screen.getByLabelText("اجاره ماهانه، تومان")).toBeVisible();
 });

@@ -39,7 +39,7 @@ function FilterPanel({ searchParams }: { searchParams: URLSearchParams }) {
       <div>
         <h2 className="font-semibold">فیلترها</h2>
         <p className="text-muted-foreground mt-2 text-sm">
-          محدوده قیمت و ویژگی‌های ملک
+          شرایط اجاره و ویژگی‌های ملک
         </p>
       </div>
       <fieldset>
@@ -50,6 +50,7 @@ function FilterPanel({ searchParams }: { searchParams: URLSearchParams }) {
             <Input
               inputMode="numeric"
               name="deposit_min"
+              aria-label="حداقل ودیعه"
               defaultValue={searchParams.get("deposit_min") ?? ""}
               placeholder="۵۰۰ میلیون"
             />
@@ -59,8 +60,36 @@ function FilterPanel({ searchParams }: { searchParams: URLSearchParams }) {
             <Input
               inputMode="numeric"
               name="deposit_max"
+              aria-label="حداکثر ودیعه"
               defaultValue={searchParams.get("deposit_max") ?? ""}
               placeholder="۲ میلیارد"
+            />
+          </Label>
+        </div>
+      </fieldset>
+      <fieldset>
+        <legend className="mb-3 text-sm font-semibold">
+          اجاره ماهانه، تومان
+        </legend>
+        <div className="grid grid-cols-2 gap-2">
+          <Label className="space-y-2">
+            <span className="text-muted-foreground text-xs">از</span>
+            <Input
+              inputMode="numeric"
+              name="rent_min"
+              aria-label="حداقل اجاره ماهانه"
+              defaultValue={searchParams.get("rent_min") ?? ""}
+              placeholder="۱۰ میلیون"
+            />
+          </Label>
+          <Label className="space-y-2">
+            <span className="text-muted-foreground text-xs">تا</span>
+            <Input
+              inputMode="numeric"
+              name="rent_max"
+              aria-label="حداکثر اجاره ماهانه"
+              defaultValue={searchParams.get("rent_max") ?? ""}
+              placeholder="۴۰ میلیون"
             />
           </Label>
         </div>
@@ -219,8 +248,8 @@ export function ResultsPage() {
             <AlertTitle>بارگذاری نتایج کامل نشد</AlertTitle>
             <AlertDescription className="mt-3">
               اتصال خود را بررسی کنید.
-              <Button className="ms-3" size="sm" variant="outline">
-                تلاش دوباره
+              <Button asChild className="ms-3" size="sm" variant="outline">
+                <Link to={hrefWith("prototypeState")}>تلاش دوباره</Link>
               </Button>
             </AlertDescription>
           </Alert>

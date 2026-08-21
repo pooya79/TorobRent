@@ -53,3 +53,27 @@ test("keeps applied filters and pagination shareable in the URL", () => {
     "page",
   );
 });
+
+test("filters with complete Rental Terms and offers a working error recovery", () => {
+  const { unmount } = render(
+    <MemoryRouter initialEntries={["/search"]}>
+      <ResultsPage />
+    </MemoryRouter>,
+  );
+
+  expect(screen.getAllByLabelText("حداقل ودیعه")).not.toHaveLength(0);
+  expect(screen.getAllByLabelText("حداقل اجاره ماهانه")).not.toHaveLength(0);
+
+  unmount();
+  render(
+    <MemoryRouter
+      initialEntries={["/search?prototypeState=error&location=تهران"]}
+    >
+      <ResultsPage />
+    </MemoryRouter>,
+  );
+  expect(screen.getByRole("link", { name: "تلاش دوباره" })).toHaveAttribute(
+    "href",
+    "/search?location=%D8%AA%D9%87%D8%B1%D8%A7%D9%86",
+  );
+});

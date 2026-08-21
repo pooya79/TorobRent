@@ -45,8 +45,10 @@ export function PropertyDetailPage() {
             <Badge variant="secondary" className="w-fit">
               تازه‌ترین شرایط اجاره
             </Badge>
-            <p className="text-xl font-semibold">{property.depositLabel}</p>
-            <p>{property.rentLabel}</p>
+            <p className="text-xl font-semibold">
+              ودیعه {property.rentalTerms.depositLabel}
+            </p>
+            <p>اجاره ماهانه {property.rentalTerms.monthlyRentLabel}</p>
           </CardHeader>
           <CardContent>
             <Button className="w-full rounded-full">مشاهده راه ارتباطی</Button>
@@ -95,8 +97,10 @@ export function PropertyDetailPage() {
                   <th className="p-4 text-start font-semibold">
                     {listing.source}
                   </th>
-                  <td className="p-4">{listing.deposit}</td>
-                  <td className="p-4">{listing.rent}</td>
+                  <td className="p-4">{listing.rentalTerms.depositLabel}</td>
+                  <td className="p-4">
+                    {listing.rentalTerms.monthlyRentLabel}
+                  </td>
                   <td className="p-4">{listing.freshness}</td>
                   <td className="p-4">
                     <Badge variant="secondary">{listing.status}</Badge>

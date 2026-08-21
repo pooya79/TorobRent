@@ -165,7 +165,7 @@ export function OperatorReviewPage() {
                   <AlertDialogHeader className="text-start">
                     <AlertDialogTitle>آگهی منتشر شود؟</AlertDialogTitle>
                     <AlertDialogDescription>
-                      پس از تأیید، اطلاعات Property و Listing برای Renterها قابل
+                      پس از تأیید، اطلاعات ملک و آگهی برای اجاره‌کنندگان قابل
                       مشاهده می‌شود.
                     </AlertDialogDescription>
                   </AlertDialogHeader>

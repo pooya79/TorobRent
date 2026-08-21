@@ -8,9 +8,13 @@ import {
   CardFooter,
   CardHeader,
 } from "@/components/ui/card";
-import type { PrototypeProperty } from "@/features/prototype/fixtures";
+import type { PrototypePropertySummary } from "@/features/prototype/fixtures";
 
-export function PropertyCard({ property }: { property: PrototypeProperty }) {
+export function PropertyCard({
+  property,
+}: {
+  property: PrototypePropertySummary;
+}) {
   return (
     <Card className="group relative gap-0 overflow-hidden border-0 py-0 shadow-none">
       <div className="bg-muted relative aspect-[4/3] overflow-hidden rounded-xl">
@@ -26,7 +30,7 @@ export function PropertyCard({ property }: { property: PrototypeProperty }) {
             <span className="text-sm">تصویر این ملک هنوز منتشر نشده است</span>
           </div>
         )}
-        <Badge className="absolute start-3 top-3 bg-white text-neutral-950 shadow-sm hover:bg-white">
+        <Badge className="bg-card text-foreground hover:bg-card absolute start-3 top-3 shadow-sm">
           {property.listingCountLabel}
         </Badge>
       </div>
@@ -48,8 +52,10 @@ export function PropertyCard({ property }: { property: PrototypeProperty }) {
         </p>
       </CardHeader>
       <CardContent className="space-y-1 px-0 pb-3 text-sm">
-        <p className="font-semibold">{property.depositLabel}</p>
-        <p>{property.rentLabel}</p>
+        <p className="font-semibold">
+          ودیعه {property.rentalTerms.depositLabel}
+        </p>
+        <p>اجاره ماهانه {property.rentalTerms.monthlyRentLabel}</p>
       </CardContent>
       <CardFooter className="text-muted-foreground border-border border-t px-0 py-3 text-xs">
         {property.freshnessLabel}
