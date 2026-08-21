@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
 import { MemoryRouter } from "react-router";
 import { expect, test } from "vitest";
@@ -25,10 +25,11 @@ test("presents Persian search and primary destinations", async () => {
   expect(
     screen.getByRole("heading", { name: "خانه‌ای برای اجاره پیدا کنید" }),
   ).toBeVisible();
-  expect(screen.getByRole("searchbox", { name: "شهر یا محله" })).toBeVisible();
+  expect(screen.getByRole("combobox", { name: "شهر یا محله" })).toBeVisible();
 
+  const navigation = screen.getByRole("navigation", { name: "راهبری اصلی" });
   for (const name of ["خانه", "راهنما", "تماس", "ورود", "ثبت آگهی"]) {
-    expect(screen.getByRole("link", { name })).toBeVisible();
+    expect(within(navigation).getByRole("link", { name })).toBeVisible();
   }
 
   expect(await screen.findByText("سامانه در دسترس است")).toBeVisible();

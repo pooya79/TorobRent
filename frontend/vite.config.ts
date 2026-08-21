@@ -10,6 +10,13 @@ export default defineConfig({
     // Prevent cold CI starts from reloading the page during browser hydration.
     include: [
       "@radix-ui/react-slot",
+      "@radix-ui/react-alert-dialog",
+      "@radix-ui/react-checkbox",
+      "@radix-ui/react-dialog",
+      "@radix-ui/react-label",
+      "@radix-ui/react-radio-group",
+      "@radix-ui/react-select",
+      "@radix-ui/react-separator",
       "@tanstack/react-query",
       "class-variance-authority",
       "clsx",

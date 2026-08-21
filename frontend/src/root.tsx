@@ -45,13 +45,16 @@ export function Layout({ children }: { children: React.ReactNode }) {
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <meta name="theme-color" content="#167c54" />
+        <meta name="theme-color" content="#ffffff" />
         <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
         <Meta />
         <Links />
       </head>
       <body>
-        <a className="skip-link" href="#main-content">
+        <a
+          className="bg-primary text-primary-foreground fixed start-3 top-3 z-50 min-h-11 -translate-y-24 rounded-lg px-4 py-3 text-sm font-semibold focus:translate-y-0"
+          href="#main-content"
+        >
           رفتن به محتوای اصلی
         </a>
         {children}
@@ -80,14 +83,21 @@ export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
     : "لطفاً کمی بعد دوباره تلاش کنید.";
 
   return (
-    <main id="main-content" className="error-page" tabIndex={-1}>
-      <section className="surface surface--dialog">
-        <p className="section-kicker">
+    <main
+      id="main-content"
+      className="mx-auto flex min-h-screen w-full max-w-360 items-center px-4 py-16 sm:px-6 lg:px-10"
+      tabIndex={-1}
+    >
+      <section className="border-border mx-auto w-full max-w-xl rounded-xl border p-8 text-center">
+        <p className="text-primary mb-3 text-sm font-semibold">
           {notFound ? "خطای ۴۰۴" : "خطای سامانه"}
         </p>
-        <h1>{title}</h1>
-        <p>{detail}</p>
-        <a className="error-page-link" href="/">
+        <h1 className="text-3xl font-semibold tracking-tight">{title}</h1>
+        <p className="text-muted-foreground mt-4">{detail}</p>
+        <a
+          className="mt-6 inline-flex min-h-11 items-center text-sm font-semibold"
+          href="/"
+        >
           بازگشت به خانه
         </a>
       </section>
