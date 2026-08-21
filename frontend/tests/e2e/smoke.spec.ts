@@ -74,7 +74,6 @@ test("exposes the public fixture-backed prototype routes", async ({ page }) => {
   const routes = [
     ["/", "خانه‌ای برای اجاره پیدا کنید"],
     ["/search", "خانه‌های اجاره‌ای در تهران"],
-    ["/properties/saadat-abad-101", "آپارتمان روشن در سعادت‌آباد"],
     ["/operator/review", "صف بررسی آگهی‌ها"],
   ] as const;
 

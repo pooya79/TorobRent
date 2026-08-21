@@ -1,136 +1,157 @@
-import { AlertTriangle, Building2, CheckCircle2, MapPin } from "lucide-react";
-import { useState } from "react";
-import { useParams } from "react-router";
+import { Building2, Clock3, MapPin } from "lucide-react";
 
 import { PageMain } from "@/components/layout/PageMain";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { prototypeRepository } from "@/features/prototype/fixtures";
+import type { components } from "@/lib/api/schema";
 
-export function PropertyDetailPage() {
-  const { propertyId = "saadat-abad-101" } = useParams();
-  const property = prototypeRepository.getProperty(propertyId);
-  const listings = prototypeRepository.getListings(propertyId);
-  const [contactRevealed, setContactRevealed] = useState(false);
-  const hasDepositDisagreement =
-    new Set(listings.map((listing) => listing.rentalTerms.depositLabel)).size >
-    1;
+type PropertyDetail = components["schemas"]["PropertyDetail"];
+type FeatureState = components["schemas"]["FeatureStateEnum"];
+
+const featureLabels = {
+  parking: "پارکینگ",
+  elevator: "آسانسور",
+  storage: "انباری",
+  balcony: "بالکن",
+  furnished: "مبله",
+} as const;
+
+const featureStateLabels: Record<FeatureState, string> = {
+  present: "دارد",
+  absent: "ندارد",
+  unknown: "نامشخص",
+};
+
+function formatNumber(value: number) {
+  return new Intl.NumberFormat("fa-IR").format(value);
+}
+
+function formatFreshness(value: string) {
+  return new Intl.DateTimeFormat("fa-IR-u-ca-persian", {
+    dateStyle: "medium",
+  }).format(new Date(value));
+}
+
+export function PropertyDetailPage({ property }: { property: PropertyDetail }) {
+  const location = [
+    property.location.city,
+    property.location.district,
+    property.location.neighborhood,
+  ].join("، ");
+  const facts = [
+    `${formatNumber(property.area_sqm)} متر`,
+    `${formatNumber(property.room_count)} خواب`,
+    property.floor === null ? null : `طبقه ${formatNumber(property.floor)}`,
+    property.construction_year === null
+      ? null
+      : `سال ساخت ${formatNumber(property.construction_year)}`,
+    property.total_floors === null
+      ? null
+      : `${formatNumber(property.total_floors)} طبقه`,
+    property.units_per_floor === null
+      ? null
+      : `${formatNumber(property.units_per_floor)} واحد در هر طبقه`,
+    property.heating ? `گرمایش: ${property.heating}` : null,
+    property.cooling ? `سرمایش: ${property.cooling}` : null,
+  ].filter((fact): fact is string => fact !== null);
 
   return (
     <PageMain>
-      <div className="grid gap-8 lg:grid-cols-[minmax(0,1.45fr)_minmax(18rem,.55fr)]">
+      <div className="grid gap-8 lg:grid-cols-[minmax(0,1.35fr)_minmax(20rem,.65fr)]">
         <div>
           <div className="bg-muted text-muted-foreground flex aspect-[16/9] items-center justify-center rounded-xl">
-            <div className="flex flex-col items-center gap-3 text-sm">
+            <div className="flex flex-col items-center gap-3 px-4 text-center text-sm">
               <Building2 className="size-12" aria-hidden="true" />
-              تصویر تأییدشده‌ای برای این ملک وجود ندارد
+              تصویر مجازی برای این ملک منتشر نشده است
             </div>
           </div>
           <header className="py-7">
             <div className="text-muted-foreground mb-3 flex items-center gap-2 text-sm">
-              <MapPin className="size-4" aria-hidden="true" />{" "}
-              {property.location}
+              <MapPin className="size-4" aria-hidden="true" />
+              {location}
             </div>
             <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
               {property.title}
             </h1>
-            <p className="text-muted-foreground mt-3">
-              {property.facts.join(" · ")}
-            </p>
-          </header>
-        </div>
-
-        <Card className="h-fit shadow-none lg:sticky lg:top-8">
-          <CardHeader>
-            <Badge variant="secondary" className="w-fit">
-              تازه‌ترین شرایط اجاره
-            </Badge>
-            <p className="text-xl font-semibold">
-              ودیعه {property.rentalTerms.depositLabel}
-            </p>
-            <p>اجاره ماهانه {property.rentalTerms.monthlyRentLabel}</p>
-          </CardHeader>
-          <CardContent>
-            {contactRevealed ? (
-              <p
-                className="bg-muted rounded-lg p-4 text-center font-semibold"
-                aria-live="polite"
-              >
-                {property.contactLabel}
-              </p>
-            ) : (
-              <>
-                <Button
-                  className="w-full rounded-full"
-                  onClick={() => setContactRevealed(true)}
-                >
-                  مشاهده راه ارتباطی
-                </Button>
-                <p className="text-muted-foreground mt-3 text-xs">
-                  اطلاعات تماس فقط پس از درخواست شما نمایش داده می‌شود.
-                </p>
-              </>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      <section className="mt-10" aria-labelledby="listing-comparison-title">
-        <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-          <h2
-            id="listing-comparison-title"
-            className="text-2xl font-semibold tracking-tight"
-          >
-            مقایسه {property.listingCountLabel}
-          </h2>
-          <Badge variant="outline">
-            <CheckCircle2 aria-hidden="true" /> اطلاعات منابع جدا نگه داشته
-            شده‌اند
-          </Badge>
-        </div>
-        {hasDepositDisagreement && (
-          <Alert className="mb-5" variant="destructive">
-            <AlertTriangle aria-hidden="true" />
-            <AlertTitle>اختلاف در مبلغ ودیعه</AlertTitle>
-            <AlertDescription>
-              یکی از منابع مبلغ متفاوتی اعلام کرده است. پیش از ادامه شرایط را
-              بررسی کنید.
-            </AlertDescription>
-          </Alert>
-        )}
-        <div className="border-border overflow-x-auto rounded-xl border">
-          <table className="w-full min-w-180 border-collapse text-sm">
-            <thead className="bg-muted text-muted-foreground">
-              <tr>
-                <th className="p-4 text-start font-medium">منبع</th>
-                <th className="p-4 text-start font-medium">ودیعه</th>
-                <th className="p-4 text-start font-medium">اجاره ماهانه</th>
-                <th className="p-4 text-start font-medium">تازگی</th>
-                <th className="p-4 text-start font-medium">وضعیت</th>
-              </tr>
-            </thead>
-            <tbody>
-              {listings.map((listing) => (
-                <tr className="border-border border-t" key={listing.source}>
-                  <th className="p-4 text-start font-semibold">
-                    {listing.source}
-                  </th>
-                  <td className="p-4">{listing.rentalTerms.depositLabel}</td>
-                  <td className="p-4">
-                    {listing.rentalTerms.monthlyRentLabel}
-                  </td>
-                  <td className="p-4">{listing.freshness}</td>
-                  <td className="p-4">
-                    <Badge variant="secondary">{listing.status}</Badge>
-                  </td>
-                </tr>
+            <ul className="text-muted-foreground mt-3 flex flex-wrap gap-x-4 gap-y-1">
+              {facts.map((fact) => (
+                <li key={fact}>{fact}</li>
               ))}
-            </tbody>
-          </table>
+            </ul>
+          </header>
+
+          <section aria-labelledby="normalized-facts-title">
+            <h2
+              id="normalized-facts-title"
+              className="text-2xl font-semibold tracking-tight"
+            >
+              مشخصات تأییدشده ملک
+            </h2>
+            <div className="mt-4 flex flex-wrap gap-2">
+              {Object.entries(featureLabels).map(([feature, label]) => {
+                const state =
+                  property.features[feature as keyof typeof featureLabels];
+                return (
+                  <Badge key={feature} variant="outline">
+                    {label}: {featureStateLabels[state]}
+                  </Badge>
+                );
+              })}
+            </div>
+          </section>
         </div>
-      </section>
+
+        <section aria-labelledby="active-listings-title">
+          <h2
+            id="active-listings-title"
+            className="mb-4 text-2xl font-semibold tracking-tight"
+          >
+            آگهی‌های فعال
+          </h2>
+          <div className="space-y-4">
+            {property.listings.map((listing) => (
+              <Card className="shadow-none" key={listing.id}>
+                <article aria-label={`آگهی ${listing.source.display_name}`}>
+                  <CardHeader>
+                    <Badge variant="secondary" className="w-fit">
+                      {listing.source.display_name}
+                    </Badge>
+                    <p className="text-lg font-semibold">
+                      ودیعه {formatNumber(listing.rental_terms.deposit_toman)}{" "}
+                      تومان
+                    </p>
+                    <p>
+                      اجاره ماهانه{" "}
+                      {formatNumber(listing.rental_terms.monthly_rent_toman)}{" "}
+                      تومان
+                    </p>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    {listing.description && <p>{listing.description}</p>}
+                    <p className="text-muted-foreground flex items-center gap-2 text-sm">
+                      <Clock3 className="size-4" aria-hidden="true" />
+                      آخرین تأیید موجودی:{" "}
+                      <time dateTime={listing.availability_confirmed_at}>
+                        {formatFreshness(listing.availability_confirmed_at)}
+                      </time>
+                    </p>
+                    {listing.source.outbound_policy === "external_link" &&
+                      listing.external_url && (
+                        <a
+                          className="text-primary inline-flex min-h-11 items-center font-semibold"
+                          href={listing.external_url}
+                          rel="noopener noreferrer"
+                        >
+                          ادامه در منبع اصلی
+                        </a>
+                      )}
+                  </CardContent>
+                </article>
+              </Card>
+            ))}
+          </div>
+        </section>
+      </div>
     </PageMain>
   );
 }

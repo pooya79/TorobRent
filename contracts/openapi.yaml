@@ -284,6 +284,35 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: Request was throttled
+  /api/v1/catalog/properties/{property_id}/:
+    get:
+      operationId: v1_catalog_properties_retrieve
+      summary: Get a publicly available Property
+      parameters:
+      - in: path
+        name: property_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PropertyDetail'
+          description: ''
+        '404':
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: No Property with an Active Listing was found
   /api/v1/system/live/:
     get:
       operationId: v1_system_live_retrieve
@@ -343,6 +372,11 @@ paths:
           description: Authentication is required
 components:
   schemas:
+    CurrencyEnum:
+      enum:
+      - IRR
+      type: string
+      description: '* `IRR` - IRR'
     Detail:
       type: object
       properties:
@@ -350,6 +384,35 @@ components:
           type: string
       required:
       - detail
+    FeatureStateEnum:
+      enum:
+      - unknown
+      - present
+      - absent
+      type: string
+      description: |-
+        * `unknown` - نامشخص
+        * `present` - دارد
+        * `absent` - ندارد
+    Features:
+      type: object
+      properties:
+        parking:
+          $ref: '#/components/schemas/FeatureStateEnum'
+        elevator:
+          $ref: '#/components/schemas/FeatureStateEnum'
+        storage:
+          $ref: '#/components/schemas/FeatureStateEnum'
+        balcony:
+          $ref: '#/components/schemas/FeatureStateEnum'
+        furnished:
+          $ref: '#/components/schemas/FeatureStateEnum'
+      required:
+      - balcony
+      - elevator
+      - furnished
+      - parking
+      - storage
     Health:
       type: object
       properties:
@@ -357,6 +420,62 @@ components:
           $ref: '#/components/schemas/StatusEnum'
       required:
       - status
+    ListingPublic:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        source:
+          $ref: '#/components/schemas/SourcePublic'
+        rental_terms:
+          $ref: '#/components/schemas/RentalTermsPublic'
+        description:
+          type: string
+        source_claims: {}
+        external_url:
+          oneOf:
+          - type: string
+            format: uri
+          - type: string
+            maxLength: 0
+        is_negotiable:
+          type: boolean
+        is_convertible:
+          type: boolean
+        availability_confirmed_at:
+          type: string
+          format: date-time
+        available_until:
+          type: string
+          format: date-time
+      required:
+      - availability_confirmed_at
+      - available_until
+      - description
+      - external_url
+      - id
+      - is_convertible
+      - is_negotiable
+      - rental_terms
+      - source
+      - source_claims
+    Location:
+      type: object
+      properties:
+        city:
+          type: string
+        district:
+          type: string
+        district_number:
+          type: integer
+        neighborhood:
+          type: string
+      required:
+      - city
+      - district
+      - district_number
+      - neighborhood
     Login:
       type: object
       properties:
@@ -369,6 +488,16 @@ components:
       required:
       - email
       - password
+    OutboundPolicyEnum:
+      enum:
+      - direct_contact
+      - external_link
+      - disabled
+      type: string
+      description: |-
+        * `direct_contact` - تماس مستقیم
+        * `external_link` - پیوند منبع
+        * `disabled` - غیرفعال
     PasswordResetConfirm:
       type: object
       properties:
@@ -430,6 +559,79 @@ components:
       required:
       - code
       - message
+    PropertyDetail:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        canonical_slug:
+          type: string
+        location:
+          $ref: '#/components/schemas/Location'
+        property_type:
+          $ref: '#/components/schemas/PropertyTypeEnum'
+        property_type_label:
+          type: string
+        area_sqm:
+          type: integer
+        room_count:
+          type: integer
+        construction_year:
+          type:
+          - integer
+          - 'null'
+        floor:
+          type:
+          - integer
+          - 'null'
+        total_floors:
+          type:
+          - integer
+          - 'null'
+        units_per_floor:
+          type:
+          - integer
+          - 'null'
+        heating:
+          type: string
+        cooling:
+          type: string
+        features:
+          $ref: '#/components/schemas/Features'
+        listings:
+          type: array
+          items:
+            $ref: '#/components/schemas/ListingPublic'
+      required:
+      - area_sqm
+      - canonical_slug
+      - construction_year
+      - cooling
+      - features
+      - floor
+      - heating
+      - id
+      - listings
+      - location
+      - property_type
+      - property_type_label
+      - room_count
+      - title
+      - total_floors
+      - units_per_floor
+    PropertyTypeEnum:
+      enum:
+      - apartment
+      - house
+      - villa
+      type: string
+      description: |-
+        * `apartment` - آپارتمان
+        * `house` - خانه
+        * `villa` - ویلا
     Registration:
       type: object
       properties:
@@ -442,6 +644,25 @@ components:
       required:
       - email
       - password
+    RentalTermsPublic:
+      type: object
+      properties:
+        deposit_rial:
+          type: integer
+        monthly_rent_rial:
+          type: integer
+        currency:
+          $ref: '#/components/schemas/CurrencyEnum'
+        deposit_toman:
+          type: integer
+        monthly_rent_toman:
+          type: integer
+      required:
+      - currency
+      - deposit_rial
+      - deposit_toman
+      - monthly_rent_rial
+      - monthly_rent_toman
     Session:
       type: object
       properties:
@@ -452,6 +673,23 @@ components:
       required:
       - authenticated
       - csrf_token
+    SourcePublic:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        display_name:
+          type: string
+        outbound_policy:
+          $ref: '#/components/schemas/OutboundPolicyEnum'
+      required:
+      - display_name
+      - id
+      - name
+      - outbound_policy
     StatusEnum:
       enum:
       - ok

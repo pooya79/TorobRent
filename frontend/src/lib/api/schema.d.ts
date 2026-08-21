@@ -123,6 +123,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/v1/catalog/properties/{property_id}/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get a publicly available Property */
+    get: operations["v1_catalog_properties_retrieve"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/v1/system/live/": {
     parameters: {
       query?: never;
@@ -178,17 +195,64 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
   schemas: {
+    /**
+     * @description * `IRR` - IRR
+     * @enum {string}
+     */
+    CurrencyEnum: "IRR";
     Detail: {
       detail: string;
     };
+    /**
+     * @description * `unknown` - نامشخص
+     *     * `present` - دارد
+     *     * `absent` - ندارد
+     * @enum {string}
+     */
+    FeatureStateEnum: "unknown" | "present" | "absent";
+    Features: {
+      parking: components["schemas"]["FeatureStateEnum"];
+      elevator: components["schemas"]["FeatureStateEnum"];
+      storage: components["schemas"]["FeatureStateEnum"];
+      balcony: components["schemas"]["FeatureStateEnum"];
+      furnished: components["schemas"]["FeatureStateEnum"];
+    };
     Health: {
       status: components["schemas"]["StatusEnum"];
+    };
+    ListingPublic: {
+      /** Format: uuid */
+      id: string;
+      source: components["schemas"]["SourcePublic"];
+      rental_terms: components["schemas"]["RentalTermsPublic"];
+      description: string;
+      source_claims: unknown;
+      external_url: string;
+      is_negotiable: boolean;
+      is_convertible: boolean;
+      /** Format: date-time */
+      availability_confirmed_at: string;
+      /** Format: date-time */
+      available_until: string;
+    };
+    Location: {
+      city: string;
+      district: string;
+      district_number: number;
+      neighborhood: string;
     };
     Login: {
       /** Format: email */
       email: string;
       password: string;
     };
+    /**
+     * @description * `direct_contact` - تماس مستقیم
+     *     * `external_link` - پیوند منبع
+     *     * `disabled` - غیرفعال
+     * @enum {string}
+     */
+    OutboundPolicyEnum: "direct_contact" | "external_link" | "disabled";
     PasswordResetConfirm: {
       token: string;
       new_password: string;
@@ -214,14 +278,54 @@ export interface components {
       code: string;
       message: string;
     };
+    PropertyDetail: {
+      /** Format: uuid */
+      id: string;
+      title: string;
+      canonical_slug: string;
+      location: components["schemas"]["Location"];
+      property_type: components["schemas"]["PropertyTypeEnum"];
+      property_type_label: string;
+      area_sqm: number;
+      room_count: number;
+      construction_year: number | null;
+      floor: number | null;
+      total_floors: number | null;
+      units_per_floor: number | null;
+      heating: string;
+      cooling: string;
+      features: components["schemas"]["Features"];
+      listings: components["schemas"]["ListingPublic"][];
+    };
+    /**
+     * @description * `apartment` - آپارتمان
+     *     * `house` - خانه
+     *     * `villa` - ویلا
+     * @enum {string}
+     */
+    PropertyTypeEnum: "apartment" | "house" | "villa";
     Registration: {
       /** Format: email */
       email: string;
       password: string;
     };
+    RentalTermsPublic: {
+      deposit_rial: number;
+      monthly_rent_rial: number;
+      currency: components["schemas"]["CurrencyEnum"];
+      deposit_toman: number;
+      monthly_rent_toman: number;
+    };
     Session: {
       authenticated: boolean;
       csrf_token: string;
+    };
+    SourcePublic: {
+      /** Format: uuid */
+      id: string;
+      name: string;
+      display_name: string;
+      outbound_policy: components["schemas"]["OutboundPolicyEnum"];
     };
     /**
      * @description * `ok` - ok
@@ -601,6 +705,36 @@ export interface operations {
       };
       /** @description Request was throttled */
       429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  v1_catalog_properties_retrieve: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        property_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PropertyDetail"];
+        };
+      };
+      /** @description No Property with an Active Listing was found */
+      404: {
         headers: {
           [name: string]: unknown;
         };
