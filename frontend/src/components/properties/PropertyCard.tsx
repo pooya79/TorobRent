@@ -8,13 +8,21 @@ import {
   CardFooter,
   CardHeader,
 } from "@/components/ui/card";
-import type { PrototypePropertySummary } from "@/features/prototype/fixtures";
+export type PropertyCardData = {
+  id: string;
+  title: string;
+  location: string;
+  facts: readonly string[];
+  imageUrl?: string;
+  listingCountLabel: string;
+  rentalTerms: {
+    depositLabel: string;
+    monthlyRentLabel: string;
+  };
+  freshnessLabel: string;
+};
 
-export function PropertyCard({
-  property,
-}: {
-  property: PrototypePropertySummary;
-}) {
+export function PropertyCard({ property }: { property: PropertyCardData }) {
   return (
     <Card className="group relative gap-0 overflow-hidden border-0 py-0 shadow-none">
       <div className="bg-muted relative aspect-[4/3] overflow-hidden rounded-xl">

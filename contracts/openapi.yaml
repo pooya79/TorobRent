@@ -284,6 +284,64 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: Request was throttled
+  /api/v1/catalog/locations/:
+    get:
+      operationId: v1_catalog_locations_list
+      summary: Autocomplete reviewed Tehran locations
+      parameters:
+      - in: query
+        name: q
+        schema:
+          type: string
+        description: Persian city, municipal district, or neighborhood name
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/LocationSuggestion'
+          description: ''
+  /api/v1/catalog/properties/:
+    get:
+      operationId: v1_catalog_properties_list
+      summary: Search Properties with an Active Listing
+      parameters:
+      - in: query
+        name: location
+        schema:
+          type: string
+        description: Location UUID or tolerant Persian location text
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedPropertySummaryList'
+          description: ''
   /api/v1/catalog/properties/{property_id}/:
     get:
       operationId: v1_catalog_properties_retrieve
@@ -420,6 +478,16 @@ components:
           $ref: '#/components/schemas/StatusEnum'
       required:
       - status
+    KindEnum:
+      enum:
+      - city
+      - district
+      - neighborhood
+      type: string
+      description: |-
+        * `city` - city
+        * `district` - district
+        * `neighborhood` - neighborhood
     ListingPublic:
       type: object
       properties:
@@ -476,6 +544,23 @@ components:
       - district
       - district_number
       - neighborhood
+    LocationSuggestion:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        kind:
+          $ref: '#/components/schemas/KindEnum'
+        name:
+          type: string
+        label:
+          type: string
+      required:
+      - id
+      - kind
+      - label
+      - name
     Login:
       type: object
       properties:
@@ -498,6 +583,31 @@ components:
         * `direct_contact` - تماس مستقیم
         * `external_link` - پیوند منبع
         * `disabled` - غیرفعال
+    PaginatedPropertySummaryList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type:
+          - string
+          - 'null'
+          format: uri
+          example: http://api.example.org/properties/?page=2
+        previous:
+          type:
+          - string
+          - 'null'
+          format: uri
+          example: http://api.example.org/properties/?page=1
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/PropertySummary'
     PasswordResetConfirm:
       type: object
       properties:
@@ -622,6 +732,54 @@ components:
       - title
       - total_floors
       - units_per_floor
+    PropertySummary:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        canonical_slug:
+          type: string
+        location:
+          allOf:
+          - $ref: '#/components/schemas/Location'
+          readOnly: true
+        property_type:
+          $ref: '#/components/schemas/PropertyTypeEnum'
+        property_type_label:
+          type: string
+        area_sqm:
+          type: integer
+        room_count:
+          type: integer
+        construction_year:
+          type:
+          - integer
+          - 'null'
+        listing_count:
+          type: integer
+        rental_terms:
+          allOf:
+          - $ref: '#/components/schemas/RentalTermsPublic'
+          readOnly: true
+        availability_confirmed_at:
+          type: string
+          format: date-time
+      required:
+      - area_sqm
+      - availability_confirmed_at
+      - canonical_slug
+      - construction_year
+      - id
+      - listing_count
+      - location
+      - property_type
+      - property_type_label
+      - rental_terms
+      - room_count
+      - title
     PropertyTypeEnum:
       enum:
       - apartment
