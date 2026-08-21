@@ -1,0 +1,93 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18.6-alpine
+        env:
+          POSTGRES_DB: app_test
+          POSTGRES_USER: app
+          POSTGRES_PASSWORD: app
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U app -d app_test"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      TEST_DATABASE_URL: postgresql://app:app@localhost:5432/app_test
+      DJANGO_SECRET_KEY: ci-only-production-check-secret-key-with-more-than-fifty-characters
+      DATABASE_URL: postgresql://app:app@localhost:5432/app_test
+      REDIS_URL: redis://localhost:6379/0
+      ALLOWED_HOSTS: example.com
+      CSRF_TRUSTED_ORIGINS: https://example.com
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10
+        with:
+          version: "0.12.5"
+          enable-cache: true
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+      - run: uv sync --locked
+        working-directory: backend
+      - run: uv run ruff check .
+        working-directory: backend
+      - run: uv run ruff format --check .
+        working-directory: backend
+      - run: uv run mypy apps config
+        working-directory: backend
+      - run: uv run pytest --cov --cov-report=term-missing
+        working-directory: backend
+      - run: uv run python manage.py makemigrations --check --dry-run --settings=config.settings.test
+        working-directory: backend
+      - run: uv run python manage.py check --deploy --settings=config.settings.production
+        working-directory: backend
+
+  frontend-and-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10
+        with:
+          version: "0.12.5"
+          enable-cache: true
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+      - uses: pnpm/action-setup@v6
+        with:
+          version: "11.22.0"
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24.19.0"
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+      - run: uv sync --locked
+        working-directory: backend
+      - run: pnpm install --frozen-lockfile
+        working-directory: frontend
+      - run: pnpm lint && pnpm format:check && pnpm typecheck && pnpm test && pnpm build
+        working-directory: frontend
+      - run: pnpm exec playwright install --with-deps chromium
+        working-directory: frontend
+      - run: pnpm test:e2e
+        working-directory: frontend
+      - run: make api-client
+      - run: pnpm api:lint
+        working-directory: frontend
+      - run: git diff --exit-code -- contracts/openapi.yaml frontend/src/lib/api/schema.d.ts
+
+  containers:
+    runs-on: ubuntu-latest
+    needs: [backend, frontend-and-contract]
+    steps:
+      - uses: actions/checkout@v7
+      - run: docker build -f backend/Dockerfile -t app-backend .
+      - run: docker build -f frontend/Dockerfile -t app-frontend .

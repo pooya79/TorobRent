@@ -1,0 +1,71 @@
+[project]
+name = "fintech-template-backend"
+version = "0.1.0"
+description = "Domain-neutral Django API template"
+requires-python = ">=3.14,<3.15"
+dependencies = [
+  "argon2-cffi>=25.1,<26",
+  "celery[redis]>=5.6,<5.7",
+  "django>=6.1,<6.2",
+  "django-environ>=0.14,<0.15",
+  "django-redis>=7.0,<8",
+  "djangorestframework>=3.18,<3.19",
+  "drf-spectacular>=0.30,<0.31",
+  "drf-spectacular-sidecar>=2026.7,<2027",
+  "psycopg[binary,pool]>=3.2,<4",
+  "sentry-sdk[django]>=2.68,<3",
+  "structlog>=26.1,<27",
+  "uvicorn[standard]>=0.52,<0.53",
+  "whitenoise>=6.9,<7",
+]
+
+[dependency-groups]
+dev = [
+  "django-stubs[compatible-mypy]>=6.1,<7",
+  "djangorestframework-stubs[compatible-mypy]>=3.18,<4",
+  "factory-boy>=3.3,<4",
+  "mypy>=2.3,<3",
+  "pre-commit>=4.3,<5",
+  "pytest>=9.1,<10",
+  "pytest-cov>=7.1,<8",
+  "pytest-django>=4.11,<5",
+  "ruff>=0.16,<0.17",
+]
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "config.settings.test"
+python_files = ["test_*.py"]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers"
+
+[tool.ruff]
+target-version = "py314"
+line-length = 100
+preview = true
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "DJ"]
+ignore = ["DJ001"]
+
+[tool.mypy]
+python_version = "3.14"
+plugins = ["mypy_django_plugin.main", "mypy_drf_plugin.main"]
+strict = true
+exclude = ["migrations"]
+
+[tool.django-stubs]
+django_settings_module = "config.settings.test"
+strict_model_abstract_attrs = false
+
+[[tool.mypy.overrides]]
+module = ["celery.*", "environ.*"]
+ignore_missing_imports = true
+
+[tool.coverage.run]
+source = ["apps", "config"]
+omit = ["*/migrations/*", "*/settings/*", "*/asgi.py"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+fail_under = 85

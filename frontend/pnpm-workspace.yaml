@@ -1,0 +1,8 @@
+minimumReleaseAge: 1440
+minimumReleaseAgeExclude:
+  - baseline-browser-mapping@2.11.16
+  - electron-to-chromium@1.5.412
+minimumReleaseAgeExcludePrune: true
+allowBuilds:
+  esbuild: true
+  msw: false

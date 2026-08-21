@@ -1,0 +1,19 @@
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.16.4
+    hooks:
+      - id: ruff-check
+        args: [--fix]
+      - id: ruff-format
+  - repo: local
+    hooks:
+      - id: frontend-lint
+        name: frontend lint
+        entry: pnpm --dir frontend lint
+        language: system
+        pass_filenames: false
+      - id: frontend-format
+        name: frontend format check
+        entry: pnpm --dir frontend format:check
+        language: system
+        pass_filenames: false
