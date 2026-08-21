@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Building2,
   Check,
@@ -6,6 +6,7 @@ import {
   Home,
   LayoutDashboard,
   LogIn,
+  LogOut,
   Mail,
   Menu,
   Plus,
@@ -25,6 +26,8 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { api } from "@/lib/api/client";
+import { apiError } from "@/lib/api/errors";
+import { sessionQuery } from "@/features/session/queries";
 import { cn } from "@/lib/utils";
 
 const navigation = [
@@ -32,7 +35,6 @@ const navigation = [
   { label: "جست‌وجو", to: "/search", icon: Search },
   { label: "راهنما", to: "/guide", icon: CircleHelp },
   { label: "تماس", to: "/contact", icon: Mail },
-  { label: "ورود", to: "/login", icon: LogIn },
 ] as const;
 
 const navigationClass = ({ isActive }: { isActive: boolean }) =>
@@ -58,7 +60,15 @@ function Brand() {
   );
 }
 
-function PrimaryNavigation({ mobile = false }: { mobile?: boolean }) {
+function PrimaryNavigation({
+  authenticated,
+  logout,
+  mobile = false,
+}: {
+  authenticated: boolean;
+  logout: () => void;
+  mobile?: boolean;
+}) {
   const links = (
     <>
       {navigation.map((item) => {
@@ -81,6 +91,19 @@ function PrimaryNavigation({ mobile = false }: { mobile?: boolean }) {
           <span key={item.to}>{link}</span>
         );
       })}
+      {authenticated ? (
+        <Button
+          className="min-h-11 justify-start px-3"
+          variant="ghost"
+          onClick={logout}
+        >
+          <LogOut aria-hidden="true" /> خروج
+        </Button>
+      ) : (
+        <NavLink className={navigationClass} to="/login">
+          <LogIn className="size-5" aria-hidden="true" /> ورود
+        </NavLink>
+      )}
     </>
   );
 
@@ -102,6 +125,21 @@ function PrimaryNavigation({ mobile = false }: { mobile?: boolean }) {
 }
 
 export function ProductShell({ children }: { children: ReactNode }) {
+  const queryClient = useQueryClient();
+  const session = useQuery(sessionQuery);
+  const logout = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await api.POST("/api/v1/auth/logout/");
+      if (error || !data) throw apiError(error);
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.removeQueries({ queryKey: ["current-user"] });
+      queryClient.setQueryData(["session"], (current: typeof session.data) =>
+        current ? { ...current, authenticated: false } : current,
+      );
+    },
+  });
   const health = useQuery({
     queryKey: ["health"],
     refetchInterval: (query) =>
@@ -120,7 +158,10 @@ export function ProductShell({ children }: { children: ReactNode }) {
       <aside className="border-border bg-background fixed inset-y-0 start-0 z-30 hidden w-72 border-e px-5 py-6 lg:flex lg:flex-col">
         <Brand />
         <div className="mt-10 flex-1">
-          <PrimaryNavigation />
+          <PrimaryNavigation
+            authenticated={session.data?.authenticated === true}
+            logout={() => logout.mutate()}
+          />
         </div>
         <p className="text-muted-foreground text-xs leading-6">
           جست‌وجو و مقایسه شفاف آگهی‌های اجاره
@@ -145,7 +186,11 @@ export function ProductShell({ children }: { children: ReactNode }) {
               <SheetDescription>به بخش موردنظر بروید.</SheetDescription>
             </SheetHeader>
             <div className="mt-6">
-              <PrimaryNavigation mobile />
+              <PrimaryNavigation
+                authenticated={session.data?.authenticated === true}
+                logout={() => logout.mutate()}
+                mobile
+              />
             </div>
           </SheetContent>
         </Sheet>

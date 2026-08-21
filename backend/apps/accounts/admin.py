@@ -7,8 +7,9 @@ from .models import User
 @admin.register(User)
 class UserAdmin(DjangoUserAdmin):  # type: ignore[type-arg]
     ordering = ("email",)
-    list_display = ("email", "is_staff", "is_active")
+    list_display = ("email", "email_verified_at", "is_staff", "is_active")
     search_fields = ("email",)
+    readonly_fields = ("email_verified_at",)
     fieldsets = (
         (None, {"fields": ("email", "password")}),
         ("Personal info", {"fields": ("first_name", "last_name")}),
@@ -16,7 +17,7 @@ class UserAdmin(DjangoUserAdmin):  # type: ignore[type-arg]
             "Permissions",
             {"fields": ("is_active", "is_staff", "is_superuser", "groups", "user_permissions")},
         ),
-        ("Important dates", {"fields": ("last_login", "date_joined")}),
+        ("Important dates", {"fields": ("email_verified_at", "last_login", "date_joined")}),
     )
     add_fieldsets = (
         (

@@ -108,6 +108,15 @@ REST_FRAMEWORK = {
         "apps.common.authentication.SessionAuthentication",
     ],
     "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.IsAuthenticated"],
+    "DEFAULT_PARSER_CLASSES": ["rest_framework.parsers.JSONParser"],
+    "DEFAULT_THROTTLE_CLASSES": ["rest_framework.throttling.ScopedRateThrottle"],
+    "DEFAULT_THROTTLE_RATES": {
+        "registration": "5/hour",
+        "email_verification": "20/hour",
+        "login": "10/minute",
+        "password_reset_request": "5/hour",
+        "password_reset_confirm": "10/hour",
+    },
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
     "DEFAULT_PAGINATION_CLASS": "apps.common.pagination.StandardPageNumberPagination",
     "EXCEPTION_HANDLER": "apps.common.exceptions.problem_exception_handler",
@@ -153,6 +162,8 @@ def build_mailer_config(default_backend: str) -> dict[str, dict[str, object]]:
 
 MAILERS = build_mailer_config("django.core.mail.backends.console.EmailBackend")
 DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="noreply@example.com")
+FRONTEND_ORIGIN = env("FRONTEND_ORIGIN", default="http://localhost:5173")
+EMAIL_VERIFICATION_TIMEOUT = 60 * 60 * 24
 
 LOGGING = {
     "version": 1,

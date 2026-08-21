@@ -19,7 +19,7 @@ else:
         }
     }
 CACHES = {"default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"}}
-MAILERS = {"default": {"BACKEND": "django.core.mail.backends.locmem.EmailBackend"}}
+MAILERS = build_mailer_config("django.core.mail.backends.locmem.EmailBackend")  # noqa: F405
 CELERY_TASK_ALWAYS_EAGER = True
 STORAGES = {
     "default": {"BACKEND": "django.core.files.storage.InMemoryStorage"},
