@@ -13,6 +13,7 @@ export default tseslint.config(
       "playwright-report",
       "src/lib/api/schema.d.ts",
       "eslint.config.js",
+      "scripts/*.mjs",
     ],
   },
   js.configs.recommended,

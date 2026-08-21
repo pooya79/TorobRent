@@ -48,25 +48,58 @@ test("keeps navigation usable on a mobile viewport", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/");
 
+  const documentWidth = await page.evaluate(
+    () => document.documentElement.scrollWidth,
+  );
+  expect(documentWidth).toBeLessThanOrEqual(390);
+  await page.getByRole("combobox", { name: "شهر یا محله" }).focus();
+  await expect(
+    page.getByRole("combobox", { name: "شهر یا محله" }),
+  ).toBeFocused();
+
+  await page.getByRole("button", { name: "باز کردن فهرست راهبری" }).click();
   const navigation = page.getByRole("navigation", { name: "راهبری اصلی" });
   for (const name of ["خانه", "راهنما", "تماس", "ورود", "ثبت آگهی"]) {
     await expect(navigation.getByRole("link", { name })).toBeVisible();
   }
 
-  const documentWidth = await page.evaluate(
-    () => document.documentElement.scrollWidth,
-  );
-  expect(documentWidth).toBeLessThanOrEqual(390);
-  await page.getByRole("searchbox", { name: "شهر یا محله" }).focus();
-  await expect(
-    page.getByRole("searchbox", { name: "شهر یا محله" }),
-  ).toBeFocused();
-
   await navigation.getByRole("link", { name: "راهنما" }).click();
   await expect(page.getByRole("main")).toBeFocused();
   await expect(
-    page.getByRole("navigation", { name: "راهبری اصلی" }),
+    page.getByRole("heading", { name: "راهنمای ترب‌رنت" }),
   ).toBeVisible();
+});
+
+test("exposes all six fixture-backed prototype routes", async ({ page }) => {
+  const routes = [
+    ["/", "خانه‌ای برای اجاره پیدا کنید"],
+    ["/search", "خانه‌های اجاره‌ای در تهران"],
+    ["/properties/saadat-abad-101", "آپارتمان روشن در سعادت‌آباد"],
+    ["/add-submission", "ثبت آگهی اجاره"],
+    ["/dashboard", "آگهی‌های من"],
+    ["/operator/review", "صف بررسی آگهی‌ها"],
+  ] as const;
+
+  for (const [path, heading] of routes) {
+    await page.goto(path);
+    await expect(
+      page.getByRole("heading", { name: heading, level: 1 }),
+    ).toBeVisible();
+  }
+});
+
+test("keeps focus inside the mobile filter Sheet and restores it on close", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/search");
+  await expect(page.getByText("سامانه در دسترس است")).toBeVisible();
+
+  const trigger = page.getByRole("button", { name: "فیلترها" });
+  await trigger.click();
+  await expect(page.getByRole("dialog", { name: "فیلتر نتایج" })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(trigger).toBeFocused();
 });
 
 test("routes the versioned Django health API through the same origin", async ({
