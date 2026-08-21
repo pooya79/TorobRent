@@ -18,7 +18,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
-    "test:e2e:compose": "E2E_BASE_URL=http://127.0.0.1:5173 playwright test",
+    "test:e2e:compose": "E2E_BASE_URL=http://localhost:5173 E2E_MAILPIT_URL=http://localhost:8025 playwright test",
     "capture:design": "CAPTURE_DESIGN=1 playwright test --grep @visual",
     "style:guard": "node scripts/check-no-semantic-css.mjs",
     "api:lint": "redocly lint ../contracts/openapi.yaml",

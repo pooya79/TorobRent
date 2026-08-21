@@ -11,6 +11,7 @@ class User(AbstractUser):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     username = None  # type: ignore[assignment]
     email = models.EmailField(unique=True)
+    email_verified_at = models.DateTimeField(null=True, blank=True)
 
     USERNAME_FIELD: ClassVar[str] = "email"  # type: ignore[misc]
     REQUIRED_FIELDS: ClassVar[list[str]] = []
@@ -19,3 +20,7 @@ class User(AbstractUser):
 
     def __str__(self) -> str:
         return self.email
+
+    @property
+    def email_verified(self) -> bool:
+        return self.email_verified_at is not None

@@ -29,6 +29,8 @@ expected differences from the registry's unrestricted latest tags.
 
 The default `compose.yaml` is development-only: it bind-mounts source and runs the React Router
 development runtime plus Uvicorn with reload enabled, behind nginx on port 5173.
+Mailpit captures local registration and recovery email; its inbox is available at
+`http://localhost:8025`, and captured links return to the frontend at `http://localhost:5173`.
 `compose.prod.yaml` builds immutable production targets, keeps data services private, runs
 migrations as a one-shot service, and uses the React Node runtime, Uvicorn, and nginx. Copy
 `.env.production.example` to `.env.production` and replace all placeholder credentials before

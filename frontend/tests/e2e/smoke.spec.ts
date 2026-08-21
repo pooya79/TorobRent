@@ -70,13 +70,11 @@ test("keeps navigation usable on a mobile viewport", async ({ page }) => {
   ).toBeVisible();
 });
 
-test("exposes all six fixture-backed prototype routes", async ({ page }) => {
+test("exposes the public fixture-backed prototype routes", async ({ page }) => {
   const routes = [
     ["/", "خانه‌ای برای اجاره پیدا کنید"],
     ["/search", "خانه‌های اجاره‌ای در تهران"],
     ["/properties/saadat-abad-101", "آپارتمان روشن در سعادت‌آباد"],
-    ["/add-submission", "ثبت آگهی اجاره"],
-    ["/dashboard", "آگهی‌های من"],
     ["/operator/review", "صف بررسی آگهی‌ها"],
   ] as const;
 
@@ -86,6 +84,19 @@ test("exposes all six fixture-backed prototype routes", async ({ page }) => {
       page.getByRole("heading", { name: heading, level: 1 }),
     ).toBeVisible();
   }
+});
+
+test("preserves protected Submitter navigation across login", async ({
+  page,
+}) => {
+  await page.goto("/add-submission?step=3");
+
+  await expect(page).toHaveURL(
+    /\/login\?returnTo=%2Fadd-submission%3Fstep%3D3$/,
+  );
+  await expect(
+    page.getByRole("heading", { name: "ورود به ترب‌رنت" }),
+  ).toBeVisible();
 });
 
 test("keeps focus inside the mobile filter Sheet and restores it on close", async ({

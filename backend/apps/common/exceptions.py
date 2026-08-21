@@ -40,6 +40,8 @@ def problem_exception_handler(exc: Exception, context: dict[str, Any]) -> Respon
     detail = title
     if isinstance(response.data, Mapping) and "detail" in response.data:
         detail = str(response.data["detail"])
+    elif field_errors:
+        detail = next(error["message"] for errors in field_errors.values() for error in errors)
 
     request = context.get("request")
     body: dict[str, Any] = {

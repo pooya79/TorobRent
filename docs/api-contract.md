@@ -25,9 +25,14 @@ Authentication uses an HTTP-only, `SameSite=Lax` Django session cookie. The appl
 same-origin and CORS is disabled. `GET /api/v1/auth/session/` returns session state and a CSRF token;
 the centralized frontend client attaches it as `X-CSRFToken` to unsafe requests.
 
-TorobRent does not define login, logout, registration, recovery, verification, roles, or
-invitations. Add those as explicit product requirements. Rotate sessions at authentication and
-permission-boundary changes when implementing them.
+Submitters register and authenticate with email and password. Registration, verification, login,
+logout, password-reset request and confirmation are explicit `/api/v1/auth/` operations. Recovery
+requests always return the same response whether an account exists. Verification and reset links
+are time-limited and one-time. Sessions and CSRF secrets rotate at authentication boundaries.
+
+`GET /api/v1/users/me/` returns the current account, including `email_verified`. Submitter write
+flows must require that state; the browser also blocks entry to Submission routes until the email
+has been verified.
 
 ## Changing the contract
 
