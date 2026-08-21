@@ -18,7 +18,9 @@ export function ProductShell({ children }: { children: ReactNode }) {
     queryKey: ["health"],
     queryFn: async () => {
       const { data, error } = await api.GET("/api/v1/system/ready/");
-      if (error || !data) return { status: "unavailable" as const };
+      if (error || !data) {
+        throw new Error("Readiness check failed");
+      }
       return data;
     },
   });
