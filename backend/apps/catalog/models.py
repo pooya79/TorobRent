@@ -7,6 +7,8 @@ from django.db.models import Q
 from django.utils import timezone
 from django.utils.text import slugify
 
+from apps.common.media import MediaVariantKind
+
 from .money import rial_to_toman
 
 TEHRAN_CITY_ID = uuid.UUID("11111111-1111-4111-8111-111111111111")
@@ -290,6 +292,54 @@ class Listing(models.Model):
             errors["direct_phone"] = "شماره تماس مستقیم الزامی است."
         if errors:
             raise ValidationError(errors)
+
+
+class ListingImage(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    listing = models.ForeignKey(Listing, on_delete=models.CASCADE, related_name="images")
+    position = models.PositiveSmallIntegerField()
+    is_primary = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ("position",)
+        constraints = [
+            models.UniqueConstraint(
+                fields=("listing", "position"),
+                name="unique_listing_image_position",
+            ),
+            models.UniqueConstraint(
+                fields=("listing",),
+                condition=Q(is_primary=True),
+                name="one_primary_image_per_listing",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.listing_id}: {self.position}"
+
+
+class ListingImageVariant(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    image = models.ForeignKey(ListingImage, on_delete=models.CASCADE, related_name="variants")
+    kind = models.CharField(max_length=8, choices=MediaVariantKind)
+    asset = models.ForeignKey(
+        "submissions.MediaAsset",
+        on_delete=models.PROTECT,
+        related_name="listing_variants",
+    )
+
+    class Meta:
+        ordering = ("kind",)
+        constraints = [
+            models.UniqueConstraint(
+                fields=("image", "kind"),
+                name="unique_listing_image_variant",
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.image_id}: {self.kind}"
 
 
 class ListingGroupingAction(models.TextChoices):

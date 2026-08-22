@@ -9,10 +9,14 @@ from django.core.files.base import ContentFile, File
 from django.core.files.storage import Storage
 from django.core.files.uploadedfile import UploadedFile
 from django.db import models, transaction
+from django.db.models.deletion import ProtectedError
 from django.utils import timezone
 from PIL import Image, ImageOps, UnidentifiedImageError
 
+from apps.catalog.models import Listing, ListingImage, ListingImageVariant, ListingState
+
 from .models import (
+    MediaAsset,
     Submission,
     SubmissionImage,
     SubmissionImageStatus,
@@ -75,7 +79,8 @@ def add_submission_image(*, submission: Submission, upload: UploadedFile[bytes])
 
 def _file_is_referenced(name: str) -> bool:
     return (
-        SubmissionImage.objects.filter(source=name).exists()
+        MediaAsset.objects.filter(file=name).exists()
+        or SubmissionImage.objects.filter(source=name).exists()
         or SubmissionImageVariant.objects.filter(file=name).exists()
     )
 
@@ -86,18 +91,19 @@ def _delete_unreferenced_files(files: list[tuple[Storage, str]]) -> None:
             storage.delete(name)
 
 
-def _image_files(image: SubmissionImage) -> list[tuple[Storage, str]]:
-    files: list[tuple[Storage, str]] = []
-    if image.source.name:
-        files.append((image.source.storage, image.source.name))
-    for variant in image.variants.all():
-        if variant.file.name:
-            files.append((variant.file.storage, variant.file.name))
-    return files
-
-
 def schedule_file_cleanup(files: list[tuple[Storage, str]]) -> None:
     transaction.on_commit(lambda: _delete_unreferenced_files(files))
+
+
+def schedule_asset_cleanup(asset_id: UUID) -> None:
+    transaction.on_commit(lambda: _delete_orphaned_asset(asset_id))
+
+
+def _delete_orphaned_asset(asset_id: UUID) -> None:
+    try:
+        MediaAsset.objects.get(id=asset_id).delete()
+    except MediaAsset.DoesNotExist, ProtectedError:
+        return
 
 
 @transaction.atomic
@@ -119,7 +125,7 @@ def reorder_submission_images(
             position=position,
             is_primary=image_id == primary_image_id,
         )
-    return list(submission.images.prefetch_related("variants"))
+    return list(submission.images.prefetch_related("variants__asset"))
 
 
 def submission_media_is_complete(submission: Submission) -> bool:
@@ -154,10 +160,49 @@ def ensure_submission_media_complete(*, submission: Submission) -> None:
 
 
 @transaction.atomic
+def retain_submission_media_for_listing(
+    *, submission: Submission, listing: Listing
+) -> list[ListingImage]:
+    submission = Submission.objects.select_for_update().get(id=submission.id)
+    listing = Listing.objects.select_for_update().get(id=listing.id)
+    if listing.state != ListingState.PUBLISHED:
+        raise ValidationError("رسانه فقط برای Listing با وضعیت PUBLISHED قابل نگهداری است.")
+    ensure_submission_media_complete(submission=submission)
+
+    ListingImage.objects.filter(listing=listing).delete()
+    retained: list[ListingImage] = []
+    for image in submission.images.prefetch_related("variants__asset").order_by("position"):
+        listing_image = ListingImage.objects.create(
+            listing=listing,
+            position=image.position,
+            is_primary=image.is_primary,
+        )
+        retained.append(listing_image)
+        for variant in image.variants.all():
+            asset = variant.asset
+            if asset is None:
+                asset, _created = MediaAsset.objects.get_or_create(
+                    file=variant.file.name,
+                    defaults={
+                        "width": variant.width,
+                        "height": variant.height,
+                        "byte_size": variant.byte_size,
+                    },
+                )
+                variant.asset = asset
+                variant.save(update_fields=("asset",))
+            ListingImageVariant.objects.create(
+                image=listing_image,
+                kind=variant.kind,
+                asset=asset,
+            )
+    return retained
+
+
+@transaction.atomic
 def remove_submission_image(*, submission: Submission, image_id: UUID | str) -> None:
     submission = Submission.objects.select_for_update().get(id=submission.id)
     image = submission.images.select_for_update().get(id=image_id)
-    files = _image_files(image)
     removed_primary = image.is_primary
     image.delete()
     remaining = list(submission.images.order_by("position"))
@@ -171,7 +216,6 @@ def remove_submission_image(*, submission: Submission, image_id: UUID | str) -> 
         )
     submission.media_complete = submission_media_is_complete(submission)
     submission.save(update_fields=("media_complete", "updated_at"))
-    schedule_file_cleanup(files)
 
 
 def cleanup_abandoned_images() -> int:
@@ -218,7 +262,7 @@ def retry_submission_image(
     )
     if image.status != SubmissionImageStatus.FAILED:
         raise ValidationError("فقط پردازش ناموفق را می‌توان دوباره تلاش کرد.")
-    superseded_files = _image_files(image)
+    superseded_files = [(image.source.storage, image.source.name)] if image.source.name else []
     image.variants.all().delete()
     image.source.save("source.upload", upload, save=False)
     image.status = SubmissionImageStatus.PENDING
@@ -277,17 +321,28 @@ def process_image(image_id: str) -> None:
                 return
             image.variants.all().delete()
             for kind, (content, width, height, byte_size) in rendered.items():
-                variant = SubmissionImageVariant(
-                    image=image,
-                    kind=kind,
+                asset = MediaAsset(
                     width=width,
                     height=height,
                     byte_size=byte_size,
                 )
-                variant.file.save(f"{kind}.webp", content, save=False)
-                if variant.file.name:
-                    written_files.append((variant.file.storage, variant.file.name))
-                variant.save()
+                asset.file.save(
+                    f"submission-media/{image.submission_id}/{image.id}/{kind}.webp",
+                    content,
+                    save=False,
+                )
+                if asset.file.name:
+                    written_files.append((asset.file.storage, asset.file.name))
+                asset.save()
+                SubmissionImageVariant.objects.create(
+                    image=image,
+                    kind=kind,
+                    file=asset.file.name,
+                    width=width,
+                    height=height,
+                    byte_size=byte_size,
+                    asset=asset,
+                )
             image.status = SubmissionImageStatus.READY
             image.processed_at = timezone.now()
             cleanup_files = [(image.source.storage, image.source.name)] if image.source.name else []

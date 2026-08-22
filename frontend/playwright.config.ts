@@ -10,6 +10,7 @@ const isolatedDatabaseUrl = `sqlite:////tmp/torobrent-playwright-${backendPort}-
 export default defineConfig({
   testDir: "./tests/e2e",
   grepInvert: process.env.CAPTURE_DESIGN ? undefined : /@visual/,
+  workers: externalBaseUrl ? undefined : 1,
   use: {
     baseURL,
     trace: "on-first-retry",
