@@ -9,6 +9,7 @@ test("Operator publishes a curated Property that a Renter opens through SSR", as
   page,
   request,
 }) => {
+  test.setTimeout(60_000);
   test.skip(
     externalEnvironment && !process.env.E2E_OPERATOR_EMAIL,
     "External stacks must provide an E2E Operator and the catalog fixture",
@@ -132,4 +133,127 @@ test("Operator publishes a curated Property that a Renter opens through SSR", as
   expect(html).toContain("آپارتمان در سعادت‌آباد");
   expect(html).toContain('rel="canonical"');
   expect(html).toContain('property="og:title"');
+
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto("/admin/catalog/source/add/");
+  await page.locator("#id_name").fill("external-browser-source");
+  await page.locator("#id_domain").fill("browser-source.example");
+  await page.locator("#id_display_name").fill("منبع مرورگر");
+  await page.locator("#id_outbound_policy").selectOption("external_link");
+  await page.locator("#id_allows_external_media").check();
+  await page.locator('input[name="_continue"]').click();
+  const externalSourceId = page.url().match(/source\/([^/]+)\/change/)?.[1];
+  expect(externalSourceId).toBeTruthy();
+
+  await page.goto("/admin/catalog/rentalterms/add/");
+  await page.locator("#id_deposit_toman").fill("۸۰۰٬۰۰۰٬۰۰۰");
+  await page.locator("#id_monthly_rent_toman").fill("۳۰٬۰۰۰٬۰۰۰");
+  await page.locator('input[name="_continue"]').click();
+  const externalTermsId = page.url().match(/rentalterms\/([^/]+)\/change/)?.[1];
+  expect(externalTermsId).toBeTruthy();
+
+  await page.goto("/admin/catalog/property/add/");
+  await page.locator("#id_city").selectOption({ label: "تهران" });
+  await page.locator("#id_district").selectOption({ label: "منطقه ۲" });
+  await page.locator("#id_neighborhood").selectOption({ label: "سعادت‌آباد" });
+  await page.locator("#id_property_type").selectOption("apartment");
+  await page.locator("#id_area_sqm").fill("108");
+  await page.locator("#id_room_count").fill("2");
+  await page.locator("#id_parking").selectOption("absent");
+  await page.locator('input[name="_continue"]').click();
+  const separatePropertyId = page.url().match(/property\/([^/]+)\/change/)?.[1];
+  expect(separatePropertyId).toBeTruthy();
+
+  await page.goto("/admin/catalog/listing/add/");
+  await page.locator("#id_property").selectOption(separatePropertyId!);
+  await page.locator("#id_source").selectOption(externalSourceId!);
+  await page.locator("#id_terms").selectOption(externalTermsId!);
+  await page.locator("#id_description").fill("ادعای منبع خارجی");
+  await page.locator("#id_source_reference").fill("browser-42");
+  await page
+    .locator("#id_source_claims")
+    .fill(
+      '{"area_sqm": 108, "parking": "absent", "image_url": "https://third-party.example/hotlink.jpg"}',
+    );
+  await page
+    .locator("#id_external_url")
+    .fill("https://browser-source.example/listings/42");
+  await page
+    .locator("#id_external_media_url")
+    .fill("https://browser-source.example/media/listings/42.jpg");
+  await page.locator('input[name="_continue"]').click();
+  const externalListingId = page.url().match(/listing\/([^/]+)\/change/)?.[1];
+  expect(externalListingId).toBeTruthy();
+
+  await page.goto("/admin/catalog/listing/");
+  const externalListingRow = page.getByRole("row", {
+    name: /منبع مرورگر: آپارتمان در سعادت‌آباد/,
+  });
+  await externalListingRow.locator('input[name="_selected_action"]').check();
+  await page
+    .locator('select[name="action"]')
+    .first()
+    .selectOption("publish_listings");
+  await page.locator('button[name="index"]').click();
+  await expect(page.getByText("یک آگهی منتشر شد.")).toBeVisible();
+
+  await page.goto(`/admin/catalog/listing/${externalListingId}/change/`);
+  await page.locator("#id_property").selectOption(propertyId!);
+  await page.locator('input[name="_save"]').click();
+  await page.goto(`/properties/${propertyId}/نشانی-قدیمی`);
+  await expect(page.getByRole("article")).toHaveCount(2);
+  const externalComparison = page.getByRole("article", {
+    name: "آگهی منبع مرورگر",
+  });
+  await expect(externalComparison).toContainText("اختلاف با مشخصات تأییدشده");
+  await expect(externalComparison).toContainText(
+    "متراژ: منبع ۱۰۸، تأییدشده ۱۱۰",
+  );
+  await expect(
+    externalComparison.getByRole("img", { name: "تصویر آگهی منبع مرورگر" }),
+  ).toHaveAttribute(
+    "src",
+    "https://browser-source.example/media/listings/42.jpg",
+  );
+  await expect(externalComparison).not.toContainText(
+    "third-party.example/hotlink.jpg",
+  );
+  await expect(
+    externalComparison.getByRole("link", { name: "ادامه در منبع اصلی" }),
+  ).toHaveAttribute("href", "https://browser-source.example/listings/42");
+
+  await page.goto(`/admin/catalog/listing/${externalListingId}/change/`);
+  await page.locator("#id_property").selectOption(separatePropertyId!);
+  await page.locator('input[name="_save"]').click();
+  await page.goto(`/properties/${propertyId}/نشانی-قدیمی`);
+  await expect(page.getByRole("article")).toHaveCount(1);
+
+  await page.goto("/admin/catalog/property/");
+  const duplicateRow = page.locator("tr").filter({
+    has: page.locator(
+      `a[href="/admin/catalog/property/${separatePropertyId}/change/"]`,
+    ),
+  });
+  await duplicateRow.locator('input[name="_selected_action"]').check();
+  await page
+    .locator('select[name="action"]')
+    .first()
+    .selectOption("merge_into_target");
+  await page
+    .locator('select[name="target_property"]')
+    .first()
+    .selectOption(propertyId!);
+  await page.locator('button[name="index"]').click();
+  await expect(page.getByText("یک ملک تکراری ادغام شد.")).toBeVisible();
+  await page.goto(`/properties/${propertyId}/نشانی-قدیمی`);
+  await expect(page.getByRole("article")).toHaveCount(2);
+
+  await page.goto(`/admin/catalog/source/${externalSourceId}/change/`);
+  await page.locator("#id_is_active").uncheck();
+  await page.locator('input[name="_save"]').click();
+  await page.goto(`/properties/${propertyId}/نشانی-قدیمی`);
+  await expect(page.getByRole("article")).toHaveCount(1);
+  await expect(
+    page.getByRole("link", { name: "ادامه در منبع اصلی" }),
+  ).toHaveCount(0);
 });

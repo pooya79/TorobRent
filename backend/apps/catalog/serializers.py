@@ -116,6 +116,12 @@ class RentalTermsPublicSerializer(serializers.Serializer[Any]):
     monthly_rent_toman = serializers.IntegerField()
 
 
+class SourceDisagreementSerializer(serializers.Serializer[Any]):
+    field = serializers.CharField()
+    normalized_value = serializers.JSONField()
+    source_value = serializers.JSONField()
+
+
 class PropertySummarySerializer(serializers.Serializer[Any]):
     id = serializers.UUIDField()
     title = serializers.CharField()
@@ -164,8 +170,11 @@ class ListingPublicSerializer(serializers.Serializer[Any]):
     source = SourcePublicSerializer()  # type: ignore[assignment]
     rental_terms = RentalTermsPublicSerializer()
     description = serializers.CharField()
+    source_reference = serializers.CharField()
     source_claims = serializers.JSONField()
-    external_url = serializers.URLField(allow_blank=True)
+    disagreements = SourceDisagreementSerializer(many=True)
+    continuation_url = serializers.URLField(allow_null=True)
+    media_url = serializers.URLField(allow_null=True)
     is_negotiable = serializers.BooleanField()
     is_convertible = serializers.BooleanField()
     availability_confirmed_at = serializers.DateTimeField()
@@ -189,6 +198,43 @@ class PropertyDetailSerializer(serializers.Serializer[Any]):
     cooling = serializers.CharField()
     features = FeaturesSerializer()
     listings = ListingPublicSerializer(many=True)
+
+
+COMPARABLE_SOURCE_CLAIMS = (
+    "property_type",
+    "area_sqm",
+    "room_count",
+    "construction_year",
+    "floor",
+    "total_floors",
+    "units_per_floor",
+    "parking",
+    "elevator",
+    "storage",
+    "balcony",
+    "furnished",
+    "heating",
+    "cooling",
+)
+
+
+def source_disagreements(
+    property_: Property, source_claims: dict[str, Any]
+) -> list[dict[str, Any]]:
+    disagreements = []
+    for field in COMPARABLE_SOURCE_CLAIMS:
+        if field not in source_claims:
+            continue
+        normalized_value = getattr(property_, field)
+        source_value = source_claims[field]
+        if normalized_value == source_value:
+            continue
+        disagreements.append({
+            "field": field,
+            "normalized_value": normalized_value,
+            "source_value": source_value,
+        })
+    return disagreements
 
 
 def property_detail_data(property_: Property, listings: list[Listing]) -> dict[str, Any]:
@@ -241,8 +287,19 @@ def property_detail_data(property_: Property, listings: list[Listing]) -> dict[s
                     "monthly_rent_toman": rial_to_toman(listing.terms.monthly_rent_rial),
                 },
                 "description": listing.description,
+                "source_reference": listing.source_reference,
                 "source_claims": listing.source_claims,
-                "external_url": listing.external_url,
+                "disagreements": source_disagreements(property_, listing.source_claims),
+                "continuation_url": (
+                    listing.external_url
+                    if listing.source.outbound_policy == OutboundPolicy.EXTERNAL_LINK
+                    else None
+                ),
+                "media_url": (
+                    listing.external_media_url
+                    if listing.source.allows_external_media and listing.external_media_url
+                    else None
+                ),
                 "is_negotiable": listing.terms.is_negotiable,
                 "is_convertible": listing.terms.is_convertible,
                 "availability_confirmed_at": listing.availability_confirmed_at,

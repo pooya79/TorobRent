@@ -610,13 +610,23 @@ components:
           $ref: '#/components/schemas/RentalTermsPublic'
         description:
           type: string
+        source_reference:
+          type: string
         source_claims: {}
-        external_url:
-          oneOf:
-          - type: string
-            format: uri
-          - type: string
-            maxLength: 0
+        disagreements:
+          type: array
+          items:
+            $ref: '#/components/schemas/SourceDisagreement'
+        continuation_url:
+          type:
+          - string
+          - 'null'
+          format: uri
+        media_url:
+          type:
+          - string
+          - 'null'
+          format: uri
         is_negotiable:
           type: boolean
         is_convertible:
@@ -630,14 +640,17 @@ components:
       required:
       - availability_confirmed_at
       - available_until
+      - continuation_url
       - description
-      - external_url
+      - disagreements
       - id
       - is_convertible
       - is_negotiable
+      - media_url
       - rental_terms
       - source
       - source_claims
+      - source_reference
     Location:
       type: object
       properties:
@@ -941,6 +954,17 @@ components:
       required:
       - authenticated
       - csrf_token
+    SourceDisagreement:
+      type: object
+      properties:
+        field:
+          type: string
+        normalized_value: {}
+        source_value: {}
+      required:
+      - field
+      - normalized_value
+      - source_value
     SourcePublic:
       type: object
       properties:

@@ -82,6 +82,7 @@ class Source(models.Model):
     is_active = models.BooleanField(default=True)
     is_builtin = models.BooleanField(default=False)
     outbound_policy = models.CharField(max_length=24, choices=OutboundPolicy)
+    allows_external_media = models.BooleanField(default=False)
 
     class Meta:
         constraints = [
@@ -126,6 +127,15 @@ class Property(models.Model):
     longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
     provenance_note = models.TextField(blank=True)
     normalized_at = models.DateTimeField(null=True, blank=True)
+    merged_into = models.ForeignKey(
+        "self",
+        on_delete=models.PROTECT,
+        related_name="merged_properties",
+        null=True,
+        blank=True,
+        editable=False,
+    )
+    merged_at = models.DateTimeField(null=True, blank=True, editable=False)
 
     def __str__(self) -> str:
         if self.property_type and self.neighborhood_id:
@@ -253,6 +263,7 @@ class Listing(models.Model):
     source_claims = models.JSONField(default=dict, blank=True)
     provenance_note = models.TextField(blank=True)
     external_url = models.URLField(max_length=1000, blank=True)
+    external_media_url = models.URLField(max_length=1000, blank=True)
     direct_phone = models.CharField(max_length=32, blank=True)
     published_at = models.DateTimeField(null=True, blank=True)
     availability_confirmed_at = models.DateTimeField(null=True, blank=True)
@@ -279,3 +290,29 @@ class Listing(models.Model):
             errors["direct_phone"] = "شماره تماس مستقیم الزامی است."
         if errors:
             raise ValidationError(errors)
+
+
+class ListingGroupingAction(models.TextChoices):
+    ATTACH = "attach", "اتصال"
+    SPLIT = "split", "تفکیک"
+    MERGE = "merge", "ادغام"
+
+
+class ListingGroupingEvent(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    listing = models.ForeignKey(Listing, on_delete=models.PROTECT, related_name="grouping_events")
+    from_property = models.ForeignKey(
+        Property, on_delete=models.PROTECT, related_name="outgoing_grouping_events"
+    )
+    to_property = models.ForeignKey(
+        Property, on_delete=models.PROTECT, related_name="incoming_grouping_events"
+    )
+    action = models.CharField(max_length=12, choices=ListingGroupingAction)
+    reason = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ("created_at", "id")
+
+    def __str__(self) -> str:
+        return f"{self.get_action_display()}: {self.listing_id}"

@@ -267,8 +267,13 @@ export interface components {
       source: components["schemas"]["SourcePublic"];
       rental_terms: components["schemas"]["RentalTermsPublic"];
       description: string;
+      source_reference: string;
       source_claims: unknown;
-      external_url: string;
+      disagreements: components["schemas"]["SourceDisagreement"][];
+      /** Format: uri */
+      continuation_url: string | null;
+      /** Format: uri */
+      media_url: string | null;
       is_negotiable: boolean;
       is_convertible: boolean;
       /** Format: date-time */
@@ -398,6 +403,11 @@ export interface components {
     Session: {
       authenticated: boolean;
       csrf_token: string;
+    };
+    SourceDisagreement: {
+      field: string;
+      normalized_value: unknown;
+      source_value: unknown;
     };
     SourcePublic: {
       /** Format: uuid */

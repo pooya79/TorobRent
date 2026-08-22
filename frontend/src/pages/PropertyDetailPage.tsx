@@ -23,6 +23,23 @@ const featureStateLabels: Record<FeatureState, string> = {
   unknown: "نامشخص",
 };
 
+const sourceClaimLabels: Record<string, string> = {
+  property_type: "نوع ملک",
+  area_sqm: "متراژ",
+  room_count: "تعداد اتاق",
+  construction_year: "سال ساخت",
+  floor: "طبقه",
+  total_floors: "تعداد طبقات",
+  units_per_floor: "واحد در طبقه",
+  parking: "پارکینگ",
+  elevator: "آسانسور",
+  storage: "انباری",
+  balcony: "بالکن",
+  furnished: "مبله",
+  heating: "گرمایش",
+  cooling: "سرمایش",
+};
+
 function formatNumber(value: number) {
   return new Intl.NumberFormat("fa-IR").format(value);
 }
@@ -31,6 +48,17 @@ function formatFreshness(value: string) {
   return new Intl.DateTimeFormat("fa-IR-u-ca-persian", {
     dateStyle: "medium",
   }).format(new Date(value));
+}
+
+function formatClaimValue(value: unknown) {
+  if (typeof value === "number") return formatNumber(value);
+  if (typeof value === "string" && value in featureStateLabels) {
+    return featureStateLabels[value as FeatureState];
+  }
+  if (value === null) return "ثبت نشده";
+  if (typeof value === "string") return value;
+  if (typeof value === "boolean") return value ? "بله" : "خیر";
+  return JSON.stringify(value) ?? "ثبت نشده";
 }
 
 export function PropertyDetailPage({
@@ -140,7 +168,28 @@ export function PropertyDetailPage({
                     </p>
                   </CardHeader>
                   <CardContent className="space-y-3">
+                    {listing.media_url && (
+                      <img
+                        className="aspect-video w-full rounded-lg object-cover"
+                        src={listing.media_url}
+                        alt={`تصویر آگهی ${listing.source.display_name}`}
+                      />
+                    )}
                     {listing.description && <p>{listing.description}</p>}
+                    {listing.disagreements.length > 0 && (
+                      <section className="bg-muted rounded-lg p-3">
+                        <h3 className="text-sm font-semibold">
+                          اختلاف با مشخصات تأییدشده
+                        </h3>
+                        <ul className="mt-2 space-y-1 text-sm">
+                          {listing.disagreements.map((disagreement) => (
+                            <li key={disagreement.field}>
+                              {`${sourceClaimLabels[disagreement.field] ?? disagreement.field}: منبع ${formatClaimValue(disagreement.source_value)}، تأییدشده ${formatClaimValue(disagreement.normalized_value)}`}
+                            </li>
+                          ))}
+                        </ul>
+                      </section>
+                    )}
                     <p className="text-muted-foreground flex items-center gap-2 text-sm">
                       <Clock3 className="size-4" aria-hidden="true" />
                       آخرین تأیید موجودی:{" "}
@@ -149,10 +198,10 @@ export function PropertyDetailPage({
                       </time>
                     </p>
                     {listing.source.outbound_policy === "external_link" &&
-                      listing.external_url && (
+                      listing.continuation_url && (
                         <a
                           className="text-primary inline-flex min-h-11 items-center font-semibold"
-                          href={listing.external_url}
+                          href={listing.continuation_url}
                           rel="noopener noreferrer"
                         >
                           ادامه در منبع اصلی
