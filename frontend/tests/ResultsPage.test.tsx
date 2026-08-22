@@ -1,11 +1,11 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { MemoryRouter } from "react-router";
 import { expect, test } from "vitest";
 
-import { ResultsPage } from "@/pages/ResultsPage";
+import { meta, ResultsPage } from "@/pages/ResultsPage";
 import { propertySearchPage } from "./fixtures/catalog";
 import { server } from "./server";
 
@@ -115,4 +115,97 @@ test("keeps location and page navigation shareable in the URL", async () => {
     "href",
     "/search?location=%D8%AA%D9%87%D8%B1%D8%A7%D9%86&page=2",
   );
+});
+
+test("applies every filter with tolerant numeric entry and exposes removable chips", async () => {
+  const user = userEvent.setup();
+  let requestedParams = new URLSearchParams();
+  server.use(
+    http.get("*/api/v1/catalog/properties/", ({ request }) => {
+      requestedParams = new URL(request.url).searchParams;
+      return HttpResponse.json(propertySearchPage);
+    }),
+  );
+  renderResults("/search?location=تهران&page=3");
+
+  const filters = await screen.findByRole("complementary", {
+    name: "فیلترهای جست‌وجو",
+  });
+  await user.type(within(filters).getByLabelText("حداقل ودیعه"), "۵۰۰٬۰۰۰٬۰۰۰");
+  await user.type(within(filters).getByLabelText("تعداد اتاق"), "۲");
+  await user.selectOptions(
+    within(filters).getByLabelText("نوع ملک"),
+    "apartment",
+  );
+  await user.selectOptions(
+    within(filters).getByLabelText("پارکینگ"),
+    "present",
+  );
+  await user.click(
+    within(filters).getByRole("button", { name: "اعمال فیلترها" }),
+  );
+
+  expect(requestedParams.get("deposit_min_toman")).toBe("500000000");
+  expect(requestedParams.get("room_count")).toBe("2");
+  expect(requestedParams.get("property_type")).toBe("apartment");
+  expect(requestedParams.get("parking")).toBe("present");
+  expect(requestedParams.has("page")).toBe(false);
+  const parkingChip = await screen.findByRole("button", {
+    name: /حذف فیلتر پارکینگ/,
+  });
+  expect(parkingChip).toBeVisible();
+  await user.click(parkingChip);
+  expect(requestedParams.has("parking")).toBe(false);
+  expect(
+    within(
+      screen.getByRole("complementary", { name: "فیلترهای جست‌وجو" }),
+    ).getByLabelText("پارکینگ"),
+  ).toHaveValue("");
+});
+
+test("offers the same filter form in an accessible mobile drawer", async () => {
+  const user = userEvent.setup();
+  renderResults();
+
+  await user.click(screen.getByRole("button", { name: "فیلترها" }));
+  const drawer = await screen.findByRole("dialog");
+
+  expect(
+    within(drawer).getByRole("heading", { name: "فیلتر نتایج" }),
+  ).toBeVisible();
+  expect(within(drawer).getByLabelText("حداقل اجاره ماهانه")).toBeVisible();
+  expect(within(drawer).getByLabelText("مبله")).toBeVisible();
+});
+
+test("marks filtered result pages non-indexable and keeps return navigation on cards", async () => {
+  renderResults("/search?location=تهران&parking=present");
+
+  expect(
+    meta({ location: { search: "?location=تهران&parking=present" } }),
+  ).toContainEqual({ name: "robots", content: "noindex, follow" });
+  expect(meta({ location: { search: "" } })).toEqual([]);
+  expect(
+    await screen.findByRole("link", { name: "آپارتمان در سعادت‌آباد" }),
+  ).toHaveAttribute(
+    "href",
+    expect.stringContaining("returnTo=%2Fsearch%3Flocation%3D"),
+  );
+});
+
+test("honors Persian digits in a shared filter URL and keeps controls synchronized", async () => {
+  let requestedArea: string | null = null;
+  server.use(
+    http.get("*/api/v1/catalog/properties/", ({ request }) => {
+      requestedArea = new URL(request.url).searchParams.get("area_max");
+      return HttpResponse.json(propertySearchPage);
+    }),
+  );
+
+  renderResults("/search?area_max=۱۰۰");
+
+  const filters = await screen.findByRole("complementary", {
+    name: "فیلترهای جست‌وجو",
+  });
+  expect(requestedArea).toBe("100");
+  expect(within(filters).getByLabelText("حداکثر متراژ")).toHaveValue("۱۰۰");
 });

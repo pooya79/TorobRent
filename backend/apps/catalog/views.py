@@ -23,6 +23,7 @@ from .selectors import autocomplete_locations, search_properties
 from .serializers import (
     LocationSuggestionSerializer,
     PropertyDetailSerializer,
+    PropertySearchQuerySerializer,
     PropertySummarySerializer,
     property_detail_data,
 )
@@ -56,12 +57,7 @@ class CatalogSearchPagination(StandardPageNumberPagination):
     get=extend_schema(
         summary="Search Properties with an Active Listing",
         parameters=[
-            OpenApiParameter(
-                name="location",
-                type=str,
-                location=OpenApiParameter.QUERY,
-                description="Location UUID or tolerant Persian location text",
-            )
+            PropertySearchQuerySerializer,
         ],
     )
 )
@@ -71,7 +67,9 @@ class PropertySearchView(ListAPIView[Property]):
     pagination_class = CatalogSearchPagination
 
     def get_queryset(self) -> QuerySet[Property]:
-        return search_properties(self.request.query_params.get("location", ""))
+        query = PropertySearchQuerySerializer(data=self.request.query_params)
+        query.is_valid(raise_exception=True)
+        return search_properties(query.validated_filters())
 
 
 class PropertyDetailView(APIView):

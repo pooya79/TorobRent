@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
-import { SlidersHorizontal } from "lucide-react";
+import { SlidersHorizontal, X } from "lucide-react";
+import { useState } from "react";
 import { Link, useSearchParams } from "react-router";
 
 import { PageMain } from "@/components/layout/PageMain";
@@ -18,6 +19,12 @@ import {
   PaginationPrevious,
 } from "@/components/ui/pagination";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  CatalogFilters,
+  filterChoiceLabels,
+  filterLabels,
+  type FilterName,
+} from "@/features/catalog/CatalogFilters";
 import {
   Sheet,
   SheetContent,
@@ -44,7 +51,16 @@ function formatFreshness(value: string) {
   }).format(new Date(value));
 }
 
-function toCardData(property: PropertySummary): PropertyCardData {
+export function meta({ location }: { location?: { search: string } } = {}) {
+  return location?.search
+    ? [{ name: "robots", content: "noindex, follow" }]
+    : [];
+}
+
+function toCardData(
+  property: PropertySummary,
+  searchParams: URLSearchParams,
+): PropertyCardData {
   const facts = [
     `${formatNumber(property.area_sqm)} متر`,
     `${formatNumber(property.room_count)} خواب`,
@@ -67,6 +83,9 @@ function toCardData(property: PropertySummary): PropertyCardData {
       monthlyRentLabel: `${formatNumber(property.rental_terms.monthly_rent_toman)} تومان`,
     },
     freshnessLabel: `آخرین تأیید موجودی: ${formatFreshness(property.availability_confirmed_at)}`,
+    detailHref: `/properties/${property.id}?${new URLSearchParams({
+      returnTo: `/search?${searchParams.toString()}`,
+    }).toString()}`,
   };
 }
 
@@ -89,7 +108,8 @@ function ResultsLoading() {
 }
 
 export function ResultsPage() {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const search = useQuery(propertySearchQueryOptions(searchParams));
   const currentPage = Number(searchParams.get("page") ?? "1");
   const location =
@@ -103,6 +123,23 @@ export function ResultsPage() {
   };
   const count = search.data?.count ?? 0;
   const pageCount = Math.ceil(count / 25);
+  const activeFilters = Object.entries(filterLabels).filter(([name]) =>
+    searchParams.has(name),
+  ) as [FilterName, string][];
+  const displayFilterValue = (name: FilterName) => {
+    const value = searchParams.get(name) ?? "";
+    if (value in filterChoiceLabels) {
+      return filterChoiceLabels[value as keyof typeof filterChoiceLabels];
+    }
+    const number = Number(value);
+    return Number.isFinite(number) ? formatNumber(number) : value;
+  };
+  const removeFilter = (name: FilterName) => {
+    const next = new URLSearchParams(searchParams);
+    next.delete(name);
+    next.delete("page");
+    setSearchParams(next);
+  };
 
   return (
     <PageMain>
@@ -117,104 +154,160 @@ export function ResultsPage() {
             خانه‌های اجاره‌ای در {location}
           </h1>
         </div>
-        <Sheet>
+        <Sheet open={filtersOpen} onOpenChange={setFiltersOpen}>
           <SheetTrigger asChild>
             <Button className="lg:hidden" variant="outline">
               <SlidersHorizontal aria-hidden="true" /> فیلترها
             </Button>
           </SheetTrigger>
-          <SheetContent side="right" className="w-[min(92vw,24rem)] pt-14">
+          <SheetContent
+            side="right"
+            className="flex w-[min(92vw,24rem)] flex-col overflow-hidden pt-14"
+          >
             <SheetHeader>
               <SheetTitle>فیلتر نتایج</SheetTitle>
               <SheetDescription>
-                برای تغییر شهر، منطقه یا محله به جست‌وجوی خانه برگردید.
+                فیلترها را انتخاب کنید و نتایج را به‌روز کنید.
               </SheetDescription>
             </SheetHeader>
-            <Button asChild className="mt-6 w-full" variant="outline">
-              <Link to="/">تغییر محدوده جست‌وجو</Link>
-            </Button>
+            <div className="mt-6 min-h-0 flex-1 overflow-y-auto pb-8">
+              <CatalogFilters
+                key={`mobile-${searchParams.toString()}`}
+                prefix="mobile"
+                searchParams={searchParams}
+                setSearchParams={(next) => {
+                  setSearchParams(next);
+                  setFiltersOpen(false);
+                }}
+              />
+            </div>
           </SheetContent>
         </Sheet>
       </header>
 
-      {search.isPending ? (
-        <ResultsLoading />
-      ) : search.isError ? (
-        search.error instanceof CatalogSearchError &&
-        search.error.status === 503 ? (
-          <Alert variant="destructive">
-            <AlertTitle>نتایج فعلاً در دسترس نیست</AlertTitle>
-            <AlertDescription>
-              اطلاعات ملک‌ها موقتاً بارگذاری نمی‌شود. چند دقیقه دیگر دوباره تلاش
-              کنید.
-            </AlertDescription>
-          </Alert>
-        ) : (
-          <Alert>
-            <AlertTitle>بارگذاری نتایج کامل نشد</AlertTitle>
-            <AlertDescription className="mt-3">
-              اتصال خود را بررسی کنید.
-              <Button
-                className="ms-3"
-                size="sm"
-                variant="outline"
-                type="button"
-                onClick={() => void search.refetch()}
-              >
-                تلاش دوباره
-              </Button>
-            </AlertDescription>
-          </Alert>
-        )
-      ) : search.data.results.length === 0 ? (
-        <section className="bg-muted flex min-h-80 flex-col items-center justify-center rounded-xl p-8 text-center">
-          <h2 className="text-xl font-semibold">ملکی در این محدوده پیدا نشد</h2>
-          <p className="text-muted-foreground mt-3 max-w-md text-sm leading-7">
-            نام شهر، منطقه یا محله دیگری را جست‌وجو کنید.
-          </p>
-          <Button asChild className="mt-5" variant="outline">
-            <Link to="/">جست‌وجوی دوباره</Link>
-          </Button>
-        </section>
-      ) : (
-        <section
-          className="grid gap-x-5 gap-y-10 sm:grid-cols-2 xl:grid-cols-3"
-          aria-label="ملک‌های پیدا شده"
+      {activeFilters.length > 0 && (
+        <div
+          className="mb-6 flex flex-wrap gap-2"
+          aria-label="فیلترهای اعمال‌شده"
         >
-          {search.data.results.map((property) => (
-            <PropertyCard key={property.id} property={toCardData(property)} />
+          {activeFilters.map(([name, label]) => (
+            <Button
+              key={name}
+              type="button"
+              size="sm"
+              variant="outline"
+              aria-label={`حذف فیلتر ${label}`}
+              onClick={() => removeFilter(name)}
+            >
+              {label}: {displayFilterValue(name)}
+              <X aria-hidden="true" />
+            </Button>
           ))}
-        </section>
+        </div>
       )}
 
-      {search.data && pageCount > 1 && (
-        <Pagination className="mt-12" dir="ltr" aria-label="صفحه‌بندی نتایج">
-          <PaginationContent>
-            {currentPage > 1 && (
-              <PaginationItem>
-                <PaginationPrevious href={hrefForPage(currentPage - 1)} />
-              </PaginationItem>
-            )}
-            {Array.from({ length: pageCount }, (_, index) => index + 1).map(
-              (page) => (
-                <PaginationItem key={page}>
-                  <PaginationLink
-                    href={hrefForPage(page)}
-                    isActive={currentPage === page}
+      <div className="grid gap-8 lg:grid-cols-[18rem_minmax(0,1fr)]">
+        <aside className="hidden lg:block" aria-label="فیلترهای جست‌وجو">
+          <div className="sticky top-6 rounded-xl border p-5">
+            <h2 className="mb-5 text-lg font-semibold">فیلتر نتایج</h2>
+            <CatalogFilters
+              key={`desktop-${searchParams.toString()}`}
+              prefix="desktop"
+              searchParams={searchParams}
+              setSearchParams={setSearchParams}
+            />
+          </div>
+        </aside>
+        <div>
+          {search.isPending ? (
+            <ResultsLoading />
+          ) : search.isError ? (
+            search.error instanceof CatalogSearchError &&
+            search.error.status === 503 ? (
+              <Alert variant="destructive">
+                <AlertTitle>نتایج فعلاً در دسترس نیست</AlertTitle>
+                <AlertDescription>
+                  اطلاعات ملک‌ها موقتاً بارگذاری نمی‌شود. چند دقیقه دیگر دوباره
+                  تلاش کنید.
+                </AlertDescription>
+              </Alert>
+            ) : (
+              <Alert>
+                <AlertTitle>بارگذاری نتایج کامل نشد</AlertTitle>
+                <AlertDescription className="mt-3">
+                  اتصال خود را بررسی کنید.
+                  <Button
+                    className="ms-3"
+                    size="sm"
+                    variant="outline"
+                    type="button"
+                    onClick={() => void search.refetch()}
                   >
-                    {formatNumber(page)}
-                  </PaginationLink>
-                </PaginationItem>
-              ),
-            )}
-            {currentPage < pageCount && (
-              <PaginationItem>
-                <PaginationNext href={hrefForPage(currentPage + 1)} />
-              </PaginationItem>
-            )}
-          </PaginationContent>
-        </Pagination>
-      )}
+                    تلاش دوباره
+                  </Button>
+                </AlertDescription>
+              </Alert>
+            )
+          ) : search.data.results.length === 0 ? (
+            <section className="bg-muted flex min-h-80 flex-col items-center justify-center rounded-xl p-8 text-center">
+              <h2 className="text-xl font-semibold">
+                ملکی در این محدوده پیدا نشد
+              </h2>
+              <p className="text-muted-foreground mt-3 max-w-md text-sm leading-7">
+                نام شهر، منطقه یا محله دیگری را جست‌وجو کنید.
+              </p>
+              <Button asChild className="mt-5" variant="outline">
+                <Link to="/">جست‌وجوی دوباره</Link>
+              </Button>
+            </section>
+          ) : (
+            <section
+              className="grid gap-x-5 gap-y-10 sm:grid-cols-2 xl:grid-cols-3"
+              aria-label="ملک‌های پیدا شده"
+            >
+              {search.data.results.map((property) => (
+                <PropertyCard
+                  key={property.id}
+                  property={toCardData(property, searchParams)}
+                />
+              ))}
+            </section>
+          )}
+
+          {search.data && pageCount > 1 && (
+            <Pagination
+              className="mt-12"
+              dir="ltr"
+              aria-label="صفحه‌بندی نتایج"
+            >
+              <PaginationContent>
+                {currentPage > 1 && (
+                  <PaginationItem>
+                    <PaginationPrevious href={hrefForPage(currentPage - 1)} />
+                  </PaginationItem>
+                )}
+                {Array.from({ length: pageCount }, (_, index) => index + 1).map(
+                  (page) => (
+                    <PaginationItem key={page}>
+                      <PaginationLink
+                        href={hrefForPage(page)}
+                        isActive={currentPage === page}
+                      >
+                        {formatNumber(page)}
+                      </PaginationLink>
+                    </PaginationItem>
+                  ),
+                )}
+                {currentPage < pageCount && (
+                  <PaginationItem>
+                    <PaginationNext href={hrefForPage(currentPage + 1)} />
+                  </PaginationItem>
+                )}
+              </PaginationContent>
+            </Pagination>
+          )}
+        </div>
+      </div>
     </PageMain>
   );
 }

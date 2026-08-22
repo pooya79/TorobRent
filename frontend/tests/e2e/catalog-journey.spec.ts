@@ -76,6 +76,46 @@ test("Operator publishes a curated Property that a Renter opens through SSR", as
   await expect(page.getByText("ودیعه ۱٬۰۰۰٬۰۰۰٬۰۰۰ تومان")).toBeVisible();
   await expect(page.getByText("اجاره ماهانه ۲۵٬۰۰۰٬۰۰۰ تومان")).toBeVisible();
 
+  const unfilteredResultsUrl = page.url();
+  const desktopFilters = page.getByRole("complementary", {
+    name: "فیلترهای جست‌وجو",
+  });
+  await expect(desktopFilters).toBeVisible();
+  await desktopFilters.getByLabel("پارکینگ").selectOption("present");
+  await desktopFilters.getByRole("button", { name: "اعمال فیلترها" }).click();
+  await expect(page).toHaveURL(/parking=present/);
+  const filteredResultsUrl = page.url();
+  await page.getByRole("link", { name: "آپارتمان در سعادت‌آباد" }).click();
+  await expect(
+    page.getByRole("link", { name: "بازگشت به نتایج" }),
+  ).toBeVisible();
+  await page.getByRole("link", { name: "بازگشت به نتایج" }).click();
+  await expect(page).toHaveURL(filteredResultsUrl);
+  await page.reload();
+  await expect(
+    page.getByRole("button", { name: "حذف فیلتر پارکینگ" }),
+  ).toBeVisible();
+  await expect(desktopFilters.getByLabel("پارکینگ")).toHaveValue("present");
+
+  await desktopFilters.getByLabel("حداکثر متراژ").fill("۱۰۰");
+  await desktopFilters.getByRole("button", { name: "اعمال فیلترها" }).click();
+  await expect(page).toHaveURL(/area_max=100/);
+  await expect(
+    page.getByRole("heading", { name: "ملکی در این محدوده پیدا نشد" }),
+  ).toBeVisible();
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(unfilteredResultsUrl);
+  await expect(desktopFilters).toBeHidden();
+  await page.getByRole("button", { name: "فیلترها" }).click();
+  const mobileFilters = page.getByRole("dialog");
+  await mobileFilters.getByLabel("حداکثر متراژ").fill("100");
+  await mobileFilters.getByRole("button", { name: "اعمال فیلترها" }).click();
+  await expect(page).toHaveURL(/area_max=100/);
+  await expect(
+    page.getByRole("heading", { name: "ملکی در این محدوده پیدا نشد" }),
+  ).toBeVisible();
+
   await page.goto(`/properties/${propertyId}/نشانی-قدیمی`);
   await expect(page).toHaveURL(new RegExp(`/properties/${propertyId}/.+`));
   await expect(

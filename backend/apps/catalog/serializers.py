@@ -1,10 +1,11 @@
-from typing import Any
+from typing import Any, cast
 
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
 from .models import FeatureState, Listing, OutboundPolicy, Property, PropertyType
-from .money import rial_to_toman
+from .money import parse_localized_integer, rial_to_toman, toman_to_rial
+from .selectors import PropertySearchFilters, SearchOrdering
 
 
 class LocationSerializer(serializers.Serializer[Any]):
@@ -27,6 +28,77 @@ class FeaturesSerializer(serializers.Serializer[Any]):
     storage = serializers.ChoiceField(choices=FeatureState.choices)
     balcony = serializers.ChoiceField(choices=FeatureState.choices)
     furnished = serializers.ChoiceField(choices=FeatureState.choices)
+
+
+class LocalizedIntegerField(serializers.IntegerField):
+    def to_internal_value(self, data: Any) -> int:
+        if isinstance(data, str):
+            try:
+                data = parse_localized_integer(data)
+            except ValueError:
+                self.fail("invalid")
+        return super().to_internal_value(data)
+
+
+class TomanRialField(LocalizedIntegerField):
+    def to_internal_value(self, data: Any) -> int:
+        return toman_to_rial(super().to_internal_value(data))
+
+
+class PropertySearchQuerySerializer(serializers.Serializer[Any]):
+    location = serializers.CharField(required=False, allow_blank=True)
+    deposit_min_toman = TomanRialField(required=False, min_value=0, source="deposit_min_rial")
+    deposit_max_toman = TomanRialField(required=False, min_value=0, source="deposit_max_rial")
+    monthly_rent_min_toman = TomanRialField(
+        required=False, min_value=0, source="monthly_rent_min_rial"
+    )
+    monthly_rent_max_toman = TomanRialField(
+        required=False, min_value=0, source="monthly_rent_max_rial"
+    )
+    area_min = LocalizedIntegerField(required=False, min_value=1)
+    area_max = LocalizedIntegerField(required=False, min_value=1)
+    room_count = LocalizedIntegerField(required=False, min_value=0)
+    property_type = serializers.ChoiceField(required=False, choices=PropertyType.choices)
+    parking = serializers.ChoiceField(required=False, choices=("present", "absent"))
+    elevator = serializers.ChoiceField(required=False, choices=("present", "absent"))
+    storage = serializers.ChoiceField(required=False, choices=("present", "absent"))
+    balcony = serializers.ChoiceField(required=False, choices=("present", "absent"))
+    furnished = serializers.ChoiceField(required=False, choices=("present", "absent"))
+    ordering = serializers.ChoiceField(
+        required=False, choices=("freshness", "monthly_rent", "deposit", "area")
+    )
+    page = LocalizedIntegerField(required=False, min_value=1)
+
+    def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
+        ranges = (
+            ("deposit_min_rial", "deposit_max_rial"),
+            ("monthly_rent_min_rial", "monthly_rent_max_rial"),
+            ("area_min", "area_max"),
+        )
+        for minimum, maximum in ranges:
+            if minimum in attrs and maximum in attrs and attrs[minimum] > attrs[maximum]:
+                raise serializers.ValidationError({maximum: "باید بزرگ‌تر یا مساوی حداقل باشد."})
+        return attrs
+
+    def validated_filters(self) -> PropertySearchFilters:
+        data = self.validated_data
+        return PropertySearchFilters(
+            location=data.get("location", ""),
+            deposit_min_rial=data.get("deposit_min_rial"),
+            deposit_max_rial=data.get("deposit_max_rial"),
+            monthly_rent_min_rial=data.get("monthly_rent_min_rial"),
+            monthly_rent_max_rial=data.get("monthly_rent_max_rial"),
+            area_min=data.get("area_min"),
+            area_max=data.get("area_max"),
+            room_count=data.get("room_count"),
+            property_type=data.get("property_type"),
+            parking=data.get("parking"),
+            elevator=data.get("elevator"),
+            storage=data.get("storage"),
+            balcony=data.get("balcony"),
+            furnished=data.get("furnished"),
+            ordering=cast(SearchOrdering, data.get("ordering", "freshness")),
+        )
 
 
 class SourcePublicSerializer(serializers.Serializer[Any]):
@@ -57,7 +129,7 @@ class PropertySummarySerializer(serializers.Serializer[Any]):
     listing_count = serializers.IntegerField()
     rental_terms = serializers.SerializerMethodField()
     availability_confirmed_at = serializers.DateTimeField(
-        source="freshest_availability_confirmed_at"
+        source="selected_availability_confirmed_at"
     )
 
     @extend_schema_field(LocationSerializer)
@@ -76,12 +148,12 @@ class PropertySummarySerializer(serializers.Serializer[Any]):
 
     @extend_schema_field(RentalTermsPublicSerializer)
     def get_rental_terms(self, property_: Property) -> dict[str, Any]:
-        deposit_rial = property_.freshest_deposit_rial  # type: ignore[attr-defined]
-        monthly_rent_rial = property_.freshest_monthly_rent_rial  # type: ignore[attr-defined]
+        deposit_rial = property_.selected_deposit_rial  # type: ignore[attr-defined]
+        monthly_rent_rial = property_.selected_monthly_rent_rial  # type: ignore[attr-defined]
         return {
             "deposit_rial": deposit_rial,
             "monthly_rent_rial": monthly_rent_rial,
-            "currency": property_.freshest_currency,  # type: ignore[attr-defined]
+            "currency": property_.selected_currency,  # type: ignore[attr-defined]
             "deposit_toman": rial_to_toman(deposit_rial),
             "monthly_rent_toman": rial_to_toman(monthly_rent_rial),
         }

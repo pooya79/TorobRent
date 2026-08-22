@@ -818,10 +818,53 @@ export interface operations {
   v1_catalog_properties_list: {
     parameters: {
       query?: {
-        /** @description Location UUID or tolerant Persian location text */
+        area_max?: number;
+        area_min?: number;
+        /**
+         * @description * `present` - present
+         *     * `absent` - absent
+         */
+        balcony?: "present" | "absent";
+        deposit_max_toman?: number;
+        deposit_min_toman?: number;
+        /**
+         * @description * `present` - present
+         *     * `absent` - absent
+         */
+        elevator?: "present" | "absent";
+        /**
+         * @description * `present` - present
+         *     * `absent` - absent
+         */
+        furnished?: "present" | "absent";
         location?: string;
-        /** @description A page number within the paginated result set. */
+        monthly_rent_max_toman?: number;
+        monthly_rent_min_toman?: number;
+        /**
+         * @description * `freshness` - freshness
+         *     * `monthly_rent` - monthly_rent
+         *     * `deposit` - deposit
+         *     * `area` - area
+         */
+        ordering?: "freshness" | "monthly_rent" | "deposit" | "area";
         page?: number;
+        /**
+         * @description * `present` - present
+         *     * `absent` - absent
+         */
+        parking?: "present" | "absent";
+        /**
+         * @description * `apartment` - آپارتمان
+         *     * `house` - خانه
+         *     * `villa` - ویلا
+         */
+        property_type?: "apartment" | "house" | "villa";
+        room_count?: number;
+        /**
+         * @description * `present` - present
+         *     * `absent` - absent
+         */
+        storage?: "present" | "absent";
       };
       header?: never;
       path?: never;
