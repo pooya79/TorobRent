@@ -6,6 +6,7 @@ from django.conf import settings
 from django.db import models
 
 from apps.catalog.models import FeatureState, PropertyType
+from apps.common.media import MediaVariantKind
 
 
 class SubmitterRole(models.TextChoices):
@@ -34,10 +35,7 @@ class SubmissionImageStatus(models.TextChoices):
     FAILED = "failed", "ناموفق"
 
 
-class SubmissionImageVariantKind(models.TextChoices):
-    SMALL = "small", "کوچک"
-    MEDIUM = "medium", "متوسط"
-    LARGE = "large", "بزرگ"
+SubmissionImageVariantKind = MediaVariantKind
 
 
 def submission_image_upload_path(instance: SubmissionImage, _filename: str) -> str:
@@ -154,6 +152,12 @@ class SubmissionImageVariant(models.Model):
     width = models.PositiveIntegerField()
     height = models.PositiveIntegerField()
     byte_size = models.PositiveIntegerField()
+    asset = models.ForeignKey(
+        "MediaAsset",
+        null=True,
+        on_delete=models.PROTECT,
+        related_name="submission_variants",
+    )
 
     class Meta:
         ordering = ("width",)
@@ -166,3 +170,15 @@ class SubmissionImageVariant(models.Model):
 
     def __str__(self) -> str:
         return f"{self.image_id}: {self.kind}"
+
+
+class MediaAsset(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    file = models.FileField(max_length=500, unique=True)
+    width = models.PositiveIntegerField()
+    height = models.PositiveIntegerField()
+    byte_size = models.PositiveIntegerField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self) -> str:
+        return self.file.name or ""

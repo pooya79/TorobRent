@@ -102,5 +102,4 @@ jobs:
     needs: [backend, frontend-and-contract]
     steps:
       - uses: actions/checkout@v7
-      - run: docker build -f backend/Dockerfile -t app-backend .
-      - run: docker build -f frontend/Dockerfile -t app-frontend .
+      - run: make docker-build

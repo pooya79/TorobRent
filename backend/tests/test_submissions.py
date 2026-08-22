@@ -1,21 +1,37 @@
+from importlib import import_module
 from io import BytesIO
 from pathlib import Path
 from typing import Any
 
 import pytest
 from asgiref.sync import async_to_sync
+from django.apps import apps as django_apps
 from django.conf import settings
 from django.contrib import admin
 from django.core.files.storage import FileSystemStorage, default_storage
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.db import IntegrityError, transaction
 from django.test import override_settings
 from django.utils import timezone
 from PIL import Image
 from rest_framework.test import APIClient
 
 from apps.accounts.models import User
-from apps.catalog.models import City, District, Neighborhood
+from apps.catalog.models import (
+    City,
+    District,
+    Listing,
+    ListingImage,
+    ListingImageVariant,
+    ListingState,
+    Neighborhood,
+    OutboundPolicy,
+    Property,
+    RentalTerms,
+    Source,
+)
 from apps.submissions.models import (
+    MediaAsset,
     Submission,
     SubmissionImage,
     SubmissionImageStatus,
@@ -71,7 +87,7 @@ def test_verified_submitter_can_create_an_owner_draft(api_client: APIClient):
 
 
 @pytest.mark.django_db
-def test_submitter_can_save_and_resume_every_non_media_step(
+def test_submitter_can_save_and_resume_the_complete_draft_flow(
     api_client: APIClient, django_capture_on_commit_callbacks
 ):
     submitter = User.objects.create_user(
@@ -541,7 +557,7 @@ def test_submitter_reorders_selects_primary_and_removes_only_their_image(
         (first["id"], 1, False),
     ]
     first_variant_names = list(
-        SubmissionImage.objects.get(id=first["id"]).variants.values_list("file", flat=True)
+        SubmissionImage.objects.get(id=first["id"]).variants.values_list("asset__file", flat=True)
     )
 
     removed = api_client.delete(f"{images_url}{first['id']}/")
@@ -570,7 +586,7 @@ def test_removing_media_preserves_a_file_referenced_by_another_draft(api_client:
     ).data
     original_variant = SubmissionImage.objects.get(id=uploaded["id"]).variants.first()
     assert original_variant is not None
-    shared_name = original_variant.file.name
+    shared_name = original_variant.asset.file.name
 
     second_submitter = User.objects.create_user(
         email="second-reference@example.com",
@@ -587,10 +603,11 @@ def test_removing_media_preserves_a_file_referenced_by_another_draft(api_client:
     SubmissionImageVariant.objects.create(
         image=second_image,
         kind=original_variant.kind,
-        file=shared_name,
+        file=original_variant.file.name,
         width=original_variant.width,
         height=original_variant.height,
         byte_size=original_variant.byte_size,
+        asset=original_variant.asset,
     )
 
     removed = api_client.delete(
@@ -599,6 +616,143 @@ def test_removing_media_preserves_a_file_referenced_by_another_draft(api_client:
 
     assert removed.status_code == 204
     assert default_storage.exists(shared_name)
+
+
+@pytest.mark.django_db(transaction=True)
+def test_listing_in_published_state_retains_files_after_draft_media_is_removed(
+    api_client: APIClient,
+):
+    from apps.submissions.services import retain_submission_media_for_listing
+
+    submitter = User.objects.create_user(
+        email="published-reference@example.com",
+        password="correct-horse-battery",
+        email_verified_at=timezone.now(),
+    )
+    submission_id = create_draft(api_client, submitter)
+    uploaded = api_client.post(
+        f"/api/v1/submissions/{submission_id}/images/",
+        {"file": image_upload(size=(80, 60))},
+        format="multipart",
+    ).data
+    api_client.patch(
+        f"/api/v1/submissions/{submission_id}/",
+        {"completed_step": "images"},
+        format="json",
+    )
+    source = Source.objects.create(
+        name="torobrent-direct",
+        domain="direct.torobrent.test",
+        display_name="TorobRent",
+        outbound_policy=OutboundPolicy.DISABLED,
+    )
+    listing = Listing.objects.create(
+        property=Property.objects.create(),
+        source=source,
+        terms=RentalTerms.objects.create(deposit_rial=1, monthly_rent_rial=0),
+        state=ListingState.PUBLISHED,
+    )
+
+    retained = retain_submission_media_for_listing(
+        submission=Submission.objects.get(id=submission_id),
+        listing=listing,
+    )
+    retained_names = [
+        variant.asset.file.name
+        for image in retained
+        for variant in image.variants.select_related("asset")
+    ]
+    removed = api_client.delete(f"/api/v1/submissions/{submission_id}/images/{uploaded['id']}/")
+
+    assert len(retained_names) == 3
+    assert removed.status_code == 204
+    assert all(default_storage.exists(name) for name in retained_names)
+
+    listing.delete()
+
+    assert all(not default_storage.exists(name) for name in retained_names)
+
+
+@pytest.mark.django_db(transaction=True)
+def test_listing_images_enforce_unique_positions_and_primary_selection():
+    source = Source.objects.create(
+        name="position-check",
+        domain="position-check.torobrent.test",
+        display_name="Position check",
+        outbound_policy=OutboundPolicy.DISABLED,
+    )
+    listing = Listing.objects.create(
+        property=Property.objects.create(),
+        source=source,
+        terms=RentalTerms.objects.create(deposit_rial=1, monthly_rent_rial=0),
+        state=ListingState.PUBLISHED,
+    )
+    listing_image = ListingImage.objects.create(listing=listing, position=0, is_primary=True)
+
+    with pytest.raises(IntegrityError), transaction.atomic():
+        ListingImage.objects.create(listing=listing, position=0)
+
+    with pytest.raises(IntegrityError), transaction.atomic():
+        ListingImage.objects.create(listing=listing, position=1, is_primary=True)
+
+    asset = MediaAsset.objects.create(
+        file="constraint-check.webp",
+        width=480,
+        height=360,
+        byte_size=100,
+    )
+    ListingImageVariant.objects.create(image=listing_image, kind="small", asset=asset)
+
+    with pytest.raises(IntegrityError), transaction.atomic():
+        ListingImageVariant.objects.create(image=listing_image, kind="small", asset=asset)
+
+    with pytest.raises(IntegrityError), transaction.atomic():
+        MediaAsset.objects.create(
+            file=asset.file.name,
+            width=480,
+            height=360,
+            byte_size=100,
+        )
+
+
+@pytest.mark.django_db(transaction=True)
+def test_media_asset_backfill_deduplicates_legacy_shared_files():
+    first_submitter = User.objects.create_user(
+        email="legacy-first@example.com",
+        password="correct-horse-battery",
+    )
+    second_submitter = User.objects.create_user(
+        email="legacy-second@example.com",
+        password="correct-horse-battery",
+    )
+    shared_file = "submission-media/legacy/shared.webp"
+    variants = []
+    for submitter in (first_submitter, second_submitter):
+        submission = Submission.objects.create(submitter=submitter, role="owner")
+        image = SubmissionImage.objects.create(
+            submission=submission,
+            status=SubmissionImageStatus.READY,
+            position=0,
+            is_primary=True,
+        )
+        variants.append(
+            SubmissionImageVariant.objects.create(
+                image=image,
+                kind="small",
+                file=shared_file,
+                width=480,
+                height=360,
+                byte_size=100,
+                asset=None,
+            )
+        )
+    migration = import_module("apps.submissions.migrations.0003_share_processed_media_assets")
+
+    migration.create_assets_for_submission_variants(django_apps, None)
+
+    asset_ids = {SubmissionImageVariant.objects.get(id=variant.id).asset_id for variant in variants}
+    assert len(asset_ids) == 1
+    assert MediaAsset.objects.filter(file=shared_file).count() == 1
 
 
 @pytest.mark.django_db(transaction=True)
@@ -724,7 +878,9 @@ def test_operator_inspects_and_removes_inappropriate_draft_media(api_client: API
         format="multipart",
     ).data
     variant_names = list(
-        SubmissionImage.objects.get(id=uploaded["id"]).variants.values_list("file", flat=True)
+        SubmissionImage.objects.get(id=uploaded["id"]).variants.values_list(
+            "asset__file", flat=True
+        )
     )
     operator = User.objects.create_superuser(
         email="media-operator@example.com",
@@ -772,7 +928,11 @@ def test_processed_media_survives_a_new_local_storage_instance(
             format="multipart",
         ).data
         variant_name = (
-            SubmissionImage.objects.get(id=uploaded["id"]).variants.get(kind="medium").file.name
+            SubmissionImage.objects
+            .get(id=uploaded["id"])
+            .variants.select_related("asset")
+            .get(kind="medium")
+            .asset.file.name
         )
 
         restarted_storage = FileSystemStorage(location=tmp_path)

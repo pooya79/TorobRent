@@ -42,7 +42,7 @@ class SubmissionListCreateView(APIView):
     )
     def get(self, request: Request) -> Response:
         user = cast(User, request.user)
-        submissions = user.submissions.prefetch_related("images__variants")
+        submissions = user.submissions.prefetch_related("images__variants__asset")
         return Response(SubmissionSerializer(submissions, many=True).data)
 
     @extend_schema(
@@ -64,7 +64,7 @@ class SubmissionDetailView(APIView):
     def get_object(self, request: Request, submission_id: str) -> Submission:
         return get_object_or_404(
             Submission.objects.select_related("city", "district", "neighborhood").prefetch_related(
-                "images__variants"
+                "images__variants__asset"
             ),
             id=submission_id,
             submitter=request.user,

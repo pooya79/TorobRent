@@ -69,5 +69,9 @@ check: lint format-check typecheck test api-check build
 
 docker-build:
 	docker build -f backend/Dockerfile -t app-backend .
+	docker run --rm --entrypoint sh \
+		--mount type=volume,destination=/app/backend/media \
+		--mount type=volume,destination=/var/lib/celery \
+		app-backend -c 'touch media/.write-check /var/lib/celery/.write-check'
 	docker build -f frontend/Dockerfile -t app-frontend .
 	docker build -f infra/nginx/Dockerfile -t app-gateway .
