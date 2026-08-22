@@ -12,6 +12,7 @@ dependencies = [
   "djangorestframework>=3.18,<3.19",
   "drf-spectacular>=0.30,<0.31",
   "drf-spectacular-sidecar>=2026.7,<2027",
+  "pillow>=12.1,<13",
   "psycopg[binary,pool]>=3.2,<4",
   "sentry-sdk[django]>=2.68,<3",
   "structlog>=26.1,<27",
