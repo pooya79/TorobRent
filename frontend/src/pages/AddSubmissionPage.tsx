@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, Circle, ImagePlus, Save } from "lucide-react";
+import { Check, Circle, Save } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import { Link, useSearchParams } from "react-router";
 
@@ -13,6 +13,10 @@ import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { locationAutocompleteQueryOptions } from "@/features/catalog/queries";
 import { normalizeNumericEntry } from "@/features/catalog/numeric-entry";
+import {
+  SubmissionImagesFields,
+  submissionImagePreview,
+} from "@/features/submissions/SubmissionImagesFields";
 import {
   createSubmission,
   saveSubmissionStep,
@@ -523,16 +527,7 @@ function StepFields({
     return <FeaturesFields submission={submission} validation={validation} />;
   }
   if (step === "images") {
-    return (
-      <Alert>
-        <ImagePlus aria-hidden="true" />
-        <AlertTitle>افزودن تصویر در مرحله بعدی محصول فعال می‌شود</AlertTitle>
-        <AlertDescription>
-          اکنون می‌توانید اطلاعات تماس و بازبینی را ذخیره کنید، اما Submission
-          بدون تصاویر وارد صف بررسی اپراتور نمی‌شود.
-        </AlertDescription>
-      </Alert>
-    );
+    return <SubmissionImagesFields submission={submission} />;
   }
   if (step === "contact") {
     return <ContactFields submission={submission} validation={validation} />;
@@ -554,6 +549,34 @@ function StepFields({
           </dd>
         </div>
       </dl>
+      {submission.images.length > 0 && (
+        <section className="space-y-3" aria-labelledby="review-images-heading">
+          <h3 id="review-images-heading" className="font-semibold">
+            تصاویر
+          </h3>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+            {submission.images
+              .filter((image) => image.status === "ready")
+              .map((image) => {
+                const preview = submissionImagePreview(image);
+                return preview ? (
+                  <figure key={image.id}>
+                    <img
+                      className="aspect-4/3 w-full rounded-lg object-cover"
+                      src={preview.url}
+                      alt="تصویر Submission در بازبینی"
+                    />
+                    {image.is_primary && (
+                      <figcaption className="mt-1 text-xs">
+                        تصویر اصلی
+                      </figcaption>
+                    )}
+                  </figure>
+                ) : null;
+              })}
+          </div>
+        </section>
+      )}
       <Label className="flex min-h-11 items-start gap-3">
         <input
           name="accuracy_confirmed"
@@ -567,7 +590,9 @@ function StepFields({
       </Label>
       <Alert>
         <AlertDescription>
-          پیش‌نویس ذخیره می‌شود؛ ارسال برای بررسی تا تکمیل تصاویر غیرفعال است.
+          {submission.media_complete
+            ? "تصاویر آماده‌اند و این پیش‌نویس می‌تواند برای بررسی ارسال شود."
+            : "برای ادامه، مرحله تصاویر را کامل کنید."}
         </AlertDescription>
       </Alert>
     </div>
@@ -578,7 +603,7 @@ function stepPayload(
   step: StepId,
   form: FormData,
 ): SubmissionStepUpdate | null {
-  if (step === "images") return null;
+  if (step === "images") return { completed_step: "images" };
   if (step === "location") {
     return {
       completed_step: step,
@@ -685,14 +710,6 @@ function DraftFlow({ submissionId }: { submissionId: string }) {
   if (!submission)
     return <Alert variant="destructive">پیش‌نویس بارگذاری نشد.</Alert>;
 
-  const goNextWithoutSave = () => {
-    if (stepIndex < steps.length - 1) {
-      setSearchParams({
-        submission: submissionId,
-        step: steps[stepIndex + 1]!.id,
-      });
-    }
-  };
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
@@ -784,6 +801,20 @@ function DraftFlow({ submissionId }: { submissionId: string }) {
       });
       return;
     }
+    if (
+      step === "images" &&
+      (submission.images.length < 1 ||
+        submission.images.length > 12 ||
+        submission.images.some((image) => image.status !== "ready") ||
+        submission.images.filter((image) => image.is_primary).length !== 1)
+    ) {
+      const message =
+        submission.images.length < 1
+          ? "برای ادامه دست‌کم یک تصویر اضافه کنید."
+          : "صبر کنید پردازش همه تصاویر تمام شود و یک تصویر اصلی انتخاب کنید.";
+      setValidation({ message, fields: { images: message } });
+      return;
+    }
     if (payload) mutation.mutate(payload);
   };
 
@@ -864,15 +895,9 @@ function DraftFlow({ submissionId }: { submissionId: string }) {
                 ) : (
                   <span />
                 )}
-                {step === "images" ? (
-                  <Button type="button" onClick={goNextWithoutSave}>
-                    ادامه به اطلاعات تماس
-                  </Button>
-                ) : (
-                  <Button disabled={mutation.isPending} type="submit">
-                    {step === "review" ? "ذخیره بازبینی" : "ذخیره و ادامه"}
-                  </Button>
-                )}
+                <Button disabled={mutation.isPending} type="submit">
+                  {step === "review" ? "ذخیره بازبینی" : "ذخیره و ادامه"}
+                </Button>
               </div>
             </form>
           </CardContent>

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import uuid
 
 from django.conf import settings
@@ -23,6 +25,28 @@ class SubmissionStep(models.TextChoices):
     IMAGES = "images", "تصاویر"
     CONTACT = "contact", "اطلاعات تماس"
     REVIEW = "review", "بازبینی"
+
+
+class SubmissionImageStatus(models.TextChoices):
+    PENDING = "pending", "در صف پردازش"
+    PROCESSING = "processing", "در حال پردازش"
+    READY = "ready", "آماده"
+    FAILED = "failed", "ناموفق"
+
+
+class SubmissionImageVariantKind(models.TextChoices):
+    SMALL = "small", "کوچک"
+    MEDIUM = "medium", "متوسط"
+    LARGE = "large", "بزرگ"
+
+
+def submission_image_upload_path(instance: SubmissionImage, _filename: str) -> str:
+    return f"submission-media/{instance.submission_id}/{instance.id}/source.upload"
+
+
+def submission_image_variant_path(instance: SubmissionImageVariant, _filename: str) -> str:
+    image = instance.image
+    return f"submission-media/{image.submission_id}/{image.id}/{instance.kind}.webp"
 
 
 class Submission(models.Model):
@@ -78,3 +102,67 @@ class Submission(models.Model):
 
     def __str__(self) -> str:
         return f"{self.get_role_display()}: {self.id}"
+
+
+class SubmissionImage(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    submission = models.ForeignKey(
+        Submission,
+        on_delete=models.CASCADE,
+        related_name="images",
+    )
+    source = models.FileField(upload_to=submission_image_upload_path, max_length=500, blank=True)
+    status = models.CharField(
+        max_length=16,
+        choices=SubmissionImageStatus,
+        default=SubmissionImageStatus.PENDING,
+    )
+    failure_reason = models.CharField(max_length=500, blank=True)
+    position = models.PositiveSmallIntegerField()
+    is_primary = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    processed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ("position", "created_at")
+        constraints = [
+            models.UniqueConstraint(
+                fields=("submission",),
+                condition=models.Q(is_primary=True),
+                name="one_primary_image_per_submission",
+            ),
+            models.UniqueConstraint(
+                fields=("submission", "position"),
+                name="unique_image_position_per_submission",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.submission_id}: {self.position}"
+
+
+class SubmissionImageVariant(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    image = models.ForeignKey(
+        SubmissionImage,
+        on_delete=models.CASCADE,
+        related_name="variants",
+    )
+    kind = models.CharField(max_length=8, choices=SubmissionImageVariantKind)
+    file = models.FileField(upload_to=submission_image_variant_path, max_length=500)
+    width = models.PositiveIntegerField()
+    height = models.PositiveIntegerField()
+    byte_size = models.PositiveIntegerField()
+
+    class Meta:
+        ordering = ("width",)
+        constraints = [
+            models.UniqueConstraint(
+                fields=("image", "kind"),
+                name="unique_submission_image_variant",
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.image_id}: {self.kind}"

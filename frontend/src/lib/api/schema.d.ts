@@ -210,6 +210,75 @@ export interface paths {
     patch: operations["v1_submissions_partial_update"];
     trace?: never;
   };
+  "/api/v1/submissions/{submission_id}/images/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Upload an image to a Submission draft */
+    post: operations["v1_submissions_images_create"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    /** Reorder a Submission's images and choose its primary image */
+    patch: operations["v1_submissions_images_partial_update"];
+    trace?: never;
+  };
+  "/api/v1/submissions/{submission_id}/images/{image_id}/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    /** Remove an image from a Submission */
+    delete: operations["v1_submissions_images_destroy"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/submissions/{submission_id}/images/{image_id}/content/{kind}/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Read a protected processed Submission image */
+    get: operations["v1_submissions_images_content_retrieve"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/submissions/{submission_id}/images/{image_id}/retry/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Replace and retry a failed Submission image */
+    post: operations["v1_submissions_images_retry_create"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/v1/system/live/": {
     parameters: {
       query?: never;
@@ -270,6 +339,7 @@ export interface components {
      *     * `property_facts` - property_facts
      *     * `rental_terms` - rental_terms
      *     * `features_description` - features_description
+     *     * `images` - images
      *     * `contact` - contact
      *     * `review` - review
      * @enum {string}
@@ -279,6 +349,7 @@ export interface components {
       | "property_facts"
       | "rental_terms"
       | "features_description"
+      | "images"
       | "contact"
       | "review";
     ContactInput: {
@@ -341,15 +412,14 @@ export interface components {
       furnished: components["schemas"]["FeatureStateEnum"];
     };
     Health: {
-      status: components["schemas"]["StatusEnum"];
+      status: components["schemas"]["HealthStatusEnum"];
     };
     /**
-     * @description * `city` - city
-     *     * `district` - district
-     *     * `neighborhood` - neighborhood
+     * @description * `ok` - ok
+     *     * `unavailable` - unavailable
      * @enum {string}
      */
-    KindEnum: "city" | "district" | "neighborhood";
+    HealthStatusEnum: "ok" | "unavailable";
     ListingPublic: {
       /** Format: uuid */
       id: string;
@@ -400,10 +470,17 @@ export interface components {
     LocationSuggestion: {
       /** Format: uuid */
       id: string;
-      kind: components["schemas"]["KindEnum"];
+      kind: components["schemas"]["LocationSuggestionKindEnum"];
       name: string;
       label: string;
     };
+    /**
+     * @description * `city` - city
+     *     * `district` - district
+     *     * `neighborhood` - neighborhood
+     * @enum {string}
+     */
+    LocationSuggestionKindEnum: "city" | "district" | "neighborhood";
     Login: {
       /** Format: email */
       email: string;
@@ -438,6 +515,11 @@ export interface components {
     PasswordResetRequest: {
       /** Format: email */
       email: string;
+    };
+    PatchedSubmissionImageOrder: {
+      image_ids?: string[];
+      /** Format: uuid */
+      primary_image_id?: string;
     };
     PatchedSubmissionStepUpdate: {
       completed_step?: components["schemas"]["CompletedStepEnum"];
@@ -576,12 +658,6 @@ export interface components {
      * @enum {string}
      */
     StateEnum: "draft";
-    /**
-     * @description * `ok` - ok
-     *     * `unavailable` - unavailable
-     * @enum {string}
-     */
-    StatusEnum: "ok" | "unavailable";
     Submission: {
       /** Format: uuid */
       readonly id: string;
@@ -589,6 +665,7 @@ export interface components {
       state?: components["schemas"]["StateEnum"];
       current_step?: components["schemas"]["CurrentStepEnum"];
       readonly media_complete: boolean;
+      readonly images: components["schemas"]["SubmissionImage"][];
       readonly location: components["schemas"]["LocationOutput"] | null;
       readonly property_facts:
         components["schemas"]["PropertyFactsInput"] | null;
@@ -605,6 +682,49 @@ export interface components {
     SubmissionCreate: {
       role: components["schemas"]["RoleEnum"];
     };
+    SubmissionImage: {
+      /** Format: uuid */
+      readonly id: string;
+      status?: components["schemas"]["SubmissionImageStatusEnum"];
+      failure_reason?: string;
+      /** Format: int64 */
+      position: number;
+      is_primary?: boolean;
+      readonly variants: components["schemas"]["SubmissionImageVariant"][];
+      /** Format: date-time */
+      readonly created_at: string;
+      /** Format: date-time */
+      readonly updated_at: string;
+    };
+    /**
+     * @description * `pending` - در صف پردازش
+     *     * `processing` - در حال پردازش
+     *     * `ready` - آماده
+     *     * `failed` - ناموفق
+     * @enum {string}
+     */
+    SubmissionImageStatusEnum: "pending" | "processing" | "ready" | "failed";
+    SubmissionImageUpload: {
+      /** Format: uri */
+      file: string;
+    };
+    SubmissionImageVariant: {
+      kind: components["schemas"]["SubmissionImageVariantKindEnum"];
+      readonly url: string;
+      /** Format: int64 */
+      width: number;
+      /** Format: int64 */
+      height: number;
+      /** Format: int64 */
+      byte_size: number;
+    };
+    /**
+     * @description * `small` - کوچک
+     *     * `medium` - متوسط
+     *     * `large` - بزرگ
+     * @enum {string}
+     */
+    SubmissionImageVariantKindEnum: "small" | "medium" | "large";
     Token: {
       token: string;
     };
@@ -1189,6 +1309,128 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["Submission"];
+        };
+      };
+    };
+  };
+  v1_submissions_images_create: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        submission_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "multipart/form-data": components["schemas"]["SubmissionImageUpload"];
+        "application/json": components["schemas"]["SubmissionImageUpload"];
+      };
+    };
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SubmissionImage"];
+        };
+      };
+    };
+  };
+  v1_submissions_images_partial_update: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        submission_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: {
+      content: {
+        "multipart/form-data": components["schemas"]["PatchedSubmissionImageOrder"];
+        "application/json": components["schemas"]["PatchedSubmissionImageOrder"];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SubmissionImage"][];
+        };
+      };
+    };
+  };
+  v1_submissions_images_destroy: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        image_id: string;
+        submission_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description No response body */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  v1_submissions_images_content_retrieve: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        image_id: string;
+        kind: string;
+        submission_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "image/webp": string;
+        };
+      };
+    };
+  };
+  v1_submissions_images_retry_create: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        image_id: string;
+        submission_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "multipart/form-data": components["schemas"]["SubmissionImageUpload"];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SubmissionImage"];
         };
       };
     };
