@@ -193,6 +193,41 @@ test("hydrates persisted final review data when a draft is resumed", async () =>
   ).toBeChecked();
 });
 
+test("saves final review and submits the revision to the Operator queue", async () => {
+  const user = userEvent.setup();
+  let submitted = false;
+  const reviewDraft = {
+    ...draft,
+    current_step: "review",
+    media_complete: true,
+    review: {},
+  };
+  server.use(
+    http.get("*/api/v1/submissions/:id/", () => HttpResponse.json(reviewDraft)),
+    http.patch("*/api/v1/submissions/:id/", () =>
+      HttpResponse.json({
+        ...reviewDraft,
+        review: { accuracy_confirmed: true },
+      }),
+    ),
+    http.post("*/api/v1/submissions/:id/submit/", () => {
+      submitted = true;
+      return HttpResponse.json({ ...reviewDraft, state: "pending" });
+    }),
+  );
+  renderPage(`/add-submission?submission=${draft.id}&step=review`);
+
+  await user.click(
+    await screen.findByLabelText(
+      "اطلاعات واردشده را بازبینی کردم و درستی آن را تأیید می‌کنم.",
+    ),
+  );
+  await user.click(screen.getByRole("button", { name: "ارسال برای بررسی" }));
+
+  await waitFor(() => expect(submitted).toBe(true));
+  expect(await screen.findByText("در انتظار بررسی اپراتور")).toBeVisible();
+});
+
 test("uploads, previews, reorders, selects primary, removes, and completes the media step", async () => {
   const user = userEvent.setup();
   const mediaImage = (id: string, position: number, isPrimary: boolean) => ({

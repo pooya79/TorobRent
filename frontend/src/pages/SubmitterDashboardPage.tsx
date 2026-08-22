@@ -8,7 +8,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { submissionsQueryOptions } from "@/features/submissions/queries";
-import { submissionStepLabel } from "@/features/submissions/steps";
+import {
+  submissionStateLabels,
+  submissionStepLabel,
+} from "@/features/submissions/steps";
 
 export function SubmitterDashboardPage() {
   const submissions = useQuery(submissionsQueryOptions);
@@ -51,33 +54,94 @@ export function SubmitterDashboardPage() {
               ? "پیش‌نویس مالک"
               : "پیش‌نویس نماینده مالک";
           const currentStep = submission.current_step ?? "location";
+          const canEdit =
+            submission.available_actions?.includes("edit") ??
+            submission.state === "draft";
+          const canSubmit =
+            submission.available_actions?.includes("submit") ?? false;
+          const latestReason = [...(submission.history ?? [])]
+            .reverse()
+            .find((event) => event.reason)?.reason;
           return (
             <Card className="shadow-none" key={submission.id}>
-              <CardContent className="flex flex-col gap-5 sm:flex-row sm:items-center">
-                <div className="bg-muted flex size-12 shrink-0 items-center justify-center rounded-full">
-                  <Clock3 className="size-5" aria-hidden="true" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="mb-2 flex flex-wrap items-center gap-3">
-                    <h2 className="font-semibold">{title}</h2>
-                    <Badge variant="secondary">پیش‌نویس</Badge>
+              <CardContent className="flex flex-col gap-5">
+                <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
+                  <div className="bg-muted flex size-12 shrink-0 items-center justify-center rounded-full">
+                    <Clock3 className="size-5" aria-hidden="true" />
                   </div>
-                  <p className="text-sm">
-                    مرحله کنونی: {submissionStepLabel(currentStep)}
-                  </p>
-                  <p className="text-muted-foreground mt-1 text-xs">
-                    آخرین ذخیره:{" "}
-                    {new Date(submission.updated_at).toLocaleString("fa-IR")}
-                  </p>
+                  <div className="min-w-0 flex-1">
+                    <div className="mb-2 flex flex-wrap items-center gap-3">
+                      <h2 className="font-semibold">{title}</h2>
+                      <Badge variant="secondary">
+                        {submissionStateLabels[submission.state ?? "draft"]}
+                      </Badge>
+                      {submission.revision && (
+                        <span className="text-muted-foreground text-xs">
+                          نسخه {submission.revision.toLocaleString("fa-IR")}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-sm">
+                      مرحله کنونی: {submissionStepLabel(currentStep)}
+                    </p>
+                    <p className="text-muted-foreground mt-1 text-xs">
+                      آخرین ذخیره:{" "}
+                      {new Date(submission.updated_at).toLocaleString("fa-IR")}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {canEdit && (
+                      <Button asChild variant="outline">
+                        <Link
+                          to={`/add-submission?submission=${submission.id}&step=${currentStep}`}
+                          aria-label={`${submission.state === "changes_requested" ? "اصلاح" : "ادامه"} ${title}`}
+                        >
+                          {submission.state === "changes_requested"
+                            ? "اصلاح"
+                            : "ادامه"}{" "}
+                          <ArrowLeft aria-hidden="true" />
+                        </Link>
+                      </Button>
+                    )}
+                    {canSubmit && (
+                      <Button asChild>
+                        <Link
+                          to={`/add-submission?submission=${submission.id}&step=review`}
+                          aria-label={`ارسال برای بررسی ${title}`}
+                        >
+                          ارسال برای بررسی
+                          <ArrowLeft aria-hidden="true" />
+                        </Link>
+                      </Button>
+                    )}
+                  </div>
                 </div>
-                <Button asChild variant="outline">
-                  <Link
-                    to={`/add-submission?submission=${submission.id}&step=${currentStep}`}
-                    aria-label={`ادامه ${title}`}
-                  >
-                    ادامه <ArrowLeft aria-hidden="true" />
-                  </Link>
-                </Button>
+                {latestReason && (
+                  <Alert>
+                    <AlertDescription>{latestReason}</AlertDescription>
+                  </Alert>
+                )}
+                {submission.history && submission.history.length > 0 && (
+                  <details className="text-sm">
+                    <summary className="cursor-pointer font-medium">
+                      تاریخچه وضعیت
+                    </summary>
+                    <ol className="mt-3 space-y-2 border-s ps-4">
+                      {submission.history.map((event) => (
+                        <li key={event.id}>
+                          {submissionStateLabels[event.prior_state]} ←{" "}
+                          {submissionStateLabels[event.new_state]}
+                          <span className="text-muted-foreground ms-2">
+                            {new Date(event.created_at).toLocaleString("fa-IR")}
+                          </span>
+                          {event.reason && (
+                            <p className="mt-1">{event.reason}</p>
+                          )}
+                        </li>
+                      ))}
+                    </ol>
+                  </details>
+                )}
               </CardContent>
             </Card>
           );

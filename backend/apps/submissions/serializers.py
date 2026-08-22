@@ -1,4 +1,3 @@
-from dataclasses import dataclass
 from typing import Any
 
 from django.core.exceptions import ValidationError as DjangoValidationError
@@ -6,62 +5,23 @@ from django.core.files.uploadedfile import UploadedFile
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
-from apps.catalog.models import FeatureState, Neighborhood, PropertyType
+from apps.catalog.models import City, District, FeatureState, Neighborhood, PropertyType
 from apps.catalog.money import rial_to_toman
 from apps.catalog.serializers import LocalizedIntegerField, TomanRialField
 
 from .models import (
     Submission,
+    SubmissionEvent,
     SubmissionImage,
     SubmissionImageVariant,
+    SubmissionState,
     SubmissionStep,
     SubmitterRole,
 )
+from .services import STEP_DEFINITIONS
 
 MAX_SAFE_TOMAN_FOR_JSON_RIAL = 900_719_925_474_099
 
-
-@dataclass(frozen=True)
-class StepDefinition:
-    section: str
-    successor: SubmissionStep
-    fields: tuple[str, ...] = ()
-
-
-STEP_DEFINITIONS = {
-    SubmissionStep.LOCATION: StepDefinition(
-        "location",
-        SubmissionStep.PROPERTY_FACTS,
-        ("city", "district", "neighborhood", "address"),
-    ),
-    SubmissionStep.PROPERTY_FACTS: StepDefinition(
-        "property_facts",
-        SubmissionStep.RENTAL_TERMS,
-        (
-            "property_type",
-            "area_sqm",
-            "room_count",
-            "construction_year",
-            "floor",
-            "total_floors",
-            "units_per_floor",
-        ),
-    ),
-    SubmissionStep.RENTAL_TERMS: StepDefinition(
-        "rental_terms",
-        SubmissionStep.FEATURES_DESCRIPTION,
-        ("deposit_rial", "monthly_rent_rial", "is_negotiable", "is_convertible"),
-    ),
-    SubmissionStep.FEATURES_DESCRIPTION: StepDefinition(
-        "features",
-        SubmissionStep.IMAGES,
-        ("parking", "elevator", "storage", "balcony", "furnished"),
-    ),
-    SubmissionStep.IMAGES: StepDefinition("images", SubmissionStep.CONTACT),
-    SubmissionStep.CONTACT: StepDefinition("contact", SubmissionStep.REVIEW),
-    SubmissionStep.REVIEW: StepDefinition("review", SubmissionStep.REVIEW),
-}
-STEP_ORDER = tuple(SubmissionStep.values)
 REQUIRED_ERROR = "این مقدار الزامی است."
 INVALID_NUMBER_ERROR = "یک عدد صحیح نامنفی وارد کنید."
 FEATURE_ERRORS: Any = {
@@ -358,32 +318,21 @@ class SubmissionStepUpdateSerializer(serializers.Serializer[Any]):
             raise serializers.ValidationError({required_section: "اطلاعات این مرحله الزامی است."})
         return attrs
 
-    def update(self, instance: Submission, validated_data: dict[str, Any]) -> Submission:
-        step = validated_data.pop("completed_step")
-        definition = STEP_DEFINITIONS[step]
-        values = validated_data.get(definition.section)
-        if values is not None:
-            if definition.section == "location":
-                values.pop("city_id", None)
-                values.pop("district_id", None)
-                values.pop("neighborhood_id")
-            for field in definition.fields:
-                if field in values:
-                    setattr(instance, field, values[field])
-        contact = validated_data.get("contact")
-        if contact is not None:
-            instance.contact_name = contact["name"]
-            instance.contact_phone = contact["phone"]
-            instance.authorization_declared = contact["authorization_declared"]
-            instance.phone_publication_consent = contact["phone_publication_consent"]
-        if "description" in validated_data:
-            instance.description = validated_data["description"]
-        if "review" in validated_data:
-            instance.review_data = validated_data["review"]
-        if STEP_ORDER.index(definition.successor) > STEP_ORDER.index(instance.current_step):
-            instance.current_step = definition.successor
-        instance.save()
-        return instance
+
+class SubmissionEventSerializer(serializers.ModelSerializer[SubmissionEvent]):
+    actor_email = serializers.EmailField(source="actor.email", read_only=True)
+
+    class Meta:
+        model = SubmissionEvent
+        fields = (
+            "id",
+            "actor_email",
+            "revision",
+            "prior_state",
+            "new_state",
+            "reason",
+            "created_at",
+        )
 
 
 class SubmissionSerializer(serializers.ModelSerializer[Submission]):
@@ -394,6 +343,13 @@ class SubmissionSerializer(serializers.ModelSerializer[Submission]):
     contact = serializers.SerializerMethodField()
     review = serializers.JSONField(source="review_data")
     images = SubmissionImageSerializer(many=True, read_only=True)
+    history = serializers.SerializerMethodField()
+    available_actions = serializers.SerializerMethodField()
+    listing_id = serializers.UUIDField(read_only=True, allow_null=True)
+    property_id = serializers.UUIDField(
+        source="listing.property_id", read_only=True, allow_null=True
+    )
+    source_id = serializers.UUIDField(read_only=True, allow_null=True)
 
     class Meta:
         model = Submission
@@ -401,6 +357,10 @@ class SubmissionSerializer(serializers.ModelSerializer[Submission]):
             "id",
             "role",
             "state",
+            "revision",
+            "source_id",
+            "listing_id",
+            "property_id",
             "current_step",
             "media_complete",
             "images",
@@ -411,9 +371,22 @@ class SubmissionSerializer(serializers.ModelSerializer[Submission]):
             "description",
             "contact",
             "review",
+            "history",
+            "available_actions",
             "created_at",
             "updated_at",
         )
+
+    @extend_schema_field(SubmissionEventSerializer(many=True))
+    def get_history(self, submission: Submission) -> list[dict[str, Any]]:
+        return list(SubmissionEventSerializer(submission.events.all(), many=True).data)
+
+    def get_available_actions(self, submission: Submission) -> list[str]:
+        if submission.state == SubmissionState.DRAFT:
+            return ["edit", "submit"]
+        if submission.state in (SubmissionState.CHANGES_REQUESTED, SubmissionState.PUBLISHED):
+            return ["edit"]
+        return []
 
     @extend_schema_field(LocationOutputSerializer(allow_null=True))
     def get_location(self, submission: Submission) -> dict[str, Any] | None:
@@ -481,3 +454,62 @@ class SubmissionSerializer(serializers.ModelSerializer[Submission]):
             "authorization_declared": submission.authorization_declared,
             "phone_publication_consent": submission.phone_publication_consent,
         }
+
+
+class ReviewReasonSerializer(serializers.Serializer[Any]):
+    reason = serializers.CharField(
+        trim_whitespace=True,
+        error_messages={"required": REQUIRED_ERROR, "blank": "دلیل تصمیم الزامی است."},
+    )
+
+
+class NormalizedPropertySerializer(serializers.Serializer[Any]):
+    city_id = serializers.UUIDField(required=False)
+    district_id = serializers.UUIDField(required=False)
+    neighborhood_id = serializers.UUIDField(required=False)
+    property_type = serializers.ChoiceField(choices=PropertyType.choices, required=False)
+    area_sqm = serializers.IntegerField(min_value=1, required=False)
+    room_count = serializers.IntegerField(min_value=0, required=False)
+    construction_year = serializers.IntegerField(min_value=1200, allow_null=True, required=False)
+    floor = serializers.IntegerField(allow_null=True, required=False)
+    total_floors = serializers.IntegerField(min_value=1, allow_null=True, required=False)
+    units_per_floor = serializers.IntegerField(min_value=1, allow_null=True, required=False)
+    parking = serializers.ChoiceField(choices=FeatureState.choices, required=False)
+    elevator = serializers.ChoiceField(choices=FeatureState.choices, required=False)
+    storage = serializers.ChoiceField(choices=FeatureState.choices, required=False)
+    balcony = serializers.ChoiceField(choices=FeatureState.choices, required=False)
+    furnished = serializers.ChoiceField(choices=FeatureState.choices, required=False)
+    operator_location_notes = serializers.CharField(allow_blank=True, required=False)
+
+    def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
+        relations = (
+            ("city_id", "city", City),
+            ("district_id", "district", District),
+            ("neighborhood_id", "neighborhood", Neighborhood),
+        )
+        for input_name, model_name, model in relations:
+            if input_name in attrs:
+                try:
+                    attrs[model_name] = model.objects.get(id=attrs.pop(input_name), reviewed=True)
+                except model.DoesNotExist:
+                    raise serializers.ValidationError({
+                        input_name: "مکان بازبینی‌شده پیدا نشد."
+                    }) from None
+        return attrs
+
+
+class SourceMetadataSerializer(serializers.Serializer[Any]):
+    source_reference = serializers.CharField(max_length=255, allow_blank=True, required=False)
+    source_claims = serializers.JSONField(required=False)
+    provenance_note = serializers.CharField(allow_blank=True, required=False)
+
+
+class FormattingSerializer(serializers.Serializer[Any]):
+    description = serializers.CharField(max_length=5000, allow_blank=True, required=False)
+
+
+class SubmissionApprovalSerializer(serializers.Serializer[Any]):
+    property_id = serializers.UUIDField(required=False, allow_null=True)
+    normalized_property = NormalizedPropertySerializer(required=False)
+    source_metadata = SourceMetadataSerializer(required=False)
+    formatting = FormattingSerializer(required=False)

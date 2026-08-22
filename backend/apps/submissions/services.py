@@ -1,6 +1,8 @@
 import logging
+from dataclasses import dataclass
 from datetime import timedelta
 from io import BytesIO
+from typing import Any
 from uuid import UUID
 
 from django.conf import settings
@@ -13,15 +15,25 @@ from django.db.models.deletion import ProtectedError
 from django.utils import timezone
 from PIL import Image, ImageOps, UnidentifiedImageError
 
-from apps.catalog.models import Listing, ListingImage, ListingImageVariant, ListingState
+from apps.accounts.models import User
+from apps.catalog.models import Listing, ListingImage, Source
+from apps.catalog.services import (
+    DirectListingSpec,
+    ListingImageSpec,
+    ListingImageVariantSpec,
+    materialize_direct_listing,
+    replace_listing_images,
+)
 
 from .models import (
     MediaAsset,
     Submission,
+    SubmissionEvent,
     SubmissionImage,
     SubmissionImageStatus,
     SubmissionImageVariant,
     SubmissionImageVariantKind,
+    SubmissionState,
     SubmissionStep,
 )
 
@@ -35,6 +47,298 @@ MAX_SUBMISSION_IMAGES = 12
 PROCESSING_FAILURE_REASON = "پردازش تصویر ناموفق بود. فایل را جایگزین و دوباره تلاش کنید."
 
 logger = logging.getLogger(__name__)
+
+PROPERTY_FIELDS = (
+    "city",
+    "district",
+    "neighborhood",
+    "property_type",
+    "area_sqm",
+    "room_count",
+    "construction_year",
+    "floor",
+    "total_floors",
+    "units_per_floor",
+    "parking",
+    "elevator",
+    "storage",
+    "balcony",
+    "furnished",
+)
+OPERATOR_PROPERTY_FIELDS = frozenset({*PROPERTY_FIELDS, "operator_location_notes"})
+
+
+@dataclass(frozen=True)
+class StepDefinition:
+    section: str
+    successor: SubmissionStep
+    fields: tuple[str, ...] = ()
+
+
+STEP_DEFINITIONS = {
+    SubmissionStep.LOCATION: StepDefinition(
+        "location",
+        SubmissionStep.PROPERTY_FACTS,
+        ("city", "district", "neighborhood", "address"),
+    ),
+    SubmissionStep.PROPERTY_FACTS: StepDefinition(
+        "property_facts",
+        SubmissionStep.RENTAL_TERMS,
+        (
+            "property_type",
+            "area_sqm",
+            "room_count",
+            "construction_year",
+            "floor",
+            "total_floors",
+            "units_per_floor",
+        ),
+    ),
+    SubmissionStep.RENTAL_TERMS: StepDefinition(
+        "rental_terms",
+        SubmissionStep.FEATURES_DESCRIPTION,
+        ("deposit_rial", "monthly_rent_rial", "is_negotiable", "is_convertible"),
+    ),
+    SubmissionStep.FEATURES_DESCRIPTION: StepDefinition(
+        "features",
+        SubmissionStep.IMAGES,
+        ("parking", "elevator", "storage", "balcony", "furnished"),
+    ),
+    SubmissionStep.IMAGES: StepDefinition("images", SubmissionStep.CONTACT),
+    SubmissionStep.CONTACT: StepDefinition("contact", SubmissionStep.REVIEW),
+    SubmissionStep.REVIEW: StepDefinition("review", SubmissionStep.REVIEW),
+}
+STEP_ORDER = tuple(SubmissionStep.values)
+
+
+def _record_transition(
+    *, submission: Submission, actor: User, new_state: SubmissionState, reason: str = ""
+) -> None:
+    prior_state = submission.state
+    submission.state = new_state
+    submission.save(update_fields=("state", "updated_at"))
+    SubmissionEvent.objects.create(
+        submission=submission,
+        actor=actor,
+        revision=submission.revision,
+        prior_state=prior_state,
+        new_state=new_state,
+        reason=reason,
+    )
+
+
+def _validate_complete_submission(submission: Submission) -> None:
+    required = {
+        "city": submission.city_id,
+        "district": submission.district_id,
+        "neighborhood": submission.neighborhood_id,
+        "address": submission.address,
+        "property_type": submission.property_type,
+        "area_sqm": submission.area_sqm,
+        "room_count": submission.room_count,
+        "deposit_rial": submission.deposit_rial,
+        "monthly_rent_rial": submission.monthly_rent_rial,
+        "contact_name": submission.contact_name,
+        "contact_phone": submission.contact_phone,
+    }
+    missing = [field for field, value in required.items() if value is None or value == ""]
+    if (
+        missing
+        or not submission.authorization_declared
+        or not submission.review_data.get("accuracy_confirmed")
+    ):
+        raise ValidationError("Submission پیش از ارسال باید کامل و تأیید شده باشد.")
+    ensure_submission_media_complete(submission=submission)
+
+
+@transaction.atomic
+def submit_for_review(*, submission: Submission, actor: User) -> Submission:
+    submission = Submission.objects.select_for_update().get(id=submission.id)
+    if submission.submitter_id != actor.id:
+        raise ValidationError("فقط ثبت‌کننده می‌تواند Submission را ارسال کند.")
+    if submission.state != SubmissionState.DRAFT:
+        raise ValidationError("این نسخه قبلاً ارسال شده یا دیگر قابل ارسال نیست.")
+    _validate_complete_submission(submission)
+    if submission.source_id is None:
+        try:
+            submission.source = Source.objects.get(is_builtin=True)
+        except Source.DoesNotExist:
+            raise ValidationError("منبع مستقیم TorobRent پیکربندی نشده است.") from None
+        submission.save(update_fields=("source", "updated_at"))
+    _record_transition(submission=submission, actor=actor, new_state=SubmissionState.PENDING)
+    return submission
+
+
+@transaction.atomic
+def prepare_submission_edit(*, submission: Submission, actor: User) -> Submission:
+    submission = Submission.objects.select_for_update().get(id=submission.id)
+    if submission.submitter_id != actor.id:
+        raise ValidationError("فقط ثبت‌کننده می‌تواند Submission را ویرایش کند.")
+    if submission.state in (SubmissionState.PENDING, SubmissionState.REJECTED):
+        raise ValidationError("Submission در وضعیت کنونی قابل ویرایش نیست.")
+    if submission.state in (SubmissionState.CHANGES_REQUESTED, SubmissionState.PUBLISHED):
+        prior_state = submission.state
+        submission.revision += 1
+        submission.state = SubmissionState.DRAFT
+        submission.review_data = {}
+        submission.save(update_fields=("revision", "state", "review_data", "updated_at"))
+        SubmissionEvent.objects.create(
+            submission=submission,
+            actor=actor,
+            revision=submission.revision,
+            prior_state=prior_state,
+            new_state=SubmissionState.DRAFT,
+            reason="نسخه جدید برای ویرایش ایجاد شد.",
+        )
+    return submission
+
+
+@transaction.atomic
+def save_submission_step_for_actor(
+    *,
+    submission: Submission,
+    actor: User,
+    validated_data: dict[str, Any],
+) -> Submission:
+    submission = prepare_submission_edit(submission=submission, actor=actor)
+    completed_step = validated_data["completed_step"]
+    if completed_step == SubmissionStep.IMAGES:
+        complete_submission_media_step(submission=submission)
+    else:
+        if completed_step == SubmissionStep.REVIEW:
+            ensure_submission_media_complete(submission=submission)
+        _apply_submission_step_update(submission=submission, validated_data=validated_data)
+    return Submission.objects.get(id=submission.id)
+
+
+def _apply_submission_step_update(
+    *, submission: Submission, validated_data: dict[str, Any]
+) -> None:
+    step = validated_data["completed_step"]
+    definition = STEP_DEFINITIONS[step]
+    values = validated_data.get(definition.section)
+    if values is not None:
+        for field in definition.fields:
+            if field in values:
+                setattr(submission, field, values[field])
+    contact = validated_data.get("contact")
+    if contact is not None:
+        submission.contact_name = contact["name"]
+        submission.contact_phone = contact["phone"]
+        submission.authorization_declared = contact["authorization_declared"]
+        submission.phone_publication_consent = contact["phone_publication_consent"]
+    if "description" in validated_data:
+        submission.description = validated_data["description"]
+    if "review" in validated_data:
+        submission.review_data = validated_data["review"]
+    if STEP_ORDER.index(definition.successor) > STEP_ORDER.index(submission.current_step):
+        submission.current_step = definition.successor
+    submission.save()
+
+
+@transaction.atomic
+def request_submission_changes(*, submission: Submission, actor: User, reason: str) -> Submission:
+    submission = Submission.objects.select_for_update().get(id=submission.id)
+    if submission.state != SubmissionState.PENDING:
+        raise ValidationError("فقط Submission در انتظار بررسی قابل بازگشت است.")
+    _record_transition(
+        submission=submission,
+        actor=actor,
+        new_state=SubmissionState.CHANGES_REQUESTED,
+        reason=reason,
+    )
+    return submission
+
+
+@transaction.atomic
+def reject_submission(*, submission: Submission, actor: User, reason: str) -> Submission:
+    submission = Submission.objects.select_for_update().get(id=submission.id)
+    if submission.state != SubmissionState.PENDING:
+        raise ValidationError("فقط Submission در انتظار بررسی قابل رد است.")
+    _record_transition(
+        submission=submission,
+        actor=actor,
+        new_state=SubmissionState.REJECTED,
+        reason=reason,
+    )
+    return submission
+
+
+def _property_values(submission: Submission, corrections: dict[str, object]) -> dict[str, object]:
+    unknown = corrections.keys() - OPERATOR_PROPERTY_FIELDS
+    if unknown:
+        raise ValidationError(f"اصلاح مشخصات مجاز نیست: {', '.join(sorted(unknown))}")
+    values = {field: getattr(submission, field) for field in PROPERTY_FIELDS}
+    values.update(corrections)
+    return values
+
+
+def _formatting_only(original: str, formatted: str) -> bool:
+    meaningful_original = "".join(character for character in original if character.isalnum())
+    meaningful_formatted = "".join(character for character in formatted if character.isalnum())
+    return meaningful_original.casefold() == meaningful_formatted.casefold()
+
+
+@transaction.atomic
+def approve_submission(
+    *,
+    submission: Submission,
+    actor: User,
+    property_id: UUID | None = None,
+    normalized_property: dict[str, object] | None = None,
+    source_metadata: dict[str, object] | None = None,
+    formatting: dict[str, object] | None = None,
+) -> Submission:
+    submission = Submission.objects.select_for_update().get(id=submission.id)
+    if submission.state != SubmissionState.PENDING:
+        raise ValidationError("فقط Submission در انتظار بررسی قابل تأیید است.")
+    _validate_complete_submission(submission)
+    corrections = normalized_property or {}
+    values = _property_values(submission, corrections)
+    if submission.deposit_rial is None or submission.monthly_rent_rial is None:
+        raise ValidationError("شرایط اجاره کامل نیست.")
+
+    metadata = source_metadata or {}
+    allowed_metadata = {"source_reference", "source_claims", "provenance_note"}
+    if metadata.keys() - allowed_metadata:
+        raise ValidationError("فقط فراداده منبع قابل اصلاح است.")
+    formatted = formatting or {}
+    if formatted.keys() - {"description"}:
+        raise ValidationError("فقط قالب‌بندی توضیحات قابل اصلاح است.")
+    if "description" in formatted and not _formatting_only(
+        submission.description, str(formatted["description"])
+    ):
+        raise ValidationError(
+            "تغییر محتوای توضیحات باید از مسیر درخواست اصلاح به ثبت‌کننده بازگردد."
+        )
+    source = submission.source or Source.objects.get(is_builtin=True)
+    listing = materialize_direct_listing(
+        spec=DirectListingSpec(
+            source=source,
+            property_values=values,
+            property_corrections=corrections,
+            property_id=property_id,
+            existing_listing_id=submission.listing_id,
+            terms_values={
+                "deposit_rial": submission.deposit_rial,
+                "monthly_rent_rial": submission.monthly_rent_rial,
+                "is_negotiable": submission.is_negotiable,
+                "is_convertible": submission.is_convertible,
+            },
+            listing_values={
+                "description": formatted.get("description", submission.description),
+                "direct_phone": (
+                    submission.contact_phone if submission.phone_publication_consent else ""
+                ),
+                **metadata,
+            },
+            image_specs=_submission_image_specs(submission),
+        )
+    )
+    submission.listing = listing
+    submission.save(update_fields=("listing", "updated_at"))
+    _record_transition(submission=submission, actor=actor, new_state=SubmissionState.PUBLISHED)
+    return submission
 
 
 def validate_image_upload(upload: UploadedFile[bytes]) -> None:
@@ -59,6 +363,8 @@ def validate_image_upload(upload: UploadedFile[bytes]) -> None:
 def add_submission_image(*, submission: Submission, upload: UploadedFile[bytes]) -> SubmissionImage:
     validate_image_upload(upload)
     submission = Submission.objects.select_for_update().get(id=submission.id)
+    if submission.state != SubmissionState.DRAFT:
+        raise ValidationError("تصاویر فقط در نسخه پیش‌نویس قابل تغییر هستند.")
     position = submission.images.count()
     if position >= MAX_SUBMISSION_IMAGES:
         raise ValidationError("هر Submission می‌تواند حداکثر ۱۲ تصویر داشته باشد.")
@@ -111,6 +417,8 @@ def reorder_submission_images(
     *, submission: Submission, image_ids: list[UUID], primary_image_id: UUID
 ) -> list[SubmissionImage]:
     submission = Submission.objects.select_for_update().get(id=submission.id)
+    if submission.state != SubmissionState.DRAFT:
+        raise ValidationError("تصاویر فقط در نسخه پیش‌نویس قابل تغییر هستند.")
     images = list(submission.images.select_for_update())
     current_ids = {image.id for image in images}
     requested_ids = set(image_ids)
@@ -164,20 +472,14 @@ def retain_submission_media_for_listing(
     *, submission: Submission, listing: Listing
 ) -> list[ListingImage]:
     submission = Submission.objects.select_for_update().get(id=submission.id)
-    listing = Listing.objects.select_for_update().get(id=listing.id)
-    if listing.state != ListingState.PUBLISHED:
-        raise ValidationError("رسانه فقط برای Listing با وضعیت PUBLISHED قابل نگهداری است.")
     ensure_submission_media_complete(submission=submission)
+    return replace_listing_images(listing=listing, image_specs=_submission_image_specs(submission))
 
-    ListingImage.objects.filter(listing=listing).delete()
-    retained: list[ListingImage] = []
+
+def _submission_image_specs(submission: Submission) -> list[ListingImageSpec]:
+    specs: list[ListingImageSpec] = []
     for image in submission.images.prefetch_related("variants__asset").order_by("position"):
-        listing_image = ListingImage.objects.create(
-            listing=listing,
-            position=image.position,
-            is_primary=image.is_primary,
-        )
-        retained.append(listing_image)
+        variants: list[ListingImageVariantSpec] = []
         for variant in image.variants.all():
             asset = variant.asset
             if asset is None:
@@ -191,17 +493,22 @@ def retain_submission_media_for_listing(
                 )
                 variant.asset = asset
                 variant.save(update_fields=("asset",))
-            ListingImageVariant.objects.create(
-                image=listing_image,
-                kind=variant.kind,
-                asset=asset,
+            variants.append(ListingImageVariantSpec(kind=variant.kind, asset_id=asset.id))
+        specs.append(
+            ListingImageSpec(
+                position=image.position,
+                is_primary=image.is_primary,
+                variants=tuple(variants),
             )
-    return retained
+        )
+    return specs
 
 
 @transaction.atomic
 def remove_submission_image(*, submission: Submission, image_id: UUID | str) -> None:
     submission = Submission.objects.select_for_update().get(id=submission.id)
+    if submission.state != SubmissionState.DRAFT:
+        raise ValidationError("تصاویر فقط در نسخه پیش‌نویس قابل تغییر هستند.")
     image = submission.images.select_for_update().get(id=image_id)
     removed_primary = image.is_primary
     image.delete()
@@ -260,6 +567,8 @@ def retry_submission_image(
     image = (
         SubmissionImage.objects.select_for_update().select_related("submission").get(id=image.id)
     )
+    if image.submission.state != SubmissionState.DRAFT:
+        raise ValidationError("تصاویر فقط در نسخه پیش‌نویس قابل تغییر هستند.")
     if image.status != SubmissionImageStatus.FAILED:
         raise ValidationError("فقط پردازش ناموفق را می‌توان دوباره تلاش کرد.")
     superseded_files = [(image.source.storage, image.source.name)] if image.source.name else []
@@ -277,6 +586,47 @@ def retry_submission_image(
 
     transaction.on_commit(lambda: process_submission_image.delay(str(image.id)))
     return image
+
+
+@transaction.atomic
+def add_submission_image_for_actor(
+    *, submission: Submission, actor: User, upload: UploadedFile[bytes]
+) -> SubmissionImage:
+    submission = prepare_submission_edit(submission=submission, actor=actor)
+    return add_submission_image(submission=submission, upload=upload)
+
+
+@transaction.atomic
+def reorder_submission_images_for_actor(
+    *,
+    submission: Submission,
+    actor: User,
+    image_ids: list[UUID],
+    primary_image_id: UUID,
+) -> list[SubmissionImage]:
+    submission = prepare_submission_edit(submission=submission, actor=actor)
+    return reorder_submission_images(
+        submission=submission,
+        image_ids=image_ids,
+        primary_image_id=primary_image_id,
+    )
+
+
+@transaction.atomic
+def remove_submission_image_for_actor(
+    *, submission: Submission, actor: User, image_id: UUID | str
+) -> None:
+    submission = prepare_submission_edit(submission=submission, actor=actor)
+    remove_submission_image(submission=submission, image_id=image_id)
+
+
+@transaction.atomic
+def retry_submission_image_for_actor(
+    *, image: SubmissionImage, actor: User, upload: UploadedFile[bytes]
+) -> SubmissionImage:
+    submission = prepare_submission_edit(submission=image.submission, actor=actor)
+    image.submission = submission
+    return retry_submission_image(image=image, upload=upload)
 
 
 def _render_variant(source: Image.Image, width: int) -> tuple[ContentFile[bytes], int, int, int]:

@@ -481,6 +481,148 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: No Property with an Active Listing was found
+  /api/v1/operator/submissions/:
+    get:
+      operationId: v1_operator_submissions_list
+      summary: List and filter the Operator review queue
+      parameters:
+      - in: query
+        name: city
+        schema:
+          type: string
+          format: uuid
+      - in: query
+        name: district
+        schema:
+          type: string
+          format: uuid
+      - in: query
+        name: neighborhood
+        schema:
+          type: string
+          format: uuid
+      - in: query
+        name: ordering
+        schema:
+          type: string
+          enum:
+          - newest
+          - oldest
+      - in: query
+        name: source
+        schema:
+          type: string
+          format: uuid
+      - in: query
+        name: state
+        schema:
+          type: string
+      - in: query
+        name: updated_after
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: updated_before
+        schema:
+          type: string
+          format: date-time
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Submission'
+          description: ''
+  /api/v1/operator/submissions/{submission_id}/approve/:
+    post:
+      operationId: v1_operator_submissions_approve_create
+      summary: Approve, group, and publish a pending Submission
+      parameters:
+      - in: path
+        name: submission_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubmissionApproval'
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Submission'
+          description: ''
+  /api/v1/operator/submissions/{submission_id}/reject/:
+    post:
+      operationId: v1_operator_submissions_reject_create
+      summary: Terminally reject a pending Submission
+      parameters:
+      - in: path
+        name: submission_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReviewReason'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Submission'
+          description: ''
+  /api/v1/operator/submissions/{submission_id}/request-changes/:
+    post:
+      operationId: v1_operator_submissions_request_changes_create
+      summary: Request changes to a pending Submission
+      parameters:
+      - in: path
+        name: submission_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReviewReason'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Submission'
+          description: ''
   /api/v1/submissions/:
     get:
       operationId: v1_submissions_list
@@ -720,6 +862,28 @@ paths:
               schema:
                 $ref: '#/components/schemas/SubmissionImage'
           description: ''
+  /api/v1/submissions/{submission_id}/submit/:
+    post:
+      operationId: v1_submissions_submit_create
+      summary: Submit a complete revision for Operator review
+      parameters:
+      - in: path
+        name: submission_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Submission'
+          description: ''
   /api/v1/system/live/:
     get:
       operationId: v1_system_live_retrieve
@@ -909,6 +1073,12 @@ components:
       - furnished
       - parking
       - storage
+    Formatting:
+      type: object
+      properties:
+        description:
+          type: string
+          maxLength: 5000
     Health:
       type: object
       properties:
@@ -1078,6 +1248,57 @@ components:
       required:
       - email
       - password
+    NormalizedProperty:
+      type: object
+      properties:
+        city_id:
+          type: string
+          format: uuid
+        district_id:
+          type: string
+          format: uuid
+        neighborhood_id:
+          type: string
+          format: uuid
+        property_type:
+          $ref: '#/components/schemas/PropertyTypeEnum'
+        area_sqm:
+          type: integer
+          minimum: 1
+        room_count:
+          type: integer
+          minimum: 0
+        construction_year:
+          type:
+          - integer
+          - 'null'
+          minimum: 1200
+        floor:
+          type:
+          - integer
+          - 'null'
+        total_floors:
+          type:
+          - integer
+          - 'null'
+          minimum: 1
+        units_per_floor:
+          type:
+          - integer
+          - 'null'
+          minimum: 1
+        parking:
+          $ref: '#/components/schemas/FeatureStateEnum'
+        elevator:
+          $ref: '#/components/schemas/FeatureStateEnum'
+        storage:
+          $ref: '#/components/schemas/FeatureStateEnum'
+        balcony:
+          $ref: '#/components/schemas/FeatureStateEnum'
+        furnished:
+          $ref: '#/components/schemas/FeatureStateEnum'
+        operator_location_notes:
+          type: string
     OutboundPolicyEnum:
       enum:
       - direct_contact
@@ -1449,6 +1670,13 @@ components:
           type: boolean
       required:
       - accuracy_confirmed
+    ReviewReason:
+      type: object
+      properties:
+        reason:
+          type: string
+      required:
+      - reason
     RoleEnum:
       enum:
       - owner
@@ -1478,6 +1706,15 @@ components:
       - field
       - normalized_value
       - source_value
+    SourceMetadata:
+      type: object
+      properties:
+        source_reference:
+          type: string
+          maxLength: 255
+        source_claims: {}
+        provenance_note:
+          type: string
     SourcePublic:
       type: object
       properties:
@@ -1495,11 +1732,6 @@ components:
       - id
       - name
       - outbound_policy
-    StateEnum:
-      enum:
-      - draft
-      type: string
-      description: '* `draft` - پیش‌نویس'
     Submission:
       type: object
       properties:
@@ -1510,7 +1742,28 @@ components:
         role:
           $ref: '#/components/schemas/RoleEnum'
         state:
-          $ref: '#/components/schemas/StateEnum'
+          $ref: '#/components/schemas/SubmissionStateEnum'
+        revision:
+          type: integer
+          readOnly: true
+        source_id:
+          type:
+          - string
+          - 'null'
+          format: uuid
+          readOnly: true
+        listing_id:
+          type:
+          - string
+          - 'null'
+          format: uuid
+          readOnly: true
+        property_id:
+          type:
+          - string
+          - 'null'
+          format: uuid
+          readOnly: true
         current_step:
           $ref: '#/components/schemas/CurrentStepEnum'
         media_complete:
@@ -1548,6 +1801,16 @@ components:
           - type: 'null'
           readOnly: true
         review: {}
+        history:
+          type: array
+          items:
+            $ref: '#/components/schemas/SubmissionEvent'
+          readOnly: true
+        available_actions:
+          type: array
+          items:
+            type: string
+          readOnly: true
         created_at:
           type: string
           format: date-time
@@ -1557,18 +1820,38 @@ components:
           format: date-time
           readOnly: true
       required:
+      - available_actions
       - contact
       - created_at
       - features
+      - history
       - id
       - images
+      - listing_id
       - location
       - media_complete
       - property_facts
+      - property_id
       - rental_terms
       - review
+      - revision
       - role
+      - source_id
       - updated_at
+    SubmissionApproval:
+      type: object
+      properties:
+        property_id:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        normalized_property:
+          $ref: '#/components/schemas/NormalizedProperty'
+        source_metadata:
+          $ref: '#/components/schemas/SourceMetadata'
+        formatting:
+          $ref: '#/components/schemas/Formatting'
     SubmissionCreate:
       type: object
       properties:
@@ -1576,6 +1859,39 @@ components:
           $ref: '#/components/schemas/RoleEnum'
       required:
       - role
+    SubmissionEvent:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        actor_email:
+          type: string
+          format: email
+          readOnly: true
+        revision:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 0
+          format: int64
+        prior_state:
+          $ref: '#/components/schemas/SubmissionStateEnum'
+        new_state:
+          $ref: '#/components/schemas/SubmissionStateEnum'
+        reason:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - actor_email
+      - created_at
+      - id
+      - new_state
+      - prior_state
+      - revision
     SubmissionImage:
       type: object
       properties:
@@ -1673,6 +1989,20 @@ components:
         * `small` - کوچک
         * `medium` - متوسط
         * `large` - بزرگ
+    SubmissionStateEnum:
+      enum:
+      - draft
+      - pending
+      - changes_requested
+      - rejected
+      - published
+      type: string
+      description: |-
+        * `draft` - پیش‌نویس
+        * `pending` - در انتظار بررسی
+        * `changes_requested` - نیازمند اصلاح
+        * `rejected` - ردشده
+        * `published` - منتشرشده
     Token:
       type: object
       properties:

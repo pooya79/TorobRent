@@ -141,6 +141,7 @@ SPECTACULAR_SETTINGS = {
         "FeatureStateEnum": "apps.catalog.models.FeatureState.choices",
         "OutboundPolicyEnum": "apps.catalog.models.OutboundPolicy.choices",
         "PropertyTypeEnum": "apps.catalog.models.PropertyType.choices",
+        "SubmissionStateEnum": "apps.submissions.models.SubmissionState.choices",
     },
     "SWAGGER_UI_DIST": "SIDECAR",
     "SWAGGER_UI_FAVICON_HREF": "SIDECAR",

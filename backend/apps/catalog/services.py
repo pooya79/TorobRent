@@ -1,10 +1,48 @@
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from datetime import timedelta
+from uuid import UUID
 
 from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.utils import timezone
 
-from .models import Listing, ListingGroupingAction, ListingGroupingEvent, ListingState, Property
+from .models import (
+    Listing,
+    ListingGroupingAction,
+    ListingGroupingEvent,
+    ListingImage,
+    ListingImageVariant,
+    ListingState,
+    Property,
+    RentalTerms,
+    Source,
+)
+
+
+@dataclass(frozen=True)
+class ListingImageVariantSpec:
+    kind: str
+    asset_id: UUID
+
+
+@dataclass(frozen=True)
+class ListingImageSpec:
+    position: int
+    is_primary: bool
+    variants: tuple[ListingImageVariantSpec, ...]
+
+
+@dataclass(frozen=True)
+class DirectListingSpec:
+    source: Source
+    property_values: Mapping[str, object]
+    property_corrections: Mapping[str, object]
+    terms_values: Mapping[str, object]
+    listing_values: Mapping[str, object]
+    image_specs: Sequence[ListingImageSpec]
+    property_id: UUID | None = None
+    existing_listing_id: UUID | None = None
 
 
 @transaction.atomic
@@ -22,6 +60,84 @@ def publish_listing(listing: Listing) -> Listing:
     listing.state = ListingState.PUBLISHED
     listing.save()
     return listing
+
+
+@transaction.atomic
+def materialize_direct_listing(*, spec: DirectListingSpec) -> Listing:
+    existing_listing = None
+    if spec.existing_listing_id is not None:
+        existing_listing = (
+            Listing.objects
+            .select_for_update()
+            .select_related("property", "terms")
+            .get(id=spec.existing_listing_id)
+        )
+
+    if spec.property_id is not None:
+        property_ = Property.objects.select_for_update().get(id=spec.property_id, merged_into=None)
+        for field, value in spec.property_corrections.items():
+            setattr(property_, field, value)
+        if spec.property_corrections:
+            property_.full_clean()
+            property_.save()
+    elif existing_listing is not None:
+        property_ = existing_listing.property
+        for field, value in spec.property_values.items():
+            setattr(property_, field, value)
+        property_.full_clean()
+        property_.save()
+    else:
+        property_ = Property(**spec.property_values)
+        property_.full_clean()
+        property_.save()
+
+    if existing_listing is None:
+        terms = RentalTerms.objects.create(**spec.terms_values)
+        listing = Listing.objects.create(
+            property=property_,
+            source=spec.source,
+            terms=terms,
+            **spec.listing_values,
+        )
+    else:
+        terms = existing_listing.terms
+        for field, value in spec.terms_values.items():
+            setattr(terms, field, value)
+        terms.full_clean()
+        terms.save()
+        listing = existing_listing
+        listing.property = property_
+        listing.source = spec.source
+        for field, value in spec.listing_values.items():
+            setattr(listing, field, value)
+        listing.save()
+    listing = publish_listing(listing)
+    replace_listing_images(listing=listing, image_specs=spec.image_specs)
+    return listing
+
+
+@transaction.atomic
+def replace_listing_images(
+    *, listing: Listing, image_specs: Sequence[ListingImageSpec]
+) -> list[ListingImage]:
+    ListingImage.objects.filter(listing=listing).delete()
+    retained: list[ListingImage] = []
+    for image_spec in image_specs:
+        listing_image = ListingImage.objects.create(
+            listing=listing,
+            position=image_spec.position,
+            is_primary=image_spec.is_primary,
+        )
+        retained.append(listing_image)
+        ListingImageVariant.objects.bulk_create([
+            ListingImageVariant(
+                image=listing_image,
+                kind=variant.kind,
+                asset_id=variant.asset_id,
+            )
+            for variant in image_spec.variants
+        ])
+    return retained
 
 
 @transaction.atomic

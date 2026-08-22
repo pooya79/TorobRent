@@ -174,6 +174,74 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/v1/operator/submissions/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List and filter the Operator review queue */
+    get: operations["v1_operator_submissions_list"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/operator/submissions/{submission_id}/approve/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Approve, group, and publish a pending Submission */
+    post: operations["v1_operator_submissions_approve_create"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/operator/submissions/{submission_id}/reject/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Terminally reject a pending Submission */
+    post: operations["v1_operator_submissions_reject_create"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/operator/submissions/{submission_id}/request-changes/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Request changes to a pending Submission */
+    post: operations["v1_operator_submissions_request_changes_create"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/v1/submissions/": {
     parameters: {
       query?: never;
@@ -273,6 +341,23 @@ export interface paths {
     put?: never;
     /** Replace and retry a failed Submission image */
     post: operations["v1_submissions_images_retry_create"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/submissions/{submission_id}/submit/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Submit a complete revision for Operator review */
+    post: operations["v1_submissions_submit_create"];
     delete?: never;
     options?: never;
     head?: never;
@@ -411,6 +496,9 @@ export interface components {
       balcony: components["schemas"]["FeatureStateEnum"];
       furnished: components["schemas"]["FeatureStateEnum"];
     };
+    Formatting: {
+      description?: string;
+    };
     Health: {
       status: components["schemas"]["HealthStatusEnum"];
     };
@@ -485,6 +573,27 @@ export interface components {
       /** Format: email */
       email: string;
       password: string;
+    };
+    NormalizedProperty: {
+      /** Format: uuid */
+      city_id?: string;
+      /** Format: uuid */
+      district_id?: string;
+      /** Format: uuid */
+      neighborhood_id?: string;
+      property_type?: components["schemas"]["PropertyTypeEnum"];
+      area_sqm?: number;
+      room_count?: number;
+      construction_year?: number | null;
+      floor?: number | null;
+      total_floors?: number | null;
+      units_per_floor?: number | null;
+      parking?: components["schemas"]["FeatureStateEnum"];
+      elevator?: components["schemas"]["FeatureStateEnum"];
+      storage?: components["schemas"]["FeatureStateEnum"];
+      balcony?: components["schemas"]["FeatureStateEnum"];
+      furnished?: components["schemas"]["FeatureStateEnum"];
+      operator_location_notes?: string;
     };
     /**
      * @description * `direct_contact` - تماس مستقیم
@@ -631,6 +740,9 @@ export interface components {
     ReviewInput: {
       accuracy_confirmed: boolean;
     };
+    ReviewReason: {
+      reason: string;
+    };
     /**
      * @description * `owner` - مالک
      *     * `agent` - نماینده مالک
@@ -646,6 +758,11 @@ export interface components {
       normalized_value: unknown;
       source_value: unknown;
     };
+    SourceMetadata: {
+      source_reference?: string;
+      source_claims?: unknown;
+      provenance_note?: string;
+    };
     SourcePublic: {
       /** Format: uuid */
       id: string;
@@ -653,16 +770,18 @@ export interface components {
       display_name: string;
       outbound_policy: components["schemas"]["OutboundPolicyEnum"];
     };
-    /**
-     * @description * `draft` - پیش‌نویس
-     * @enum {string}
-     */
-    StateEnum: "draft";
     Submission: {
       /** Format: uuid */
       readonly id: string;
       role: components["schemas"]["RoleEnum"];
-      state?: components["schemas"]["StateEnum"];
+      state?: components["schemas"]["SubmissionStateEnum"];
+      readonly revision: number;
+      /** Format: uuid */
+      readonly source_id: string | null;
+      /** Format: uuid */
+      readonly listing_id: string | null;
+      /** Format: uuid */
+      readonly property_id: string | null;
       current_step?: components["schemas"]["CurrentStepEnum"];
       readonly media_complete: boolean;
       readonly images: components["schemas"]["SubmissionImage"][];
@@ -674,13 +793,35 @@ export interface components {
       description?: string;
       readonly contact: components["schemas"]["ContactOutput"] | null;
       review: unknown;
+      readonly history: components["schemas"]["SubmissionEvent"][];
+      readonly available_actions: string[];
       /** Format: date-time */
       readonly created_at: string;
       /** Format: date-time */
       readonly updated_at: string;
     };
+    SubmissionApproval: {
+      /** Format: uuid */
+      property_id?: string | null;
+      normalized_property?: components["schemas"]["NormalizedProperty"];
+      source_metadata?: components["schemas"]["SourceMetadata"];
+      formatting?: components["schemas"]["Formatting"];
+    };
     SubmissionCreate: {
       role: components["schemas"]["RoleEnum"];
+    };
+    SubmissionEvent: {
+      /** Format: uuid */
+      readonly id: string;
+      /** Format: email */
+      readonly actor_email: string;
+      /** Format: int64 */
+      revision: number;
+      prior_state: components["schemas"]["SubmissionStateEnum"];
+      new_state: components["schemas"]["SubmissionStateEnum"];
+      reason?: string;
+      /** Format: date-time */
+      readonly created_at: string;
     };
     SubmissionImage: {
       /** Format: uuid */
@@ -725,6 +866,16 @@ export interface components {
      * @enum {string}
      */
     SubmissionImageVariantKindEnum: "small" | "medium" | "large";
+    /**
+     * @description * `draft` - پیش‌نویس
+     *     * `pending` - در انتظار بررسی
+     *     * `changes_requested` - نیازمند اصلاح
+     *     * `rejected` - ردشده
+     *     * `published` - منتشرشده
+     * @enum {string}
+     */
+    SubmissionStateEnum:
+      "draft" | "pending" | "changes_requested" | "rejected" | "published";
     Token: {
       token: string;
     };
@@ -1225,6 +1376,109 @@ export interface operations {
       };
     };
   };
+  v1_operator_submissions_list: {
+    parameters: {
+      query?: {
+        city?: string;
+        district?: string;
+        neighborhood?: string;
+        ordering?: "newest" | "oldest";
+        source?: string;
+        state?: string;
+        updated_after?: string;
+        updated_before?: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Submission"][];
+        };
+      };
+    };
+  };
+  v1_operator_submissions_approve_create: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        submission_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: {
+      content: {
+        "application/json": components["schemas"]["SubmissionApproval"];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Submission"];
+        };
+      };
+    };
+  };
+  v1_operator_submissions_reject_create: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        submission_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ReviewReason"];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Submission"];
+        };
+      };
+    };
+  };
+  v1_operator_submissions_request_changes_create: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        submission_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ReviewReason"];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Submission"];
+        };
+      };
+    };
+  };
   v1_submissions_list: {
     parameters: {
       query?: never;
@@ -1431,6 +1685,27 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["SubmissionImage"];
+        };
+      };
+    };
+  };
+  v1_submissions_submit_create: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        submission_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Submission"];
         };
       };
     };
