@@ -1,30 +1,17 @@
-import {
-  AlertCircle,
-  ArrowLeft,
-  CheckCircle2,
-  Clock3,
-  Plus,
-} from "lucide-react";
-import { useSearchParams } from "react-router";
+import { useQuery } from "@tanstack/react-query";
+import { ArrowLeft, Clock3, Plus } from "lucide-react";
+import { Link } from "react-router";
 
 import { PageMain } from "@/components/layout/PageMain";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { prototypeRepository } from "@/features/prototype/fixtures";
-
-const submissionState = {
-  "needs-change": { icon: AlertCircle, tone: "destructive" as const },
-  pending: { icon: Clock3, tone: "secondary" as const },
-  published: { icon: CheckCircle2, tone: "secondary" as const },
-};
+import { submissionsQueryOptions } from "@/features/submissions/queries";
+import { submissionStepLabel } from "@/features/submissions/steps";
 
 export function SubmitterDashboardPage() {
-  const [searchParams] = useSearchParams();
-  const submissions = prototypeRepository.getSubmissions();
-  const selectedSubmission = submissions.find(
-    (submission) => submission.id === searchParams.get("submission"),
-  );
+  const submissions = useQuery(submissionsQueryOptions);
 
   return (
     <PageMain>
@@ -33,56 +20,63 @@ export function SubmitterDashboardPage() {
           <p className="text-muted-foreground mb-2 text-sm">پنل ثبت‌کننده</p>
           <h1 className="text-3xl font-semibold tracking-tight">آگهی‌های من</h1>
           <p className="text-muted-foreground mt-2">
-            وضعیت ارسال‌ها و اقدام بعدی را یک‌جا دنبال کنید.
+            وضعیت Submissionها و اقدام بعدی را یک‌جا دنبال کنید.
           </p>
         </div>
         <Button asChild className="rounded-full">
-          <a href="/add-submission">
+          <Link to="/add-submission">
             <Plus aria-hidden="true" /> ثبت آگهی تازه
-          </a>
+          </Link>
         </Button>
       </header>
 
-      {selectedSubmission && (
-        <Card className="border-primary mb-6 shadow-none">
-          <CardContent className="space-y-3">
-            <h2 className="text-lg font-semibold">
-              جزئیات ارسال {selectedSubmission.title}
-            </h2>
-            <p>{selectedSubmission.detail}</p>
-            <p className="text-muted-foreground text-sm">
-              {selectedSubmission.time}
-            </p>
-            <p className="text-sm font-semibold">
-              گام بعدی: منتظر بررسی اپراتور بمانید.
-            </p>
+      {submissions.isError && (
+        <Alert variant="destructive">
+          <AlertDescription>پیش‌نویس‌ها بارگذاری نشدند.</AlertDescription>
+        </Alert>
+      )}
+      {submissions.isPending && <p>در حال بارگذاری پیش‌نویس‌ها…</p>}
+      {submissions.data?.length === 0 && (
+        <Card className="shadow-none">
+          <CardContent>
+            <p>هنوز Submissionی ندارید. نخستین پیش‌نویس را بسازید.</p>
           </CardContent>
         </Card>
       )}
-
       <section className="grid gap-4" aria-label="ارسال‌های شما">
-        {submissions.map((submission) => {
-          const { icon: Icon, tone } = submissionState[submission.state];
+        {submissions.data?.map((submission) => {
+          const title = submission.location?.neighborhood
+            ? `ملک در ${submission.location.neighborhood}`
+            : submission.role === "owner"
+              ? "پیش‌نویس مالک"
+              : "پیش‌نویس نماینده مالک";
+          const currentStep = submission.current_step ?? "location";
           return (
-            <Card className="shadow-none" key={submission.title}>
+            <Card className="shadow-none" key={submission.id}>
               <CardContent className="flex flex-col gap-5 sm:flex-row sm:items-center">
                 <div className="bg-muted flex size-12 shrink-0 items-center justify-center rounded-full">
-                  <Icon className="size-5" aria-hidden="true" />
+                  <Clock3 className="size-5" aria-hidden="true" />
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="mb-2 flex flex-wrap items-center gap-3">
-                    <h2 className="font-semibold">{submission.title}</h2>
-                    <Badge variant={tone}>{submission.status}</Badge>
+                    <h2 className="font-semibold">{title}</h2>
+                    <Badge variant="secondary">پیش‌نویس</Badge>
                   </div>
-                  <p className="text-sm">{submission.detail}</p>
+                  <p className="text-sm">
+                    مرحله کنونی: {submissionStepLabel(currentStep)}
+                  </p>
                   <p className="text-muted-foreground mt-1 text-xs">
-                    {submission.time}
+                    آخرین ذخیره:{" "}
+                    {new Date(submission.updated_at).toLocaleString("fa-IR")}
                   </p>
                 </div>
                 <Button asChild variant="outline">
-                  <a href={submission.href} aria-label={submission.action}>
-                    مشاهده <ArrowLeft aria-hidden="true" />
-                  </a>
+                  <Link
+                    to={`/add-submission?submission=${submission.id}&step=${currentStep}`}
+                    aria-label={`ادامه ${title}`}
+                  >
+                    ادامه <ArrowLeft aria-hidden="true" />
+                  </Link>
                 </Button>
               </CardContent>
             </Card>

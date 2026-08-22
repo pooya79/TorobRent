@@ -29,6 +29,7 @@ INSTALLED_APPS = [
     "apps.common",
     "apps.accounts",
     "apps.catalog",
+    "apps.submissions",
     "apps.system",
 ]
 

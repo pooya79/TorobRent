@@ -54,4 +54,59 @@ test("registers, verifies through Mailpit, logs in, and enters protected navigat
   await expect(
     page.getByRole("heading", { name: "آگهی‌های من" }),
   ).toBeVisible();
+
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.getByRole("link", { name: "ثبت آگهی تازه" }).click();
+  await page.getByRole("button", { name: "ساخت پیش‌نویس و ادامه" }).click();
+  await expect(page.getByText(/مرحله ۱ از ۷/)).toBeVisible();
+  await page.getByLabel("محله").fill("سعادت");
+  await page.getByRole("option").click();
+  await page.getByLabel("نشانی دقیق").fill("بلوار دریا، کوچه سرو");
+  await page.getByRole("button", { name: "ذخیره و ادامه" }).click();
+  await page.getByLabel("متراژ").fill("۱۱۰");
+  await page.getByLabel("تعداد اتاق خواب").fill("۲");
+  await page.getByRole("button", { name: "ذخیره و ادامه" }).click();
+  await expect(
+    page.getByRole("heading", { name: "شرایط اجاره" }),
+  ).toBeVisible();
+
+  await page.reload();
+  await expect(
+    page.getByRole("heading", { name: "شرایط اجاره" }),
+  ).toBeVisible();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByRole("button", { name: "باز کردن فهرست راهبری" }).click();
+  await page.getByRole("button", { name: "خروج" }).click();
+  await expect(page).toHaveURL(/\/login\?returnTo=/);
+  await page.getByLabel("ایمیل").fill(email);
+  await page.getByLabel("گذرواژه").fill(password);
+  await page.getByRole("button", { name: "ورود" }).click();
+  await expect(
+    page.getByRole("heading", { name: "شرایط اجاره" }),
+  ).toBeVisible();
+
+  await page.getByLabel("ودیعه، تومان").fill("۱٬۰۰۰٬۰۰۰٬۰۰۰");
+  await page.getByLabel("اجاره ماهانه، تومان").fill("۲۵٬۰۰۰٬۰۰۰");
+  await page.getByRole("button", { name: "ذخیره و ادامه" }).click();
+  for (const feature of ["پارکینگ", "آسانسور", "انباری", "بالکن", "مبله"]) {
+    await page
+      .getByRole("group", { name: `وضعیت ${feature}` })
+      .getByRole("radio", { name: "نمی‌دانم" })
+      .check();
+  }
+  await page.getByLabel("توضیحات").fill("نورگیر و آرام");
+  await page.getByRole("button", { name: "ذخیره و ادامه" }).click();
+  await expect(page.getByRole("heading", { name: "تصاویر" })).toBeVisible();
+  await page.getByRole("button", { name: "ادامه به اطلاعات تماس" }).click();
+  await page.getByLabel("نام تماس").fill("سارا احمدی");
+  await page.getByLabel("شماره تماس").fill("۰۹۱۲۱۲۳۴۵۶۷");
+  await page.getByLabel("اختیار ثبت اطلاعات این ملک را دارم.").check();
+  await page.getByRole("button", { name: "ذخیره و ادامه" }).click();
+  await page
+    .getByLabel("اطلاعات واردشده را بازبینی کردم و درستی آن را تأیید می‌کنم.")
+    .check();
+  await page.getByRole("button", { name: "ذخیره بازبینی" }).click();
+  await expect(
+    page.getByText(/بدون تصاویر وارد صف بررسی اپراتور نمی‌شود|تا تکمیل تصاویر/),
+  ).toBeVisible();
 });

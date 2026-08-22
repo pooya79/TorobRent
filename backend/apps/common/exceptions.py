@@ -5,13 +5,17 @@ from rest_framework.response import Response
 from rest_framework.views import exception_handler
 
 
-def _field_errors(data: Any) -> dict[str, list[dict[str, str]]] | None:
+def _field_errors(data: Any, prefix: str = "") -> dict[str, list[dict[str, str]]] | None:
     if not isinstance(data, Mapping):
         return None
     errors: dict[str, list[dict[str, str]]] = {}
     for field, values in data.items():
+        path = f"{prefix}.{field}" if prefix else str(field)
+        if isinstance(values, Mapping):
+            errors.update(_field_errors(values, path) or {})
+            continue
         items = values if isinstance(values, Sequence) and not isinstance(values, str) else [values]
-        errors[str(field)] = [
+        errors[path] = [
             {
                 "code": getattr(item, "code", "invalid"),
                 "message": str(item),

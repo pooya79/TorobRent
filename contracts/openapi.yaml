@@ -481,6 +481,91 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: No Property with an Active Listing was found
+  /api/v1/submissions/:
+    get:
+      operationId: v1_submissions_list
+      summary: List the current Submitter's Submissions
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Submission'
+          description: ''
+    post:
+      operationId: v1_submissions_create
+      summary: Create a Submission draft
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubmissionCreate'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Submission'
+          description: ''
+  /api/v1/submissions/{submission_id}/:
+    get:
+      operationId: v1_submissions_retrieve
+      summary: Resume a Submission draft
+      parameters:
+      - in: path
+        name: submission_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Submission'
+          description: ''
+    patch:
+      operationId: v1_submissions_partial_update
+      summary: Save a completed Submission step
+      parameters:
+      - in: path
+        name: submission_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedSubmissionStepUpdate'
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Submission'
+          description: ''
   /api/v1/system/live/:
     get:
       operationId: v1_system_live_retrieve
@@ -540,11 +625,79 @@ paths:
           description: Authentication is required
 components:
   schemas:
+    CompletedStepEnum:
+      enum:
+      - location
+      - property_facts
+      - rental_terms
+      - features_description
+      - contact
+      - review
+      type: string
+      description: |-
+        * `location` - location
+        * `property_facts` - property_facts
+        * `rental_terms` - rental_terms
+        * `features_description` - features_description
+        * `contact` - contact
+        * `review` - review
+    ContactInput:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 120
+        phone:
+          type: string
+          maxLength: 32
+        authorization_declared:
+          type: boolean
+        phone_publication_consent:
+          type: boolean
+      required:
+      - authorization_declared
+      - name
+      - phone
+      - phone_publication_consent
+    ContactOutput:
+      type: object
+      properties:
+        name:
+          type: string
+        phone:
+          type: string
+        authorization_declared:
+          type: boolean
+        phone_publication_consent:
+          type: boolean
+      required:
+      - authorization_declared
+      - name
+      - phone
+      - phone_publication_consent
     CurrencyEnum:
       enum:
       - IRR
       type: string
       description: '* `IRR` - IRR'
+    CurrentStepEnum:
+      enum:
+      - location
+      - property_facts
+      - rental_terms
+      - features_description
+      - images
+      - contact
+      - review
+      type: string
+      description: |-
+        * `location` - نشانی ملک
+        * `property_facts` - مشخصات ملک
+        * `rental_terms` - شرایط اجاره
+        * `features_description` - امکانات و توضیحات
+        * `images` - تصاویر
+        * `contact` - اطلاعات تماس
+        * `review` - بازبینی
     Detail:
       type: object
       properties:
@@ -563,6 +716,25 @@ components:
         * `present` - دارد
         * `absent` - ندارد
     Features:
+      type: object
+      properties:
+        parking:
+          $ref: '#/components/schemas/FeatureStateEnum'
+        elevator:
+          $ref: '#/components/schemas/FeatureStateEnum'
+        storage:
+          $ref: '#/components/schemas/FeatureStateEnum'
+        balcony:
+          $ref: '#/components/schemas/FeatureStateEnum'
+        furnished:
+          $ref: '#/components/schemas/FeatureStateEnum'
+      required:
+      - balcony
+      - elevator
+      - furnished
+      - parking
+      - storage
+    FeaturesInput:
       type: object
       properties:
         parking:
@@ -654,6 +826,52 @@ components:
       - district
       - district_number
       - neighborhood
+    LocationInput:
+      type: object
+      properties:
+        city_id:
+          type: string
+          format: uuid
+        district_id:
+          type: string
+          format: uuid
+        neighborhood_id:
+          type: string
+          format: uuid
+        address:
+          type: string
+          maxLength: 1000
+      required:
+      - address
+      - neighborhood_id
+    LocationOutput:
+      type: object
+      properties:
+        city_id:
+          type: string
+          format: uuid
+        city:
+          type: string
+        district_id:
+          type: string
+          format: uuid
+        district:
+          type: string
+        neighborhood_id:
+          type: string
+          format: uuid
+        neighborhood:
+          type: string
+        address:
+          type: string
+      required:
+      - address
+      - city
+      - city_id
+      - district
+      - district_id
+      - neighborhood
+      - neighborhood_id
     LocationSuggestion:
       type: object
       properties:
@@ -737,6 +955,28 @@ components:
           format: email
       required:
       - email
+    PatchedSubmissionStepUpdate:
+      type: object
+      properties:
+        completed_step:
+          allOf:
+          - $ref: '#/components/schemas/CompletedStepEnum'
+          writeOnly: true
+        location:
+          $ref: '#/components/schemas/LocationInput'
+        property_facts:
+          $ref: '#/components/schemas/PropertyFactsInput'
+        rental_terms:
+          $ref: '#/components/schemas/RentalTermsInput'
+        features:
+          $ref: '#/components/schemas/FeaturesInput'
+        description:
+          type: string
+          maxLength: 5000
+        contact:
+          $ref: '#/components/schemas/ContactInput'
+        review:
+          $ref: '#/components/schemas/ReviewInput'
     Problem:
       type: object
       properties:
@@ -842,6 +1082,40 @@ components:
       - title
       - total_floors
       - units_per_floor
+    PropertyFactsInput:
+      type: object
+      properties:
+        property_type:
+          $ref: '#/components/schemas/PropertyTypeEnum'
+        area_sqm:
+          type: integer
+          minimum: 1
+        room_count:
+          type: integer
+          minimum: 0
+        construction_year:
+          type:
+          - integer
+          - 'null'
+          minimum: 1200
+        floor:
+          type:
+          - integer
+          - 'null'
+        total_floors:
+          type:
+          - integer
+          - 'null'
+          minimum: 1
+        units_per_floor:
+          type:
+          - integer
+          - 'null'
+          minimum: 1
+      required:
+      - area_sqm
+      - property_type
+      - room_count
     PropertySummary:
       type: object
       properties:
@@ -912,6 +1186,53 @@ components:
       required:
       - email
       - password
+    RentalTermsInput:
+      type: object
+      properties:
+        deposit_toman:
+          type: integer
+          maximum: 900719925474099
+          minimum: 0
+          format: int64
+        monthly_rent_toman:
+          type: integer
+          maximum: 900719925474099
+          minimum: 0
+          format: int64
+        is_negotiable:
+          type: boolean
+        is_convertible:
+          type: boolean
+      required:
+      - deposit_toman
+      - is_convertible
+      - is_negotiable
+      - monthly_rent_toman
+    RentalTermsOutput:
+      type: object
+      properties:
+        deposit_rial:
+          type: integer
+        monthly_rent_rial:
+          type: integer
+        currency:
+          $ref: '#/components/schemas/CurrencyEnum'
+        deposit_toman:
+          type: integer
+        monthly_rent_toman:
+          type: integer
+        is_negotiable:
+          type: boolean
+        is_convertible:
+          type: boolean
+      required:
+      - currency
+      - deposit_rial
+      - deposit_toman
+      - is_convertible
+      - is_negotiable
+      - monthly_rent_rial
+      - monthly_rent_toman
     RentalTermsPublic:
       type: object
       properties:
@@ -931,6 +1252,21 @@ components:
       - deposit_toman
       - monthly_rent_rial
       - monthly_rent_toman
+    ReviewInput:
+      type: object
+      properties:
+        accuracy_confirmed:
+          type: boolean
+      required:
+      - accuracy_confirmed
+    RoleEnum:
+      enum:
+      - owner
+      - agent
+      type: string
+      description: |-
+        * `owner` - مالک
+        * `agent` - نماینده مالک
     Session:
       type: object
       properties:
@@ -958,6 +1294,11 @@ components:
       - id
       - name
       - outbound_policy
+    StateEnum:
+      enum:
+      - draft
+      type: string
+      description: '* `draft` - پیش‌نویس'
     StatusEnum:
       enum:
       - ok
@@ -966,6 +1307,76 @@ components:
       description: |-
         * `ok` - ok
         * `unavailable` - unavailable
+    Submission:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        role:
+          $ref: '#/components/schemas/RoleEnum'
+        state:
+          $ref: '#/components/schemas/StateEnum'
+        current_step:
+          $ref: '#/components/schemas/CurrentStepEnum'
+        media_complete:
+          type: boolean
+          readOnly: true
+        location:
+          oneOf:
+          - $ref: '#/components/schemas/LocationOutput'
+          - type: 'null'
+          readOnly: true
+        property_facts:
+          oneOf:
+          - $ref: '#/components/schemas/PropertyFactsInput'
+          - type: 'null'
+          readOnly: true
+        rental_terms:
+          oneOf:
+          - $ref: '#/components/schemas/RentalTermsOutput'
+          - type: 'null'
+          readOnly: true
+        features:
+          allOf:
+          - $ref: '#/components/schemas/FeaturesInput'
+          readOnly: true
+        description:
+          type: string
+        contact:
+          oneOf:
+          - $ref: '#/components/schemas/ContactOutput'
+          - type: 'null'
+          readOnly: true
+        review: {}
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - contact
+      - created_at
+      - features
+      - id
+      - location
+      - media_complete
+      - property_facts
+      - rental_terms
+      - review
+      - role
+      - updated_at
+    SubmissionCreate:
+      type: object
+      properties:
+        role:
+          $ref: '#/components/schemas/RoleEnum'
+      required:
+      - role
     Token:
       type: object
       properties:
