@@ -1,6 +1,8 @@
 from dataclasses import dataclass
 from typing import Any
 
+from django.core.exceptions import ValidationError as DjangoValidationError
+from django.core.files.uploadedfile import UploadedFile
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
@@ -8,7 +10,13 @@ from apps.catalog.models import FeatureState, Neighborhood, PropertyType
 from apps.catalog.money import rial_to_toman
 from apps.catalog.serializers import LocalizedIntegerField, TomanRialField
 
-from .models import Submission, SubmissionStep, SubmitterRole
+from .models import (
+    Submission,
+    SubmissionImage,
+    SubmissionImageVariant,
+    SubmissionStep,
+    SubmitterRole,
+)
 
 MAX_SAFE_TOMAN_FOR_JSON_RIAL = 900_719_925_474_099
 
@@ -49,6 +57,7 @@ STEP_DEFINITIONS = {
         SubmissionStep.IMAGES,
         ("parking", "elevator", "storage", "balcony", "furnished"),
     ),
+    SubmissionStep.IMAGES: StepDefinition("images", SubmissionStep.CONTACT),
     SubmissionStep.CONTACT: StepDefinition("contact", SubmissionStep.REVIEW),
     SubmissionStep.REVIEW: StepDefinition("review", SubmissionStep.REVIEW),
 }
@@ -259,6 +268,66 @@ class ContactOutputSerializer(serializers.Serializer[Any]):
     phone_publication_consent = serializers.BooleanField()
 
 
+class SubmissionImageVariantSerializer(serializers.ModelSerializer[SubmissionImageVariant]):
+    url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = SubmissionImageVariant
+        fields = ("kind", "url", "width", "height", "byte_size")
+
+    def get_url(self, variant: SubmissionImageVariant) -> str:
+        from django.urls import reverse
+
+        return reverse(
+            "submissions:image-content",
+            kwargs={
+                "submission_id": variant.image.submission_id,
+                "image_id": variant.image_id,
+                "kind": variant.kind,
+            },
+        )
+
+
+class SubmissionImageSerializer(serializers.ModelSerializer[SubmissionImage]):
+    variants = SubmissionImageVariantSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = SubmissionImage
+        fields = (
+            "id",
+            "status",
+            "failure_reason",
+            "position",
+            "is_primary",
+            "variants",
+            "created_at",
+            "updated_at",
+        )
+
+
+class SubmissionImageUploadSerializer(serializers.Serializer[Any]):
+    file = serializers.FileField()
+
+    def validate_file(self, upload: UploadedFile[bytes]) -> UploadedFile[bytes]:
+        from .services import validate_image_upload
+
+        try:
+            validate_image_upload(upload)
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError(exc.messages[0]) from None
+        return upload
+
+
+class SubmissionImageOrderSerializer(serializers.Serializer[Any]):
+    image_ids = serializers.ListField(
+        child=serializers.UUIDField(),
+        allow_empty=False,
+        min_length=1,
+        max_length=12,
+    )
+    primary_image_id = serializers.UUIDField()
+
+
 class SubmissionStepUpdateSerializer(serializers.Serializer[Any]):
     completed_step = serializers.ChoiceField(
         choices=(
@@ -266,6 +335,7 @@ class SubmissionStepUpdateSerializer(serializers.Serializer[Any]):
             SubmissionStep.PROPERTY_FACTS,
             SubmissionStep.RENTAL_TERMS,
             SubmissionStep.FEATURES_DESCRIPTION,
+            SubmissionStep.IMAGES,
             SubmissionStep.CONTACT,
             SubmissionStep.REVIEW,
         ),
@@ -280,7 +350,10 @@ class SubmissionStepUpdateSerializer(serializers.Serializer[Any]):
     review = ReviewInputSerializer(required=False)
 
     def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
-        required_section = STEP_DEFINITIONS[attrs["completed_step"]].section
+        completed_step = attrs["completed_step"]
+        if completed_step == SubmissionStep.IMAGES:
+            return attrs
+        required_section = STEP_DEFINITIONS[completed_step].section
         if required_section not in attrs:
             raise serializers.ValidationError({required_section: "اطلاعات این مرحله الزامی است."})
         return attrs
@@ -320,6 +393,7 @@ class SubmissionSerializer(serializers.ModelSerializer[Submission]):
     features = serializers.SerializerMethodField()
     contact = serializers.SerializerMethodField()
     review = serializers.JSONField(source="review_data")
+    images = SubmissionImageSerializer(many=True, read_only=True)
 
     class Meta:
         model = Submission
@@ -329,6 +403,7 @@ class SubmissionSerializer(serializers.ModelSerializer[Submission]):
             "state",
             "current_step",
             "media_complete",
+            "images",
             "location",
             "property_facts",
             "rental_terms",

@@ -67,6 +67,7 @@ services:
     volumes:
       - ./backend:/app/backend
       - backend-venv:/app/backend/.venv
+      - media-data:/app/backend/media
     ports:
       - "8000:8000"
     depends_on:
@@ -88,6 +89,27 @@ services:
     volumes:
       - ./backend:/app/backend
       - backend-venv:/app/backend/.venv
+      - media-data:/app/backend/media
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+
+  beat:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      target: development
+    command: >-
+      uv run --no-sync celery -A config beat --loglevel=INFO
+      --schedule=/var/lib/celery/celerybeat-schedule
+    working_dir: /app/backend
+    environment: *backend-environment
+    volumes:
+      - ./backend:/app/backend
+      - backend-venv:/app/backend/.venv
+      - celerybeat-data:/var/lib/celery
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -128,4 +150,6 @@ services:
 volumes:
   postgres-data:
   backend-venv:
+  media-data:
+  celerybeat-data:
   frontend-node-modules:

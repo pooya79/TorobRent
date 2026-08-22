@@ -58,3 +58,10 @@ deployments. Separate destructive schema cleanup from the release that stops usi
 Celery tasks should accept stable IDs rather than serialized model instances, tolerate retries, and
 call domain services. Set explicit timeouts for external calls. Enqueue only after the database
 transaction commits.
+
+Submission media uses Django's default local storage on the named `media-data` Compose volume.
+JPEG, PNG, and WebP uploads are validated by content and are limited to 10 MiB by default; set
+`SUBMISSION_IMAGE_MAX_BYTES` to change that local limit. The permanent Celery worker creates
+metadata-free responsive WebP variants, while Celery beat removes temporary uploads abandoned for
+more than 24 hours. Media is served only through authenticated application endpoints, never as a
+public media directory.

@@ -566,6 +566,160 @@ paths:
               schema:
                 $ref: '#/components/schemas/Submission'
           description: ''
+  /api/v1/submissions/{submission_id}/images/:
+    post:
+      operationId: v1_submissions_images_create
+      summary: Upload an image to a Submission draft
+      parameters:
+      - in: path
+        name: submission_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/SubmissionImageUpload'
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubmissionImageUpload'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubmissionImage'
+          description: ''
+    patch:
+      operationId: v1_submissions_images_partial_update
+      summary: Reorder a Submission's images and choose its primary image
+      parameters:
+      - in: path
+        name: submission_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedSubmissionImageOrder'
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedSubmissionImageOrder'
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SubmissionImage'
+          description: ''
+  /api/v1/submissions/{submission_id}/images/{image_id}/:
+    delete:
+      operationId: v1_submissions_images_destroy
+      summary: Remove an image from a Submission
+      parameters:
+      - in: path
+        name: image_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: submission_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/submissions/{submission_id}/images/{image_id}/content/{kind}/:
+    get:
+      operationId: v1_submissions_images_content_retrieve
+      summary: Read a protected processed Submission image
+      parameters:
+      - in: path
+        name: image_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: kind
+        schema:
+          type: string
+        required: true
+      - in: path
+        name: submission_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            image/webp:
+              schema:
+                type: string
+                format: binary
+          description: ''
+  /api/v1/submissions/{submission_id}/images/{image_id}/retry/:
+    post:
+      operationId: v1_submissions_images_retry_create
+      summary: Replace and retry a failed Submission image
+      parameters:
+      - in: path
+        name: image_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: submission_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/SubmissionImageUpload'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubmissionImage'
+          description: ''
   /api/v1/system/live/:
     get:
       operationId: v1_system_live_retrieve
@@ -631,6 +785,7 @@ components:
       - property_facts
       - rental_terms
       - features_description
+      - images
       - contact
       - review
       type: string
@@ -639,6 +794,7 @@ components:
         * `property_facts` - property_facts
         * `rental_terms` - rental_terms
         * `features_description` - features_description
+        * `images` - images
         * `contact` - contact
         * `review` - review
     ContactInput:
@@ -757,19 +913,17 @@ components:
       type: object
       properties:
         status:
-          $ref: '#/components/schemas/StatusEnum'
+          $ref: '#/components/schemas/HealthStatusEnum'
       required:
       - status
-    KindEnum:
+    HealthStatusEnum:
       enum:
-      - city
-      - district
-      - neighborhood
+      - ok
+      - unavailable
       type: string
       description: |-
-        * `city` - city
-        * `district` - district
-        * `neighborhood` - neighborhood
+        * `ok` - ok
+        * `unavailable` - unavailable
     ListingPublic:
       type: object
       properties:
@@ -892,7 +1046,7 @@ components:
           type: string
           format: uuid
         kind:
-          $ref: '#/components/schemas/KindEnum'
+          $ref: '#/components/schemas/LocationSuggestionKindEnum'
         name:
           type: string
         label:
@@ -902,6 +1056,16 @@ components:
       - kind
       - label
       - name
+    LocationSuggestionKindEnum:
+      enum:
+      - city
+      - district
+      - neighborhood
+      type: string
+      description: |-
+        * `city` - city
+        * `district` - district
+        * `neighborhood` - neighborhood
     Login:
       type: object
       properties:
@@ -968,6 +1132,19 @@ components:
           format: email
       required:
       - email
+    PatchedSubmissionImageOrder:
+      type: object
+      properties:
+        image_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+          maxItems: 12
+          minItems: 1
+        primary_image_id:
+          type: string
+          format: uuid
     PatchedSubmissionStepUpdate:
       type: object
       properties:
@@ -1323,14 +1500,6 @@ components:
       - draft
       type: string
       description: '* `draft` - پیش‌نویس'
-    StatusEnum:
-      enum:
-      - ok
-      - unavailable
-      type: string
-      description: |-
-        * `ok` - ok
-        * `unavailable` - unavailable
     Submission:
       type: object
       properties:
@@ -1346,6 +1515,11 @@ components:
           $ref: '#/components/schemas/CurrentStepEnum'
         media_complete:
           type: boolean
+          readOnly: true
+        images:
+          type: array
+          items:
+            $ref: '#/components/schemas/SubmissionImage'
           readOnly: true
         location:
           oneOf:
@@ -1387,6 +1561,7 @@ components:
       - created_at
       - features
       - id
+      - images
       - location
       - media_complete
       - property_facts
@@ -1401,6 +1576,103 @@ components:
           $ref: '#/components/schemas/RoleEnum'
       required:
       - role
+    SubmissionImage:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        status:
+          $ref: '#/components/schemas/SubmissionImageStatusEnum'
+        failure_reason:
+          type: string
+          maxLength: 500
+        position:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 0
+          format: int64
+        is_primary:
+          type: boolean
+        variants:
+          type: array
+          items:
+            $ref: '#/components/schemas/SubmissionImageVariant'
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - created_at
+      - id
+      - position
+      - updated_at
+      - variants
+    SubmissionImageStatusEnum:
+      enum:
+      - pending
+      - processing
+      - ready
+      - failed
+      type: string
+      description: |-
+        * `pending` - در صف پردازش
+        * `processing` - در حال پردازش
+        * `ready` - آماده
+        * `failed` - ناموفق
+    SubmissionImageUpload:
+      type: object
+      properties:
+        file:
+          type: string
+          format: uri
+      required:
+      - file
+    SubmissionImageVariant:
+      type: object
+      properties:
+        kind:
+          $ref: '#/components/schemas/SubmissionImageVariantKindEnum'
+        url:
+          type: string
+          readOnly: true
+        width:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 0
+          format: int64
+        height:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 0
+          format: int64
+        byte_size:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 0
+          format: int64
+      required:
+      - byte_size
+      - height
+      - kind
+      - url
+      - width
+    SubmissionImageVariantKindEnum:
+      enum:
+      - small
+      - medium
+      - large
+      type: string
+      description: |-
+        * `small` - کوچک
+        * `medium` - متوسط
+        * `large` - بزرگ
     Token:
       type: object
       properties:

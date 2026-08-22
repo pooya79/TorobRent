@@ -1,6 +1,7 @@
 /// <reference types="node" />
 
 import { expect, test } from "@playwright/test";
+import path from "node:path";
 
 const mailpitAvailable = Boolean(process.env.E2E_MAILPIT_URL);
 const mailpitUrl = process.env.E2E_MAILPIT_URL ?? "http://localhost:8025";
@@ -97,7 +98,16 @@ test("registers, verifies through Mailpit, logs in, and enters protected navigat
   await page.getByLabel("توضیحات").fill("نورگیر و آرام");
   await page.getByRole("button", { name: "ذخیره و ادامه" }).click();
   await expect(page.getByRole("heading", { name: "تصاویر" })).toBeVisible();
-  await page.getByRole("button", { name: "ادامه به اطلاعات تماس" }).click();
+  await page
+    .getByLabel("افزودن تصاویر")
+    .setInputFiles(
+      path.resolve("../docs/design/screenshots/add-listing-mobile.png"),
+    );
+  await expect(
+    page.getByRole("img", { name: "پیش‌نمایش تصویر" }),
+  ).toBeVisible();
+  await expect(page.getByText("آماده", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "ذخیره و ادامه" }).click();
   await page.getByLabel("نام تماس").fill("سارا احمدی");
   await page.getByLabel("شماره تماس").fill("۰۹۱۲۱۲۳۴۵۶۷");
   await page.getByLabel("اختیار ثبت اطلاعات این ملک را دارم.").check();
@@ -105,8 +115,9 @@ test("registers, verifies through Mailpit, logs in, and enters protected navigat
   await page
     .getByLabel("اطلاعات واردشده را بازبینی کردم و درستی آن را تأیید می‌کنم.")
     .check();
-  await page.getByRole("button", { name: "ذخیره بازبینی" }).click();
   await expect(
-    page.getByText(/بدون تصاویر وارد صف بررسی اپراتور نمی‌شود|تا تکمیل تصاویر/),
+    page.getByRole("img", { name: "تصویر Submission در بازبینی" }),
   ).toBeVisible();
+  await page.getByRole("button", { name: "ذخیره بازبینی" }).click();
+  await expect(page.getByText(/تصاویر آماده‌اند/)).toBeVisible();
 });

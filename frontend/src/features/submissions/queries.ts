@@ -7,6 +7,16 @@ import type { components } from "@/lib/api/schema";
 export type Submission = components["schemas"]["Submission"];
 export type SubmissionStepUpdate =
   components["schemas"]["PatchedSubmissionStepUpdate"];
+export type SubmissionImage = components["schemas"]["SubmissionImage"];
+export type SubmissionImageOrder =
+  components["schemas"]["PatchedSubmissionImageOrder"];
+
+function multipartBody(body: { file: string }) {
+  const file = body.file as unknown as File;
+  const form = new FormData();
+  form.append("file", file, file.name);
+  return form;
+}
 
 export const submissionsQueryOptions = queryOptions({
   queryKey: ["submissions"] as const,
@@ -28,6 +38,12 @@ export function submissionQueryOptions(submissionId: string) {
       if (error || !data) throw apiError(error);
       return data;
     },
+    refetchInterval: (query) =>
+      query.state.data?.images.some(
+        (image) => image.status === "pending" || image.status === "processing",
+      )
+        ? 1500
+        : false,
   });
 }
 
@@ -48,6 +64,68 @@ export async function saveSubmissionStep(
     {
       params: { path: { submission_id: submissionId } },
       body,
+    },
+  );
+  if (error || !data) throw apiError(error);
+  return data;
+}
+
+export async function uploadSubmissionImage(submissionId: string, file: File) {
+  const { data, error } = await api.POST(
+    "/api/v1/submissions/{submission_id}/images/",
+    {
+      params: { path: { submission_id: submissionId } },
+      body: { file: file as unknown as string },
+      bodySerializer: multipartBody,
+    },
+  );
+  if (error || !data) throw apiError(error);
+  return data;
+}
+
+export async function reorderSubmissionImages(
+  submissionId: string,
+  body: SubmissionImageOrder,
+) {
+  const { data, error } = await api.PATCH(
+    "/api/v1/submissions/{submission_id}/images/",
+    {
+      params: { path: { submission_id: submissionId } },
+      body,
+    },
+  );
+  if (error || !data) throw apiError(error);
+  return data;
+}
+
+export async function removeSubmissionImage(
+  submissionId: string,
+  imageId: string,
+) {
+  const { error } = await api.DELETE(
+    "/api/v1/submissions/{submission_id}/images/{image_id}/",
+    {
+      params: {
+        path: { submission_id: submissionId, image_id: imageId },
+      },
+    },
+  );
+  if (error) throw apiError(error);
+}
+
+export async function retrySubmissionImage(
+  submissionId: string,
+  imageId: string,
+  file: File,
+) {
+  const { data, error } = await api.POST(
+    "/api/v1/submissions/{submission_id}/images/{image_id}/retry/",
+    {
+      params: {
+        path: { submission_id: submissionId, image_id: imageId },
+      },
+      body: { file: file as unknown as string },
+      bodySerializer: multipartBody,
     },
   );
   if (error || !data) throw apiError(error);

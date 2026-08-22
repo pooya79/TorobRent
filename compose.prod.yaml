@@ -63,6 +63,8 @@ services:
       target: production
     restart: unless-stopped
     environment: *backend-environment
+    volumes:
+      - media-data:/app/backend/media
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -77,9 +79,29 @@ services:
     command: uv run --no-sync celery -A config worker --loglevel=INFO
     restart: unless-stopped
     environment: *backend-environment
+    volumes:
+      - media-data:/app/backend/media
     depends_on:
       migrate:
         condition: service_completed_successfully
+
+  beat:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      target: production
+    command: >-
+      uv run --no-sync celery -A config beat --loglevel=INFO
+      --schedule=/var/lib/celery/celerybeat-schedule
+    restart: unless-stopped
+    environment: *backend-environment
+    volumes:
+      - celerybeat-data:/var/lib/celery
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
 
   frontend:
     build:
@@ -109,3 +131,5 @@ services:
 volumes:
   postgres-data:
   redis-data:
+  media-data:
+  celerybeat-data:

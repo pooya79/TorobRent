@@ -14,6 +14,7 @@ const draft = {
   state: "draft",
   current_step: "location",
   media_complete: false,
+  images: [],
   location: null,
   property_facts: null,
   rental_terms: null,
@@ -190,4 +191,156 @@ test("hydrates persisted final review data when a draft is resumed", async () =>
       "اطلاعات واردشده را بازبینی کردم و درستی آن را تأیید می‌کنم.",
     ),
   ).toBeChecked();
+});
+
+test("uploads, previews, reorders, selects primary, removes, and completes the media step", async () => {
+  const user = userEvent.setup();
+  const mediaImage = (id: string, position: number, isPrimary: boolean) => ({
+    id,
+    status: "ready" as const,
+    failure_reason: "",
+    position,
+    is_primary: isPrimary,
+    variants: [
+      {
+        kind: "medium" as const,
+        url: `/api/media/${id}.webp`,
+        width: 640,
+        height: 480,
+        byte_size: 1200,
+      },
+    ],
+    created_at: "2026-08-22T08:00:00Z",
+    updated_at: "2026-08-22T08:00:00Z",
+  });
+  let images: ReturnType<typeof mediaImage>[] = [];
+  let completed = false;
+  server.use(
+    http.get("*/api/v1/submissions/:id/", () =>
+      HttpResponse.json({
+        ...draft,
+        current_step: completed ? "contact" : "images",
+        media_complete: completed,
+        images,
+      }),
+    ),
+    http.post("*/api/v1/submissions/:id/images/", () => {
+      const id = `10000000-0000-4000-8000-${String(images.length + 20).padStart(12, "0")}`;
+      images.push(mediaImage(id, images.length, images.length === 0));
+      return HttpResponse.json(images.at(-1), { status: 201 });
+    }),
+    http.patch("*/api/v1/submissions/:id/images/", async ({ request }) => {
+      const body = (await request.json()) as {
+        image_ids: string[];
+        primary_image_id: string;
+      };
+      images = body.image_ids.map((id, position) => ({
+        ...images.find((image) => image.id === id)!,
+        position,
+        is_primary: id === body.primary_image_id,
+      }));
+      return HttpResponse.json(images);
+    }),
+    http.delete("*/api/v1/submissions/:id/images/:imageId/", ({ params }) => {
+      images = images
+        .filter((image) => image.id !== params.imageId)
+        .map((image, position) => ({
+          ...image,
+          position,
+          is_primary: position === 0,
+        }));
+      return new HttpResponse(null, { status: 204 });
+    }),
+    http.patch("*/api/v1/submissions/:id/", async ({ request }) => {
+      expect(await request.json()).toEqual({ completed_step: "images" });
+      completed = true;
+      return HttpResponse.json({
+        ...draft,
+        current_step: "contact",
+        media_complete: true,
+        images,
+      });
+    }),
+  );
+  renderPage(`/add-submission?submission=${draft.id}&step=images`);
+
+  const upload = await screen.findByLabelText("افزودن تصاویر");
+  await user.upload(upload, [
+    new File(["one"], "one.jpg", { type: "image/jpeg" }),
+    new File(["two"], "two.webp", { type: "image/webp" }),
+  ]);
+
+  expect(
+    await screen.findAllByRole("img", { name: "پیش‌نمایش تصویر" }),
+  ).toHaveLength(2);
+  await user.click(
+    screen.getAllByRole("radio", { name: "انتخاب به‌عنوان تصویر اصلی" })[1]!,
+  );
+  await waitFor(() => expect(images[1]?.is_primary).toBe(true));
+  await user.click(
+    screen.getAllByRole("button", { name: "انتقال به ابتدا" })[1]!,
+  );
+  await waitFor(() => expect(images[0]?.is_primary).toBe(true));
+  await user.click(screen.getAllByRole("button", { name: "حذف تصویر" })[1]!);
+  expect(
+    await screen.findAllByRole("img", { name: "پیش‌نمایش تصویر" }),
+  ).toHaveLength(1);
+
+  await user.click(screen.getByRole("button", { name: "ذخیره و ادامه" }));
+  expect(
+    await screen.findByRole("heading", { name: "اطلاعات تماس" }),
+  ).toBeVisible();
+});
+
+test("keeps successful uploads visible when a later file in the batch is rejected", async () => {
+  const user = userEvent.setup();
+  const storedImage = {
+    id: "10000000-0000-4000-8000-000000000099",
+    status: "ready" as const,
+    failure_reason: "",
+    position: 0,
+    is_primary: true,
+    variants: [
+      {
+        kind: "medium" as const,
+        url: "/api/media/partial-success.webp",
+        width: 640,
+        height: 480,
+        byte_size: 1200,
+      },
+    ],
+    created_at: "2026-08-22T08:00:00Z",
+    updated_at: "2026-08-22T08:00:00Z",
+  };
+  let uploadCount = 0;
+  let images: (typeof storedImage)[] = [];
+  server.use(
+    http.get("*/api/v1/submissions/:id/", () =>
+      HttpResponse.json({ ...draft, current_step: "images", images }),
+    ),
+    http.post("*/api/v1/submissions/:id/images/", () => {
+      uploadCount += 1;
+      if (uploadCount === 1) {
+        images = [storedImage];
+        return HttpResponse.json(storedImage, { status: 201 });
+      }
+      return HttpResponse.json(
+        { detail: "فایل بارگذاری‌شده یک تصویر معتبر نیست." },
+        { status: 400 },
+      );
+    }),
+  );
+  renderPage(`/add-submission?submission=${draft.id}&step=images`);
+
+  await user.upload(await screen.findByLabelText("افزودن تصاویر"), [
+    new File(["valid"], "valid.jpg", { type: "image/jpeg" }),
+    new File(["invalid"], "invalid.jpg", { type: "image/jpeg" }),
+  ]);
+
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    "فایل بارگذاری‌شده یک تصویر معتبر نیست.",
+  );
+  expect(
+    await screen.findByRole("img", { name: "پیش‌نمایش تصویر" }),
+  ).toBeVisible();
 });

@@ -94,6 +94,9 @@ USE_TZ = True
 
 STATIC_URL = "/static/"
 STATIC_ROOT = BACKEND_DIR / "staticfiles"
+MEDIA_ROOT = BACKEND_DIR / "media"
+SUBMISSION_IMAGE_MAX_BYTES = env.int("SUBMISSION_IMAGE_MAX_BYTES", default=10 * 1024 * 1024)
+SUBMISSION_ABANDONED_IMAGE_HOURS = env.int("SUBMISSION_ABANDONED_IMAGE_HOURS", default=24)
 STORAGES = {
     "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
     "staticfiles": {"BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"},
@@ -151,6 +154,12 @@ CELERY_TASK_TIME_LIMIT = 30 * 60
 CELERY_TASK_SOFT_TIME_LIMIT = 25 * 60
 CELERY_TASK_ACKS_LATE = True
 CELERY_WORKER_PREFETCH_MULTIPLIER = 1
+CELERY_BEAT_SCHEDULE = {
+    "cleanup-abandoned-submission-images": {
+        "task": "apps.submissions.tasks.cleanup_abandoned_submission_images",
+        "schedule": 60 * 60,
+    }
+}
 
 
 def build_mailer_config(default_backend: str) -> dict[str, dict[str, object]]:
