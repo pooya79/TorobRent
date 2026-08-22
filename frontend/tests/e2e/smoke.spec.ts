@@ -74,7 +74,6 @@ test("exposes the public fixture-backed prototype routes", async ({ page }) => {
   const routes = [
     ["/", "خانه‌ای برای اجاره پیدا کنید"],
     ["/search", "خانه‌های اجاره‌ای در تهران"],
-    ["/operator/review", "صف بررسی آگهی‌ها"],
   ] as const;
 
   for (const [path, heading] of routes) {
@@ -83,6 +82,19 @@ test("exposes the public fixture-backed prototype routes", async ({ page }) => {
       page.getByRole("heading", { name: heading, level: 1 }),
     ).toBeVisible();
   }
+});
+
+test("protects the Operator review queue from anonymous visitors", async ({
+  page,
+}) => {
+  await page.goto("/operator/review");
+
+  await expect(
+    page.getByRole("heading", { name: "دسترسی اپراتور لازم است" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "صف بررسی آگهی‌ها" }),
+  ).not.toBeVisible();
 });
 
 test("preserves protected Submitter navigation across login", async ({
