@@ -174,6 +174,42 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/v1/submissions/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List the current Submitter's Submissions */
+    get: operations["v1_submissions_list"];
+    put?: never;
+    /** Create a Submission draft */
+    post: operations["v1_submissions_create"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/submissions/{submission_id}/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Resume a Submission draft */
+    get: operations["v1_submissions_retrieve"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /** Save a completed Submission step */
+    patch: operations["v1_submissions_partial_update"];
+    trace?: never;
+  };
   "/api/v1/system/live/": {
     parameters: {
       query?: never;
@@ -230,10 +266,56 @@ export type webhooks = Record<string, never>;
 export interface components {
   schemas: {
     /**
+     * @description * `location` - location
+     *     * `property_facts` - property_facts
+     *     * `rental_terms` - rental_terms
+     *     * `features_description` - features_description
+     *     * `contact` - contact
+     *     * `review` - review
+     * @enum {string}
+     */
+    CompletedStepEnum:
+      | "location"
+      | "property_facts"
+      | "rental_terms"
+      | "features_description"
+      | "contact"
+      | "review";
+    ContactInput: {
+      name: string;
+      phone: string;
+      authorization_declared: boolean;
+      phone_publication_consent: boolean;
+    };
+    ContactOutput: {
+      name: string;
+      phone: string;
+      authorization_declared: boolean;
+      phone_publication_consent: boolean;
+    };
+    /**
      * @description * `IRR` - IRR
      * @enum {string}
      */
     CurrencyEnum: "IRR";
+    /**
+     * @description * `location` - نشانی ملک
+     *     * `property_facts` - مشخصات ملک
+     *     * `rental_terms` - شرایط اجاره
+     *     * `features_description` - امکانات و توضیحات
+     *     * `images` - تصاویر
+     *     * `contact` - اطلاعات تماس
+     *     * `review` - بازبینی
+     * @enum {string}
+     */
+    CurrentStepEnum:
+      | "location"
+      | "property_facts"
+      | "rental_terms"
+      | "features_description"
+      | "images"
+      | "contact"
+      | "review";
     Detail: {
       detail: string;
     };
@@ -245,6 +327,13 @@ export interface components {
      */
     FeatureStateEnum: "unknown" | "present" | "absent";
     Features: {
+      parking: components["schemas"]["FeatureStateEnum"];
+      elevator: components["schemas"]["FeatureStateEnum"];
+      storage: components["schemas"]["FeatureStateEnum"];
+      balcony: components["schemas"]["FeatureStateEnum"];
+      furnished: components["schemas"]["FeatureStateEnum"];
+    };
+    FeaturesInput: {
       parking: components["schemas"]["FeatureStateEnum"];
       elevator: components["schemas"]["FeatureStateEnum"];
       storage: components["schemas"]["FeatureStateEnum"];
@@ -286,6 +375,27 @@ export interface components {
       district: string;
       district_number: number;
       neighborhood: string;
+    };
+    LocationInput: {
+      /** Format: uuid */
+      city_id?: string;
+      /** Format: uuid */
+      district_id?: string;
+      /** Format: uuid */
+      neighborhood_id: string;
+      address: string;
+    };
+    LocationOutput: {
+      /** Format: uuid */
+      city_id: string;
+      city: string;
+      /** Format: uuid */
+      district_id: string;
+      district: string;
+      /** Format: uuid */
+      neighborhood_id: string;
+      neighborhood: string;
+      address: string;
     };
     LocationSuggestion: {
       /** Format: uuid */
@@ -329,6 +439,16 @@ export interface components {
       /** Format: email */
       email: string;
     };
+    PatchedSubmissionStepUpdate: {
+      completed_step?: components["schemas"]["CompletedStepEnum"];
+      location?: components["schemas"]["LocationInput"];
+      property_facts?: components["schemas"]["PropertyFactsInput"];
+      rental_terms?: components["schemas"]["RentalTermsInput"];
+      features?: components["schemas"]["FeaturesInput"];
+      description?: string;
+      contact?: components["schemas"]["ContactInput"];
+      review?: components["schemas"]["ReviewInput"];
+    };
     Problem: {
       /** Format: uri */
       type: string;
@@ -365,6 +485,15 @@ export interface components {
       features: components["schemas"]["Features"];
       listings: components["schemas"]["ListingPublic"][];
     };
+    PropertyFactsInput: {
+      property_type: components["schemas"]["PropertyTypeEnum"];
+      area_sqm: number;
+      room_count: number;
+      construction_year?: number | null;
+      floor?: number | null;
+      total_floors?: number | null;
+      units_per_floor?: number | null;
+    };
     PropertySummary: {
       /** Format: uuid */
       id: string;
@@ -393,6 +522,23 @@ export interface components {
       email: string;
       password: string;
     };
+    RentalTermsInput: {
+      /** Format: int64 */
+      deposit_toman: number;
+      /** Format: int64 */
+      monthly_rent_toman: number;
+      is_negotiable: boolean;
+      is_convertible: boolean;
+    };
+    RentalTermsOutput: {
+      deposit_rial: number;
+      monthly_rent_rial: number;
+      currency: components["schemas"]["CurrencyEnum"];
+      deposit_toman: number;
+      monthly_rent_toman: number;
+      is_negotiable: boolean;
+      is_convertible: boolean;
+    };
     RentalTermsPublic: {
       deposit_rial: number;
       monthly_rent_rial: number;
@@ -400,6 +546,15 @@ export interface components {
       deposit_toman: number;
       monthly_rent_toman: number;
     };
+    ReviewInput: {
+      accuracy_confirmed: boolean;
+    };
+    /**
+     * @description * `owner` - مالک
+     *     * `agent` - نماینده مالک
+     * @enum {string}
+     */
+    RoleEnum: "owner" | "agent";
     Session: {
       authenticated: boolean;
       csrf_token: string;
@@ -417,11 +572,39 @@ export interface components {
       outbound_policy: components["schemas"]["OutboundPolicyEnum"];
     };
     /**
+     * @description * `draft` - پیش‌نویس
+     * @enum {string}
+     */
+    StateEnum: "draft";
+    /**
      * @description * `ok` - ok
      *     * `unavailable` - unavailable
      * @enum {string}
      */
     StatusEnum: "ok" | "unavailable";
+    Submission: {
+      /** Format: uuid */
+      readonly id: string;
+      role: components["schemas"]["RoleEnum"];
+      state?: components["schemas"]["StateEnum"];
+      current_step?: components["schemas"]["CurrentStepEnum"];
+      readonly media_complete: boolean;
+      readonly location: components["schemas"]["LocationOutput"] | null;
+      readonly property_facts:
+        components["schemas"]["PropertyFactsInput"] | null;
+      readonly rental_terms: components["schemas"]["RentalTermsOutput"] | null;
+      readonly features: components["schemas"]["FeaturesInput"];
+      description?: string;
+      readonly contact: components["schemas"]["ContactOutput"] | null;
+      review: unknown;
+      /** Format: date-time */
+      readonly created_at: string;
+      /** Format: date-time */
+      readonly updated_at: string;
+    };
+    SubmissionCreate: {
+      role: components["schemas"]["RoleEnum"];
+    };
     Token: {
       token: string;
     };
@@ -918,6 +1101,94 @@ export interface operations {
         };
         content: {
           "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  v1_submissions_list: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Submission"][];
+        };
+      };
+    };
+  };
+  v1_submissions_create: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["SubmissionCreate"];
+      };
+    };
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Submission"];
+        };
+      };
+    };
+  };
+  v1_submissions_retrieve: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        submission_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Submission"];
+        };
+      };
+    };
+  };
+  v1_submissions_partial_update: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        submission_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: {
+      content: {
+        "application/json": components["schemas"]["PatchedSubmissionStepUpdate"];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Submission"];
         };
       };
     };
