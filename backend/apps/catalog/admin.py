@@ -2,13 +2,23 @@ from typing import Any, cast
 
 from django import forms
 from django.contrib import admin, messages
+from django.contrib.admin.helpers import ActionForm
 from django.core.exceptions import ValidationError
 from django.http import HttpRequest
 from django.utils.translation import ngettext
 
-from .models import City, District, Listing, Neighborhood, Property, RentalTerms, Source
+from .models import (
+    City,
+    District,
+    Listing,
+    ListingGroupingEvent,
+    Neighborhood,
+    Property,
+    RentalTerms,
+    Source,
+)
 from .money import rial_to_toman, toman_to_rial
-from .services import publish_listing
+from .services import merge_properties, publish_listing, regroup_listing
 
 PERSIAN_DIGITS = str.maketrans("۰۱۲۳۴۵۶۷۸۹", "0123456789")
 
@@ -58,6 +68,14 @@ class RentalTermsAdminForm(forms.ModelForm):  # type: ignore[type-arg]
         return instance
 
 
+class PropertyMergeActionForm(ActionForm):
+    target_property = forms.ModelChoiceField(
+        queryset=Property.objects.filter(merged_into__isnull=True),
+        required=False,
+        label="ملک مقصد ادغام",
+    )
+
+
 @admin.register(City)
 class CityAdmin(admin.ModelAdmin):  # type: ignore[type-arg]
     list_display = ("name_fa", "source_code", "source_year", "reviewed")
@@ -80,16 +98,65 @@ class NeighborhoodAdmin(admin.ModelAdmin):  # type: ignore[type-arg]
 
 @admin.register(Source)
 class SourceAdmin(admin.ModelAdmin):  # type: ignore[type-arg]
-    list_display = ("display_name", "domain", "is_active", "outbound_policy", "is_builtin")
-    list_filter = ("is_active", "outbound_policy", "is_builtin")
+    list_display = (
+        "display_name",
+        "domain",
+        "is_active",
+        "outbound_policy",
+        "allows_external_media",
+        "is_builtin",
+    )
+    list_filter = ("is_active", "outbound_policy", "allows_external_media", "is_builtin")
     search_fields = ("name", "display_name", "domain")
 
 
 @admin.register(Property)
 class PropertyAdmin(admin.ModelAdmin):  # type: ignore[type-arg]
-    list_display = ("id", "property_type", "city", "district", "neighborhood", "area_sqm")
+    list_display = (
+        "id",
+        "property_type",
+        "city",
+        "district",
+        "neighborhood",
+        "area_sqm",
+        "merged_into",
+    )
     list_filter = ("property_type", "city", "district")
     search_fields = ("id", "neighborhood__name_fa")
+    readonly_fields = ("merged_into", "merged_at")
+    action_form = PropertyMergeActionForm
+    actions = ("merge_into_target",)
+
+    @admin.action(description="ادغام ملک‌های انتخاب‌شده در ملک مقصد")
+    def merge_into_target(self, request: HttpRequest, queryset: Any) -> None:
+        target_id = request.POST.get("target_property")
+        if not target_id:
+            self.message_user(request, "ملک مقصد ادغام را انتخاب کنید.", level=messages.ERROR)
+            return
+        try:
+            target = Property.objects.get(pk=target_id, merged_into__isnull=True)
+        except Property.DoesNotExist, ValueError:
+            self.message_user(request, "ملک مقصد معتبر نیست.", level=messages.ERROR)
+            return
+
+        merged = 0
+        for duplicate in queryset.exclude(pk=target.pk):
+            try:
+                merge_properties(target=target, duplicate=duplicate)
+            except ValidationError as exc:
+                self.message_user(request, f"{duplicate.id}: {exc}", level=messages.ERROR)
+            else:
+                merged += 1
+        if merged:
+            self.message_user(
+                request,
+                ngettext(
+                    "یک ملک تکراری ادغام شد.",
+                    f"{merged} ملک تکراری ادغام شدند.",
+                    merged,
+                ),
+                level=messages.SUCCESS,
+            )
 
 
 @admin.register(RentalTerms)
@@ -122,6 +189,24 @@ class ListingAdmin(admin.ModelAdmin):  # type: ignore[type-arg]
     readonly_fields = ("published_at", "availability_confirmed_at", "available_until")
     actions = ("publish_listings",)
 
+    def save_model(
+        self,
+        request: HttpRequest,
+        obj: Listing,
+        form: forms.ModelForm[Any],
+        change: bool,
+    ) -> None:
+        if not change or "property" not in form.changed_data:
+            super().save_model(request, obj, form, change)
+            return
+
+        original_property_id = Listing.objects.only("property_id").get(pk=obj.pk).property_id
+        destination = obj.property
+        obj.property_id = original_property_id
+        super().save_model(request, obj, form, change)
+        regroup_listing(listing=obj, destination=destination)
+        obj.property = destination
+
     @admin.action(description="اعتبارسنجی و انتشار آگهی‌های انتخاب‌شده")
     def publish_listings(self, request: HttpRequest, queryset: Any) -> None:
         published = 0
@@ -140,3 +225,34 @@ class ListingAdmin(admin.ModelAdmin):  # type: ignore[type-arg]
                 ngettext("یک آگهی منتشر شد.", f"{published} آگهی منتشر شدند.", published),
                 level=messages.SUCCESS,
             )
+
+
+@admin.register(ListingGroupingEvent)
+class ListingGroupingEventAdmin(admin.ModelAdmin):  # type: ignore[type-arg]
+    list_display = (
+        "created_at",
+        "action",
+        "listing",
+        "from_property",
+        "to_property",
+    )
+    list_filter = ("action", "created_at")
+    search_fields = ("listing__id", "from_property__id", "to_property__id", "reason")
+    readonly_fields = (
+        "id",
+        "created_at",
+        "action",
+        "listing",
+        "from_property",
+        "to_property",
+        "reason",
+    )
+
+    def has_add_permission(self, request: HttpRequest) -> bool:
+        return False
+
+    def has_change_permission(self, request: HttpRequest, obj: Any = None) -> bool:
+        return False
+
+    def has_delete_permission(self, request: HttpRequest, obj: Any = None) -> bool:
+        return False

@@ -5,9 +5,11 @@ import pytest
 from django.contrib import admin
 from django.core.exceptions import ValidationError
 from django.core.management import call_command
+from django.test import Client
 from django.utils import timezone
 from rest_framework.test import APIClient
 
+from apps.accounts.models import User
 from apps.catalog.admin import RentalTermsAdminForm
 from apps.catalog.models import (
     City,
@@ -21,7 +23,13 @@ from apps.catalog.models import (
     RentalTerms,
     Source,
 )
-from apps.catalog.services import publish_listing
+from apps.catalog.services import (
+    attach_listing,
+    merge_properties,
+    publish_listing,
+    regroup_listing,
+    split_listing,
+)
 
 
 @pytest.mark.django_db
@@ -637,3 +645,424 @@ def test_property_search_sort_options_have_deterministic_ties(
 
     assert response.status_code == 200
     assert [item["area_sqm"] for item in response.data["results"]] == expected_areas
+
+
+@pytest.mark.django_db
+def test_operator_merges_duplicate_properties_without_losing_listing_identity_or_claims():
+    call_command("loaddata", "catalog_seed", verbosity=0)
+    neighborhood = Neighborhood.objects.get(name_fa="سعادت‌آباد")
+    source = Source.objects.create(
+        name="example-source",
+        domain="source.example",
+        display_name="منبع نمونه",
+        outbound_policy="external_link",
+    )
+    target = Property.objects.create(
+        city=neighborhood.district.city,
+        district=neighborhood.district,
+        neighborhood=neighborhood,
+        property_type=PropertyType.APARTMENT,
+        area_sqm=110,
+        room_count=2,
+    )
+    duplicate = Property.objects.create(
+        city=neighborhood.district.city,
+        district=neighborhood.district,
+        neighborhood=neighborhood,
+        property_type=PropertyType.APARTMENT,
+        area_sqm=108,
+        room_count=2,
+    )
+    terms = RentalTerms.objects.create(
+        deposit_rial=10_000_000_000,
+        monthly_rent_rial=250_000_000,
+    )
+    confirmed_at = timezone.now() - timedelta(hours=2)
+    listing = Listing.objects.create(
+        property=duplicate,
+        source=source,
+        terms=terms,
+        state=ListingState.PUBLISHED,
+        description="توصیف اصلی منبع",
+        source_reference="source-42",
+        source_claims={"area_sqm": 108, "room_count": 2},
+        external_url="https://source.example/listings/42",
+        availability_confirmed_at=confirmed_at,
+        available_until=timezone.now() + timedelta(days=5),
+    )
+
+    merge_properties(target=target, duplicate=duplicate)
+
+    listing.refresh_from_db()
+    duplicate.refresh_from_db()
+    assert listing.id == terms.listing.id
+    assert listing.property_id == target.id
+    assert listing.terms_id == terms.id
+    assert listing.description == "توصیف اصلی منبع"
+    assert listing.source_reference == "source-42"
+    assert listing.source_claims == {"area_sqm": 108, "room_count": 2}
+    assert listing.external_url == "https://source.example/listings/42"
+    assert listing.availability_confirmed_at == confirmed_at
+    assert duplicate.merged_into_id == target.id
+    assert duplicate.area_sqm == 108
+    assert target.area_sqm == 110
+    event = listing.grouping_events.get()
+    assert event.action == "merge"
+    assert event.from_property_id == duplicate.id
+    assert event.to_property_id == target.id
+
+    split_listing(listing=listing, separate_property=duplicate, reason="بازگردانی ادغام")
+
+    listing.refresh_from_db()
+    duplicate.refresh_from_db()
+    assert listing.property_id == duplicate.id
+    assert duplicate.merged_into_id is None
+    assert duplicate.merged_at is None
+    assert list(listing.grouping_events.values_list("action", flat=True)) == ["merge", "split"]
+
+
+@pytest.mark.django_db
+def test_operator_splits_an_incorrectly_grouped_listing_to_a_separate_property():
+    call_command("loaddata", "catalog_seed", verbosity=0)
+    neighborhood = Neighborhood.objects.get(name_fa="سعادت‌آباد")
+    source = Source.objects.get(is_builtin=True)
+    grouped_property = Property.objects.create(
+        city=neighborhood.district.city,
+        district=neighborhood.district,
+        neighborhood=neighborhood,
+        property_type=PropertyType.APARTMENT,
+        area_sqm=110,
+        room_count=2,
+    )
+    separate_property = Property.objects.create(
+        city=neighborhood.district.city,
+        district=neighborhood.district,
+        neighborhood=neighborhood,
+        property_type=PropertyType.APARTMENT,
+        area_sqm=90,
+        room_count=1,
+    )
+    listing = Listing.objects.create(
+        property=grouped_property,
+        source=source,
+        terms=RentalTerms.objects.create(
+            deposit_rial=5_000_000_000,
+            monthly_rent_rial=300_000_000,
+        ),
+        source_claims={"area_sqm": 90, "room_count": 1},
+        direct_phone="۰۹۱۲۱۲۳۴۵۶۷",
+    )
+    listing_id = listing.id
+
+    split_listing(listing=listing, separate_property=separate_property, reason="واحد متفاوت")
+
+    listing.refresh_from_db()
+    assert listing.id == listing_id
+    assert listing.property_id == separate_property.id
+    event = listing.grouping_events.get()
+    assert event.action == "split"
+    assert event.reason == "واحد متفاوت"
+    assert event.from_property_id == grouped_property.id
+    assert event.to_property_id == separate_property.id
+
+
+@pytest.mark.django_db
+def test_operator_attaches_a_listing_to_an_existing_property_group():
+    call_command("loaddata", "catalog_seed", verbosity=0)
+    neighborhood = Neighborhood.objects.get(name_fa="سعادت‌آباد")
+    source = Source.objects.get(is_builtin=True)
+    properties = [
+        Property.objects.create(
+            city=neighborhood.district.city,
+            district=neighborhood.district,
+            neighborhood=neighborhood,
+            property_type=PropertyType.APARTMENT,
+            area_sqm=100 + index,
+            room_count=2,
+        )
+        for index in range(2)
+    ]
+    listings = [
+        Listing.objects.create(
+            property=property_,
+            source=source,
+            terms=RentalTerms.objects.create(
+                deposit_rial=(index + 1) * 5_000_000_000,
+                monthly_rent_rial=200_000_000,
+            ),
+            direct_phone="۰۹۱۲۱۲۳۴۵۶۷",
+        )
+        for index, property_ in enumerate(properties)
+    ]
+
+    attach_listing(listing=listings[1], existing_property=properties[0])
+
+    listings[1].refresh_from_db()
+    assert listings[1].property_id == properties[0].id
+    assert Listing.objects.filter(property=properties[0]).count() == 2
+    assert listings[1].grouping_events.get().action == "attach"
+
+
+@pytest.mark.django_db
+def test_regroup_listing_chooses_attach_or_split_inside_the_catalog_workflow():
+    call_command("loaddata", "catalog_seed", verbosity=0)
+    neighborhood = Neighborhood.objects.get(name_fa="سعادت‌آباد")
+    source = Source.objects.get(is_builtin=True)
+    properties = [
+        Property.objects.create(
+            city=neighborhood.district.city,
+            district=neighborhood.district,
+            neighborhood=neighborhood,
+            property_type=PropertyType.APARTMENT,
+            area_sqm=100 + index,
+            room_count=2,
+        )
+        for index in range(3)
+    ]
+    listings = [
+        Listing.objects.create(
+            property=property_,
+            source=source,
+            terms=RentalTerms.objects.create(
+                deposit_rial=(index + 1) * 5_000_000_000,
+                monthly_rent_rial=200_000_000,
+            ),
+            direct_phone="۰۹۱۲۱۲۳۴۵۶۷",
+        )
+        for index, property_ in enumerate(properties[:2])
+    ]
+
+    regroup_listing(listing=listings[1], destination=properties[0])
+    regroup_listing(listing=listings[1], destination=properties[2])
+
+    listings[1].refresh_from_db()
+    assert listings[1].property_id == properties[2].id
+    assert list(listings[1].grouping_events.values_list("action", flat=True)) == [
+        "attach",
+        "split",
+    ]
+
+
+@pytest.mark.django_db
+def test_operator_regroups_a_listing_through_the_admin_change_form():
+    call_command("loaddata", "catalog_seed", verbosity=0)
+    operator = User.objects.create_superuser(
+        email="operator-grouping@example.com", password="operator-password"
+    )
+    client = Client()
+    client.force_login(operator)
+    neighborhood = Neighborhood.objects.get(name_fa="سعادت‌آباد")
+    source = Source.objects.get(is_builtin=True)
+    original, destination = [
+        Property.objects.create(
+            city=neighborhood.district.city,
+            district=neighborhood.district,
+            neighborhood=neighborhood,
+            property_type=PropertyType.APARTMENT,
+            area_sqm=100 + index,
+            room_count=2,
+        )
+        for index in range(2)
+    ]
+    Listing.objects.create(
+        property=destination,
+        source=source,
+        terms=RentalTerms.objects.create(
+            deposit_rial=7_000_000_000,
+            monthly_rent_rial=200_000_000,
+        ),
+        direct_phone="۰۹۱۲۱۲۳۴۵۶۷",
+    )
+    listing = Listing.objects.create(
+        property=original,
+        source=source,
+        terms=RentalTerms.objects.create(
+            deposit_rial=5_000_000_000,
+            monthly_rent_rial=250_000_000,
+        ),
+        source_claims={"area_sqm": 101},
+        direct_phone="۰۹۱۲۱۲۳۴۵۶۷",
+    )
+
+    response = client.post(
+        f"/admin/catalog/listing/{listing.id}/change/",
+        {
+            "property": str(destination.id),
+            "source": str(source.id),
+            "terms": str(listing.terms_id),
+            "state": ListingState.DRAFT,
+            "description": "",
+            "source_reference": "",
+            "source_claims": '{"area_sqm": 101}',
+            "provenance_note": "",
+            "external_url": "",
+            "direct_phone": "۰۹۱۲۱۲۳۴۵۶۷",
+            "_save": "Save",
+        },
+    )
+
+    assert response.status_code == 302
+    listing.refresh_from_db()
+    assert listing.property_id == destination.id
+    assert listing.grouping_events.get().action == "attach"
+
+
+@pytest.mark.django_db
+def test_operator_merges_selected_properties_through_the_admin_action():
+    call_command("loaddata", "catalog_seed", verbosity=0)
+    operator = User.objects.create_superuser(
+        email="operator-merge@example.com", password="operator-password"
+    )
+    client = Client()
+    client.force_login(operator)
+    neighborhood = Neighborhood.objects.get(name_fa="سعادت‌آباد")
+    target, duplicate = [
+        Property.objects.create(
+            city=neighborhood.district.city,
+            district=neighborhood.district,
+            neighborhood=neighborhood,
+            property_type=PropertyType.APARTMENT,
+            area_sqm=110,
+            room_count=2,
+        )
+        for _ in range(2)
+    ]
+
+    response = client.post(
+        "/admin/catalog/property/",
+        {
+            "action": "merge_into_target",
+            "target_property": str(target.id),
+            "_selected_action": [str(duplicate.id)],
+            "index": "0",
+        },
+        follow=True,
+    )
+
+    assert response.status_code == 200
+    duplicate.refresh_from_db()
+    assert duplicate.merged_into_id == target.id
+    assert "یک ملک تکراری ادغام شد" in response.content.decode()
+
+
+@pytest.mark.django_db
+def test_property_detail_compares_active_source_listings_and_exposes_disagreements_safely(
+    api_client: APIClient,
+):
+    call_command("loaddata", "catalog_seed", verbosity=0)
+    neighborhood = Neighborhood.objects.get(name_fa="سعادت‌آباد")
+    property_ = Property.objects.create(
+        city=neighborhood.district.city,
+        district=neighborhood.district,
+        neighborhood=neighborhood,
+        property_type=PropertyType.APARTMENT,
+        area_sqm=110,
+        room_count=2,
+        parking=FeatureState.PRESENT,
+    )
+    external_source = Source.objects.create(
+        name="external-comparison",
+        domain="comparison.example",
+        display_name="منبع مقایسه",
+        outbound_policy="external_link",
+        allows_external_media=True,
+    )
+    disabled_source = Source.objects.create(
+        name="disabled-comparison",
+        domain="disabled-comparison.example",
+        display_name="منبع بدون ادامه",
+        outbound_policy="disabled",
+    )
+    inactive_source = Source.objects.create(
+        name="inactive-comparison",
+        domain="inactive-comparison.example",
+        display_name="منبع غیرفعال",
+        outbound_policy="external_link",
+        is_active=False,
+    )
+    now = timezone.now()
+    scenarios = [
+        (
+            external_source,
+            {
+                "area_sqm": 108,
+                "room_count": 2,
+                "parking": "absent",
+                "elevator": "present",
+            },
+            "external-42",
+            "https://comparison.example/listings/42",
+        ),
+        (
+            disabled_source,
+            {"area_sqm": 110, "room_count": 2, "parking": "present"},
+            "disabled-10",
+            "https://disabled-comparison.example/listings/10",
+        ),
+        (
+            inactive_source,
+            {"area_sqm": 130},
+            "inactive-1",
+            "https://inactive-comparison.example/listings/1",
+        ),
+    ]
+    for index, (source, claims, reference, external_url) in enumerate(scenarios, start=1):
+        Listing.objects.create(
+            property=property_,
+            source=source,
+            terms=RentalTerms.objects.create(
+                deposit_rial=index * 5_000_000_000,
+                monthly_rent_rial=index * 100_000_000,
+            ),
+            state=ListingState.PUBLISHED,
+            description=f"توضیح منبع {index}",
+            source_reference=reference,
+            source_claims=claims,
+            external_url=external_url,
+            external_media_url=f"https://{source.domain}/media/{reference}.jpg",
+            availability_confirmed_at=now - timedelta(hours=index),
+            available_until=now + timedelta(days=5),
+        )
+
+    response = api_client.get(f"/api/v1/catalog/properties/{property_.id}/")
+    search_response = api_client.get("/api/v1/catalog/properties/")
+
+    assert response.status_code == 200
+    assert search_response.status_code == 200
+    assert search_response.data["results"][0]["listing_count"] == 2
+    assert search_response.data["results"][0]["rental_terms"] == {
+        "deposit_rial": 5_000_000_000,
+        "monthly_rent_rial": 100_000_000,
+        "currency": "IRR",
+        "deposit_toman": 500_000_000,
+        "monthly_rent_toman": 10_000_000,
+    }
+    assert len(response.data["listings"]) == 2
+    listings_by_source = {
+        listing["source"]["name"]: listing for listing in response.data["listings"]
+    }
+    external = listings_by_source["external-comparison"]
+    assert external["source_reference"] == "external-42"
+    assert external["description"] == "توضیح منبع 1"
+    assert external["rental_terms"]["deposit_rial"] == 5_000_000_000
+    assert external["availability_confirmed_at"] == (
+        (now - timedelta(hours=1)).isoformat().replace("+00:00", "Z")
+    )
+    assert external["source_claims"] == {
+        "area_sqm": 108,
+        "room_count": 2,
+        "parking": "absent",
+        "elevator": "present",
+    }
+    assert external["continuation_url"] == "https://comparison.example/listings/42"
+    assert external["media_url"] == "https://comparison.example/media/external-42.jpg"
+    assert external["disagreements"] == [
+        {"field": "area_sqm", "normalized_value": 110, "source_value": 108},
+        {"field": "parking", "normalized_value": "present", "source_value": "absent"},
+        {"field": "elevator", "normalized_value": "unknown", "source_value": "present"},
+    ]
+    disabled = listings_by_source["disabled-comparison"]
+    assert disabled["continuation_url"] is None
+    assert disabled["media_url"] is None
+    assert disabled["disagreements"] == []
+    assert "inactive-comparison" not in listings_by_source
