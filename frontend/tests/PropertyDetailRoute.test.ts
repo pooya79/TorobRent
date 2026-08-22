@@ -5,10 +5,10 @@ import { loader, meta } from "@/routes/property-detail";
 import { server } from "./server";
 import { propertyDetail } from "./fixtures/catalog";
 
-function loaderArgs(slug: string) {
+function loaderArgs(slug: string, search = "") {
   return {
     request: new Request(
-      `http://localhost/properties/${propertyDetail.id}/${slug}`,
+      `http://localhost/properties/${propertyDetail.id}/${slug}${search}`,
     ),
     params: { propertyId: propertyDetail.id, slug },
     context: {},
@@ -38,7 +38,9 @@ test("permanently redirects a stale Persian slug to the canonical URL", async ()
 
   let response: Response | undefined;
   try {
-    await loader(loaderArgs("نشانی-قدیمی"));
+    await loader(
+      loaderArgs("نشانی-قدیمی", "?returnTo=%2Fsearch%3Fparking%3Dpresent"),
+    );
   } catch (error) {
     if (error instanceof Response) response = error;
   }
@@ -46,7 +48,7 @@ test("permanently redirects a stale Persian slug to the canonical URL", async ()
   expect(response).toBeInstanceOf(Response);
   expect(response?.status).toBe(301);
   expect(decodeURI(response?.headers.get("Location") ?? "")).toBe(
-    `/properties/${propertyDetail.id}/${propertyDetail.canonical_slug}`,
+    `/properties/${propertyDetail.id}/${propertyDetail.canonical_slug}?returnTo=%2Fsearch%3Fparking%3Dpresent`,
   );
 });
 

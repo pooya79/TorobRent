@@ -314,16 +314,132 @@ paths:
       summary: Search Properties with an Active Listing
       parameters:
       - in: query
+        name: area_max
+        schema:
+          type: integer
+          minimum: 1
+      - in: query
+        name: area_min
+        schema:
+          type: integer
+          minimum: 1
+      - in: query
+        name: balcony
+        schema:
+          enum:
+          - present
+          - absent
+          type: string
+          minLength: 1
+        description: |-
+          * `present` - present
+          * `absent` - absent
+      - in: query
+        name: deposit_max_toman
+        schema:
+          type: integer
+          minimum: 0
+      - in: query
+        name: deposit_min_toman
+        schema:
+          type: integer
+          minimum: 0
+      - in: query
+        name: elevator
+        schema:
+          enum:
+          - present
+          - absent
+          type: string
+          minLength: 1
+        description: |-
+          * `present` - present
+          * `absent` - absent
+      - in: query
+        name: furnished
+        schema:
+          enum:
+          - present
+          - absent
+          type: string
+          minLength: 1
+        description: |-
+          * `present` - present
+          * `absent` - absent
+      - in: query
         name: location
         schema:
           type: string
-        description: Location UUID or tolerant Persian location text
-      - name: page
-        required: false
-        in: query
-        description: A page number within the paginated result set.
+      - in: query
+        name: monthly_rent_max_toman
         schema:
           type: integer
+          minimum: 0
+      - in: query
+        name: monthly_rent_min_toman
+        schema:
+          type: integer
+          minimum: 0
+      - in: query
+        name: ordering
+        schema:
+          enum:
+          - freshness
+          - monthly_rent
+          - deposit
+          - area
+          type: string
+          minLength: 1
+        description: |-
+          * `freshness` - freshness
+          * `monthly_rent` - monthly_rent
+          * `deposit` - deposit
+          * `area` - area
+      - in: query
+        name: page
+        schema:
+          type: integer
+          minimum: 1
+      - in: query
+        name: parking
+        schema:
+          enum:
+          - present
+          - absent
+          type: string
+          minLength: 1
+        description: |-
+          * `present` - present
+          * `absent` - absent
+      - in: query
+        name: property_type
+        schema:
+          enum:
+          - apartment
+          - house
+          - villa
+          type: string
+          minLength: 1
+        description: |-
+          * `apartment` - آپارتمان
+          * `house` - خانه
+          * `villa` - ویلا
+      - in: query
+        name: room_count
+        schema:
+          type: integer
+          minimum: 0
+      - in: query
+        name: storage
+        schema:
+          enum:
+          - present
+          - absent
+          type: string
+          minLength: 1
+        description: |-
+          * `present` - present
+          * `absent` - absent
       tags:
       - v1
       security:

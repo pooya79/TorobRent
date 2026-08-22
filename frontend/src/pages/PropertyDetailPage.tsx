@@ -1,7 +1,8 @@
-import { Building2, Clock3, MapPin } from "lucide-react";
+import { ArrowRight, Building2, Clock3, MapPin } from "lucide-react";
 
 import { PageMain } from "@/components/layout/PageMain";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import type { components } from "@/lib/api/schema";
 
@@ -32,7 +33,14 @@ function formatFreshness(value: string) {
   }).format(new Date(value));
 }
 
-export function PropertyDetailPage({ property }: { property: PropertyDetail }) {
+export function PropertyDetailPage({
+  property,
+  returnTo,
+}: {
+  property: PropertyDetail;
+  returnTo?: string | null;
+}) {
+  const safeReturnTo = returnTo?.startsWith("/search") ? returnTo : "/search";
   const location = [
     property.location.city,
     property.location.district,
@@ -57,6 +65,11 @@ export function PropertyDetailPage({ property }: { property: PropertyDetail }) {
 
   return (
     <PageMain>
+      <Button asChild className="mb-6" variant="ghost">
+        <a href={safeReturnTo}>
+          <ArrowRight aria-hidden="true" /> بازگشت به نتایج
+        </a>
+      </Button>
       <div className="grid gap-8 lg:grid-cols-[minmax(0,1.35fr)_minmax(20rem,.65fr)]">
         <div>
           <div className="bg-muted text-muted-foreground flex aspect-[16/9] items-center justify-center rounded-xl">

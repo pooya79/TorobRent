@@ -26,6 +26,28 @@ class LocationSuggestion:
     label: str
 
 
+type SearchOrdering = Literal["freshness", "monthly_rent", "deposit", "area"]
+
+
+@dataclass(frozen=True)
+class PropertySearchFilters:
+    location: str = ""
+    deposit_min_rial: int | None = None
+    deposit_max_rial: int | None = None
+    monthly_rent_min_rial: int | None = None
+    monthly_rent_max_rial: int | None = None
+    area_min: int | None = None
+    area_max: int | None = None
+    room_count: int | None = None
+    property_type: str | None = None
+    parking: str | None = None
+    elevator: str | None = None
+    storage: str | None = None
+    balcony: str | None = None
+    furnished: str | None = None
+    ordering: SearchOrdering = "freshness"
+
+
 def normalize_persian_search(value: str) -> str:
     normalized = value
     for source, replacement in PERSIAN_SEARCH_REPLACEMENTS:
@@ -95,11 +117,33 @@ def autocomplete_locations(query: str, *, limit: int = 10) -> list[LocationSugge
     return suggestions[:limit]
 
 
-def search_properties(location: str = "") -> QuerySet[Property]:
+def search_properties(filters: PropertySearchFilters | None = None) -> QuerySet[Property]:
+    filters = filters or PropertySearchFilters()
     active_listings = Listing.objects.active().filter(property_id=OuterRef("pk"))
-    freshest_listing = active_listings.order_by("-availability_confirmed_at", "id")
+    listing_ranges = {
+        "terms__deposit_rial__gte": filters.deposit_min_rial,
+        "terms__deposit_rial__lte": filters.deposit_max_rial,
+        "terms__monthly_rent_rial__gte": filters.monthly_rent_min_rial,
+        "terms__monthly_rent_rial__lte": filters.monthly_rent_max_rial,
+    }
+    active_listings = active_listings.filter(**{
+        lookup: value for lookup, value in listing_ranges.items() if value is not None
+    })
+
+    listing_ordering = {
+        "freshness": ("-availability_confirmed_at", "id"),
+        "monthly_rent": ("terms__monthly_rent_rial", "id"),
+        "deposit": ("terms__deposit_rial", "id"),
+        "area": ("-availability_confirmed_at", "id"),
+    }[filters.ordering]
+    selected_listing = active_listings.order_by(*listing_ordering)
+    all_active_listings = Listing.objects.active().filter(property_id=OuterRef("pk"))
     active_listing_counts = (
-        active_listings.order_by().values("property_id").annotate(total=Count("id")).values("total")
+        all_active_listings
+        .order_by()
+        .values("property_id")
+        .annotate(total=Count("id"))
+        .values("total")
     )
     properties = (
         Property.objects
@@ -107,20 +151,35 @@ def search_properties(location: str = "") -> QuerySet[Property]:
         .select_related("city", "district", "neighborhood")
         .annotate(
             listing_count=Subquery(active_listing_counts),
-            freshest_listing_id=Subquery(freshest_listing.values("id")[:1]),
-            freshest_availability_confirmed_at=Subquery(
-                freshest_listing.values("availability_confirmed_at")[:1]
+            selected_listing_id=Subquery(selected_listing.values("id")[:1]),
+            selected_availability_confirmed_at=Subquery(
+                selected_listing.values("availability_confirmed_at")[:1]
             ),
-            freshest_deposit_rial=Subquery(freshest_listing.values("terms__deposit_rial")[:1]),
-            freshest_monthly_rent_rial=Subquery(
-                freshest_listing.values("terms__monthly_rent_rial")[:1]
+            selected_deposit_rial=Subquery(selected_listing.values("terms__deposit_rial")[:1]),
+            selected_monthly_rent_rial=Subquery(
+                selected_listing.values("terms__monthly_rent_rial")[:1]
             ),
-            freshest_currency=Subquery(freshest_listing.values("terms__currency")[:1]),
+            selected_currency=Subquery(selected_listing.values("terms__currency")[:1]),
         )
     )
-    properties = properties.filter(freshest_listing_id__isnull=False)
+    properties = properties.filter(selected_listing_id__isnull=False)
 
-    location = location.strip()
+    property_filters = {
+        "area_sqm__gte": filters.area_min,
+        "area_sqm__lte": filters.area_max,
+        "room_count": filters.room_count,
+        "property_type": filters.property_type,
+        "parking": filters.parking,
+        "elevator": filters.elevator,
+        "storage": filters.storage,
+        "balcony": filters.balcony,
+        "furnished": filters.furnished,
+    }
+    properties = properties.filter(**{
+        lookup: value for lookup, value in property_filters.items() if value is not None
+    })
+
+    location = filters.location.strip()
     if location:
         try:
             location_id = uuid.UUID(location)
@@ -145,4 +204,10 @@ def search_properties(location: str = "") -> QuerySet[Property]:
                 Q(city_id=location_id) | Q(district_id=location_id) | Q(neighborhood_id=location_id)
             )
 
-    return properties.order_by("-freshest_availability_confirmed_at", "id")
+    property_ordering = {
+        "freshness": ("-selected_availability_confirmed_at", "id"),
+        "monthly_rent": ("selected_monthly_rent_rial", "id"),
+        "deposit": ("selected_deposit_rial", "id"),
+        "area": ("area_sqm", "id"),
+    }[filters.ordering]
+    return properties.order_by(*property_ordering)

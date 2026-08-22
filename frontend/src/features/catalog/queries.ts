@@ -1,6 +1,12 @@
 import { queryOptions } from "@tanstack/react-query";
 
 import { createApiClient } from "@/lib/api/client";
+import type { operations } from "@/lib/api/schema";
+import { normalizeNumericEntry } from "./numeric-entry";
+
+type PropertySearchQuery = NonNullable<
+  operations["v1_catalog_properties_list"]["parameters"]["query"]
+>;
 
 export class PropertyUnavailableError extends Error {
   constructor(readonly status: number) {
@@ -33,18 +39,54 @@ export function locationAutocompleteQueryOptions(query: string) {
 }
 
 export function propertySearchQueryOptions(searchParams: URLSearchParams) {
-  const location = searchParams.get("location") ?? undefined;
-  const pageValue = Number(searchParams.get("page") ?? "1");
-  const page = Number.isSafeInteger(pageValue) && pageValue > 0 ? pageValue : 1;
+  const integerParameter = (name: string) => {
+    const rawValue = searchParams.get(name);
+    if (rawValue === null || rawValue === "") return undefined;
+    const value = Number(normalizeNumericEntry(rawValue));
+    return Number.isSafeInteger(value) && value >= 0 ? value : undefined;
+  };
+  const query = {
+    location: searchParams.get("location") ?? undefined,
+    page: integerParameter("page"),
+    deposit_min_toman: integerParameter("deposit_min_toman"),
+    deposit_max_toman: integerParameter("deposit_max_toman"),
+    monthly_rent_min_toman: integerParameter("monthly_rent_min_toman"),
+    monthly_rent_max_toman: integerParameter("monthly_rent_max_toman"),
+    area_min: integerParameter("area_min"),
+    area_max: integerParameter("area_max"),
+    room_count: integerParameter("room_count"),
+    property_type:
+      (searchParams.get(
+        "property_type",
+      ) as PropertySearchQuery["property_type"]) ?? undefined,
+    parking:
+      (searchParams.get("parking") as PropertySearchQuery["parking"]) ??
+      undefined,
+    elevator:
+      (searchParams.get("elevator") as PropertySearchQuery["elevator"]) ??
+      undefined,
+    storage:
+      (searchParams.get("storage") as PropertySearchQuery["storage"]) ??
+      undefined,
+    balcony:
+      (searchParams.get("balcony") as PropertySearchQuery["balcony"]) ??
+      undefined,
+    furnished:
+      (searchParams.get("furnished") as PropertySearchQuery["furnished"]) ??
+      undefined,
+    ordering:
+      (searchParams.get("ordering") as PropertySearchQuery["ordering"]) ??
+      undefined,
+  } satisfies PropertySearchQuery;
   return queryOptions({
-    queryKey: ["catalog", "properties", { location, page }] as const,
+    queryKey: ["catalog", "properties", query] as const,
     staleTime: 30_000,
     queryFn: async () => {
       const baseUrl =
         typeof window === "undefined" ? "" : window.location.origin;
       const { data, response } = await createApiClient(baseUrl).GET(
         "/api/v1/catalog/properties/",
-        { params: { query: { location, page } } },
+        { params: { query } },
       );
       if (!data) throw new CatalogSearchError(response.status);
       return data;

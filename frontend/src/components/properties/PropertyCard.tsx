@@ -20,6 +20,7 @@ export type PropertyCardData = {
     monthlyRentLabel: string;
   };
   freshnessLabel: string;
+  detailHref?: string;
 };
 
 export function PropertyCard({ property }: { property: PropertyCardData }) {
@@ -50,7 +51,7 @@ export function PropertyCard({ property }: { property: PropertyCardData }) {
         <h2 className="text-lg font-semibold tracking-tight">
           <Link
             className="after:absolute after:inset-0 focus-visible:rounded-sm"
-            to={`/properties/${property.id}`}
+            to={property.detailHref ?? `/properties/${property.id}`}
           >
             {property.title}
           </Link>

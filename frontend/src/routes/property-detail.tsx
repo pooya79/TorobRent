@@ -35,6 +35,7 @@ export async function loader({
     );
   }
   const baseUrl = new URL(request.url).origin;
+  const requestUrl = new URL(request.url);
   const queryClient = new QueryClient();
   let property: PropertyDetail;
   try {
@@ -50,7 +51,7 @@ export async function loader({
   if (params.slug !== property.canonical_slug) {
     throwRouteResponse(
       redirect(
-        encodeURI(`/properties/${property.id}/${property.canonical_slug}`),
+        `${encodeURI(`/properties/${property.id}/${property.canonical_slug}`)}${requestUrl.search}`,
         301,
       ),
     );
@@ -59,6 +60,7 @@ export async function loader({
     baseUrl,
     dehydratedState: dehydrate(queryClient),
     property,
+    returnTo: requestUrl.searchParams.get("returnTo"),
   };
 }
 
@@ -95,6 +97,7 @@ export default function PropertyDetailRoute() {
       <PropertyDetailQuery
         baseUrl={baseUrl}
         propertyId={loaderData.property.id}
+        returnTo={loaderData.returnTo}
       />
     </HydrationBoundary>
   );
@@ -103,12 +106,14 @@ export default function PropertyDetailRoute() {
 function PropertyDetailQuery({
   baseUrl,
   propertyId,
+  returnTo,
 }: {
   baseUrl: string;
   propertyId: string;
+  returnTo: string | null;
 }) {
   const { data: property } = useSuspenseQuery(
     propertyDetailQueryOptions(baseUrl, propertyId),
   );
-  return <PropertyDetailPage property={property} />;
+  return <PropertyDetailPage property={property} returnTo={returnTo} />;
 }

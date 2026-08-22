@@ -480,3 +480,160 @@ def test_property_search_orders_deterministically_and_limits_the_first_page_to_2
     assert "page=2" in response.data["next"]
     expected_ids = [str(property_.id) for property_ in sorted(properties, key=lambda item: item.id)]
     assert [result["id"] for result in response.data["results"]] == expected_ids[:25]
+
+    second_page = api_client.get("/api/v1/catalog/properties/", {"page": 2})
+    paginated_ids = [result["id"] for result in response.data["results"]]
+    paginated_ids.extend(result["id"] for result in second_page.data["results"])
+    assert paginated_ids == expected_ids
+
+
+@pytest.mark.django_db
+def test_property_search_requires_one_active_listing_to_match_all_rental_ranges(
+    api_client: APIClient,
+):
+    call_command("loaddata", "catalog_seed", verbosity=0)
+    neighborhood = Neighborhood.objects.get(name_fa="سعادت‌آباد")
+    source = Source.objects.get(is_builtin=True)
+    now = timezone.now()
+    property_ = Property.objects.create(
+        city=neighborhood.district.city,
+        district=neighborhood.district,
+        neighborhood=neighborhood,
+        property_type=PropertyType.APARTMENT,
+        area_sqm=100,
+        room_count=2,
+    )
+    for deposit_rial, monthly_rent_rial in (
+        (5_000_000_000, 500_000_000),
+        (10_000_000_000, 200_000_000),
+    ):
+        Listing.objects.create(
+            property=property_,
+            source=source,
+            terms=RentalTerms.objects.create(
+                deposit_rial=deposit_rial,
+                monthly_rent_rial=monthly_rent_rial,
+            ),
+            state=ListingState.PUBLISHED,
+            direct_phone="۰۹۱۲۱۲۳۴۵۶۷",
+            availability_confirmed_at=now,
+            available_until=now + timedelta(days=1),
+        )
+
+    mismatched_pair = api_client.get(
+        "/api/v1/catalog/properties/",
+        {"deposit_max_toman": "۵۰۰٬۰۰۰٬۰۰۰", "monthly_rent_max_toman": "۲۰٬۰۰۰٬۰۰۰"},
+    )
+    boundary_pair = api_client.get(
+        "/api/v1/catalog/properties/",
+        {"deposit_min_toman": "۱,۰۰۰,۰۰۰,۰۰۰", "monthly_rent_max_toman": "20000000"},
+    )
+
+    assert mismatched_pair.status_code == 200
+    assert mismatched_pair.data["count"] == 0
+    assert boundary_pair.status_code == 200
+    assert boundary_pair.data["count"] == 1
+    assert boundary_pair.data["results"][0]["rental_terms"]["deposit_toman"] == 1_000_000_000
+    assert boundary_pair.data["results"][0]["rental_terms"]["monthly_rent_toman"] == 20_000_000
+
+
+@pytest.mark.django_db
+def test_property_search_filters_normalized_facts_and_explicit_feature_states(
+    api_client: APIClient,
+):
+    call_command("loaddata", "catalog_seed", verbosity=0)
+    neighborhood = Neighborhood.objects.get(name_fa="سعادت‌آباد")
+    source = Source.objects.get(is_builtin=True)
+    now = timezone.now()
+    for index, parking in enumerate(
+        (FeatureState.PRESENT, FeatureState.ABSENT, FeatureState.UNKNOWN), start=1
+    ):
+        property_ = Property.objects.create(
+            city=neighborhood.district.city,
+            district=neighborhood.district,
+            neighborhood=neighborhood,
+            property_type=PropertyType.APARTMENT if index == 1 else PropertyType.HOUSE,
+            area_sqm=89 + index,
+            room_count=index,
+            parking=parking,
+        )
+        Listing.objects.create(
+            property=property_,
+            source=source,
+            terms=RentalTerms.objects.create(
+                deposit_rial=5_000_000_000,
+                monthly_rent_rial=200_000_000,
+            ),
+            state=ListingState.PUBLISHED,
+            direct_phone="۰۹۱۲۱۲۳۴۵۶۷",
+            availability_confirmed_at=now,
+            available_until=now + timedelta(days=1),
+        )
+
+    present = api_client.get(
+        "/api/v1/catalog/properties/",
+        {
+            "area_min": "۹۰",
+            "area_max": "90",
+            "room_count": "۱",
+            "property_type": "apartment",
+            "parking": "present",
+        },
+    )
+    absent = api_client.get("/api/v1/catalog/properties/", {"parking": "absent"})
+
+    assert present.status_code == 200
+    assert present.data["count"] == 1
+    assert present.data["results"][0]["area_sqm"] == 90
+    assert absent.status_code == 200
+    assert absent.data["count"] == 1
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    ("ordering", "expected_areas"),
+    [
+        ("freshness", [80, 90, 100]),
+        ("monthly_rent", [90, 100, 80]),
+        ("deposit", [100, 80, 90]),
+        ("area", [80, 90, 100]),
+    ],
+)
+def test_property_search_sort_options_have_deterministic_ties(
+    api_client: APIClient, ordering: str, expected_areas: list[int]
+):
+    call_command("loaddata", "catalog_seed", verbosity=0)
+    neighborhood = Neighborhood.objects.get(name_fa="سعادت‌آباد")
+    source = Source.objects.get(is_builtin=True)
+    now = timezone.now()
+    scenarios = [
+        (80, 700_000_000, 30_000_000, now),
+        (90, 900_000_000, 10_000_000, now - timedelta(hours=1)),
+        (100, 500_000_000, 20_000_000, now - timedelta(hours=2)),
+    ]
+    for area, deposit_toman, monthly_rent_toman, confirmed_at in scenarios:
+        property_ = Property.objects.create(
+            city=neighborhood.district.city,
+            district=neighborhood.district,
+            neighborhood=neighborhood,
+            property_type=PropertyType.APARTMENT,
+            area_sqm=area,
+            room_count=2,
+        )
+        Listing.objects.create(
+            property=property_,
+            source=source,
+            terms=RentalTerms.objects.create(
+                deposit_rial=deposit_toman * 10,
+                monthly_rent_rial=monthly_rent_toman * 10,
+            ),
+            state=ListingState.PUBLISHED,
+            direct_phone="۰۹۱۲۱۲۳۴۵۶۷",
+            availability_confirmed_at=confirmed_at,
+            available_until=now + timedelta(days=1),
+        )
+
+    response = api_client.get("/api/v1/catalog/properties/", {"ordering": ordering})
+
+    assert response.status_code == 200
+    assert [item["area_sqm"] for item in response.data["results"]] == expected_areas
