@@ -10,6 +10,18 @@ export type SubmissionStepUpdate =
 export type SubmissionImage = components["schemas"]["SubmissionImage"];
 export type SubmissionImageOrder =
   components["schemas"]["PatchedSubmissionImageOrder"];
+export type SubmissionApproval = components["schemas"]["SubmissionApproval"];
+
+export type OperatorQueueFilters = {
+  state?: string;
+  source?: string;
+  city?: string;
+  district?: string;
+  neighborhood?: string;
+  updated_after?: string;
+  updated_before?: string;
+  ordering?: "newest" | "oldest";
+};
 
 function multipartBody(body: { file: string }) {
   const file = body.file as unknown as File;
@@ -64,6 +76,70 @@ export async function saveSubmissionStep(
     {
       params: { path: { submission_id: submissionId } },
       body,
+    },
+  );
+  if (error || !data) throw apiError(error);
+  return data;
+}
+
+export async function submitSubmission(submissionId: string) {
+  const { data, error } = await api.POST(
+    "/api/v1/submissions/{submission_id}/submit/",
+    { params: { path: { submission_id: submissionId } } },
+  );
+  if (error || !data) throw apiError(error);
+  return data;
+}
+
+export function operatorQueueQueryOptions(filters: OperatorQueueFilters = {}) {
+  return queryOptions({
+    queryKey: ["operator-submissions", filters] as const,
+    queryFn: async () => {
+      const { data, error } = await api.GET("/api/v1/operator/submissions/", {
+        params: { query: filters },
+      });
+      if (error || !data) throw apiError(error);
+      return data;
+    },
+  });
+}
+
+export async function requestSubmissionChanges(
+  submissionId: string,
+  reason: string,
+) {
+  const { data, error } = await api.POST(
+    "/api/v1/operator/submissions/{submission_id}/request-changes/",
+    {
+      params: { path: { submission_id: submissionId } },
+      body: { reason },
+    },
+  );
+  if (error || !data) throw apiError(error);
+  return data;
+}
+
+export async function rejectSubmission(submissionId: string, reason: string) {
+  const { data, error } = await api.POST(
+    "/api/v1/operator/submissions/{submission_id}/reject/",
+    {
+      params: { path: { submission_id: submissionId } },
+      body: { reason },
+    },
+  );
+  if (error || !data) throw apiError(error);
+  return data;
+}
+
+export async function approveSubmission(
+  submissionId: string,
+  approval: SubmissionApproval,
+) {
+  const { data, error } = await api.POST(
+    "/api/v1/operator/submissions/{submission_id}/approve/",
+    {
+      params: { path: { submission_id: submissionId } },
+      body: approval,
     },
   );
   if (error || !data) throw apiError(error);

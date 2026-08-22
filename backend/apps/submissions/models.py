@@ -16,6 +16,10 @@ class SubmitterRole(models.TextChoices):
 
 class SubmissionState(models.TextChoices):
     DRAFT = "draft", "پیش‌نویس"
+    PENDING = "pending", "در انتظار بررسی"
+    CHANGES_REQUESTED = "changes_requested", "نیازمند اصلاح"
+    REJECTED = "rejected", "ردشده"
+    PUBLISHED = "published", "منتشرشده"
 
 
 class SubmissionStep(models.TextChoices):
@@ -55,7 +59,23 @@ class Submission(models.Model):
         related_name="submissions",
     )
     role = models.CharField(max_length=8, choices=SubmitterRole)
-    state = models.CharField(max_length=16, choices=SubmissionState, default=SubmissionState.DRAFT)
+    state = models.CharField(max_length=20, choices=SubmissionState, default=SubmissionState.DRAFT)
+    revision = models.PositiveIntegerField(default=1, editable=False)
+    source = models.ForeignKey(
+        "catalog.Source",
+        on_delete=models.PROTECT,
+        related_name="submissions",
+        null=True,
+        blank=True,
+    )
+    listing = models.OneToOneField(
+        "catalog.Listing",
+        on_delete=models.PROTECT,
+        related_name="submission",
+        null=True,
+        blank=True,
+        editable=False,
+    )
     current_step = models.CharField(
         max_length=32,
         choices=SubmissionStep,
@@ -97,9 +117,42 @@ class Submission(models.Model):
 
     class Meta:
         ordering = ("-updated_at",)
+        permissions = (("review_submission", "Can review and publish Submissions"),)
 
     def __str__(self) -> str:
         return f"{self.get_role_display()}: {self.id}"
+
+
+class SubmissionEvent(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    submission = models.ForeignKey(
+        Submission,
+        on_delete=models.CASCADE,
+        related_name="events",
+    )
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="submission_events",
+    )
+    revision = models.PositiveIntegerField()
+    prior_state = models.CharField(max_length=20, choices=SubmissionState)
+    new_state = models.CharField(max_length=20, choices=SubmissionState)
+    reason = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ("created_at", "id")
+        constraints = [
+            models.UniqueConstraint(
+                fields=("submission", "revision", "new_state"),
+                condition=models.Q(new_state=SubmissionState.PENDING),
+                name="one_pending_transition_per_submission_revision",
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.submission_id}: {self.prior_state} → {self.new_state}"
 
 
 class SubmissionImage(models.Model):

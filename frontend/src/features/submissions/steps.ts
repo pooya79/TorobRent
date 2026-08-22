@@ -10,6 +10,14 @@ export const submissionSteps = [
 
 export type SubmissionStepId = (typeof submissionSteps)[number]["id"];
 
+export const submissionStateLabels = {
+  draft: "پیش‌نویس",
+  pending: "در انتظار بررسی",
+  changes_requested: "نیازمند اصلاح",
+  rejected: "ردشده",
+  published: "منتشرشده",
+} as const;
+
 export function submissionStepLabel(step: SubmissionStepId) {
   return submissionSteps.find((item) => item.id === step)?.label ?? "نشانی ملک";
 }

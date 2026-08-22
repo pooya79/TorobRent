@@ -7,6 +7,7 @@ from .views import (
     SubmissionImageListCreateView,
     SubmissionImageRetryView,
     SubmissionListCreateView,
+    SubmissionSubmitView,
 )
 
 app_name = "submissions"
@@ -14,6 +15,7 @@ app_name = "submissions"
 urlpatterns = [
     path("", SubmissionListCreateView.as_view(), name="list-create"),
     path("<uuid:submission_id>/", SubmissionDetailView.as_view(), name="detail"),
+    path("<uuid:submission_id>/submit/", SubmissionSubmitView.as_view(), name="submit"),
     path(
         "<uuid:submission_id>/images/",
         SubmissionImageListCreateView.as_view(),

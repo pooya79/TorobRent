@@ -54,7 +54,7 @@ test("Submitter completes the media step and sees processed images in final revi
   await page
     .getByLabel("اطلاعات واردشده را بازبینی کردم و درستی آن را تأیید می‌کنم.")
     .check();
-  await page.getByRole("button", { name: "ذخیره بازبینی" }).click();
+  await page.getByRole("button", { name: "ارسال برای بررسی" }).click();
   await expect(
     page.getByLabel(
       "اطلاعات واردشده را بازبینی کردم و درستی آن را تأیید می‌کنم.",

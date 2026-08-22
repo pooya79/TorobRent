@@ -20,6 +20,7 @@ import {
 import {
   createSubmission,
   saveSubmissionStep,
+  submitSubmission,
   submissionQueryOptions,
   type Submission,
   type SubmissionStepUpdate,
@@ -687,8 +688,13 @@ function DraftFlow({ submissionId }: { submissionId: string }) {
   const stepIndex = steps.findIndex((item) => item.id === step);
   const stepMeta = steps[stepIndex] ?? steps[0];
   const mutation = useMutation({
-    mutationFn: (body: SubmissionStepUpdate) =>
-      saveSubmissionStep(submissionId, body),
+    mutationFn: async (body: SubmissionStepUpdate) => {
+      const saved = await saveSubmissionStep(submissionId, body);
+      if (body.completed_step === "review") {
+        return submitSubmission(submissionId);
+      }
+      return saved;
+    },
     onSuccess: (saved) => {
       queryClient.setQueryData(["submissions", submissionId], saved);
       setValidation(undefined);
@@ -709,6 +715,23 @@ function DraftFlow({ submissionId }: { submissionId: string }) {
   if (submissionQuery.isPending) return <p>در حال بارگذاری پیش‌نویس…</p>;
   if (!submission)
     return <Alert variant="destructive">پیش‌نویس بارگذاری نشد.</Alert>;
+  if (submission.state === "pending") {
+    return (
+      <Card className="mx-auto max-w-xl shadow-none">
+        <CardContent className="space-y-4 text-center">
+          <Check className="text-primary mx-auto size-10" aria-hidden="true" />
+          <h1 className="text-2xl font-semibold">در انتظار بررسی اپراتور</h1>
+          <p className="text-muted-foreground">
+            نسخه {(submission.revision ?? 1).toLocaleString("fa-IR")} ثبت شد و
+            تا تصمیم اپراتور قابل ویرایش نیست.
+          </p>
+          <Button asChild variant="outline">
+            <Link to="/dashboard">مشاهده وضعیت و تاریخچه</Link>
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -896,7 +919,7 @@ function DraftFlow({ submissionId }: { submissionId: string }) {
                   <span />
                 )}
                 <Button disabled={mutation.isPending} type="submit">
-                  {step === "review" ? "ذخیره بازبینی" : "ذخیره و ادامه"}
+                  {step === "review" ? "ارسال برای بررسی" : "ذخیره و ادامه"}
                 </Button>
               </div>
             </form>
