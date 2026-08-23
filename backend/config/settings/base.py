@@ -159,7 +159,11 @@ CELERY_BEAT_SCHEDULE = {
     "cleanup-abandoned-submission-images": {
         "task": "apps.submissions.tasks.cleanup_abandoned_submission_images",
         "schedule": 60 * 60,
-    }
+    },
+    "expire-due-listings": {
+        "task": "apps.catalog.tasks.expire_due_listings",
+        "schedule": 60 * 60,
+    },
 }
 
 

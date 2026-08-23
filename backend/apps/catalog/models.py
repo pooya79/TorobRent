@@ -232,6 +232,7 @@ class ListingState(models.TextChoices):
     DRAFT = "draft", "پیش‌نویس"
     PENDING = "pending", "در انتظار بررسی"
     PUBLISHED = "published", "منتشرشده"
+    EXPIRED = "expired", "منقضی‌شده"
     REJECTED = "rejected", "ردشده"
     UNAVAILABLE = "unavailable", "ناموجود"
     ARCHIVED = "archived", "بایگانی‌شده"

@@ -1,11 +1,20 @@
+from datetime import timedelta
 from typing import Any
 
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.core.files.uploadedfile import UploadedFile
+from django.utils import timezone
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
-from apps.catalog.models import City, District, FeatureState, Neighborhood, PropertyType
+from apps.catalog.models import (
+    City,
+    District,
+    FeatureState,
+    ListingState,
+    Neighborhood,
+    PropertyType,
+)
 from apps.catalog.money import rial_to_toman
 from apps.catalog.serializers import LocalizedIntegerField, TomanRialField
 
@@ -335,6 +344,13 @@ class SubmissionEventSerializer(serializers.ModelSerializer[SubmissionEvent]):
         )
 
 
+class AvailabilityOutputSerializer(serializers.Serializer[dict[str, object]]):
+    state = serializers.CharField()
+    confirmed_at = serializers.DateTimeField(allow_null=True)
+    available_until = serializers.DateTimeField(allow_null=True)
+    expiring_soon = serializers.BooleanField()
+
+
 class SubmissionSerializer(serializers.ModelSerializer[Submission]):
     location = serializers.SerializerMethodField()
     property_facts = serializers.SerializerMethodField()
@@ -350,6 +366,7 @@ class SubmissionSerializer(serializers.ModelSerializer[Submission]):
         source="listing.property_id", read_only=True, allow_null=True
     )
     source_id = serializers.UUIDField(read_only=True, allow_null=True)
+    availability = serializers.SerializerMethodField()
 
     class Meta:
         model = Submission
@@ -373,6 +390,7 @@ class SubmissionSerializer(serializers.ModelSerializer[Submission]):
             "review",
             "history",
             "available_actions",
+            "availability",
             "created_at",
             "updated_at",
         )
@@ -384,9 +402,39 @@ class SubmissionSerializer(serializers.ModelSerializer[Submission]):
     def get_available_actions(self, submission: Submission) -> list[str]:
         if submission.state == SubmissionState.DRAFT:
             return ["edit", "submit"]
-        if submission.state in (SubmissionState.CHANGES_REQUESTED, SubmissionState.PUBLISHED):
+        if submission.state == SubmissionState.PUBLISHED:
+            listing = submission.listing
+            if listing is None:
+                return ["edit"]
+            if listing.state == ListingState.PUBLISHED:
+                return ["edit", "confirm_availability", "mark_unavailable", "archive"]
+            if listing.state == ListingState.EXPIRED:
+                return ["edit", "confirm_availability", "archive"]
+            if listing.state == ListingState.UNAVAILABLE:
+                return ["edit", "archive"]
+            return []
+        if submission.state == SubmissionState.CHANGES_REQUESTED:
             return ["edit"]
         return []
+
+    @extend_schema_field(AvailabilityOutputSerializer(allow_null=True))
+    def get_availability(self, submission: Submission) -> dict[str, object] | None:
+        listing = submission.listing
+        if listing is None:
+            return None
+        now = timezone.now()
+        return dict(
+            AvailabilityOutputSerializer({
+                "state": listing.state,
+                "confirmed_at": listing.availability_confirmed_at,
+                "available_until": listing.available_until,
+                "expiring_soon": (
+                    listing.state == ListingState.PUBLISHED
+                    and listing.available_until is not None
+                    and now < listing.available_until <= now + timedelta(days=7)
+                ),
+            }).data
+        )
 
     @extend_schema_field(LocationOutputSerializer(allow_null=True))
     def get_location(self, submission: Submission) -> dict[str, Any] | None:

@@ -1,10 +1,13 @@
+from datetime import timedelta
 from typing import Any, cast
 
 from django import forms
 from django.contrib import admin, messages
 from django.contrib.admin.helpers import ActionForm
 from django.core.exceptions import ValidationError
+from django.db.models import Q, QuerySet
 from django.http import HttpRequest
+from django.utils import timezone
 from django.utils.translation import ngettext
 
 from .models import (
@@ -12,15 +15,57 @@ from .models import (
     District,
     Listing,
     ListingGroupingEvent,
+    ListingState,
     Neighborhood,
     Property,
     RentalTerms,
     Source,
 )
 from .money import rial_to_toman, toman_to_rial
-from .services import merge_properties, publish_listing, regroup_listing
+from .services import (
+    archive_listing,
+    confirm_listing_availability,
+    mark_listing_unavailable,
+    merge_properties,
+    publish_listing,
+    regroup_listing,
+)
 
 PERSIAN_DIGITS = str.maketrans("۰۱۲۳۴۵۶۷۸۹", "0123456789")
+
+
+class AvailabilityStatusFilter(admin.SimpleListFilter):
+    title = "وضعیت موجودی"
+    parameter_name = "availability_status"
+
+    def lookups(
+        self, request: HttpRequest, model_admin: admin.ModelAdmin[Any]
+    ) -> tuple[tuple[str, str], ...]:
+        return (
+            ("expiring_soon", "رو به انقضا"),
+            ("expired", "منقضی"),
+            ("unavailable", "ناموجود"),
+            ("archived", "بایگانی‌شده"),
+        )
+
+    def queryset(self, request: HttpRequest, queryset: QuerySet[Listing]) -> QuerySet[Listing]:
+        now = timezone.now()
+        if self.value() == "expiring_soon":
+            return queryset.filter(
+                state=ListingState.PUBLISHED,
+                available_until__gt=now,
+                available_until__lte=now + timedelta(days=7),
+            )
+        if self.value() == "expired":
+            return queryset.filter(
+                Q(state=ListingState.EXPIRED)
+                | Q(state=ListingState.PUBLISHED, available_until__lte=now)
+            )
+        if self.value() == "unavailable":
+            return queryset.filter(state=ListingState.UNAVAILABLE)
+        if self.value() == "archived":
+            return queryset.filter(state=ListingState.ARCHIVED)
+        return queryset
 
 
 def parse_toman(value: str) -> int:
@@ -184,10 +229,21 @@ class ListingAdmin(admin.ModelAdmin):  # type: ignore[type-arg]
         "availability_confirmed_at",
         "available_until",
     )
-    list_filter = ("state", "source", "property__city", "property__district")
+    list_filter = (
+        AvailabilityStatusFilter,
+        "state",
+        "source",
+        "property__city",
+        "property__district",
+    )
     search_fields = ("id", "source_reference", "property__neighborhood__name_fa")
     readonly_fields = ("published_at", "availability_confirmed_at", "available_until")
-    actions = ("publish_listings",)
+    actions = (
+        "publish_listings",
+        "confirm_availability",
+        "mark_unavailable",
+        "archive",
+    )
 
     def save_model(
         self,
@@ -223,6 +279,56 @@ class ListingAdmin(admin.ModelAdmin):  # type: ignore[type-arg]
             self.message_user(
                 request,
                 ngettext("یک آگهی منتشر شد.", f"{published} آگهی منتشر شدند.", published),
+                level=messages.SUCCESS,
+            )
+
+    @admin.action(description="تأیید موجودی آگهی‌های انتخاب‌شده")
+    def confirm_availability(self, request: HttpRequest, queryset: Any) -> None:
+        self._apply_availability_action(
+            request=request,
+            queryset=queryset,
+            action=confirm_listing_availability,
+            success_message="موجودی {count} آگهی تأیید شد.",
+        )
+
+    @admin.action(description="ناموجود کردن آگهی‌های انتخاب‌شده")
+    def mark_unavailable(self, request: HttpRequest, queryset: Any) -> None:
+        self._apply_availability_action(
+            request=request,
+            queryset=queryset,
+            action=mark_listing_unavailable,
+            success_message="{count} آگهی ناموجود شد.",
+        )
+
+    @admin.action(description="بایگانی آگهی‌های انتخاب‌شده")
+    def archive(self, request: HttpRequest, queryset: Any) -> None:
+        self._apply_availability_action(
+            request=request,
+            queryset=queryset,
+            action=archive_listing,
+            success_message="{count} آگهی بایگانی شد.",
+        )
+
+    def _apply_availability_action(
+        self,
+        *,
+        request: HttpRequest,
+        queryset: QuerySet[Listing],
+        action: Any,
+        success_message: str,
+    ) -> None:
+        changed = 0
+        for listing in queryset:
+            try:
+                action(listing)
+            except ValidationError as exc:
+                self.message_user(request, f"{listing.id}: {exc}", level=messages.ERROR)
+            else:
+                changed += 1
+        if changed:
+            self.message_user(
+                request,
+                success_message.format(count=changed),
                 level=messages.SUCCESS,
             )
 

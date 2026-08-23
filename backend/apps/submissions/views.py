@@ -17,7 +17,12 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.accounts.models import User
-from apps.catalog.models import Property
+from apps.catalog.models import Listing, Property
+from apps.catalog.services import (
+    archive_listing,
+    confirm_listing_availability,
+    mark_listing_unavailable,
+)
 
 from .models import Submission, SubmissionImage, SubmissionImageVariant, SubmissionStep
 from .serializers import (
@@ -65,7 +70,9 @@ class SubmissionListCreateView(APIView):
     )
     def get(self, request: Request) -> Response:
         user = cast(User, request.user)
-        submissions = user.submissions.prefetch_related("images__variants__asset", "events__actor")
+        submissions = user.submissions.select_related("listing").prefetch_related(
+            "images__variants__asset", "events__actor"
+        )
         return Response(SubmissionSerializer(submissions, many=True).data)
 
     @extend_schema(
@@ -137,6 +144,71 @@ class SubmissionSubmitView(APIView):
         except DjangoValidationError as exc:
             raise validation_response(exc) from None
         return Response(SubmissionSerializer(submission).data)
+
+
+class SubmissionConfirmAvailabilityView(APIView):
+    @extend_schema(
+        summary="Confirm that a published Listing remains available",
+        request=None,
+        responses=SubmissionSerializer,
+    )
+    def post(self, request: Request, submission_id: str) -> Response:
+        submission = get_object_or_404(
+            Submission.objects.select_related("listing"),
+            id=submission_id,
+            submitter=request.user,
+            listing__isnull=False,
+        )
+        assert submission.listing is not None
+        try:
+            confirm_listing_availability(submission.listing)
+        except DjangoValidationError as exc:
+            raise validation_response(exc) from None
+        submission.refresh_from_db()
+        return Response(SubmissionSerializer(submission).data)
+
+
+ListingAvailabilityTransition = Callable[[Listing], Listing]
+
+
+def change_listing_availability(
+    *, request: Request, submission_id: str, transition: ListingAvailabilityTransition
+) -> Response:
+    submission = get_object_or_404(
+        Submission.objects.select_related("listing"),
+        id=submission_id,
+        submitter=request.user,
+        listing__isnull=False,
+    )
+    assert submission.listing is not None
+    try:
+        transition(submission.listing)
+    except DjangoValidationError as exc:
+        raise validation_response(exc) from None
+    submission.refresh_from_db()
+    return Response(SubmissionSerializer(submission).data)
+
+
+class SubmissionMarkUnavailableView(APIView):
+    @extend_schema(
+        summary="Mark a published Listing unavailable", request=None, responses=SubmissionSerializer
+    )
+    def post(self, request: Request, submission_id: str) -> Response:
+        return change_listing_availability(
+            request=request,
+            submission_id=submission_id,
+            transition=mark_listing_unavailable,
+        )
+
+
+class SubmissionArchiveView(APIView):
+    @extend_schema(summary="Archive a Listing", request=None, responses=SubmissionSerializer)
+    def post(self, request: Request, submission_id: str) -> Response:
+        return change_listing_availability(
+            request=request,
+            submission_id=submission_id,
+            transition=archive_listing,
+        )
 
 
 class OperatorSubmissionListView(APIView):

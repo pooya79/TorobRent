@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
 import { MemoryRouter } from "react-router";
+import userEvent from "@testing-library/user-event";
 import { expect, test } from "vitest";
 
 import { SubmitterDashboardPage } from "@/pages/SubmitterDashboardPage";
@@ -119,4 +120,78 @@ test("shows current review state, reason, history, and the available edit action
     "href",
     "/add-submission?submission=10000000-0000-4000-8000-000000000012&step=review",
   );
+});
+
+test("warns about final-week expiry and confirms unchanged availability in one action", async () => {
+  const user = userEvent.setup();
+  let confirmationCount = 0;
+  const submission = {
+    id: "10000000-0000-4000-8000-000000000013",
+    role: "owner",
+    state: "published",
+    current_step: "review",
+    media_complete: true,
+    images: [],
+    location: { neighborhood: "سعادت‌آباد" },
+    property_facts: null,
+    rental_terms: null,
+    features: {},
+    description: "",
+    contact: null,
+    review: {},
+    history: [],
+    available_actions: [
+      "edit",
+      "confirm_availability",
+      "mark_unavailable",
+      "archive",
+    ],
+    availability: {
+      state: "published",
+      confirmed_at: "2026-08-01T10:00:00Z",
+      available_until: "2026-08-29T10:00:00Z",
+      expiring_soon: true,
+    },
+    created_at: "2026-08-01T10:00:00Z",
+    updated_at: "2026-08-22T09:00:00Z",
+  };
+  server.use(
+    http.get("*/api/v1/submissions/", () => HttpResponse.json([submission])),
+    http.post(
+      "*/api/v1/submissions/:submissionId/confirm-availability/",
+      () => {
+        confirmationCount += 1;
+        return HttpResponse.json({
+          ...submission,
+          availability: {
+            ...submission.availability,
+            confirmed_at: "2026-08-23T10:00:00Z",
+            available_until: "2026-09-22T10:00:00Z",
+            expiring_soon: false,
+          },
+        });
+      },
+    ),
+  );
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  render(
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter>
+        <SubmitterDashboardPage />
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+
+  expect(
+    await screen.findByText(/در هفت روز آینده منقضی می‌شود/),
+  ).toBeVisible();
+  await user.click(screen.getByRole("button", { name: "تأیید موجودی" }));
+
+  expect(confirmationCount).toBe(1);
+  expect(
+    await screen.findByText("موجودی آگهی برای ۳۰ روز دیگر تأیید شد."),
+  ).toBeVisible();
+  expect(screen.queryByText(/در هفت روز آینده منقضی می‌شود/)).toBeNull();
 });

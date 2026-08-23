@@ -63,6 +63,54 @@ def publish_listing(listing: Listing) -> Listing:
 
 
 @transaction.atomic
+def confirm_listing_availability(listing: Listing) -> Listing:
+    listing = Listing.objects.select_for_update().select_related("source").get(pk=listing.pk)
+    if listing.state not in (ListingState.PUBLISHED, ListingState.EXPIRED):
+        raise ValidationError("فقط آگهی منتشرشده یا منقضی قابل تأیید موجودی است.")
+    listing.full_clean()
+    now = timezone.now()
+    listing.state = ListingState.PUBLISHED
+    listing.availability_confirmed_at = now
+    listing.available_until = now + timedelta(days=30)
+    listing.save(
+        update_fields=(
+            "state",
+            "availability_confirmed_at",
+            "available_until",
+            "updated_at",
+        )
+    )
+    return listing
+
+
+@transaction.atomic
+def mark_listing_unavailable(listing: Listing) -> Listing:
+    listing = Listing.objects.select_for_update().get(pk=listing.pk)
+    if listing.state != ListingState.PUBLISHED:
+        raise ValidationError("فقط آگهی منتشرشده را می‌توان ناموجود کرد.")
+    listing.state = ListingState.UNAVAILABLE
+    listing.save(update_fields=("state", "updated_at"))
+    return listing
+
+
+@transaction.atomic
+def archive_listing(listing: Listing) -> Listing:
+    listing = Listing.objects.select_for_update().get(pk=listing.pk)
+    if listing.state == ListingState.ARCHIVED:
+        return listing
+    listing.state = ListingState.ARCHIVED
+    listing.save(update_fields=("state", "updated_at"))
+    return listing
+
+
+def expire_listings() -> int:
+    return Listing.objects.filter(
+        state=ListingState.PUBLISHED,
+        available_until__lte=timezone.now(),
+    ).update(state=ListingState.EXPIRED)
+
+
+@transaction.atomic
 def materialize_direct_listing(*, spec: DirectListingSpec) -> Listing:
     existing_listing = None
     if spec.existing_listing_id is not None:
