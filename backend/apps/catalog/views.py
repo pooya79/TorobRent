@@ -1,7 +1,9 @@
 import uuid
 from typing import cast
 
-from django.db.models import QuerySet
+from django.db.models import F, QuerySet
+from django.utils import timezone
+from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import (
     OpenApiParameter,
     OpenApiResponse,
@@ -18,15 +20,35 @@ from rest_framework.views import APIView
 from apps.common.pagination import StandardPageNumberPagination
 from apps.common.serializers import ProblemSerializer
 
-from .models import Listing, Property
+from .models import Listing, OutboundPolicy, ProductEventType, Property
 from .selectors import autocomplete_locations, search_properties
 from .serializers import (
+    EventSessionSerializer,
+    ExternalContinuationSerializer,
     LocationSuggestionSerializer,
+    PhoneRevealSerializer,
     PropertyDetailSerializer,
     PropertySearchQuerySerializer,
     PropertySummarySerializer,
     property_detail_data,
 )
+from .services import record_product_event
+
+EVENT_SESSION_PARAMETER = OpenApiParameter(
+    name="X-TorobRent-Event-Session",
+    type=OpenApiTypes.UUID,
+    location=OpenApiParameter.HEADER,
+    required=True,
+    description="Ephemeral per-tab token used only for short-lived deduplication and rate control",
+)
+
+
+def event_session(request: Request) -> uuid.UUID:
+    serializer = EventSessionSerializer(
+        data={"event_session": request.headers.get("X-TorobRent-Event-Session")}
+    )
+    serializer.is_valid(raise_exception=True)
+    return cast(uuid.UUID, serializer.validated_data["event_session"])
 
 
 class LocationAutocompleteView(APIView):
@@ -102,3 +124,106 @@ class PropertyDetailView(APIView):
             raise NotFound("این ملک در دسترس نیست.") from exc
         serializer = PropertyDetailSerializer(instance=property_detail_data(property_, listings))
         return Response(serializer.data)
+
+
+class PropertyViewEventView(APIView):
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    @extend_schema(
+        summary="Record a privacy-minimal Property view",
+        request=None,
+        parameters=[EVENT_SESSION_PARAMETER],
+        responses={204: None},
+    )
+    def post(self, request: Request, property_id: uuid.UUID) -> Response:
+        try:
+            property_ = (
+                Property.objects
+                .filter(
+                    id=property_id,
+                    listings__state="published",
+                    listings__available_until__gt=timezone.now(),
+                    listings__source__is_active=True,
+                )
+                .distinct()
+                .get()
+            )
+        except Property.DoesNotExist as exc:
+            raise NotFound("این ملک در دسترس نیست.") from exc
+        record_product_event(
+            event_type=ProductEventType.PROPERTY_VIEW,
+            property_=property_,
+            session_token=event_session(request),
+        )
+        return Response(status=204)
+
+
+class ListingPhoneRevealView(APIView):
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    @extend_schema(
+        summary="Reveal the approved phone for an Active direct Listing",
+        request=None,
+        parameters=[EVENT_SESSION_PARAMETER],
+        responses={200: PhoneRevealSerializer},
+    )
+    def post(self, request: Request, listing_id: uuid.UUID) -> Response:
+        try:
+            listing = (
+                Listing.objects
+                .active()
+                .select_related("property", "source", "submission")
+                .get(
+                    id=listing_id,
+                    source__is_builtin=True,
+                    source__outbound_policy=OutboundPolicy.DIRECT_CONTACT,
+                    direct_phone__gt="",
+                    submission__state="published",
+                    submission__phone_publication_consent=True,
+                    submission__contact_phone=F("direct_phone"),
+                )
+            )
+        except Listing.DoesNotExist as exc:
+            raise NotFound("شماره تماس این آگهی در دسترس نیست.") from exc
+        record_product_event(
+            event_type=ProductEventType.PHONE_REVEAL,
+            property_=listing.property,
+            listing=listing,
+            session_token=event_session(request),
+        )
+        return Response(PhoneRevealSerializer({"phone": listing.direct_phone}).data)
+
+
+class ListingContinuationView(APIView):
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    @extend_schema(
+        summary="Resolve an Active Listing's external continuation",
+        request=None,
+        parameters=[EVENT_SESSION_PARAMETER],
+        responses={200: ExternalContinuationSerializer},
+    )
+    def post(self, request: Request, listing_id: uuid.UUID) -> Response:
+        try:
+            listing = (
+                Listing.objects
+                .active()
+                .select_related("property", "source")
+                .get(
+                    id=listing_id,
+                    source__outbound_policy=OutboundPolicy.EXTERNAL_LINK,
+                    external_url__gt="",
+                )
+            )
+        except Listing.DoesNotExist as exc:
+            raise NotFound("مسیر ادامه این آگهی در دسترس نیست.") from exc
+        record_product_event(
+            event_type=ProductEventType.EXTERNAL_CONTINUATION,
+            property_=listing.property,
+            listing=listing,
+            session_token=event_session(request),
+        )
+        return Response(ExternalContinuationSerializer({"url": listing.external_url}).data)

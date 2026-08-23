@@ -1,11 +1,16 @@
+import hashlib
+import hmac
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import timedelta
 from uuid import UUID
 
+from django.conf import settings
+from django.core.cache import cache
 from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.utils import timezone
+from rest_framework.exceptions import Throttled
 
 from .models import (
     Listing,
@@ -14,10 +19,16 @@ from .models import (
     ListingImage,
     ListingImageVariant,
     ListingState,
+    ProductEvent,
+    ProductEventType,
     Property,
     RentalTerms,
     Source,
 )
+
+EVENT_DEDUPLICATION_SECONDS = 10 * 60
+EVENT_RATE_WINDOW_SECONDS = 60
+EVENT_RATE_LIMIT = 60
 
 
 @dataclass(frozen=True)
@@ -43,6 +54,46 @@ class DirectListingSpec:
     image_specs: Sequence[ListingImageSpec]
     property_id: UUID | None = None
     existing_listing_id: UUID | None = None
+
+
+def _event_cache_identity(session_token: UUID) -> str:
+    return hmac.new(
+        settings.SECRET_KEY.encode(),
+        session_token.bytes,
+        hashlib.sha256,
+    ).hexdigest()
+
+
+def record_product_event(
+    *,
+    event_type: ProductEventType,
+    property_: Property,
+    session_token: UUID,
+    listing: Listing | None = None,
+) -> bool:
+    cache_identity = _event_cache_identity(session_token)
+    target_id = listing.id if listing is not None else property_.id
+    deduplication_key = f"product-event:dedupe:{cache_identity}:{event_type}:{target_id}"
+    if not cache.add(deduplication_key, True, EVENT_DEDUPLICATION_SECONDS):
+        return False
+
+    rate_key = f"product-event:rate:{cache_identity}"
+    event_count = 1 if cache.add(rate_key, 1, EVENT_RATE_WINDOW_SECONDS) else cache.incr(rate_key)
+    if event_count > EVENT_RATE_LIMIT:
+        cache.delete(deduplication_key)
+        raise Throttled(wait=EVENT_RATE_WINDOW_SECONDS)
+
+    try:
+        ProductEvent.objects.create(
+            event_type=event_type,
+            property=property_,
+            listing=listing,
+            source=listing.source if listing is not None else None,
+        )
+    except Exception:
+        cache.delete(deduplication_key)
+        raise
+    return True
 
 
 @transaction.atomic

@@ -21,4 +21,8 @@ export const server = setupServer(
   http.get("*/api/v1/catalog/properties/", () =>
     HttpResponse.json(propertySearchPage),
   ),
+  http.post(
+    "*/api/v1/catalog/properties/:propertyId/view/",
+    () => new HttpResponse(null, { status: 204 }),
+  ),
 );

@@ -1,8 +1,12 @@
-import { render, screen } from "@testing-library/react";
-import { expect, test } from "vitest";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { http, HttpResponse } from "msw";
+import { renderToString } from "react-dom/server";
+import { expect, test, vi } from "vitest";
 
 import { PropertyDetailPage } from "@/pages/PropertyDetailPage";
 import { propertyDetail as property } from "./fixtures/catalog";
+import { server } from "./server";
 
 test("shows normalized facts, paired toman terms, and freshness", () => {
   render(<PropertyDetailPage property={property} />);
@@ -56,6 +60,72 @@ test("compares every active Listing and makes source disagreements visible", () 
   );
   expect(external.innerHTML).not.toContain("third-party.example/hotlink.jpg");
   expect(
-    screen.getByRole("link", { name: "ادامه در منبع اصلی" }),
-  ).toHaveAttribute("href", "https://example-source.test/listings/42");
+    screen.getByRole("button", { name: "ادامه در منبع اصلی" }),
+  ).toBeVisible();
+});
+
+test("keeps the approved phone out of initial indexable content and reveals it explicitly", async () => {
+  let eventSession: string | null = null;
+  server.use(
+    http.post(
+      `*/api/v1/catalog/listings/${property.listings[0]!.id}/phone-reveal/`,
+      ({ request }) => {
+        eventSession = request.headers.get("X-TorobRent-Event-Session");
+        return HttpResponse.json({ phone: "۰۹۱۲۱۲۳۴۵۶۷" });
+      },
+    ),
+  );
+  const initialDocument = renderToString(
+    <PropertyDetailPage property={property} />,
+  );
+  expect(initialDocument).not.toContain("۰۹۱۲۱۲۳۴۵۶۷");
+  expect(initialDocument).toContain("نمایش شماره تماس");
+
+  render(<PropertyDetailPage property={property} />);
+  await userEvent.click(
+    screen.getByRole("button", { name: "نمایش شماره تماس" }),
+  );
+
+  expect(
+    await screen.findByRole("link", { name: "تماس با ۰۹۱۲۱۲۳۴۵۶۷" }),
+  ).toHaveAttribute("href", "tel:۰۹۱۲۱۲۳۴۵۶۷");
+  expect(eventSession).toMatch(
+    /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+  );
+});
+
+test("records a Property view and resolves external continuation through the API", async () => {
+  const navigate = vi.fn();
+  let viewCount = 0;
+  server.use(
+    http.post(
+      `*/api/v1/catalog/properties/${property.id}/view/`,
+      ({ request }) => {
+        expect(request.headers.get("X-TorobRent-Event-Session")).toBeTruthy();
+        viewCount += 1;
+        return new HttpResponse(null, { status: 204 });
+      },
+    ),
+    http.post(
+      `*/api/v1/catalog/listings/${property.listings[1]!.id}/continuation/`,
+      () =>
+        HttpResponse.json({
+          url: "https://example-source.test/listings/42",
+        }),
+    ),
+  );
+
+  render(
+    <PropertyDetailPage property={property} onNavigateExternal={navigate} />,
+  );
+  await waitFor(() => expect(viewCount).toBe(1));
+  await userEvent.click(
+    screen.getByRole("button", { name: "ادامه در منبع اصلی" }),
+  );
+
+  await waitFor(() =>
+    expect(navigate).toHaveBeenCalledWith(
+      "https://example-source.test/listings/42",
+    ),
+  );
 });
