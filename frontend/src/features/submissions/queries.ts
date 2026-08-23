@@ -91,6 +91,43 @@ export async function submitSubmission(submissionId: string) {
   return data;
 }
 
+type ListingAvailabilityPath =
+  | "/api/v1/submissions/{submission_id}/confirm-availability/"
+  | "/api/v1/submissions/{submission_id}/mark-unavailable/"
+  | "/api/v1/submissions/{submission_id}/archive/";
+
+async function changeListingAvailability(
+  submissionId: string,
+  path: ListingAvailabilityPath,
+) {
+  const { data, error } = await api.POST(path, {
+    params: { path: { submission_id: submissionId } },
+  });
+  if (error || !data) throw apiError(error);
+  return data;
+}
+
+export async function confirmListingAvailability(submissionId: string) {
+  return changeListingAvailability(
+    submissionId,
+    "/api/v1/submissions/{submission_id}/confirm-availability/",
+  );
+}
+
+export async function markListingUnavailable(submissionId: string) {
+  return changeListingAvailability(
+    submissionId,
+    "/api/v1/submissions/{submission_id}/mark-unavailable/",
+  );
+}
+
+export async function archiveListing(submissionId: string) {
+  return changeListingAvailability(
+    submissionId,
+    "/api/v1/submissions/{submission_id}/archive/",
+  );
+}
+
 export function operatorQueueQueryOptions(filters: OperatorQueueFilters = {}) {
   return queryOptions({
     queryKey: ["operator-submissions", filters] as const,

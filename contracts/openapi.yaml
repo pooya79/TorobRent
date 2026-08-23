@@ -708,6 +708,50 @@ paths:
               schema:
                 $ref: '#/components/schemas/Submission'
           description: ''
+  /api/v1/submissions/{submission_id}/archive/:
+    post:
+      operationId: v1_submissions_archive_create
+      summary: Archive a Listing
+      parameters:
+      - in: path
+        name: submission_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Submission'
+          description: ''
+  /api/v1/submissions/{submission_id}/confirm-availability/:
+    post:
+      operationId: v1_submissions_confirm_availability_create
+      summary: Confirm that a published Listing remains available
+      parameters:
+      - in: path
+        name: submission_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Submission'
+          description: ''
   /api/v1/submissions/{submission_id}/images/:
     post:
       operationId: v1_submissions_images_create
@@ -862,6 +906,28 @@ paths:
               schema:
                 $ref: '#/components/schemas/SubmissionImage'
           description: ''
+  /api/v1/submissions/{submission_id}/mark-unavailable/:
+    post:
+      operationId: v1_submissions_mark_unavailable_create
+      summary: Mark a published Listing unavailable
+      parameters:
+      - in: path
+        name: submission_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Submission'
+          description: ''
   /api/v1/submissions/{submission_id}/submit/:
     post:
       operationId: v1_submissions_submit_create
@@ -943,6 +1009,28 @@ paths:
           description: Authentication is required
 components:
   schemas:
+    AvailabilityOutput:
+      type: object
+      properties:
+        state:
+          type: string
+        confirmed_at:
+          type:
+          - string
+          - 'null'
+          format: date-time
+        available_until:
+          type:
+          - string
+          - 'null'
+          format: date-time
+        expiring_soon:
+          type: boolean
+      required:
+      - available_until
+      - confirmed_at
+      - expiring_soon
+      - state
     CompletedStepEnum:
       enum:
       - location
@@ -1811,6 +1899,11 @@ components:
           items:
             type: string
           readOnly: true
+        availability:
+          oneOf:
+          - $ref: '#/components/schemas/AvailabilityOutput'
+          - type: 'null'
+          readOnly: true
         created_at:
           type: string
           format: date-time
@@ -1820,6 +1913,7 @@ components:
           format: date-time
           readOnly: true
       required:
+      - availability
       - available_actions
       - contact
       - created_at

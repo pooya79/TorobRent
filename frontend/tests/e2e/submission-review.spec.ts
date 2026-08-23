@@ -208,4 +208,14 @@ test("browser covers changes, resubmit, reject, group, publish, and public visib
   await page.goto(`/properties/${firstApprovalBody.property_id}`);
   await expect(page.getByRole("article")).toHaveCount(2);
   await expect(page.getByText("آپارتمان روشن و آرام ۱")).toBeVisible();
+
+  await page.goto("/dashboard");
+  await page.getByRole("button", { name: "تأیید موجودی" }).first().click();
+  await expect(
+    page.getByText("موجودی آگهی برای ۳۰ روز دیگر تأیید شد."),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "بایگانی" }).first().click();
+
+  await page.goto(`/properties/${firstApprovalBody.property_id}`);
+  await expect(page.getByRole("article")).toHaveCount(1);
 });

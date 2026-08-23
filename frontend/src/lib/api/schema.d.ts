@@ -278,6 +278,40 @@ export interface paths {
     patch: operations["v1_submissions_partial_update"];
     trace?: never;
   };
+  "/api/v1/submissions/{submission_id}/archive/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Archive a Listing */
+    post: operations["v1_submissions_archive_create"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/submissions/{submission_id}/confirm-availability/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Confirm that a published Listing remains available */
+    post: operations["v1_submissions_confirm_availability_create"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/v1/submissions/{submission_id}/images/": {
     parameters: {
       query?: never;
@@ -341,6 +375,23 @@ export interface paths {
     put?: never;
     /** Replace and retry a failed Submission image */
     post: operations["v1_submissions_images_retry_create"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/submissions/{submission_id}/mark-unavailable/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Mark a published Listing unavailable */
+    post: operations["v1_submissions_mark_unavailable_create"];
     delete?: never;
     options?: never;
     head?: never;
@@ -419,6 +470,14 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
   schemas: {
+    AvailabilityOutput: {
+      state: string;
+      /** Format: date-time */
+      confirmed_at: string | null;
+      /** Format: date-time */
+      available_until: string | null;
+      expiring_soon: boolean;
+    };
     /**
      * @description * `location` - location
      *     * `property_facts` - property_facts
@@ -795,6 +854,7 @@ export interface components {
       review: unknown;
       readonly history: components["schemas"]["SubmissionEvent"][];
       readonly available_actions: string[];
+      readonly availability: components["schemas"]["AvailabilityOutput"] | null;
       /** Format: date-time */
       readonly created_at: string;
       /** Format: date-time */
@@ -1567,6 +1627,48 @@ export interface operations {
       };
     };
   };
+  v1_submissions_archive_create: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        submission_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Submission"];
+        };
+      };
+    };
+  };
+  v1_submissions_confirm_availability_create: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        submission_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Submission"];
+        };
+      };
+    };
+  };
   v1_submissions_images_create: {
     parameters: {
       query?: never;
@@ -1685,6 +1787,27 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["SubmissionImage"];
+        };
+      };
+    };
+  };
+  v1_submissions_mark_unavailable_create: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        submission_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Submission"];
         };
       };
     };

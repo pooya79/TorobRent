@@ -1,12 +1,15 @@
 from django.urls import path
 
 from .views import (
+    SubmissionArchiveView,
+    SubmissionConfirmAvailabilityView,
     SubmissionDetailView,
     SubmissionImageContentView,
     SubmissionImageDetailView,
     SubmissionImageListCreateView,
     SubmissionImageRetryView,
     SubmissionListCreateView,
+    SubmissionMarkUnavailableView,
     SubmissionSubmitView,
 )
 
@@ -16,6 +19,21 @@ urlpatterns = [
     path("", SubmissionListCreateView.as_view(), name="list-create"),
     path("<uuid:submission_id>/", SubmissionDetailView.as_view(), name="detail"),
     path("<uuid:submission_id>/submit/", SubmissionSubmitView.as_view(), name="submit"),
+    path(
+        "<uuid:submission_id>/confirm-availability/",
+        SubmissionConfirmAvailabilityView.as_view(),
+        name="confirm-availability",
+    ),
+    path(
+        "<uuid:submission_id>/mark-unavailable/",
+        SubmissionMarkUnavailableView.as_view(),
+        name="mark-unavailable",
+    ),
+    path(
+        "<uuid:submission_id>/archive/",
+        SubmissionArchiveView.as_view(),
+        name="archive",
+    ),
     path(
         "<uuid:submission_id>/images/",
         SubmissionImageListCreateView.as_view(),

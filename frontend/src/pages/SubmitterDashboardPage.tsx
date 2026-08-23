@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Clock3, Plus } from "lucide-react";
 import { Link } from "react-router";
 
@@ -7,14 +7,42 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { submissionsQueryOptions } from "@/features/submissions/queries";
+import {
+  archiveListing,
+  confirmListingAvailability,
+  markListingUnavailable,
+  type Submission,
+  submissionsQueryOptions,
+} from "@/features/submissions/queries";
 import {
   submissionStateLabels,
   submissionStepLabel,
 } from "@/features/submissions/steps";
+import { errorMessage } from "@/lib/api/errors";
 
 export function SubmitterDashboardPage() {
   const submissions = useQuery(submissionsQueryOptions);
+  const queryClient = useQueryClient();
+  const availabilityAction = useMutation({
+    mutationFn: ({
+      submissionId,
+      action,
+    }: {
+      submissionId: string;
+      action: "confirm" | "unavailable" | "archive";
+    }) => {
+      if (action === "confirm") return confirmListingAvailability(submissionId);
+      if (action === "unavailable") return markListingUnavailable(submissionId);
+      return archiveListing(submissionId);
+    },
+    onSuccess: (updated) => {
+      queryClient.setQueryData<Submission[]>(["submissions"], (current) =>
+        current?.map((submission) =>
+          submission.id === updated.id ? updated : submission,
+        ),
+      );
+    },
+  });
 
   return (
     <PageMain>
@@ -59,6 +87,13 @@ export function SubmitterDashboardPage() {
             submission.state === "draft";
           const canSubmit =
             submission.available_actions?.includes("submit") ?? false;
+          const canConfirmAvailability =
+            submission.available_actions?.includes("confirm_availability") ??
+            false;
+          const canMarkUnavailable =
+            submission.available_actions?.includes("mark_unavailable") ?? false;
+          const canArchive =
+            submission.available_actions?.includes("archive") ?? false;
           const latestReason = [...(submission.history ?? [])]
             .reverse()
             .find((event) => event.reason)?.reason;
@@ -114,8 +149,81 @@ export function SubmitterDashboardPage() {
                         </Link>
                       </Button>
                     )}
+                    {canConfirmAvailability && (
+                      <Button
+                        type="button"
+                        onClick={() =>
+                          availabilityAction.mutate({
+                            submissionId: submission.id,
+                            action: "confirm",
+                          })
+                        }
+                        disabled={availabilityAction.isPending}
+                      >
+                        تأیید موجودی
+                      </Button>
+                    )}
+                    {canMarkUnavailable && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() =>
+                          availabilityAction.mutate({
+                            submissionId: submission.id,
+                            action: "unavailable",
+                          })
+                        }
+                        disabled={availabilityAction.isPending}
+                      >
+                        ناموجود شده
+                      </Button>
+                    )}
+                    {canArchive && (
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        onClick={() =>
+                          availabilityAction.mutate({
+                            submissionId: submission.id,
+                            action: "archive",
+                          })
+                        }
+                        disabled={availabilityAction.isPending}
+                      >
+                        بایگانی
+                      </Button>
+                    )}
                   </div>
                 </div>
+                {submission.availability?.expiring_soon && (
+                  <Alert>
+                    <AlertDescription>
+                      این آگهی در هفت روز آینده منقضی می‌شود. اگر همچنان موجود
+                      است، موجودی را تأیید کنید.
+                    </AlertDescription>
+                  </Alert>
+                )}
+                {availabilityAction.isSuccess &&
+                  availabilityAction.data.id === submission.id &&
+                  availabilityAction.variables.action === "confirm" && (
+                    <Alert>
+                      <AlertDescription>
+                        موجودی آگهی برای ۳۰ روز دیگر تأیید شد.
+                      </AlertDescription>
+                    </Alert>
+                  )}
+                {availabilityAction.isError &&
+                  availabilityAction.variables?.submissionId ===
+                    submission.id && (
+                    <Alert variant="destructive">
+                      <AlertDescription>
+                        {errorMessage(
+                          availabilityAction.error,
+                          "تغییر وضعیت موجودی انجام نشد.",
+                        )}
+                      </AlertDescription>
+                    </Alert>
+                  )}
                 {latestReason && (
                   <Alert>
                     <AlertDescription>{latestReason}</AlertDescription>
