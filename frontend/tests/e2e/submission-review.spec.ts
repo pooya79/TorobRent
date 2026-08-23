@@ -4,10 +4,25 @@ import { expect, test, type Page } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 
+import {
+  endSession,
+  loginSubmitter,
+  mailpitAvailable,
+  registerVerifiedSubmitter,
+} from "./helpers/accounts";
+
 const externalEnvironment = Boolean(process.env.E2E_BASE_URL);
 const operatorEmail = process.env.E2E_OPERATOR_EMAIL ?? "operator@example.com";
 const operatorPassword =
   process.env.E2E_OPERATOR_PASSWORD ?? "operator-password";
+
+async function loginOperator(page: Page) {
+  await page.goto("/admin/login/");
+  await page.getByLabel(/email/i).fill(operatorEmail);
+  await page.getByLabel(/password/i).fill(operatorPassword);
+  await page.getByRole("button", { name: /log in/i }).click();
+  await expect(page).toHaveURL(/\/admin\/$/);
+}
 
 async function seedCompleteDraft(
   page: Page,
@@ -121,29 +136,37 @@ async function submitFromReview(page: Page, submissionId: string) {
 
 test("@milestone browser covers changes, resubmit, reject, group, publish, and public visibility", async ({
   page,
+  request,
 }) => {
   test.setTimeout(120_000);
+  test.skip(
+    !mailpitAvailable && !process.env.E2E_REQUIRE_MAILPIT,
+    "The complete role handoff requires Mailpit",
+  );
   test.skip(
     externalEnvironment && !process.env.E2E_OPERATOR_EMAIL,
     "External stacks must provide a verified E2E Operator and catalog fixture",
   );
 
-  await page.goto("/admin/login/");
-  await page.getByLabel(/email/i).fill(operatorEmail);
-  await page.getByLabel(/password/i).fill(operatorPassword);
-  await page.getByRole("button", { name: /log in/i }).click();
-  await expect(page).toHaveURL(/\/admin\/$/);
+  const submitter = await registerVerifiedSubmitter(page, request);
   const session = await page.context().request.get("/api/v1/auth/session/");
   const csrfToken = ((await session.json()) as { csrf_token: string })
     .csrf_token;
 
   const revisedId = await seedCompleteDraft(page, csrfToken, "۱");
+  const groupedId = await seedCompleteDraft(page, csrfToken, "۲");
+  const rejectedId = await seedCompleteDraft(page, csrfToken, "۳");
   await submitFromReview(page, revisedId);
+
+  await endSession(page);
+  await loginOperator(page);
   await page.goto("/operator/review");
   await page.getByRole("button", { name: "درخواست اصلاح" }).click();
   await page.getByLabel("دلیل درخواست اصلاح").fill("شماره تماس را اصلاح کنید.");
   await page.getByRole("button", { name: "ارسال درخواست اصلاح" }).click();
 
+  await endSession(page);
+  await loginSubmitter(page, submitter);
   await page.goto("/dashboard");
   await expect(
     page.getByRole("alert").getByText("شماره تماس را اصلاح کنید."),
@@ -159,7 +182,11 @@ test("@milestone browser covers changes, resubmit, reject, group, publish, and p
   await expect(
     page.getByRole("heading", { name: "در انتظار بررسی اپراتور" }),
   ).toBeVisible();
+  await submitFromReview(page, groupedId);
+  await submitFromReview(page, rejectedId);
 
+  await endSession(page);
+  await loginOperator(page);
   await page.goto("/operator/review");
   await page.getByRole("button", { name: "تأیید و انتشار" }).click();
   const firstApproval = page.waitForResponse(
@@ -170,11 +197,11 @@ test("@milestone browser covers changes, resubmit, reject, group, publish, and p
   await page.getByRole("button", { name: "تأیید نهایی و انتشار" }).click();
   const firstApprovalBody = (await (await firstApproval).json()) as {
     property_id: string;
+    listing_id: string;
   };
   expect(firstApprovalBody.property_id).toBeTruthy();
+  expect(firstApprovalBody.listing_id).toBeTruthy();
 
-  const groupedId = await seedCompleteDraft(page, csrfToken, "۲");
-  await submitFromReview(page, groupedId);
   await page.goto("/operator/review");
   await page.getByRole("button", { name: "تأیید و انتشار" }).click();
   await page
@@ -188,8 +215,6 @@ test("@milestone browser covers changes, resubmit, reject, group, publish, and p
   await page.getByRole("button", { name: "تأیید نهایی و انتشار" }).click();
   expect((await groupedApproval).ok()).toBe(true);
 
-  const rejectedId = await seedCompleteDraft(page, csrfToken, "۳");
-  await submitFromReview(page, rejectedId);
   await page.goto("/operator/review");
   await page.getByRole("button", { name: "رد نهایی" }).click();
   await page.getByLabel("دلیل رد").fill("محتوای نامعتبر");
@@ -200,7 +225,8 @@ test("@milestone browser covers changes, resubmit, reject, group, publish, and p
   );
   await page.getByRole("button", { name: "رد Submission" }).click();
   expect((await rejection).ok()).toBe(true);
-  await page.goto("/dashboard");
+  await endSession(page);
+  await loginSubmitter(page, submitter);
   await expect(
     page.getByRole("heading", { name: "آگهی‌های من" }),
   ).toBeVisible();
@@ -227,6 +253,8 @@ test("@milestone browser covers changes, resubmit, reject, group, publish, and p
     revisedListing.getByRole("link", { name: "تماس با ۰۹۱۲۰۰۰۰۰۰۰" }),
   ).toHaveAttribute("href", "tel:۰۹۱۲۰۰۰۰۰۰۰");
 
+  await endSession(page);
+  await loginOperator(page);
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto(
     `/admin/catalog/productevent/?event_type__exact=property_view&property__id__exact=${firstApprovalBody.property_id}&period=7d`,
@@ -244,12 +272,30 @@ test("@milestone browser covers changes, resubmit, reject, group, publish, and p
     page.getByText("مجموع در بازه و فیلترهای انتخاب‌شده: 1"),
   ).toBeVisible();
 
-  await page.goto("/dashboard");
-  await page.getByRole("button", { name: "تأیید موجودی" }).first().click();
+  await page.goto(
+    `/admin/catalog/listing/${firstApprovalBody.listing_id}/change/`,
+  );
+  await page.getByLabel("State:").selectOption("expired");
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await page.goto(`/properties/${firstApprovalBody.property_id}`);
+  await expect(page.getByRole("article")).toHaveCount(1);
+  await expect(page.getByText("آپارتمان روشن و آرام ۱")).not.toBeVisible();
+
+  await endSession(page);
+  await loginSubmitter(page, submitter);
+  const revisedSubmission = page
+    .locator("section[aria-label='ارسال‌های شما'] > div")
+    .filter({ has: page.locator(`a[href*="${revisedId}"]`) });
+  await revisedSubmission.getByRole("button", { name: "تأیید موجودی" }).click();
   await expect(
     page.getByText("موجودی آگهی برای ۳۰ روز دیگر تأیید شد."),
   ).toBeVisible();
-  await page.getByRole("button", { name: "بایگانی" }).first().click();
+
+  await page.goto(`/properties/${firstApprovalBody.property_id}`);
+  await expect(page.getByRole("article")).toHaveCount(2);
+
+  await page.goto("/dashboard");
+  await revisedSubmission.getByRole("button", { name: "بایگانی" }).click();
 
   await page.goto(`/properties/${firstApprovalBody.property_id}`);
   await expect(page.getByRole("article")).toHaveCount(1);

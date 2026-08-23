@@ -41,4 +41,21 @@ if "${compose[@]}" exec -T backend test -e media/restart-marker; then
   exit 1
 fi
 
-echo "Demo smoke passed: idempotent seed, persona access, persistent restart, and scoped reset."
+demo_images=(
+  torobrent-demo-smoke-backend:latest
+  torobrent-demo-smoke-beat:latest
+  torobrent-demo-smoke-frontend:latest
+  torobrent-demo-smoke-migrate:latest
+  torobrent-demo-smoke-nginx:latest
+  torobrent-demo-smoke-seed:latest
+  torobrent-demo-smoke-worker:latest
+)
+"${compose[@]}" down --volumes --remove-orphans --rmi local
+for image in "${demo_images[@]}"; do
+  if docker image inspect "${image}" >/dev/null 2>&1; then
+    echo "uninstall retained local image ${image}" >&2
+    exit 1
+  fi
+done
+
+echo "Demo smoke passed: idempotent seed, persona access, persistent restart, scoped reset, and uninstall."

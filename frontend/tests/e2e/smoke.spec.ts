@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-test("@cross-browser serves a meaningful Persian document before hydration", async ({
+test("@milestone @cross-browser serves a meaningful Persian document before hydration", async ({
   request,
 }) => {
   const response = await request.get("/");
@@ -12,7 +12,7 @@ test("@cross-browser serves a meaningful Persian document before hydration", asy
   expect(html).toContain("شهر یا محله");
 });
 
-test("@cross-browser hydrates the application shell and reports API health", async ({
+test("@milestone @cross-browser hydrates the application shell and reports API health", async ({
   page,
 }) => {
   let readinessAttempts = 0;
@@ -72,7 +72,7 @@ test("@milestone @cross-browser keeps navigation usable on a mobile viewport", a
   ).toBeVisible();
 });
 
-test("@cross-browser exposes the public fixture-backed prototype routes", async ({
+test("@milestone @cross-browser exposes the public fixture-backed prototype routes", async ({
   page,
 }) => {
   const routes = [
@@ -88,7 +88,7 @@ test("@cross-browser exposes the public fixture-backed prototype routes", async 
   }
 });
 
-test("@cross-browser protects the Operator review queue from anonymous visitors", async ({
+test("@milestone @cross-browser protects the Operator review queue from anonymous visitors", async ({
   page,
 }) => {
   await page.goto("/operator/review");
@@ -101,7 +101,7 @@ test("@cross-browser protects the Operator review queue from anonymous visitors"
   ).not.toBeVisible();
 });
 
-test("@cross-browser preserves protected Submitter navigation across login", async ({
+test("@milestone @cross-browser preserves protected Submitter navigation across login", async ({
   page,
 }) => {
   await page.goto("/add-submission?step=3");
@@ -128,9 +128,14 @@ test("@milestone @cross-browser keeps focus inside the mobile filter Sheet and r
   await expect(page.getByRole("dialog", { name: "فیلتر نتایج" })).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(trigger).toBeFocused();
+  const focusIsVisible = await trigger.evaluate((element) => {
+    const style = getComputedStyle(element);
+    return style.outlineStyle !== "none" || style.boxShadow !== "none";
+  });
+  expect(focusIsVisible).toBe(true);
 });
 
-test("@cross-browser routes the versioned Django health API through the same origin", async ({
+test("@milestone @cross-browser routes the versioned Django health API through the same origin", async ({
   request,
 }) => {
   const response = await request.get("/api/v1/system/ready/");
@@ -139,7 +144,7 @@ test("@cross-browser routes the versioned Django health API through the same ori
   await expect(response.json()).resolves.toEqual({ status: "ok" });
 });
 
-test("@cross-browser renders a Persian failure boundary", async ({
+test("@milestone @cross-browser renders a Persian failure boundary", async ({
   request,
 }) => {
   const response = await request.get("/missing-page");

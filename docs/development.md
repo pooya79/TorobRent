@@ -2,7 +2,9 @@
 
 ## Commands
 
-- `make bootstrap`: synchronize Python and frontend lockfiles.
+- `make bootstrap`: synchronize Python/frontend lockfiles and install the supported Playwright
+  browser binaries. On a fresh Linux host, first install their system libraries with
+  `cd frontend && pnpm exec playwright install --with-deps chromium firefox webkit`.
 - `make dev`: run the complete development environment in Compose.
 - `make prod` / `make prod-down`: start or stop the production Compose stack using
   `.env.production`.
@@ -16,6 +18,8 @@
 - `cd frontend && pnpm test:e2e:compose`: run the same smoke suite through the nginx gateway after
   `make dev` is ready.
 - `make check`: run the full local validation suite.
+- `make test-milestone`: run all repository gates, the Mailpit-backed role narrative, Lighthouse,
+  and the isolated Docker lifecycle proof.
 - `make docker-build`: verify both production images.
 
 Python dependencies are declared in `backend/pyproject.toml` and locked with `uv`. JavaScript

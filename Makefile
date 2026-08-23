@@ -5,6 +5,7 @@ DEMO_COMPOSE = docker compose -p torobrent-demo --env-file .env.demo -f compose.
 bootstrap:
 	cd backend && uv sync
 	cd frontend && corepack enable && pnpm install --frozen-lockfile
+	cd frontend && pnpm exec playwright install chromium firefox webkit
 
 dev:
 	docker compose up --build

@@ -19,7 +19,7 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "test:e2e:chromium": "playwright test --project=chromium",
-    "test:e2e:milestone": "playwright test --grep @milestone",
+    "test:e2e:milestone": "../scripts/milestone-e2e.sh",
     "test:a11y": "playwright test tests/e2e/accessibility.spec.ts --project=chromium",
     "test:lighthouse": "pnpm build && lhci autorun",
     "test:e2e:compose": "E2E_BASE_URL=http://localhost:5173 E2E_MAILPIT_URL=http://localhost:8025 playwright test",

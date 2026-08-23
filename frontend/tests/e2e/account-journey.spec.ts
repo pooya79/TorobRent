@@ -3,53 +3,19 @@
 import { expect, test } from "@playwright/test";
 import path from "node:path";
 
-const mailpitAvailable = Boolean(process.env.E2E_MAILPIT_URL);
-const mailpitUrl = process.env.E2E_MAILPIT_URL ?? "http://localhost:8025";
+import {
+  mailpitAvailable,
+  registerVerifiedSubmitter,
+} from "./helpers/accounts";
 
 test("@milestone registers, verifies through Mailpit, logs in, and enters protected navigation", async ({
   page,
   request,
 }) => {
+  test.setTimeout(90_000);
   test.skip(!mailpitAvailable, "The complete email journey requires Mailpit");
 
-  const email = `submitter-${Date.now()}@example.com`;
-  const password = "correct-horse-battery";
-  await page.goto("/register");
-  await page.getByLabel("ایمیل").fill(email);
-  await page.getByLabel("گذرواژه").fill(password);
-  const register = page.getByRole("button", { name: "ساخت حساب" });
-  await expect(register).toBeEnabled();
-  await register.click();
-  await expect(page.getByText(/حساب ساخته شد/)).toBeVisible();
-
-  let messageId = "";
-  await expect
-    .poll(async () => {
-      const response = await request.get(
-        `${mailpitUrl}/api/v1/search?query=${encodeURIComponent(`to:${email}`)}`,
-      );
-      if (!response.ok()) return false;
-      const body = (await response.json()) as { messages?: { ID: string }[] };
-      messageId = body.messages?.[0]?.ID ?? "";
-      return Boolean(messageId);
-    })
-    .toBe(true);
-
-  const messageResponse = await request.get(
-    `${mailpitUrl}/api/v1/message/${messageId}`,
-  );
-  const message = (await messageResponse.json()) as { Text: string };
-  const verificationUrl = message.Text.match(
-    /http:\/\/(?:localhost|127\.0\.0\.1):5173\/verify-email\?token=\S+/,
-  )?.[0];
-  expect(verificationUrl).toBeTruthy();
-
-  await page.goto(verificationUrl!);
-  await expect(page.getByText(/ایمیل شما تأیید شد/)).toBeVisible();
-  await page.getByRole("main").getByRole("link", { name: "ورود" }).click();
-  await page.getByLabel("ایمیل").fill(email);
-  await page.getByLabel("گذرواژه").fill(password);
-  await page.getByRole("button", { name: "ورود" }).click();
+  const { email, password } = await registerVerifiedSubmitter(page, request);
 
   await expect(page).toHaveURL(/\/dashboard$/);
   await expect(
@@ -79,6 +45,8 @@ test("@milestone registers, verifies through Mailpit, logs in, and enters protec
   await page.getByRole("button", { name: "باز کردن فهرست راهبری" }).click();
   await page.getByRole("button", { name: "خروج" }).click();
   await expect(page).toHaveURL(/\/login\?returnTo=/);
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog")).not.toBeVisible();
   await page.getByLabel("ایمیل").fill(email);
   await page.getByLabel("گذرواژه").fill(password);
   await page.getByRole("button", { name: "ورود" }).click();
@@ -109,8 +77,10 @@ test("@milestone registers, verifies through Mailpit, logs in, and enters protec
   await expect(page.getByText("آماده", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "ذخیره و ادامه" }).click();
   await page.getByLabel("نام تماس").fill("سارا احمدی");
-  await page.getByLabel("شماره تماس").fill("۰۹۱۲۱۲۳۴۵۶۷");
-  await page.getByLabel("اختیار ثبت اطلاعات این ملک را دارم.").check();
+  await page
+    .getByRole("textbox", { name: "شماره تماس", exact: true })
+    .fill("۰۹۱۲۱۲۳۴۵۶۷");
+  await page.getByRole("checkbox", { name: /اختیار ثبت و انتشار/ }).check();
   await page.getByRole("button", { name: "ذخیره و ادامه" }).click();
   await page
     .getByLabel("اطلاعات واردشده را بازبینی کردم و درستی آن را تأیید می‌کنم.")
@@ -118,6 +88,9 @@ test("@milestone registers, verifies through Mailpit, logs in, and enters protec
   await expect(
     page.getByRole("img", { name: "تصویر Submission در بازبینی" }),
   ).toBeVisible();
-  await page.getByRole("button", { name: "ذخیره بازبینی" }).click();
   await expect(page.getByText(/تصاویر آماده‌اند/)).toBeVisible();
+  await page.goto("/dashboard");
+  await expect(
+    page.getByRole("heading", { name: "آگهی‌های من" }),
+  ).toBeVisible();
 });

@@ -16,6 +16,17 @@ for (const viewport of [
     for (const route of publicRoutes) {
       await page.goto(route);
       await expect(page.locator("#main-content")).toBeVisible();
+      await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
+      await expect(page.locator("main h1")).toHaveCount(1);
+      const landmarkOrder = await page.evaluate(() => {
+        const main = document.querySelector("main")!;
+        const footer = document.querySelector("footer")!;
+        return Boolean(
+          main.compareDocumentPosition(footer) &
+          Node.DOCUMENT_POSITION_FOLLOWING,
+        );
+      });
+      expect(landmarkOrder, `${route} exposes main before footer`).toBe(true);
       const results = await new AxeBuilder({ page })
         .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
         .analyze();
@@ -33,10 +44,10 @@ test("@milestone @cross-browser @a11y reduced-motion users do not receive smooth
 
   const motion = await page.evaluate(() => {
     const htmlStyle = getComputedStyle(document.documentElement);
-    const linkStyle = getComputedStyle(document.querySelector("a")!);
+    const buttonStyle = getComputedStyle(document.querySelector("button")!);
     return {
       scrollBehavior: htmlStyle.scrollBehavior,
-      transitionDuration: linkStyle.transitionDuration,
+      transitionDuration: buttonStyle.transitionDuration,
     };
   });
 

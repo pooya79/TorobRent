@@ -90,6 +90,8 @@ jobs:
           EMAIL_HOST: 127.0.0.1
           EMAIL_PORT: 1025
           EMAIL_USE_TLS: "false"
+          E2E_MAILPIT_URL: http://127.0.0.1:8025
+          E2E_REQUIRE_MAILPIT: "1"
           FRONTEND_ORIGIN: http://127.0.0.1:5173
           CSRF_TRUSTED_ORIGINS: http://127.0.0.1:5173
       - run: pnpm test:lighthouse
