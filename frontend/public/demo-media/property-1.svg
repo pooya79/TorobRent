@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800" role="img" aria-labelledby="title description">
+  <title id="title">تصویر نمایشی ملک</title>
+  <desc id="description">جای‌نگهدار ساختگی برای نسخه نمایشی TorobRent</desc>
+  <rect width="1200" height="800" fill="#e8f0ec"/>
+  <path d="M190 670V390l410-260 410 260v280z" fill="#fff" stroke="#275d4b" stroke-width="28"/>
+  <path d="M520 670V490h160v180M350 470h110v110H350zm390 0h110v110H740z" fill="#c7ddcf" stroke="#275d4b" stroke-width="20"/>
+</svg>
