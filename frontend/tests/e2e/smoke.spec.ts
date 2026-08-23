@@ -124,15 +124,19 @@ test("@milestone @cross-browser keeps focus inside the mobile filter Sheet and r
   });
 
   const trigger = page.getByRole("button", { name: "فیلترها" });
+  const restingIndicator = await trigger.evaluate((element) => {
+    const style = getComputedStyle(element);
+    return `${style.outlineStyle}|${style.outlineWidth}|${style.boxShadow}`;
+  });
   await trigger.click();
   await expect(page.getByRole("dialog", { name: "فیلتر نتایج" })).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(trigger).toBeFocused();
-  const focusIsVisible = await trigger.evaluate((element) => {
+  const focusedIndicator = await trigger.evaluate((element) => {
     const style = getComputedStyle(element);
-    return style.outlineStyle !== "none" || style.boxShadow !== "none";
+    return `${style.outlineStyle}|${style.outlineWidth}|${style.boxShadow}`;
   });
-  expect(focusIsVisible).toBe(true);
+  expect(focusedIndicator).not.toBe(restingIndicator);
 });
 
 test("@milestone @cross-browser routes the versioned Django health API through the same origin", async ({
