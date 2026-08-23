@@ -5,6 +5,16 @@ import { defineConfig } from "vitest/config";
 
 export default defineConfig({
   plugins: [tailwindcss(), process.env.VITEST ? react() : reactRouter()],
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          // Avoid dozens of tiny module preloads delaying first paint on shared CI runners.
+          if (id.includes("node_modules")) return "vendor";
+        },
+      },
+    },
+  },
   resolve: { tsconfigPaths: true },
   optimizeDeps: {
     // Prevent cold CI starts from reloading the page during browser hydration.

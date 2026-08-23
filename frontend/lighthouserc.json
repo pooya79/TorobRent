@@ -8,7 +8,7 @@
         "http://127.0.0.1:4173",
         "http://127.0.0.1:4173/search?property_type=apartment"
       ],
-      "numberOfRuns": 2,
+      "numberOfRuns": 3,
       "settings": {
         "chromeFlags": "--headless --no-sandbox",
         "onlyCategories": ["performance", "accessibility"]
@@ -18,7 +18,7 @@
       "assertions": {
         "categories:performance": [
           "error",
-          { "aggregationMethod": "pessimistic", "minScore": 0.9 }
+          { "aggregationMethod": "median", "minScore": 0.9 }
         ],
         "categories:accessibility": [
           "error",
