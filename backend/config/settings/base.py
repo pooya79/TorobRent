@@ -29,6 +29,7 @@ INSTALLED_APPS = [
     "apps.common",
     "apps.accounts",
     "apps.catalog",
+    "apps.contact",
     "apps.submissions",
     "apps.system",
 ]
@@ -109,6 +110,8 @@ CSRF_COOKIE_SAMESITE = "Lax"
 CSRF_FAILURE_VIEW = "apps.common.csrf.csrf_failure"
 
 REST_FRAMEWORK = {
+    # nginx is the single trusted proxy and appends its caller to X-Forwarded-For.
+    "NUM_PROXIES": 1,
     "DEFAULT_AUTHENTICATION_CLASSES": [
         "apps.common.authentication.SessionAuthentication",
     ],
@@ -121,6 +124,7 @@ REST_FRAMEWORK = {
         "login": "10/minute",
         "password_reset_request": "5/hour",
         "password_reset_confirm": "10/hour",
+        "contact": "5/hour",
     },
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
     "DEFAULT_PAGINATION_CLASS": "apps.common.pagination.StandardPageNumberPagination",

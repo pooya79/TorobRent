@@ -26,6 +26,10 @@ import {
   type SubmissionStepUpdate,
 } from "@/features/submissions/queries";
 import {
+  phonePublicationConsentCopy,
+  submissionAuthorizationCopy,
+} from "@/features/submissions/consent-copy";
+import {
   submissionSteps as steps,
   type SubmissionStepId as StepId,
 } from "@/features/submissions/steps";
@@ -484,7 +488,7 @@ function ContactFields({
             authorizationError ? "authorization-error" : undefined
           }
         />
-        اختیار ثبت اطلاعات این ملک را دارم.
+        {submissionAuthorizationCopy}
         <FieldError id="authorization-error" message={authorizationError} />
       </Label>
       <Label className="flex min-h-11 items-start gap-3">
@@ -495,7 +499,7 @@ function ContactFields({
           aria-invalid={Boolean(consentError)}
           aria-describedby={consentError ? "consent-error" : undefined}
         />
-        با نمایش عمومی شماره تماس موافقم.
+        {phonePublicationConsentCopy}
         <FieldError id="consent-error" message={consentError} />
       </Label>
     </div>
