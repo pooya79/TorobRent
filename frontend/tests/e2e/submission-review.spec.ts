@@ -208,6 +208,38 @@ test("browser covers changes, resubmit, reject, group, publish, and public visib
   await page.goto(`/properties/${firstApprovalBody.property_id}`);
   await expect(page.getByRole("article")).toHaveCount(2);
   await expect(page.getByText("آپارتمان روشن و آرام ۱")).toBeVisible();
+  const publicDocument = await page.context().request.get(page.url());
+  const publicHtml = await publicDocument.text();
+  expect(publicHtml).not.toContain("۰۹۱۲۰۰۰۰۰۰۰");
+  expect(publicHtml).not.toContain("۰۹۱۲۱۲۳۴۵۶۷");
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  const revisedListing = page.getByRole("article").filter({
+    hasText: "آپارتمان روشن و آرام ۱",
+  });
+  await revisedListing
+    .getByRole("button", { name: "نمایش شماره تماس" })
+    .click();
+  await expect(
+    revisedListing.getByRole("link", { name: "تماس با ۰۹۱۲۰۰۰۰۰۰۰" }),
+  ).toHaveAttribute("href", "tel:۰۹۱۲۰۰۰۰۰۰۰");
+
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto(
+    `/admin/catalog/productevent/?event_type__exact=property_view&property__id__exact=${firstApprovalBody.property_id}&period=7d`,
+  );
+  await expect(
+    page.getByRole("heading", { name: "آمار تجمیعی رویدادها" }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("مجموع در بازه و فیلترهای انتخاب‌شده: 1"),
+  ).toBeVisible();
+  await page.goto(
+    `/admin/catalog/productevent/?event_type__exact=phone_reveal&property__id__exact=${firstApprovalBody.property_id}&period=7d`,
+  );
+  await expect(
+    page.getByText("مجموع در بازه و فیلترهای انتخاب‌شده: 1"),
+  ).toBeVisible();
 
   await page.goto("/dashboard");
   await page.getByRole("button", { name: "تأیید موجودی" }).first().click();

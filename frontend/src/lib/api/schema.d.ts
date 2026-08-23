@@ -123,6 +123,40 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/v1/catalog/listings/{listing_id}/continuation/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Resolve an Active Listing's external continuation */
+    post: operations["v1_catalog_listings_continuation_create"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/catalog/listings/{listing_id}/phone-reveal/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Reveal the approved phone for an Active direct Listing */
+    post: operations["v1_catalog_listings_phone_reveal_create"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/v1/catalog/locations/": {
     parameters: {
       query?: never;
@@ -168,6 +202,23 @@ export interface paths {
     get: operations["v1_catalog_properties_retrieve"];
     put?: never;
     post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/catalog/properties/{property_id}/view/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Record a privacy-minimal Property view */
+    post: operations["v1_catalog_properties_view_create"];
     delete?: never;
     options?: never;
     head?: never;
@@ -534,6 +585,10 @@ export interface components {
     Detail: {
       detail: string;
     };
+    ExternalContinuation: {
+      /** Format: uri */
+      url: string;
+    };
     /**
      * @description * `unknown` - نامشخص
      *     * `present` - دارد
@@ -698,6 +753,9 @@ export interface components {
       description?: string;
       contact?: components["schemas"]["ContactInput"];
       review?: components["schemas"]["ReviewInput"];
+    };
+    PhoneReveal: {
+      phone: string;
     };
     Problem: {
       /** Format: uri */
@@ -1317,6 +1375,54 @@ export interface operations {
       };
     };
   };
+  v1_catalog_listings_continuation_create: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description Ephemeral per-tab token used only for short-lived deduplication and rate control */
+        "X-TorobRent-Event-Session": string;
+      };
+      path: {
+        listing_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ExternalContinuation"];
+        };
+      };
+    };
+  };
+  v1_catalog_listings_phone_reveal_create: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description Ephemeral per-tab token used only for short-lived deduplication and rate control */
+        "X-TorobRent-Event-Session": string;
+      };
+      path: {
+        listing_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PhoneReveal"];
+        };
+      };
+    };
+  };
   v1_catalog_locations_list: {
     parameters: {
       query?: {
@@ -1433,6 +1539,29 @@ export interface operations {
         content: {
           "application/problem+json": components["schemas"]["Problem"];
         };
+      };
+    };
+  };
+  v1_catalog_properties_view_create: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description Ephemeral per-tab token used only for short-lived deduplication and rate control */
+        "X-TorobRent-Event-Session": string;
+      };
+      path: {
+        property_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description No response body */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
       };
     };
   };

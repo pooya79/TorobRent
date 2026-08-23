@@ -1,0 +1,28 @@
+{% extends "admin/change_list.html" %}
+{% load i18n %}
+
+{% block result_list %}
+  <section class="module" aria-labelledby="aggregate-event-title">
+    <h2 id="aggregate-event-title">آمار تجمیعی رویدادها</h2>
+    <p>مجموع در بازه و فیلترهای انتخاب‌شده: <strong>{{ event_total }}</strong></p>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(14rem,1fr));gap:1rem">
+      <div>
+        <h3>نوع رویداد</h3>
+        <ul>{% for row in event_type_counts %}<li>{{ row.event_type }}: {{ row.count }}</li>{% empty %}<li>بدون رویداد</li>{% endfor %}</ul>
+      </div>
+      <div>
+        <h3>ملک</h3>
+        <ul>{% for row in property_counts %}<li>{{ row.property_id }}: {{ row.count }}</li>{% empty %}<li>بدون رویداد</li>{% endfor %}</ul>
+      </div>
+      <div>
+        <h3>آگهی</h3>
+        <ul>{% for row in listing_counts %}<li>{{ row.listing_id }}: {{ row.count }}</li>{% empty %}<li>بدون رویداد</li>{% endfor %}</ul>
+      </div>
+      <div>
+        <h3>منبع</h3>
+        <ul>{% for row in source_counts %}<li>{{ row.source_id }}: {{ row.count }}</li>{% empty %}<li>بدون رویداد</li>{% endfor %}</ul>
+      </div>
+    </div>
+  </section>
+  {{ block.super }}
+{% endblock %}

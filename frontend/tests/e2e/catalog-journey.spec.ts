@@ -133,6 +133,11 @@ test("Operator publishes a curated Property that a Renter opens through SSR", as
   expect(html).toContain("آپارتمان در سعادت‌آباد");
   expect(html).toContain('rel="canonical"');
   expect(html).toContain('property="og:title"');
+  await page.getByRole("button", { name: "نمایش شماره تماس" }).click();
+  await expect(page.getByRole("alert")).toContainText(
+    "مسیر ادامه این آگهی در دسترس نیست",
+  );
+  await expect(page.getByRole("link", { name: /تماس با/ })).toHaveCount(0);
 
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto("/admin/catalog/source/add/");
@@ -219,8 +224,31 @@ test("Operator publishes a curated Property that a Renter opens through SSR", as
     "third-party.example/hotlink.jpg",
   );
   await expect(
-    externalComparison.getByRole("link", { name: "ادامه در منبع اصلی" }),
-  ).toHaveAttribute("href", "https://browser-source.example/listings/42");
+    externalComparison.getByRole("button", { name: "ادامه در منبع اصلی" }),
+  ).toBeVisible();
+  await page.route("https://browser-source.example/**", async (route) => {
+    await route.fulfill({ status: 200, body: "continued" });
+  });
+  const continuationResponse = page.waitForResponse(
+    (response) =>
+      response
+        .url()
+        .includes(`/catalog/listings/${externalListingId}/continuation/`) &&
+      response.request().method() === "POST",
+  );
+  await externalComparison
+    .getByRole("button", { name: "ادامه در منبع اصلی" })
+    .click();
+  expect((await continuationResponse).ok()).toBe(true);
+  await expect(page).toHaveURL("https://browser-source.example/listings/42");
+  await page.goto(
+    "/admin/catalog/productevent/?event_type__exact=external_continuation&period=7d",
+  );
+  await expect(
+    page.getByText("مجموع در بازه و فیلترهای انتخاب‌شده: 1"),
+  ).toBeVisible();
+  await expect(page.getByText(`${externalListingId}: 1`)).toBeVisible();
+  await expect(page.getByText(`${externalSourceId}: 1`)).toBeVisible();
 
   await page.goto(`/admin/catalog/listing/${externalListingId}/change/`);
   await page.locator("#id_property").selectOption(separatePropertyId!);
@@ -254,6 +282,6 @@ test("Operator publishes a curated Property that a Renter opens through SSR", as
   await page.goto(`/properties/${propertyId}/نشانی-قدیمی`);
   await expect(page.getByRole("article")).toHaveCount(1);
   await expect(
-    page.getByRole("link", { name: "ادامه در منبع اصلی" }),
+    page.getByRole("button", { name: "ادامه در منبع اصلی" }),
   ).toHaveCount(0);
 });

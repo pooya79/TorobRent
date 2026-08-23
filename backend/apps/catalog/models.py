@@ -343,6 +343,39 @@ class ListingImageVariant(models.Model):
         return f"{self.image_id}: {self.kind}"
 
 
+class ProductEventType(models.TextChoices):
+    PROPERTY_VIEW = "property_view", "بازدید ملک"
+    EXTERNAL_CONTINUATION = "external_continuation", "ادامه در منبع بیرونی"
+    PHONE_REVEAL = "phone_reveal", "نمایش شماره تماس"
+
+
+class ProductEvent(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    event_type = models.CharField(max_length=24, choices=ProductEventType)
+    property = models.ForeignKey(Property, on_delete=models.PROTECT, related_name="product_events")
+    listing = models.ForeignKey(
+        Listing,
+        on_delete=models.PROTECT,
+        related_name="product_events",
+        null=True,
+        blank=True,
+    )
+    source = models.ForeignKey(
+        Source,
+        on_delete=models.PROTECT,
+        related_name="product_events",
+        null=True,
+        blank=True,
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ("-created_at", "id")
+
+    def __str__(self) -> str:
+        return f"{self.get_event_type_display()}: {self.property_id}"
+
+
 class ListingGroupingAction(models.TextChoices):
     ATTACH = "attach", "اتصال"
     SPLIT = "split", "تفکیک"

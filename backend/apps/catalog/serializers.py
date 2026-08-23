@@ -200,6 +200,18 @@ class PropertyDetailSerializer(serializers.Serializer[Any]):
     listings = ListingPublicSerializer(many=True)
 
 
+class EventSessionSerializer(serializers.Serializer[Any]):
+    event_session = serializers.UUIDField()
+
+
+class PhoneRevealSerializer(serializers.Serializer[Any]):
+    phone = serializers.CharField()
+
+
+class ExternalContinuationSerializer(serializers.Serializer[Any]):
+    url = serializers.URLField()
+
+
 COMPARABLE_SOURCE_CLAIMS = (
     "property_type",
     "area_sqm",

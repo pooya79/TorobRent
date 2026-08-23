@@ -284,6 +284,66 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: Request was throttled
+  /api/v1/catalog/listings/{listing_id}/continuation/:
+    post:
+      operationId: v1_catalog_listings_continuation_create
+      summary: Resolve an Active Listing's external continuation
+      parameters:
+      - in: header
+        name: X-TorobRent-Event-Session
+        schema:
+          type: string
+          format: uuid
+        description: Ephemeral per-tab token used only for short-lived deduplication
+          and rate control
+        required: true
+      - in: path
+        name: listing_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExternalContinuation'
+          description: ''
+  /api/v1/catalog/listings/{listing_id}/phone-reveal/:
+    post:
+      operationId: v1_catalog_listings_phone_reveal_create
+      summary: Reveal the approved phone for an Active direct Listing
+      parameters:
+      - in: header
+        name: X-TorobRent-Event-Session
+        schema:
+          type: string
+          format: uuid
+        description: Ephemeral per-tab token used only for short-lived deduplication
+          and rate control
+        required: true
+      - in: path
+        name: listing_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PhoneReveal'
+          description: ''
   /api/v1/catalog/locations/:
     get:
       operationId: v1_catalog_locations_list
@@ -481,6 +541,32 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: No Property with an Active Listing was found
+  /api/v1/catalog/properties/{property_id}/view/:
+    post:
+      operationId: v1_catalog_properties_view_create
+      summary: Record a privacy-minimal Property view
+      parameters:
+      - in: header
+        name: X-TorobRent-Event-Session
+        schema:
+          type: string
+          format: uuid
+        description: Ephemeral per-tab token used only for short-lived deduplication
+          and rate control
+        required: true
+      - in: path
+        name: property_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - {}
+      responses:
+        '204':
+          description: No response body
   /api/v1/operator/submissions/:
     get:
       operationId: v1_operator_submissions_list
@@ -1113,6 +1199,14 @@ components:
           type: string
       required:
       - detail
+    ExternalContinuation:
+      type: object
+      properties:
+        url:
+          type: string
+          format: uri
+      required:
+      - url
     FeatureStateEnum:
       enum:
       - unknown
@@ -1476,6 +1570,13 @@ components:
           $ref: '#/components/schemas/ContactInput'
         review:
           $ref: '#/components/schemas/ReviewInput'
+    PhoneReveal:
+      type: object
+      properties:
+        phone:
+          type: string
+      required:
+      - phone
     Problem:
       type: object
       properties:

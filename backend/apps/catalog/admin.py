@@ -5,7 +5,7 @@ from django import forms
 from django.contrib import admin, messages
 from django.contrib.admin.helpers import ActionForm
 from django.core.exceptions import ValidationError
-from django.db.models import Q, QuerySet
+from django.db.models import Count, Q, QuerySet
 from django.http import HttpRequest
 from django.utils import timezone
 from django.utils.translation import ngettext
@@ -17,6 +17,7 @@ from .models import (
     ListingGroupingEvent,
     ListingState,
     Neighborhood,
+    ProductEvent,
     Property,
     RentalTerms,
     Source,
@@ -66,6 +67,29 @@ class AvailabilityStatusFilter(admin.SimpleListFilter):
         if self.value() == "archived":
             return queryset.filter(state=ListingState.ARCHIVED)
         return queryset
+
+
+class EventPeriodFilter(admin.SimpleListFilter):
+    title = "بازه زمانی (پیش‌فرض ۷ روز)"
+    parameter_name = "period"
+
+    def lookups(
+        self, request: HttpRequest, model_admin: admin.ModelAdmin[Any]
+    ) -> tuple[tuple[str, str], ...]:
+        return (("24h", "۲۴ ساعت"), ("7d", "۷ روز"), ("30d", "۳۰ روز"))
+
+    def queryset(
+        self, request: HttpRequest, queryset: QuerySet[ProductEvent]
+    ) -> QuerySet[ProductEvent]:
+        selected_period = self.value() or "7d"
+        duration = {
+            "24h": timedelta(hours=24),
+            "7d": timedelta(days=7),
+            "30d": timedelta(days=30),
+        }.get(selected_period)
+        if duration is None:
+            return queryset
+        return queryset.filter(created_at__gte=timezone.now() - duration)
 
 
 def parse_toman(value: str) -> int:
@@ -362,3 +386,55 @@ class ListingGroupingEventAdmin(admin.ModelAdmin):  # type: ignore[type-arg]
 
     def has_delete_permission(self, request: HttpRequest, obj: Any = None) -> bool:
         return False
+
+
+@admin.register(ProductEvent)
+class ProductEventAdmin(admin.ModelAdmin):  # type: ignore[type-arg]
+    change_list_template = "admin/catalog/productevent/change_list.html"
+    list_display = ("created_at", "event_type", "property", "listing", "source")
+    list_filter = (EventPeriodFilter, "event_type", "property", "listing", "source")
+    date_hierarchy = "created_at"
+    readonly_fields = ("id", "created_at", "event_type", "property", "listing", "source")
+
+    def has_add_permission(self, request: HttpRequest) -> bool:
+        return False
+
+    def has_change_permission(self, request: HttpRequest, obj: Any = None) -> bool:
+        return False
+
+    def has_delete_permission(self, request: HttpRequest, obj: Any = None) -> bool:
+        return False
+
+    def changelist_view(
+        self,
+        request: HttpRequest,
+        extra_context: dict[str, Any] | None = None,
+    ) -> Any:
+        response = super().changelist_view(request, extra_context=extra_context)
+        if not hasattr(response, "context_data"):
+            return response
+        queryset = response.context_data["cl"].queryset
+        response.context_data.update(
+            event_total=queryset.count(),
+            event_type_counts=list(
+                queryset.values("event_type").annotate(count=Count("id")).order_by("event_type")
+            ),
+            property_counts=list(
+                queryset.values("property_id").annotate(count=Count("id")).order_by("property_id")
+            ),
+            listing_counts=list(
+                queryset
+                .exclude(listing_id=None)
+                .values("listing_id")
+                .annotate(count=Count("id"))
+                .order_by("listing_id")
+            ),
+            source_counts=list(
+                queryset
+                .exclude(source_id=None)
+                .values("source_id")
+                .annotate(count=Count("id"))
+                .order_by("source_id")
+            ),
+        )
+        return response

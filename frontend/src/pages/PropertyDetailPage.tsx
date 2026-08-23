@@ -1,13 +1,20 @@
+import { useEffect, useState } from "react";
 import { ArrowRight, Building2, Clock3, MapPin } from "lucide-react";
 
 import { PageMain } from "@/components/layout/PageMain";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import {
+  recordPropertyView,
+  resolveExternalContinuation,
+  revealListingPhone,
+} from "@/features/catalog/continuation";
 import type { components } from "@/lib/api/schema";
 
 type PropertyDetail = components["schemas"]["PropertyDetail"];
 type FeatureState = components["schemas"]["FeatureStateEnum"];
+type Listing = PropertyDetail["listings"][number];
 
 const featureLabels = {
   parking: "پارکینگ",
@@ -61,13 +68,85 @@ function formatClaimValue(value: unknown) {
   return JSON.stringify(value) ?? "ثبت نشده";
 }
 
+function ListingContinuation({
+  listing,
+  onNavigateExternal,
+}: {
+  listing: Listing;
+  onNavigateExternal: (url: string) => void;
+}) {
+  const [phone, setPhone] = useState<string>();
+  const [pending, setPending] = useState(false);
+  const [failed, setFailed] = useState(false);
+
+  const revealPhone = async () => {
+    setPending(true);
+    setFailed(false);
+    try {
+      setPhone(await revealListingPhone(listing.id));
+    } catch {
+      setFailed(true);
+    } finally {
+      setPending(false);
+    }
+  };
+
+  const continueExternally = async () => {
+    setPending(true);
+    setFailed(false);
+    try {
+      onNavigateExternal(await resolveExternalContinuation(listing.id));
+    } catch {
+      setFailed(true);
+      setPending(false);
+    }
+  };
+
+  return (
+    <div className="space-y-2">
+      {listing.source.outbound_policy === "direct_contact" &&
+        (phone ? (
+          <a
+            className="text-primary inline-flex min-h-11 items-center font-semibold"
+            href={`tel:${phone}`}
+          >
+            تماس با {phone}
+          </a>
+        ) : (
+          <Button disabled={pending} onClick={() => void revealPhone()}>
+            {pending ? "در حال دریافت شماره…" : "نمایش شماره تماس"}
+          </Button>
+        ))}
+      {listing.source.outbound_policy === "external_link" && (
+        <Button
+          disabled={pending}
+          onClick={() => void continueExternally()}
+          variant="link"
+        >
+          {pending ? "در حال انتقال…" : "ادامه در منبع اصلی"}
+        </Button>
+      )}
+      {failed && (
+        <p className="text-destructive text-sm" role="alert">
+          مسیر ادامه این آگهی در دسترس نیست. دوباره تلاش کنید.
+        </p>
+      )}
+    </div>
+  );
+}
+
 export function PropertyDetailPage({
   property,
   returnTo,
+  onNavigateExternal = (url) => window.location.assign(url),
 }: {
   property: PropertyDetail;
   returnTo?: string | null;
+  onNavigateExternal?: (url: string) => void;
 }) {
+  useEffect(() => {
+    void recordPropertyView(property.id).catch(() => undefined);
+  }, [property.id]);
   const safeReturnTo = returnTo?.startsWith("/search") ? returnTo : "/search";
   const location = [
     property.location.city,
@@ -197,16 +276,10 @@ export function PropertyDetailPage({
                         {formatFreshness(listing.availability_confirmed_at)}
                       </time>
                     </p>
-                    {listing.source.outbound_policy === "external_link" &&
-                      listing.continuation_url && (
-                        <a
-                          className="text-primary inline-flex min-h-11 items-center font-semibold"
-                          href={listing.continuation_url}
-                          rel="noopener noreferrer"
-                        >
-                          ادامه در منبع اصلی
-                        </a>
-                      )}
+                    <ListingContinuation
+                      listing={listing}
+                      onNavigateExternal={onNavigateExternal}
+                    />
                   </CardContent>
                 </article>
               </Card>
