@@ -6,6 +6,8 @@
 **/.mypy_cache
 **/.ruff_cache
 frontend/node_modules
+frontend/.lighthouseci
+frontend/.pnpm-store
 frontend/dist
 frontend/build
 frontend/.react-router

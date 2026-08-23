@@ -18,6 +18,10 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
+    "test:e2e:chromium": "playwright test --project=chromium",
+    "test:e2e:milestone": "playwright test --grep @milestone",
+    "test:a11y": "playwright test tests/e2e/accessibility.spec.ts --project=chromium",
+    "test:lighthouse": "pnpm build && lhci autorun",
     "test:e2e:compose": "E2E_BASE_URL=http://localhost:5173 E2E_MAILPIT_URL=http://localhost:8025 playwright test",
     "capture:design": "CAPTURE_DESIGN=1 playwright test --grep @visual",
     "style:guard": "node scripts/check-no-semantic-css.mjs",
@@ -50,7 +54,9 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
     "@eslint/js": "^10.0.1",
+    "@lhci/cli": "^0.15.1",
     "@playwright/test": "^1.62.1",
     "@react-router/dev": "^8.3.0",
     "@redocly/cli": "^2.46.2",
@@ -62,6 +68,7 @@
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
     "@vitejs/plugin-react": "^6.1.0",
+    "concurrently": "^10.0.5",
     "eslint": "^10.8.1",
     "eslint-plugin-react-hooks": "^7.1.1",
     "globals": "^17.11.0",

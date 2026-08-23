@@ -5,7 +5,7 @@ const operatorEmail = process.env.E2E_OPERATOR_EMAIL ?? "operator@example.com";
 const operatorPassword =
   process.env.E2E_OPERATOR_PASSWORD ?? "operator-password";
 
-test("Operator publishes a curated Property that a Renter opens through SSR", async ({
+test("@milestone Operator publishes a curated Property that a Renter opens through SSR", async ({
   page,
   request,
 }) => {

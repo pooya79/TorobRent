@@ -1,4 +1,4 @@
-.PHONY: bootstrap dev prod prod-down demo demo-down demo-reset demo-clean test-demo infra-up infra-down migrate makemigrations superuser api-schema api-client api-check test test-backend test-frontend lint format format-check typecheck build check docker-build
+.PHONY: bootstrap dev prod prod-down demo demo-down demo-reset demo-clean test-demo test-milestone infra-up infra-down migrate makemigrations superuser api-schema api-client api-check test test-backend test-frontend lint format format-check typecheck build check docker-build
 
 DEMO_COMPOSE = docker compose -p torobrent-demo --env-file .env.demo -f compose.demo.yaml
 
@@ -43,6 +43,11 @@ demo-clean: .env.demo
 
 test-demo:
 	./scripts/demo-smoke.sh
+
+test-milestone: check
+	cd frontend && pnpm test:e2e:milestone
+	cd frontend && pnpm test:lighthouse
+	$(MAKE) test-demo
 
 infra-up:
 	docker compose up -d postgres redis

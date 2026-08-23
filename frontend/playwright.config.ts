@@ -6,6 +6,7 @@ const baseURL = externalBaseUrl ?? `http://127.0.0.1:${frontendPort}`;
 const backendPort = process.env.E2E_BACKEND_PORT ?? "8010";
 const backendUrl = `http://127.0.0.1:${backendPort}`;
 const isolatedDatabaseUrl = `sqlite:////tmp/torobrent-playwright-${backendPort}-${process.pid}.sqlite3`;
+const chromiumExecutable = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH;
 
 export default defineConfig({
   testDir: "./tests/e2e",
@@ -14,10 +15,26 @@ export default defineConfig({
   use: {
     baseURL,
     trace: "on-first-retry",
-    launchOptions: {
-      executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH,
-    },
   },
+  projects: [
+    {
+      name: "chromium",
+      use: {
+        browserName: "chromium",
+        launchOptions: { executablePath: chromiumExecutable },
+      },
+    },
+    {
+      name: "firefox",
+      grep: /@cross-browser/,
+      use: { browserName: "firefox" },
+    },
+    {
+      name: "webkit",
+      grep: /@cross-browser/,
+      use: { browserName: "webkit" },
+    },
+  ],
   webServer: externalBaseUrl
     ? undefined
     : [

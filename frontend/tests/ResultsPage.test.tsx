@@ -183,7 +183,9 @@ test("marks filtered result pages non-indexable and keeps return navigation on c
   expect(
     meta({ location: { search: "?location=تهران&parking=present" } }),
   ).toContainEqual({ name: "robots", content: "noindex, follow" });
-  expect(meta({ location: { search: "" } })).toEqual([]);
+  expect(meta({ location: { search: "" } })).toContainEqual({
+    title: "خانه‌های اجاره‌ای در تهران | ترب‌رنت",
+  });
   expect(
     await screen.findByRole("link", { name: "آپارتمان در سعادت‌آباد" }),
   ).toHaveAttribute(

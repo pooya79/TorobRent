@@ -5,7 +5,9 @@ import pytest
 from django.contrib import admin
 from django.core.exceptions import ValidationError
 from django.core.management import call_command
+from django.db import connection
 from django.test import Client
+from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
 from rest_framework.test import APIClient
 
@@ -30,6 +32,28 @@ from apps.catalog.services import (
     regroup_listing,
     split_listing,
 )
+
+
+@pytest.mark.django_db
+def test_public_catalog_query_count_is_bounded_for_representative_demo_fixture(
+    api_client: APIClient,
+):
+    call_command("seed_demo", verbosity=0)
+
+    with CaptureQueriesContext(connection) as search_queries:
+        search_response = api_client.get(
+            "/api/v1/catalog/properties/",
+            {"property_type": "apartment", "ordering": "monthly_rent"},
+        )
+
+    property_id = search_response.data["results"][0]["id"]
+    with CaptureQueriesContext(connection) as detail_queries:
+        detail_response = api_client.get(f"/api/v1/catalog/properties/{property_id}/")
+
+    assert search_response.status_code == 200
+    assert detail_response.status_code == 200
+    assert len(search_queries) <= 2
+    assert len(detail_queries) <= 2
 
 
 @pytest.mark.django_db

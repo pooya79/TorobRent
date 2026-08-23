@@ -97,6 +97,10 @@ make test-demo
 The smoke verifies an idempotent seed, both persona passwords, database and media persistence over
 a full down/up cycle, and deterministic restoration after a volume-scoped reset.
 
+The complete quality, supported-browser, accessibility, performance, query-bound, and lifecycle
+evidence is mapped in [Milestone validation](validation.md). Run `make test-milestone` to execute the
+whole local release gate; it is intentionally slower than the normal development checks.
+
 ## Clean uninstall
 
 `make demo-clean` is destructive. It removes only `torobrent-demo` containers, network, named

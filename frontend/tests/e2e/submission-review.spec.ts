@@ -119,7 +119,7 @@ async function submitFromReview(page: Page, submissionId: string) {
   ).toBeVisible();
 }
 
-test("browser covers changes, resubmit, reject, group, publish, and public visibility", async ({
+test("@milestone browser covers changes, resubmit, reject, group, publish, and public visibility", async ({
   page,
 }) => {
   test.setTimeout(120_000);
@@ -201,6 +201,9 @@ test("browser covers changes, resubmit, reject, group, publish, and public visib
   await page.getByRole("button", { name: "رد Submission" }).click();
   expect((await rejection).ok()).toBe(true);
   await page.goto("/dashboard");
+  await expect(
+    page.getByRole("heading", { name: "آگهی‌های من" }),
+  ).toBeVisible();
   await expect(
     page.getByRole("alert").getByText("محتوای نامعتبر"),
   ).toBeVisible();

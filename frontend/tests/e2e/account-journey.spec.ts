@@ -6,7 +6,7 @@ import path from "node:path";
 const mailpitAvailable = Boolean(process.env.E2E_MAILPIT_URL);
 const mailpitUrl = process.env.E2E_MAILPIT_URL ?? "http://localhost:8025";
 
-test("registers, verifies through Mailpit, logs in, and enters protected navigation", async ({
+test("@milestone registers, verifies through Mailpit, logs in, and enters protected navigation", async ({
   page,
   request,
 }) => {

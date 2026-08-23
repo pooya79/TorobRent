@@ -12,13 +12,6 @@ import { Link, useNavigate } from "react-router";
 import { PropertyCard } from "@/components/properties/PropertyCard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { prototypeRepository } from "@/features/prototype/fixtures";
 import { locationAutocompleteQueryOptions } from "@/features/catalog/queries";
 
@@ -137,16 +130,22 @@ export function HomePage() {
               aria-hidden="true"
             />
             <span className="min-w-0 flex-1 text-start">
-              <span className="block text-xs font-semibold">نوع ملک</span>
-              <Select name="property_type">
-                <SelectTrigger className="h-auto w-full border-0 p-0 text-sm shadow-none focus:ring-0">
-                  <SelectValue placeholder="همه ملک‌ها" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="apartment">آپارتمان</SelectItem>
-                  <SelectItem value="house">خانه</SelectItem>
-                </SelectContent>
-              </Select>
+              <span
+                className="block text-xs font-semibold"
+                id="property-type-label"
+              >
+                نوع ملک
+              </span>
+              <select
+                aria-labelledby="property-type-label"
+                className="text-muted-foreground h-7 w-full border-0 bg-transparent p-0 text-sm focus:outline-none"
+                name="property_type"
+                defaultValue=""
+              >
+                <option value="">همه ملک‌ها</option>
+                <option value="apartment">آپارتمان</option>
+                <option value="house">خانه</option>
+              </select>
             </span>
           </label>
           <Button className="min-h-15 rounded-full px-7" type="submit">

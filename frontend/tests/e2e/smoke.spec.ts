@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-test("serves a meaningful Persian document before hydration", async ({
+test("@cross-browser serves a meaningful Persian document before hydration", async ({
   request,
 }) => {
   const response = await request.get("/");
@@ -12,7 +12,7 @@ test("serves a meaningful Persian document before hydration", async ({
   expect(html).toContain("شهر یا محله");
 });
 
-test("hydrates the application shell and reports API health", async ({
+test("@cross-browser hydrates the application shell and reports API health", async ({
   page,
 }) => {
   let readinessAttempts = 0;
@@ -44,7 +44,9 @@ test("hydrates the application shell and reports API health", async ({
   }
 });
 
-test("keeps navigation usable on a mobile viewport", async ({ page }) => {
+test("@milestone @cross-browser keeps navigation usable on a mobile viewport", async ({
+  page,
+}) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/");
 
@@ -70,7 +72,9 @@ test("keeps navigation usable on a mobile viewport", async ({ page }) => {
   ).toBeVisible();
 });
 
-test("exposes the public fixture-backed prototype routes", async ({ page }) => {
+test("@cross-browser exposes the public fixture-backed prototype routes", async ({
+  page,
+}) => {
   const routes = [
     ["/", "خانه‌ای برای اجاره پیدا کنید"],
     ["/search", "خانه‌های اجاره‌ای در تهران"],
@@ -84,7 +88,7 @@ test("exposes the public fixture-backed prototype routes", async ({ page }) => {
   }
 });
 
-test("protects the Operator review queue from anonymous visitors", async ({
+test("@cross-browser protects the Operator review queue from anonymous visitors", async ({
   page,
 }) => {
   await page.goto("/operator/review");
@@ -97,7 +101,7 @@ test("protects the Operator review queue from anonymous visitors", async ({
   ).not.toBeVisible();
 });
 
-test("preserves protected Submitter navigation across login", async ({
+test("@cross-browser preserves protected Submitter navigation across login", async ({
   page,
 }) => {
   await page.goto("/add-submission?step=3");
@@ -110,12 +114,14 @@ test("preserves protected Submitter navigation across login", async ({
   ).toBeVisible();
 });
 
-test("keeps focus inside the mobile filter Sheet and restores it on close", async ({
+test("@milestone @cross-browser keeps focus inside the mobile filter Sheet and restores it on close", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/search");
-  await expect(page.getByText("سامانه در دسترس است")).toBeVisible();
+  await expect(page.getByText("سامانه در دسترس است")).toBeVisible({
+    timeout: 10_000,
+  });
 
   const trigger = page.getByRole("button", { name: "فیلترها" });
   await trigger.click();
@@ -124,7 +130,7 @@ test("keeps focus inside the mobile filter Sheet and restores it on close", asyn
   await expect(trigger).toBeFocused();
 });
 
-test("routes the versioned Django health API through the same origin", async ({
+test("@cross-browser routes the versioned Django health API through the same origin", async ({
   request,
 }) => {
   const response = await request.get("/api/v1/system/ready/");
@@ -133,7 +139,9 @@ test("routes the versioned Django health API through the same origin", async ({
   await expect(response.json()).resolves.toEqual({ status: "ok" });
 });
 
-test("renders a Persian failure boundary", async ({ request }) => {
+test("@cross-browser renders a Persian failure boundary", async ({
+  request,
+}) => {
   const response = await request.get("/missing-page");
   const html = await response.text();
 

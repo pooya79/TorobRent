@@ -52,9 +52,16 @@ function formatFreshness(value: string) {
 }
 
 export function meta({ location }: { location?: { search: string } } = {}) {
-  return location?.search
-    ? [{ name: "robots", content: "noindex, follow" }]
-    : [];
+  return [
+    { title: "خانه‌های اجاره‌ای در تهران | ترب‌رنت" },
+    {
+      name: "description",
+      content: "جست‌وجو، فیلتر و مقایسه آگهی‌های اجاره خانه در تهران.",
+    },
+    ...(location?.search
+      ? [{ name: "robots", content: "noindex, follow" }]
+      : []),
+  ];
 }
 
 function toCardData(
