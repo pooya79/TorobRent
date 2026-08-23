@@ -1,5 +1,6 @@
 .env
 .env.production
+.env.demo
 .venv/
 __pycache__/
 *.py[cod]

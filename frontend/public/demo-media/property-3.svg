@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800" role="img" aria-labelledby="title description">
+  <title id="title">تصویر نمایشی ویلا</title>
+  <desc id="description">جای‌نگهدار ساختگی برای نسخه نمایشی TorobRent</desc>
+  <rect width="1200" height="800" fill="#e9edf7"/>
+  <path d="M130 680h940M250 680V400l350-230 350 230v280z" fill="#fff" stroke="#354f7d" stroke-width="28"/>
+  <path d="M500 680V500h200v180M330 430h100v100H330zm440 0h100v100H770z" fill="#cad7ef" stroke="#354f7d" stroke-width="18"/>
+</svg>
