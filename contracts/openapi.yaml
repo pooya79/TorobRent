@@ -567,6 +567,52 @@ paths:
       responses:
         '204':
           description: No response body
+  /api/v1/contact/messages/:
+    post:
+      operationId: v1_contact_messages_create
+      summary: Send a message to TorobRent Operators
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ContactMessageCreate'
+        required: true
+      security:
+      - cookieAuth: []
+      - {}
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContactMessageCreated'
+          description: ''
+        '400':
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Request validation failed
+        '403':
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Authentication or CSRF verification failed
+        '415':
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Only JSON request bodies are supported
+        '429':
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Request was throttled
   /api/v1/operator/submissions/:
     get:
       operationId: v1_operator_submissions_list
@@ -1153,6 +1199,48 @@ components:
       - name
       - phone
       - phone_publication_consent
+    ContactMessageCreate:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 120
+        email:
+          type: string
+          format: email
+          maxLength: 254
+        kind:
+          $ref: '#/components/schemas/ContactMessageCreateKindEnum'
+        message:
+          type: string
+          maxLength: 4000
+          minLength: 10
+        website:
+          type: string
+          writeOnly: true
+          title: وب‌سایت
+      required:
+      - email
+      - kind
+      - message
+      - name
+    ContactMessageCreateKindEnum:
+      enum:
+      - general
+      - account_deletion
+      - public_contact_removal
+      type: string
+      description: |-
+        * `general` - راهنمایی و پرسش
+        * `account_deletion` - درخواست حذف حساب
+        * `public_contact_removal` - حذف فوری اطلاعات تماس عمومی
+    ContactMessageCreated:
+      type: object
+      properties:
+        detail:
+          type: string
+      required:
+      - detail
     ContactOutput:
       type: object
       properties:

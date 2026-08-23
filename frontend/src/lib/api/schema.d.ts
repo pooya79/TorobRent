@@ -225,6 +225,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/v1/contact/messages/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Send a message to TorobRent Operators */
+    post: operations["v1_contact_messages_create"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/v1/operator/submissions/": {
     parameters: {
       query?: never;
@@ -552,6 +569,26 @@ export interface components {
       phone: string;
       authorization_declared: boolean;
       phone_publication_consent: boolean;
+    };
+    ContactMessageCreate: {
+      name: string;
+      /** Format: email */
+      email: string;
+      kind: components["schemas"]["ContactMessageCreateKindEnum"];
+      message: string;
+      /** وب‌سایت */
+      website?: string;
+    };
+    /**
+     * @description * `general` - راهنمایی و پرسش
+     *     * `account_deletion` - درخواست حذف حساب
+     *     * `public_contact_removal` - حذف فوری اطلاعات تماس عمومی
+     * @enum {string}
+     */
+    ContactMessageCreateKindEnum:
+      "general" | "account_deletion" | "public_contact_removal";
+    ContactMessageCreated: {
+      detail: string;
     };
     ContactOutput: {
       name: string;
@@ -1562,6 +1599,65 @@ export interface operations {
           [name: string]: unknown;
         };
         content?: never;
+      };
+    };
+  };
+  v1_contact_messages_create: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ContactMessageCreate"];
+      };
+    };
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ContactMessageCreated"];
+        };
+      };
+      /** @description Request validation failed */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+      /** @description Authentication or CSRF verification failed */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+      /** @description Only JSON request bodies are supported */
+      415: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+      /** @description Request was throttled */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
       };
     };
   };
