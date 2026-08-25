@@ -23,8 +23,16 @@ A Submitter who asserts that they are authorized to advertise a Property on an o
 _Avoid_: Broker, realtor
 
 **Operator**:
-A TorobRent staff member who reviews submitted rental information and controls its publication.
+A verified account holder entrusted with one or more operational responsibilities, such as
+performing Submission Reviews, maintaining published rental information, overseeing Link
+Verification, or handling Support Requests. An Operator may also be a Submitter but cannot decide
+their own work.
 _Avoid_: Admin, moderator
+
+**Operator Capability**:
+An independently grantable operational responsibility. An account holder is an Operator when they
+hold at least one Operator Capability; access to Django administration is separate.
+_Avoid_: Operator type, Django staff status
 
 ## Rental catalog
 
@@ -57,6 +65,21 @@ A Submitter's assertion that an unchanged Listing remains available, extending i
 without proposing new rental information.
 _Avoid_: Resubmission, reminder
 
+**Submission Review**:
+An Operator's evaluation of a Submission, resulting in a request for changes, rejection, or
+approval and publication. It is distinct from an Availability Confirmation.
+_Avoid_: Product confirmation, confirmation
+
+**Review Claim**:
+A time-limited assignment giving one Operator responsibility for a Submission Review while leaving
+the final decision subject to concurrency checks.
+_Avoid_: Lock, ownership
+
+**Link Verification**:
+An assessment of whether an external Listing route satisfies TorobRent's link criteria. It is
+distinct from an Availability Confirmation and may be performed manually or automatically.
+_Avoid_: Link confirmation
+
 **Rental Terms**:
 The deposit and monthly-rent amounts advertised together by one Listing. The two amounts remain a
 pair when filtering, sorting, and comparing Listings.
@@ -66,3 +89,20 @@ _Avoid_: Price, property price
 An explicit assertion that a Property feature is present or absent, or an acknowledgement that the
 feature is unknown. Missing source information is not treated as absence.
 _Avoid_: Boolean feature
+
+## Support
+
+**Support Request**:
+A person's request for guidance, account assistance, or a privacy-related action. A Support Request
+is handled by one Operator at a time and retains its operational history.
+_Avoid_: Contact message, ticket
+
+**Intake Kind**:
+The requester's description of why they opened a Support Request. It guides initial routing but is
+not an authoritative assessment of the request.
+_Avoid_: Classification
+
+**Support Classification**:
+An Operator's authoritative categorization of a Support Request, controlling its workflow and
+privacy boundary. A Support Classification may differ from the requester's Intake Kind.
+_Avoid_: Intake kind, request type
