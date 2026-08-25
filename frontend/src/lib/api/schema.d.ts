@@ -619,6 +619,16 @@ export interface components {
       | "images"
       | "contact"
       | "review";
+    CurrentUser: {
+      /** Format: uuid */
+      readonly id: string;
+      /** Format: email */
+      readonly email: string;
+      readonly first_name: string;
+      readonly last_name: string;
+      readonly email_verified: boolean;
+      readonly operator_capabilities: components["schemas"]["OperatorCapabilitiesEnum"][];
+    };
     Detail: {
       detail: string;
     };
@@ -746,6 +756,18 @@ export interface components {
       furnished?: components["schemas"]["FeatureStateEnum"];
       operator_location_notes?: string;
     };
+    /**
+     * @description * `handle_privacy_requests` - Privacy Support handling
+     *     * `handle_support` - General Support handling
+     *     * `manage_operator_queues` - Operator queue management
+     *     * `review_submissions` - Submission Review
+     * @enum {string}
+     */
+    OperatorCapabilitiesEnum:
+      | "handle_privacy_requests"
+      | "handle_support"
+      | "manage_operator_queues"
+      | "review_submissions";
     /**
      * @description * `direct_contact` - تماس مستقیم
      *     * `external_link` - پیوند منبع
@@ -2119,7 +2141,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["User"];
+          "application/json": components["schemas"]["CurrentUser"];
         };
       };
       /** @description Authentication is required */

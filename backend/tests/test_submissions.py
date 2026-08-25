@@ -8,6 +8,7 @@ from asgiref.sync import async_to_sync
 from django.apps import apps as django_apps
 from django.conf import settings
 from django.contrib import admin
+from django.contrib.auth.models import Permission
 from django.core.files.storage import FileSystemStorage, default_storage
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db import IntegrityError, transaction
@@ -756,7 +757,7 @@ def test_media_asset_backfill_deduplicates_legacy_shared_files():
 
 
 @pytest.mark.django_db(transaction=True)
-def test_unapproved_image_content_is_limited_to_its_submitter_and_operators(
+def test_unapproved_image_content_is_limited_to_its_submitter_and_submission_reviewers(
     api_client: APIClient,
 ):
     submitter = User.objects.create_user(
@@ -781,12 +782,26 @@ def test_unapproved_image_content_is_limited_to_its_submitter_and_operators(
     api_client.force_authenticate(other)
     assert api_client.get(content_url).status_code == 404
 
-    operator = User.objects.create_user(
-        email="operator-media@example.com",
+    generic_staff = User.objects.create_user(
+        email="staff-media@example.com",
         password="correct-horse-battery",
         is_staff=True,
     )
-    api_client.force_authenticate(operator)
+    api_client.force_authenticate(generic_staff)
+    assert api_client.get(content_url).status_code == 404
+
+    reviewer = User.objects.create_user(
+        email="reviewer-media@example.com",
+        password="correct-horse-battery",
+        email_verified_at=timezone.now(),
+    )
+    reviewer.user_permissions.add(
+        Permission.objects.get(
+            content_type__app_label="submissions",
+            codename="review_submission",
+        )
+    )
+    api_client.force_authenticate(reviewer)
     assert api_client.get(content_url).status_code == 200
 
     api_client.force_authenticate(user=None)

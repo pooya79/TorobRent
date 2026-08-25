@@ -1131,7 +1131,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/User'
+                $ref: '#/components/schemas/CurrentUser'
           description: ''
         '401':
           content:
@@ -1280,6 +1280,38 @@ components:
         * `images` - تصاویر
         * `contact` - اطلاعات تماس
         * `review` - بازبینی
+    CurrentUser:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        email:
+          type: string
+          format: email
+          readOnly: true
+        first_name:
+          type: string
+          readOnly: true
+        last_name:
+          type: string
+          readOnly: true
+        email_verified:
+          type: boolean
+          readOnly: true
+        operator_capabilities:
+          type: array
+          items:
+            $ref: '#/components/schemas/OperatorCapabilitiesEnum'
+          readOnly: true
+      required:
+      - email
+      - email_verified
+      - first_name
+      - id
+      - last_name
+      - operator_capabilities
     Detail:
       type: object
       properties:
@@ -1569,6 +1601,18 @@ components:
           $ref: '#/components/schemas/FeatureStateEnum'
         operator_location_notes:
           type: string
+    OperatorCapabilitiesEnum:
+      enum:
+      - handle_privacy_requests
+      - handle_support
+      - manage_operator_queues
+      - review_submissions
+      type: string
+      description: |-
+        * `handle_privacy_requests` - Privacy Support handling
+        * `handle_support` - General Support handling
+        * `manage_operator_queues` - Operator queue management
+        * `review_submissions` - Submission Review
     OutboundPolicyEnum:
       enum:
       - direct_contact

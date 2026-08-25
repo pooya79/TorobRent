@@ -16,6 +16,7 @@ from apps.common.serializers import ProblemSerializer
 
 from .models import User
 from .serializers import (
+    CurrentUserSerializer,
     DetailSerializer,
     LoginSerializer,
     PasswordResetConfirmSerializer,
@@ -73,14 +74,14 @@ class CurrentUserView(APIView):
     @extend_schema(
         summary="Get the current user",
         responses={
-            200: UserSerializer,
+            200: CurrentUserSerializer,
             (401, "application/problem+json"): OpenApiResponse(
                 response=ProblemSerializer, description="Authentication is required"
             ),
         },
     )
     def get(self, request: Request) -> Response:
-        return Response(UserSerializer(cast(User, request.user)).data)
+        return Response(CurrentUserSerializer(cast(User, request.user)).data)
 
 
 @method_decorator(csrf_protect, name="dispatch")

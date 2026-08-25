@@ -4,6 +4,7 @@ import {
   Meta,
   Scripts,
   ScrollRestoration,
+  useLocation,
 } from "react-router";
 
 import { AppProviders } from "@/app/AppProviders";
@@ -66,11 +67,15 @@ export function Layout({ children }: { children: React.ReactNode }) {
 }
 
 export default function App() {
+  const { pathname } = useLocation();
+  const routeContent = <RouteFocus />;
   return (
     <AppProviders>
-      <ProductShell>
-        <RouteFocus />
-      </ProductShell>
+      {pathname === "/operator" || pathname.startsWith("/operator/") ? (
+        routeContent
+      ) : (
+        <ProductShell>{routeContent}</ProductShell>
+      )}
     </AppProviders>
   );
 }

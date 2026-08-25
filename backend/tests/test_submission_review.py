@@ -44,7 +44,11 @@ def review_permission() -> Permission:
 
 
 def make_operator(*, email: str = "operator@example.com", permitted: bool = True) -> User:
-    operator = User.objects.create_user(email=email, password="password", is_staff=True)
+    operator = User.objects.create_user(
+        email=email,
+        password="password",
+        email_verified_at=timezone.now(),
+    )
     if permitted:
         operator.user_permissions.add(review_permission())
     return operator
@@ -349,6 +353,56 @@ def test_operator_queue_filters_state_source_location_and_freshness(api_client: 
     assert response.status_code == 200
     assert [item["id"] for item in response.data] == [str(pending.id)]
     assert str(other.id) not in {item["id"] for item in response.data}
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    ("email_verified", "is_active"),
+    [(False, True), (True, False)],
+)
+def test_submission_review_requires_an_active_verified_operator(
+    api_client: APIClient,
+    email_verified: bool,
+    is_active: bool,
+):
+    operator = User.objects.create_user(
+        email="restricted-operator@example.com",
+        password="password",
+        email_verified_at=timezone.now() if email_verified else None,
+        is_active=is_active,
+    )
+    operator.user_permissions.add(review_permission())
+    api_client.force_authenticate(operator)
+
+    response = api_client.get("/api/v1/operator/submissions/")
+
+    assert response.status_code == 403
+
+
+@pytest.mark.django_db
+def test_operator_cannot_see_or_decide_their_own_submission(api_client: APIClient):
+    submission = make_complete_submission(email="dual-role@example.com")
+    submit_for_review(submission=submission, actor=submission.submitter)
+    submission.submitter.user_permissions.add(review_permission())
+    api_client.force_authenticate(submission.submitter)
+
+    queue = api_client.get("/api/v1/operator/submissions/")
+    decision = api_client.post(
+        f"/api/v1/operator/submissions/{submission.id}/reject/",
+        {"reason": "self review"},
+        format="json",
+    )
+
+    assert queue.status_code == 200
+    assert str(submission.id) not in {item["id"] for item in queue.data}
+    assert decision.status_code == 404
+
+    with pytest.raises(ValidationError, match="own Submission"):
+        reject_submission(
+            submission=submission,
+            actor=submission.submitter,
+            reason="self review",
+        )
 
 
 @pytest.mark.django_db(transaction=True)

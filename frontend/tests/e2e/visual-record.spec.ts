@@ -6,7 +6,7 @@ const routes = [
   ["property-detail", "/properties/saadat-abad-101"],
   ["add-listing", "/add-submission"],
   ["submitter-dashboard", "/dashboard"],
-  ["operator-review", "/operator/review"],
+  ["operator-review", "/operator/submissions"],
 ] as const;
 
 for (const [name, path] of routes) {

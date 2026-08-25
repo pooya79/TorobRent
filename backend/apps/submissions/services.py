@@ -236,9 +236,15 @@ def _apply_submission_step_update(
     submission.save()
 
 
+def ensure_operator_is_not_submitter(*, submission: Submission, actor: User) -> None:
+    if submission.submitter_id == actor.id:
+        raise ValidationError("An Operator cannot decide their own Submission.")
+
+
 @transaction.atomic
 def request_submission_changes(*, submission: Submission, actor: User, reason: str) -> Submission:
     submission = Submission.objects.select_for_update().get(id=submission.id)
+    ensure_operator_is_not_submitter(submission=submission, actor=actor)
     if submission.state != SubmissionState.PENDING:
         raise ValidationError("فقط Submission در انتظار بررسی قابل بازگشت است.")
     _record_transition(
@@ -253,6 +259,7 @@ def request_submission_changes(*, submission: Submission, actor: User, reason: s
 @transaction.atomic
 def reject_submission(*, submission: Submission, actor: User, reason: str) -> Submission:
     submission = Submission.objects.select_for_update().get(id=submission.id)
+    ensure_operator_is_not_submitter(submission=submission, actor=actor)
     if submission.state != SubmissionState.PENDING:
         raise ValidationError("فقط Submission در انتظار بررسی قابل رد است.")
     _record_transition(
@@ -290,6 +297,7 @@ def approve_submission(
     formatting: dict[str, object] | None = None,
 ) -> Submission:
     submission = Submission.objects.select_for_update().get(id=submission.id)
+    ensure_operator_is_not_submitter(submission=submission, actor=actor)
     if submission.state != SubmissionState.PENDING:
         raise ValidationError("فقط Submission در انتظار بررسی قابل تأیید است.")
     _validate_complete_submission(submission)

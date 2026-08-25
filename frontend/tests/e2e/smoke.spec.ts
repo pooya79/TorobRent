@@ -88,17 +88,15 @@ test("@milestone @cross-browser exposes the public fixture-backed prototype rout
   }
 });
 
-test("@milestone @cross-browser protects the Operator review queue from anonymous visitors", async ({
+test("@milestone @cross-browser redirects anonymous Operator access to login", async ({
   page,
 }) => {
-  await page.goto("/operator/review");
+  await page.goto("/operator/submissions");
 
+  await expect(page).toHaveURL(/\/login\?returnTo=%2Foperator%2Fsubmissions$/);
   await expect(
-    page.getByRole("heading", { name: "دسترسی اپراتور لازم است" }),
+    page.getByRole("heading", { name: "ورود به ترب‌رنت" }),
   ).toBeVisible();
-  await expect(
-    page.getByRole("heading", { name: "صف بررسی آگهی‌ها" }),
-  ).not.toBeVisible();
 });
 
 test("@milestone @cross-browser preserves protected Submitter navigation across login", async ({

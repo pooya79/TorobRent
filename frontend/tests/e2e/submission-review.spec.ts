@@ -160,7 +160,7 @@ test("@milestone browser covers changes, resubmit, reject, group, publish, and p
 
   await endSession(page);
   await loginOperator(page);
-  await page.goto("/operator/review");
+  await page.goto("/operator/submissions");
   await page.getByRole("button", { name: "درخواست اصلاح" }).click();
   await page.getByLabel("دلیل درخواست اصلاح").fill("شماره تماس را اصلاح کنید.");
   await page.getByRole("button", { name: "ارسال درخواست اصلاح" }).click();
@@ -187,7 +187,7 @@ test("@milestone browser covers changes, resubmit, reject, group, publish, and p
 
   await endSession(page);
   await loginOperator(page);
-  await page.goto("/operator/review");
+  await page.goto("/operator/submissions");
   await page.getByRole("button", { name: "تأیید و انتشار" }).click();
   const firstApproval = page.waitForResponse(
     (response) =>
@@ -202,7 +202,7 @@ test("@milestone browser covers changes, resubmit, reject, group, publish, and p
   expect(firstApprovalBody.property_id).toBeTruthy();
   expect(firstApprovalBody.listing_id).toBeTruthy();
 
-  await page.goto("/operator/review");
+  await page.goto("/operator/submissions");
   await page.getByRole("button", { name: "تأیید و انتشار" }).click();
   await page
     .getByLabel("شناسه Property موجود (اختیاری)")
@@ -215,7 +215,7 @@ test("@milestone browser covers changes, resubmit, reject, group, publish, and p
   await page.getByRole("button", { name: "تأیید نهایی و انتشار" }).click();
   expect((await groupedApproval).ok()).toBe(true);
 
-  await page.goto("/operator/review");
+  await page.goto("/operator/submissions");
   await page.getByRole("button", { name: "رد نهایی" }).click();
   await page.getByLabel("دلیل رد").fill("محتوای نامعتبر");
   const rejection = page.waitForResponse(

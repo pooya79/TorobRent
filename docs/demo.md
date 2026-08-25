@@ -55,7 +55,7 @@ These weak passwords and the Operator superuser status are local-only demo conve
 3. Sign in as the Submitter and open `/dashboard`. Inspect prepared drafts, requested changes,
    rejection, publication, and an expired Listing. The pending Submission also appears in the
    review queue.
-4. Sign out, sign in as the Operator, and open `/operator/review`. Filter the queue, inspect the
+4. Sign out, sign in as the Operator, and open `/operator/submissions`. Filter the queue, inspect the
    prepared submission history, then open `/admin/` to inspect all workflow and Listing states.
 5. Register a separate account at `/register`. Open Mailpit to follow its verification link. Use
    `/forgot-password` to confirm password-reset mail is also captured locally and never delivered

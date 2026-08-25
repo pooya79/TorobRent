@@ -15,5 +15,11 @@ export default [
   route("search", "pages/ResultsPage.tsx"),
   route("properties/:propertyId/:slug?", "routes/property-detail.tsx"),
   route("dashboard", "routes/protected-dashboard.tsx"),
-  route("operator/review", "pages/OperatorReviewPage.tsx"),
+  route("operator", "routes/operator-layout.tsx", [
+    index("pages/OperatorOverviewPage.tsx"),
+    route("submissions", "routes/operator-submissions.tsx"),
+    route("support", "routes/operator-support.tsx"),
+    route("links", "routes/operator-links.tsx"),
+    route("review", "routes/operator-review-redirect.tsx"),
+  ]),
 ] satisfies RouteConfig;

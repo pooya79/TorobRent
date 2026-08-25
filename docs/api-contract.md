@@ -30,9 +30,11 @@ logout, password-reset request and confirmation are explicit `/api/v1/auth/` ope
 requests always return the same response whether an account exists. Verification and reset links
 are time-limited and one-time. Sessions and CSRF secrets rotate at authentication boundaries.
 
-`GET /api/v1/users/me/` returns the current account, including `email_verified`. Submitter write
-flows must require that state; the browser also blocks entry to Submission routes until the email
-has been verified.
+`GET /api/v1/users/me/` returns the current account, including `email_verified` and the stable
+domain identifiers in `operator_capabilities`. The identifiers are `review_submissions`,
+`handle_support`, `handle_privacy_requests`, and `manage_operator_queues`; raw Django permission
+codenames are not exposed. Submitter write flows must require verification, and the browser also
+blocks entry to Submission and Operator routes until the email has been verified.
 
 ## Changing the contract
 

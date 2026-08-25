@@ -16,6 +16,7 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.accounts.capabilities import OperatorCapability, has_capability
 from apps.accounts.models import User
 from apps.catalog.models import Listing, Property
 from apps.catalog.services import (
@@ -25,6 +26,7 @@ from apps.catalog.services import (
 )
 
 from .models import Submission, SubmissionImage, SubmissionImageVariant, SubmissionStep
+from .selectors import submissions_reviewable_by
 from .serializers import (
     ReviewReasonSerializer,
     SubmissionApprovalSerializer,
@@ -52,8 +54,9 @@ class CanReviewSubmission(BasePermission):
     message = "مجوز بررسی Submission لازم است."
 
     def has_permission(self, request: Request, view: APIView) -> bool:
-        return bool(
-            request.user.is_staff and request.user.has_perm("submissions.review_submission")
+        return has_capability(
+            cast(User, request.user),
+            OperatorCapability.REVIEW_SUBMISSIONS,
         )
 
 
@@ -229,9 +232,12 @@ class OperatorSubmissionListView(APIView):
         responses=SubmissionSerializer(many=True),
     )
     def get(self, request: Request) -> Response:
-        submissions = Submission.objects.select_related(
-            "submitter", "source", "city", "district", "neighborhood"
-        ).prefetch_related("images__variants__asset", "events__actor")
+        operator = cast(User, request.user)
+        submissions = (
+            submissions_reviewable_by(operator=operator)
+            .select_related("submitter", "source", "city", "district", "neighborhood")
+            .prefetch_related("images__variants__asset", "events__actor")
+        )
         filters = {
             "state": "state",
             "source": "source_id",
@@ -264,12 +270,16 @@ ReviewDecision = Callable[..., Submission]
 def review_reason_response(
     *, request: Request, submission_id: str, decision: ReviewDecision
 ) -> Response:
+    operator = cast(User, request.user)
     serializer = ReviewReasonSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
     try:
         submission = decision(
-            submission=get_object_or_404(Submission, id=submission_id),
-            actor=cast(User, request.user),
+            submission=get_object_or_404(
+                submissions_reviewable_by(operator=operator),
+                id=submission_id,
+            ),
+            actor=operator,
             reason=serializer.validated_data["reason"],
         )
     except DjangoValidationError as exc:
@@ -318,12 +328,16 @@ class OperatorApproveView(APIView):
         responses=SubmissionSerializer,
     )
     def post(self, request: Request, submission_id: str) -> Response:
+        operator = cast(User, request.user)
         serializer = SubmissionApprovalSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         try:
             submission = approve_submission(
-                submission=get_object_or_404(Submission, id=submission_id),
-                actor=cast(User, request.user),
+                submission=get_object_or_404(
+                    submissions_reviewable_by(operator=operator),
+                    id=submission_id,
+                ),
+                actor=operator,
                 **serializer.validated_data,
             )
         except Property.DoesNotExist:
@@ -434,7 +448,8 @@ class SubmissionImageContentView(APIView):
         kind: str,
     ) -> StreamingHttpResponse:
         user = cast(User, request.user)
-        ownership = {"image__submission__submitter": user} if not user.is_staff else {}
+        can_review = has_capability(user, OperatorCapability.REVIEW_SUBMISSIONS)
+        ownership = {"image__submission__submitter": user} if not can_review else {}
         variant = get_object_or_404(
             SubmissionImageVariant,
             image__submission_id=submission_id,

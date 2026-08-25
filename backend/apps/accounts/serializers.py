@@ -3,6 +3,7 @@ from typing import Any
 from django.contrib.auth.password_validation import validate_password
 from rest_framework import serializers
 
+from .capabilities import OperatorCapability
 from .models import User
 
 TOKEN_ERROR_MESSAGES: dict[str, Any] = {
@@ -17,7 +18,18 @@ class UserSerializer(serializers.ModelSerializer[User]):
 
     class Meta:
         model = User
-        fields = ("id", "email", "first_name", "last_name", "email_verified")
+        fields: tuple[str, ...] = ("id", "email", "first_name", "last_name", "email_verified")
+        read_only_fields: tuple[str, ...] = fields
+
+
+class CurrentUserSerializer(UserSerializer):
+    operator_capabilities = serializers.ListField(
+        child=serializers.ChoiceField(choices=OperatorCapability.choices),
+        read_only=True,
+    )
+
+    class Meta(UserSerializer.Meta):
+        fields = UserSerializer.Meta.fields + ("operator_capabilities",)
         read_only_fields = fields
 
 
