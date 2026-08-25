@@ -5,7 +5,9 @@
 - Public application endpoints live below `/api/v1/` and use JSON with `snake_case` fields.
 - The OpenAPI 3.1 document in `contracts/openapi.yaml` is generated from Django and committed.
 - Successful object responses are not wrapped. Future list endpoints use
-  `{count, next, previous, results}`, with a default page size of 25 and maximum of 100.
+  `{count, next, previous, results}`, with a default page size of 25 and maximum of 100. An
+  endpoint-specific operational default may override 25 when its OpenAPI contract documents it;
+  the Support Request queue defaults to 50.
 - Identifiers are UUID strings. Times are UTC RFC 3339 strings. Decimal values are strings.
 - Query filtering and ordering must be explicitly described in OpenAPI; undocumented parameters
   are not part of the contract.

@@ -930,6 +930,166 @@ paths:
                 $ref: '#/components/schemas/Problem'
           description: The Review Claim, reviewed revision, or decision state is no
             longer current.
+  /api/v1/operator/support-requests/:
+    get:
+      operationId: v1_operator_support_requests_list
+      summary: List and filter the Support Request queue
+      parameters:
+      - in: query
+        name: age_days
+        schema:
+          type: integer
+        description: Include requests created at least this many whole days ago.
+      - in: query
+        name: assignee
+        schema:
+          oneOf:
+          - type: string
+            enum:
+            - unassigned
+            - assigned
+            - mine
+            - other
+          - type: string
+            format: uuid
+        description: 'Assignment facet: unassigned, assigned, mine, other, or an Operator
+          UUID.'
+      - in: query
+        name: classification
+        schema:
+          type: string
+          enum:
+          - account_deletion
+          - guidance
+          - privacy
+          - spam
+          - unclassified
+        description: Match the authoritative Support Classification.
+      - in: query
+        name: created_after
+        schema:
+          type: string
+          format: date-time
+        description: Include requests created at or after this UTC timestamp.
+      - in: query
+        name: created_before
+        schema:
+          type: string
+          format: date-time
+        description: Include requests created at or before this UTC timestamp.
+      - in: query
+        name: intake_kind
+        schema:
+          type: string
+          enum:
+          - account_deletion
+          - general
+          - public_contact_removal
+        description: Match the requester's declared Intake Kind.
+      - in: query
+        name: ordering
+        schema:
+          type: string
+          enum:
+          - newest
+          - oldest
+        description: Order by request creation time; defaults to oldest first.
+      - in: query
+        name: page
+        schema:
+          type: integer
+        description: One-based page number.
+      - in: query
+        name: page_size
+        schema:
+          type: integer
+        description: Records per page; defaults to 50 and is capped at 100.
+      - in: query
+        name: search
+        schema:
+          type: string
+        description: Case-insensitive search across requester name, email, and message.
+      - in: query
+        name: status
+        schema:
+          type: string
+          enum:
+          - in_progress
+          - open
+          - resolved
+        description: Match the current operational state.
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedSupportRequestQueueList'
+          description: ''
+  /api/v1/operator/support-requests/{support_request_id}/:
+    get:
+      operationId: v1_operator_support_requests_retrieve
+      summary: Inspect a Support Request
+      parameters:
+      - in: path
+        name: support_request_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SupportRequest'
+          description: ''
+  /api/v1/operator/support-requests/{support_request_id}/claim/:
+    post:
+      operationId: v1_operator_support_requests_claim_create
+      summary: Claim an open Support Request
+      parameters:
+      - in: path
+        name: support_request_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SupportRequest'
+          description: ''
+    delete:
+      operationId: v1_operator_support_requests_claim_destroy
+      summary: Release the current Operator's Support Request assignment
+      parameters:
+      - in: path
+        name: support_request_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
   /api/v1/submissions/:
     get:
       operationId: v1_submissions_list
@@ -1454,7 +1614,7 @@ components:
           format: email
           maxLength: 254
         kind:
-          $ref: '#/components/schemas/ContactMessageCreateKindEnum'
+          $ref: '#/components/schemas/IntakeKindEnum'
         message:
           type: string
           maxLength: 4000
@@ -1468,16 +1628,6 @@ components:
       - kind
       - message
       - name
-    ContactMessageCreateKindEnum:
-      enum:
-      - general
-      - account_deletion
-      - public_contact_removal
-      type: string
-      description: |-
-        * `general` - راهنمایی و پرسش
-        * `account_deletion` - درخواست حذف حساب
-        * `public_contact_removal` - حذف فوری اطلاعات تماس عمومی
     ContactMessageCreated:
       type: object
       properties:
@@ -1572,14 +1722,6 @@ components:
           type: string
       required:
       - detail
-    EventTypeEnum:
-      enum:
-      - transition
-      - decision_correction
-      type: string
-      description: |-
-        * `transition` - تغییر وضعیت
-        * `decision_correction` - اصلاح تصمیم
     ExternalContinuation:
       type: object
       properties:
@@ -1664,6 +1806,16 @@ components:
       description: |-
         * `ok` - ok
         * `unavailable` - unavailable
+    IntakeKindEnum:
+      enum:
+      - general
+      - account_deletion
+      - public_contact_removal
+      type: string
+      description: |-
+        * `general` - راهنمایی و پرسش
+        * `account_deletion` - درخواست حذف حساب
+        * `public_contact_removal` - حذف فوری اطلاعات تماس عمومی
     ListingPublic:
       type: object
       properties:
@@ -1999,6 +2151,31 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/PropertySummary'
+    PaginatedSupportRequestQueueList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type:
+          - string
+          - 'null'
+          format: uri
+          example: http://api.example.org/properties/?page=2
+        previous:
+          type:
+          - string
+          - 'null'
+          format: uri
+          example: http://api.example.org/properties/?page=1
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/SupportRequestQueue'
     PasswordResetConfirm:
       type: object
       properties:
@@ -2694,7 +2871,7 @@ components:
           format: uuid
           readOnly: true
         event_type:
-          $ref: '#/components/schemas/EventTypeEnum'
+          $ref: '#/components/schemas/SubmissionEventEventTypeEnum'
         actor_email:
           type: string
           format: email
@@ -2760,6 +2937,14 @@ components:
       - review_claim_id
       - reviewed_revision
       - revision
+    SubmissionEventEventTypeEnum:
+      enum:
+      - transition
+      - decision_correction
+      type: string
+      description: |-
+        * `transition` - تغییر وضعیت
+        * `decision_correction` - اصلاح تصمیم
     SubmissionImage:
       type: object
       properties:
@@ -2871,6 +3056,198 @@ components:
         * `changes_requested` - نیازمند اصلاح
         * `rejected` - ردشده
         * `published` - منتشرشده
+    SupportClassificationEnum:
+      enum:
+      - unclassified
+      - guidance
+      - privacy
+      - account_deletion
+      - spam
+      type: string
+      description: |-
+        * `unclassified` - دسته‌بندی‌نشده
+        * `guidance` - راهنمایی
+        * `privacy` - حریم خصوصی
+        * `account_deletion` - حذف حساب
+        * `spam` - هرزنامه
+    SupportRequest:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        name:
+          type: string
+          maxLength: 120
+        email:
+          type: string
+          format: email
+          maxLength: 254
+        intake_kind:
+          $ref: '#/components/schemas/IntakeKindEnum'
+        classification:
+          $ref: '#/components/schemas/SupportClassificationEnum'
+        status:
+          $ref: '#/components/schemas/SupportRequestStatusEnum'
+        assignee_id:
+          type:
+          - string
+          - 'null'
+          format: uuid
+          readOnly: true
+        assignee_email:
+          type:
+          - string
+          - 'null'
+          format: email
+          readOnly: true
+        assigned_at:
+          type:
+          - string
+          - 'null'
+          format: date-time
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+        message:
+          type: string
+          maxLength: 4000
+        operator_note:
+          type: string
+          maxLength: 1000
+        history:
+          type: array
+          items:
+            $ref: '#/components/schemas/SupportRequestEvent'
+          readOnly: true
+      required:
+      - assigned_at
+      - assignee_email
+      - assignee_id
+      - created_at
+      - email
+      - history
+      - id
+      - intake_kind
+      - message
+      - name
+      - updated_at
+    SupportRequestEvent:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        event_type:
+          $ref: '#/components/schemas/SupportRequestEventTypeEnum'
+        actor_id:
+          type: string
+          format: uuid
+          readOnly: true
+        actor_email:
+          type: string
+          format: email
+          readOnly: true
+        prior_state:
+          $ref: '#/components/schemas/SupportRequestStatusEnum'
+        new_state:
+          $ref: '#/components/schemas/SupportRequestStatusEnum'
+        reason:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - actor_email
+      - actor_id
+      - created_at
+      - event_type
+      - id
+      - new_state
+      - prior_state
+    SupportRequestEventTypeEnum:
+      enum:
+      - assigned
+      - released
+      type: string
+      description: |-
+        * `assigned` - واگذار شد
+        * `released` - آزاد شد
+    SupportRequestQueue:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        name:
+          type: string
+          maxLength: 120
+        email:
+          type: string
+          format: email
+          maxLength: 254
+        intake_kind:
+          $ref: '#/components/schemas/IntakeKindEnum'
+        classification:
+          $ref: '#/components/schemas/SupportClassificationEnum'
+        status:
+          $ref: '#/components/schemas/SupportRequestStatusEnum'
+        assignee_id:
+          type:
+          - string
+          - 'null'
+          format: uuid
+          readOnly: true
+        assignee_email:
+          type:
+          - string
+          - 'null'
+          format: email
+          readOnly: true
+        assigned_at:
+          type:
+          - string
+          - 'null'
+          format: date-time
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - assigned_at
+      - assignee_email
+      - assignee_id
+      - created_at
+      - email
+      - id
+      - intake_kind
+      - name
+      - updated_at
+    SupportRequestStatusEnum:
+      enum:
+      - open
+      - in_progress
+      - resolved
+      type: string
+      description: |-
+        * `open` - باز
+        * `in_progress` - در حال بررسی
+        * `resolved` - رسیدگی‌شده
     Token:
       type: object
       properties:

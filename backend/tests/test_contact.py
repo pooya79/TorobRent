@@ -5,7 +5,7 @@ from django.core import mail
 from django.core.cache import cache
 from rest_framework.test import APIClient
 
-from apps.contact.models import ContactMessage, ContactMessageKind, ContactMessageStatus
+from apps.contact.models import IntakeKind, SupportRequest, SupportRequestStatus
 
 
 def csrf_client(api_client: APIClient) -> APIClient:
@@ -18,7 +18,7 @@ def valid_message(**overrides: str) -> dict[str, str]:
     return {
         "name": "نگار محمدی",
         "email": "negar@example.com",
-        "kind": ContactMessageKind.GENERAL,
+        "kind": IntakeKind.GENERAL,
         "message": "برای استفاده از بخش جست‌وجو راهنمایی می‌خواهم.",
         **overrides,
     }
@@ -32,10 +32,10 @@ def test_visitor_sends_persian_contact_message_without_email_notification(api_cl
 
     assert response.status_code == 201
     assert response.data == {"detail": "پیام شما ثبت شد و اپراتور آن را بررسی می‌کند."}
-    message = ContactMessage.objects.get()
+    message = SupportRequest.objects.get()
     assert message.name == "نگار محمدی"
     assert message.submitter is None
-    assert message.status == ContactMessageStatus.OPEN
+    assert message.status == SupportRequestStatus.OPEN
     assert mail.outbox == []
 
 
@@ -47,16 +47,16 @@ def test_authenticated_submitter_identifies_account_deletion_request(api_client:
         "/api/v1/contact/messages/",
         valid_message(
             email=user.email,
-            kind=ContactMessageKind.ACCOUNT_DELETION,
+            kind=IntakeKind.ACCOUNT_DELETION,
             message="می‌خواهم حساب و اطلاعات عمومی تماس من حذف شود.",
         ),
         format="json",
     )
 
     assert response.status_code == 201
-    message = ContactMessage.objects.get()
+    message = SupportRequest.objects.get()
     assert message.submitter == user
-    assert message.kind == ContactMessageKind.ACCOUNT_DELETION
+    assert message.intake_kind == IntakeKind.ACCOUNT_DELETION
 
 
 @pytest.mark.django_db
@@ -74,7 +74,7 @@ def test_contact_message_validates_persian_input_and_honeypot(api_client: APICli
     assert short.data["errors"]["message"][0]["message"] == ("متن پیام باید دست‌کم ۱۰ نویسه باشد.")
     assert spam.status_code == 400
     assert spam.data["errors"]["website"][0]["message"] == "ارسال پیام پذیرفته نشد."
-    assert ContactMessage.objects.count() == 0
+    assert SupportRequest.objects.count() == 0
 
 
 @pytest.mark.django_db
@@ -143,22 +143,23 @@ def test_contact_length_validation_messages_are_persian(api_client: APIClient):
 
 @pytest.mark.django_db
 def test_operator_can_find_classify_and_resolve_contact_message(client, user):
-    message = ContactMessage.objects.create(**valid_message())
+    message_data = valid_message()
+    message = SupportRequest.objects.create(intake_kind=message_data.pop("kind"), **message_data)
     user.is_staff = True
     user.user_permissions.add(
-        Permission.objects.get(codename="view_contactmessage"),
-        Permission.objects.get(codename="change_contactmessage"),
+        Permission.objects.get(codename="view_supportrequest"),
+        Permission.objects.get(codename="change_supportrequest"),
     )
     user.save(update_fields=["is_staff"])
     client.force_login(user)
 
-    changelist = client.get("/admin/contact/contactmessage/", {"q": "نگار"})
+    changelist = client.get("/admin/contact/supportrequest/", {"q": "نگار"})
     change = client.post(
-        f"/admin/contact/contactmessage/{message.pk}/change/",
+        f"/admin/contact/supportrequest/{message.pk}/change/",
         {
-            "kind": ContactMessageKind.GENERAL,
+            "intake_kind": IntakeKind.GENERAL,
             "classification": "guidance",
-            "status": ContactMessageStatus.RESOLVED,
+            "status": SupportRequestStatus.RESOLVED,
             "operator_note": "راهنما ارائه شد.",
             "_save": "ذخیره",
         },
@@ -168,17 +169,17 @@ def test_operator_can_find_classify_and_resolve_contact_message(client, user):
     assert "نگار محمدی" in changelist.content.decode()
     assert change.status_code == 302
     message.refresh_from_db()
-    assert message.status == ContactMessageStatus.RESOLVED
+    assert message.status == SupportRequestStatus.RESOLVED
     assert message.resolved_by == user
     assert message.resolved_at is not None
     assert message.operator_note == "راهنما ارائه شد."
-    assert admin.site.is_registered(ContactMessage)
+    assert admin.site.is_registered(SupportRequest)
 
 
 @pytest.mark.django_db
 def test_non_operator_cannot_open_contact_admin(client, user):
     client.force_login(user)
 
-    response = client.get("/admin/contact/contactmessage/")
+    response = client.get("/admin/contact/supportrequest/")
 
     assert response.status_code == 302

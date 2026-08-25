@@ -2,10 +2,11 @@ from typing import Any
 
 from rest_framework import serializers
 
-from .models import ContactMessage
+from .models import IntakeKind, SupportRequest, SupportRequestEvent
 
 
-class ContactMessageCreateSerializer(serializers.ModelSerializer[ContactMessage]):
+class ContactMessageCreateSerializer(serializers.ModelSerializer[SupportRequest]):
+    kind = serializers.ChoiceField(source="intake_kind", choices=IntakeKind.choices)
     website = serializers.CharField(
         required=False,
         allow_blank=True,
@@ -14,7 +15,7 @@ class ContactMessageCreateSerializer(serializers.ModelSerializer[ContactMessage]
     )
 
     class Meta:
-        model = ContactMessage
+        model = SupportRequest
         fields = ("name", "email", "kind", "message", "website")
         extra_kwargs = {
             "name": {
@@ -55,12 +56,62 @@ class ContactMessageCreateSerializer(serializers.ModelSerializer[ContactMessage]
             raise serializers.ValidationError("ارسال پیام پذیرفته نشد.")
         return value
 
-    def create(self, validated_data: dict[str, object]) -> ContactMessage:
+    def create(self, validated_data: dict[str, object]) -> SupportRequest:
         validated_data.pop("website", None)
         request = self.context["request"]
         submitter = request.user if request.user.is_authenticated else None
-        return ContactMessage.objects.create(submitter=submitter, **validated_data)
+        return SupportRequest.objects.create(submitter=submitter, **validated_data)
 
 
 class ContactMessageCreatedSerializer(serializers.Serializer[Any]):
     detail = serializers.CharField()
+
+
+SUPPORT_REQUEST_QUEUE_FIELDS = (
+    "id",
+    "name",
+    "email",
+    "intake_kind",
+    "classification",
+    "status",
+    "assignee_id",
+    "assignee_email",
+    "assigned_at",
+    "created_at",
+    "updated_at",
+)
+
+
+class SupportRequestQueueSerializer(serializers.ModelSerializer[SupportRequest]):
+    assignee_email = serializers.EmailField(
+        source="assignee.email", read_only=True, allow_null=True
+    )
+
+    class Meta:
+        model = SupportRequest
+        fields = SUPPORT_REQUEST_QUEUE_FIELDS
+
+
+class SupportRequestEventSerializer(serializers.ModelSerializer[SupportRequestEvent]):
+    actor_email = serializers.EmailField(source="actor.email", read_only=True)
+
+    class Meta:
+        model = SupportRequestEvent
+        fields = (
+            "id",
+            "event_type",
+            "actor_id",
+            "actor_email",
+            "prior_state",
+            "new_state",
+            "reason",
+            "created_at",
+        )
+
+
+class SupportRequestSerializer(SupportRequestQueueSerializer):
+    history = SupportRequestEventSerializer(source="events", many=True, read_only=True)
+
+    class Meta:
+        model = SupportRequest
+        fields = (*SUPPORT_REQUEST_QUEUE_FIELDS, "message", "operator_note", "history")

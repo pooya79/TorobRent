@@ -396,6 +396,58 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/v1/operator/support-requests/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List and filter the Support Request queue */
+    get: operations["v1_operator_support_requests_list"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/operator/support-requests/{support_request_id}/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Inspect a Support Request */
+    get: operations["v1_operator_support_requests_retrieve"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/operator/support-requests/{support_request_id}/claim/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Claim an open Support Request */
+    post: operations["v1_operator_support_requests_claim_create"];
+    /** Release the current Operator's Support Request assignment */
+    delete: operations["v1_operator_support_requests_claim_destroy"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/v1/submissions/": {
     parameters: {
       query?: never;
@@ -696,19 +748,11 @@ export interface components {
       name: string;
       /** Format: email */
       email: string;
-      kind: components["schemas"]["ContactMessageCreateKindEnum"];
+      kind: components["schemas"]["IntakeKindEnum"];
       message: string;
       /** وب‌سایت */
       website?: string;
     };
-    /**
-     * @description * `general` - راهنمایی و پرسش
-     *     * `account_deletion` - درخواست حذف حساب
-     *     * `public_contact_removal` - حذف فوری اطلاعات تماس عمومی
-     * @enum {string}
-     */
-    ContactMessageCreateKindEnum:
-      "general" | "account_deletion" | "public_contact_removal";
     ContactMessageCreated: {
       detail: string;
     };
@@ -759,12 +803,6 @@ export interface components {
     Detail: {
       detail: string;
     };
-    /**
-     * @description * `transition` - تغییر وضعیت
-     *     * `decision_correction` - اصلاح تصمیم
-     * @enum {string}
-     */
-    EventTypeEnum: "transition" | "decision_correction";
     ExternalContinuation: {
       /** Format: uri */
       url: string;
@@ -805,6 +843,13 @@ export interface components {
      * @enum {string}
      */
     HealthStatusEnum: "ok" | "unavailable";
+    /**
+     * @description * `general` - راهنمایی و پرسش
+     *     * `account_deletion` - درخواست حذف حساب
+     *     * `public_contact_removal` - حذف فوری اطلاعات تماس عمومی
+     * @enum {string}
+     */
+    IntakeKindEnum: "general" | "account_deletion" | "public_contact_removal";
     ListingPublic: {
       /** Format: uuid */
       id: string;
@@ -959,6 +1004,21 @@ export interface components {
        */
       previous?: string | null;
       results: components["schemas"]["PropertySummary"][];
+    };
+    PaginatedSupportRequestQueueList: {
+      /** @example 123 */
+      count: number;
+      /**
+       * Format: uri
+       * @example http://api.example.org/properties/?page=2
+       */
+      next?: string | null;
+      /**
+       * Format: uri
+       * @example http://api.example.org/properties/?page=1
+       */
+      previous?: string | null;
+      results: components["schemas"]["SupportRequestQueue"][];
     };
     PasswordResetConfirm: {
       token: string;
@@ -1232,7 +1292,7 @@ export interface components {
     SubmissionEvent: {
       /** Format: uuid */
       readonly id: string;
-      event_type?: components["schemas"]["EventTypeEnum"];
+      event_type?: components["schemas"]["SubmissionEventEventTypeEnum"];
       /** Format: email */
       readonly actor_email: string;
       /** Format: int64 */
@@ -1253,6 +1313,12 @@ export interface components {
       /** Format: date-time */
       readonly created_at: string;
     };
+    /**
+     * @description * `transition` - تغییر وضعیت
+     *     * `decision_correction` - اصلاح تصمیم
+     * @enum {string}
+     */
+    SubmissionEventEventTypeEnum: "transition" | "decision_correction";
     SubmissionImage: {
       /** Format: uuid */
       readonly id: string;
@@ -1306,6 +1372,86 @@ export interface components {
      */
     SubmissionStateEnum:
       "draft" | "pending" | "changes_requested" | "rejected" | "published";
+    /**
+     * @description * `unclassified` - دسته‌بندی‌نشده
+     *     * `guidance` - راهنمایی
+     *     * `privacy` - حریم خصوصی
+     *     * `account_deletion` - حذف حساب
+     *     * `spam` - هرزنامه
+     * @enum {string}
+     */
+    SupportClassificationEnum:
+      "unclassified" | "guidance" | "privacy" | "account_deletion" | "spam";
+    SupportRequest: {
+      /** Format: uuid */
+      readonly id: string;
+      name: string;
+      /** Format: email */
+      email: string;
+      intake_kind: components["schemas"]["IntakeKindEnum"];
+      classification?: components["schemas"]["SupportClassificationEnum"];
+      status?: components["schemas"]["SupportRequestStatusEnum"];
+      /** Format: uuid */
+      readonly assignee_id: string | null;
+      /** Format: email */
+      readonly assignee_email: string | null;
+      /** Format: date-time */
+      readonly assigned_at: string | null;
+      /** Format: date-time */
+      readonly created_at: string;
+      /** Format: date-time */
+      readonly updated_at: string;
+      message: string;
+      operator_note?: string;
+      readonly history: components["schemas"]["SupportRequestEvent"][];
+    };
+    SupportRequestEvent: {
+      /** Format: uuid */
+      readonly id: string;
+      event_type: components["schemas"]["SupportRequestEventTypeEnum"];
+      /** Format: uuid */
+      readonly actor_id: string;
+      /** Format: email */
+      readonly actor_email: string;
+      prior_state: components["schemas"]["SupportRequestStatusEnum"];
+      new_state: components["schemas"]["SupportRequestStatusEnum"];
+      reason?: string;
+      /** Format: date-time */
+      readonly created_at: string;
+    };
+    /**
+     * @description * `assigned` - واگذار شد
+     *     * `released` - آزاد شد
+     * @enum {string}
+     */
+    SupportRequestEventTypeEnum: "assigned" | "released";
+    SupportRequestQueue: {
+      /** Format: uuid */
+      readonly id: string;
+      name: string;
+      /** Format: email */
+      email: string;
+      intake_kind: components["schemas"]["IntakeKindEnum"];
+      classification?: components["schemas"]["SupportClassificationEnum"];
+      status?: components["schemas"]["SupportRequestStatusEnum"];
+      /** Format: uuid */
+      readonly assignee_id: string | null;
+      /** Format: email */
+      readonly assignee_email: string | null;
+      /** Format: date-time */
+      readonly assigned_at: string | null;
+      /** Format: date-time */
+      readonly created_at: string;
+      /** Format: date-time */
+      readonly updated_at: string;
+    };
+    /**
+     * @description * `open` - باز
+     *     * `in_progress` - در حال بررسی
+     *     * `resolved` - رسیدگی‌شده
+     * @enum {string}
+     */
+    SupportRequestStatusEnum: "open" | "in_progress" | "resolved";
     Token: {
       token: string;
     };
@@ -2198,6 +2344,111 @@ export interface operations {
         content: {
           "application/json": components["schemas"]["Problem"];
         };
+      };
+    };
+  };
+  v1_operator_support_requests_list: {
+    parameters: {
+      query?: {
+        /** @description Include requests created at least this many whole days ago. */
+        age_days?: number;
+        /** @description Assignment facet: unassigned, assigned, mine, other, or an Operator UUID. */
+        assignee?: ("unassigned" | "assigned" | "mine" | "other") | string;
+        /** @description Match the authoritative Support Classification. */
+        classification?:
+          "account_deletion" | "guidance" | "privacy" | "spam" | "unclassified";
+        /** @description Include requests created at or after this UTC timestamp. */
+        created_after?: string;
+        /** @description Include requests created at or before this UTC timestamp. */
+        created_before?: string;
+        /** @description Match the requester's declared Intake Kind. */
+        intake_kind?: "account_deletion" | "general" | "public_contact_removal";
+        /** @description Order by request creation time; defaults to oldest first. */
+        ordering?: "newest" | "oldest";
+        /** @description One-based page number. */
+        page?: number;
+        /** @description Records per page; defaults to 50 and is capped at 100. */
+        page_size?: number;
+        /** @description Case-insensitive search across requester name, email, and message. */
+        search?: string;
+        /** @description Match the current operational state. */
+        status?: "in_progress" | "open" | "resolved";
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PaginatedSupportRequestQueueList"];
+        };
+      };
+    };
+  };
+  v1_operator_support_requests_retrieve: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        support_request_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SupportRequest"];
+        };
+      };
+    };
+  };
+  v1_operator_support_requests_claim_create: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        support_request_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SupportRequest"];
+        };
+      };
+    };
+  };
+  v1_operator_support_requests_claim_destroy: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        support_request_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description No response body */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
       };
     };
   };

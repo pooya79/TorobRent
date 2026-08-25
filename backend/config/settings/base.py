@@ -143,9 +143,13 @@ SPECTACULAR_SETTINGS = {
     "SERVE_INCLUDE_SCHEMA": False,
     "ENUM_NAME_OVERRIDES": {
         "FeatureStateEnum": "apps.catalog.models.FeatureState.choices",
+        "IntakeKindEnum": "apps.contact.models.IntakeKind.choices",
         "OutboundPolicyEnum": "apps.catalog.models.OutboundPolicy.choices",
         "PropertyTypeEnum": "apps.catalog.models.PropertyType.choices",
         "SubmissionStateEnum": "apps.submissions.models.SubmissionState.choices",
+        "SupportClassificationEnum": "apps.contact.models.SupportClassification.choices",
+        "SupportRequestEventTypeEnum": "apps.contact.models.SupportRequestEventType.choices",
+        "SupportRequestStatusEnum": "apps.contact.models.SupportRequestStatus.choices",
     },
     "SWAGGER_UI_DIST": "SIDECAR",
     "SWAGGER_UI_FAVICON_HREF": "SIDECAR",

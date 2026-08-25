@@ -11,7 +11,7 @@ import { ApiError, apiError, errorMessage } from "@/lib/api/errors";
 import type { components } from "@/lib/api/schema";
 
 type ContactMessageInput = components["schemas"]["ContactMessageCreate"];
-type ContactMessageKind = components["schemas"]["ContactMessageCreateKindEnum"];
+type ContactMessageKind = ContactMessageInput["kind"];
 
 const contactMessageKinds: readonly ContactMessageKind[] = [
   "general",

@@ -6,24 +6,35 @@ from django.utils import timezone
 
 from apps.accounts.models import User
 
-from .models import ContactMessage, ContactMessageStatus
+from .models import SupportRequest, SupportRequestStatus
 
 
-@admin.register(ContactMessage)
-class ContactMessageAdmin(admin.ModelAdmin):  # type: ignore[type-arg]
-    list_display = ("name", "kind", "classification", "status", "created_at", "resolved_at")
-    list_filter = ("kind", "classification", "status", "created_at")
+@admin.register(SupportRequest)
+class SupportRequestAdmin(admin.ModelAdmin):  # type: ignore[type-arg]
+    list_display = (
+        "name",
+        "intake_kind",
+        "classification",
+        "status",
+        "assignee",
+        "assigned_at",
+        "created_at",
+        "resolved_at",
+    )
+    list_filter = ("intake_kind", "classification", "status", "created_at")
     search_fields = ("name", "email", "message", "submitter__email")
     fields = (
         "id",
         "submitter",
         "name",
         "email",
-        "kind",
+        "intake_kind",
         "message",
         "classification",
         "status",
         "operator_note",
+        "assignee",
+        "assigned_at",
         "resolved_by",
         "resolved_at",
         "created_at",
@@ -35,6 +46,8 @@ class ContactMessageAdmin(admin.ModelAdmin):  # type: ignore[type-arg]
         "name",
         "email",
         "message",
+        "assignee",
+        "assigned_at",
         "resolved_by",
         "resolved_at",
         "created_at",
@@ -45,21 +58,21 @@ class ContactMessageAdmin(admin.ModelAdmin):  # type: ignore[type-arg]
         return False
 
     def has_delete_permission(
-        self, request: HttpRequest, obj: ContactMessage | None = None
+        self, request: HttpRequest, obj: SupportRequest | None = None
     ) -> bool:
         return False
 
     def save_model(
         self,
         request: HttpRequest,
-        obj: ContactMessage,
+        obj: SupportRequest,
         form: object,
         change: bool,
     ) -> None:
-        if obj.status == ContactMessageStatus.RESOLVED and obj.resolved_at is None:
+        if obj.status == SupportRequestStatus.RESOLVED and obj.resolved_at is None:
             obj.resolved_at = timezone.now()
             obj.resolved_by = cast(User, request.user)
-        elif obj.status != ContactMessageStatus.RESOLVED:
+        elif obj.status != SupportRequestStatus.RESOLVED:
             obj.resolved_at = None
             obj.resolved_by = None
         super().save_model(request, obj, form, change)
