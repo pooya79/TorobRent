@@ -134,6 +134,14 @@ class SupportResolutionSerializer(serializers.Serializer[Any]):
     summary = serializers.CharField(max_length=1000)
 
 
+class SupportWorkloadSummarySerializer(serializers.Serializer[dict[str, int]]):
+    unclaimed_count = serializers.IntegerField(min_value=0)
+    assigned_to_me_count = serializers.IntegerField(min_value=0)
+    urgent_count = serializers.IntegerField(min_value=0)
+    aging_count = serializers.IntegerField(min_value=0)
+    aging_after_hours = serializers.IntegerField(min_value=1)
+
+
 class SupportReopenSerializer(serializers.Serializer[Any]):
     reason = serializers.CharField(max_length=1000)
 
@@ -144,11 +152,26 @@ class SupportRequestNoteCreateSerializer(serializers.Serializer[Any]):
 
 
 class SupportRequestNoteSerializer(serializers.ModelSerializer[SupportRequestNote]):
-    actor_email = serializers.EmailField(source="actor.email", read_only=True)
+    actor_reference = serializers.UUIDField(
+        source="actor.historical_actor_reference", read_only=True
+    )
+    actor_label = serializers.CharField(source="actor.historical_actor_label", read_only=True)
+    actor_email = serializers.EmailField(
+        source="actor.historical_actor_email", read_only=True, allow_null=True
+    )
 
     class Meta:
         model = SupportRequestNote
-        fields = ("id", "actor_id", "actor_email", "body", "corrects_note", "created_at")
+        fields = (
+            "id",
+            "actor_id",
+            "actor_reference",
+            "actor_label",
+            "actor_email",
+            "body",
+            "corrects_note",
+            "created_at",
+        )
 
 
 class SupportExternalContactCreateSerializer(serializers.Serializer[Any]):
@@ -159,13 +182,21 @@ class SupportExternalContactCreateSerializer(serializers.Serializer[Any]):
 
 
 class SupportExternalContactSerializer(serializers.ModelSerializer[SupportExternalContact]):
-    actor_email = serializers.EmailField(source="actor.email", read_only=True)
+    actor_reference = serializers.UUIDField(
+        source="actor.historical_actor_reference", read_only=True
+    )
+    actor_label = serializers.CharField(source="actor.historical_actor_label", read_only=True)
+    actor_email = serializers.EmailField(
+        source="actor.historical_actor_email", read_only=True, allow_null=True
+    )
 
     class Meta:
         model = SupportExternalContact
         fields = (
             "id",
             "actor_id",
+            "actor_reference",
+            "actor_label",
             "actor_email",
             "channel",
             "occurred_at",
@@ -184,13 +215,21 @@ class SupportIdentityVerificationCreateSerializer(serializers.Serializer[Any]):
 class SupportIdentityVerificationSerializer(
     serializers.ModelSerializer[SupportIdentityVerification]
 ):
-    actor_email = serializers.EmailField(source="actor.email", read_only=True)
+    actor_reference = serializers.UUIDField(
+        source="actor.historical_actor_reference", read_only=True
+    )
+    actor_label = serializers.CharField(source="actor.historical_actor_label", read_only=True)
+    actor_email = serializers.EmailField(
+        source="actor.historical_actor_email", read_only=True, allow_null=True
+    )
 
     class Meta:
         model = SupportIdentityVerification
         fields = (
             "id",
             "actor_id",
+            "actor_reference",
+            "actor_label",
             "actor_email",
             "method",
             "verified_at",
@@ -206,13 +245,21 @@ class SupportPrivacyActionCreateSerializer(serializers.Serializer[Any]):
 
 
 class SupportPrivacyActionSerializer(serializers.ModelSerializer[SupportPrivacyAction]):
-    actor_email = serializers.EmailField(source="actor.email", read_only=True)
+    actor_reference = serializers.UUIDField(
+        source="actor.historical_actor_reference", read_only=True
+    )
+    actor_label = serializers.CharField(source="actor.historical_actor_label", read_only=True)
+    actor_email = serializers.EmailField(
+        source="actor.historical_actor_email", read_only=True, allow_null=True
+    )
 
     class Meta:
         model = SupportPrivacyAction
         fields = (
             "id",
             "actor_id",
+            "actor_reference",
+            "actor_label",
             "actor_email",
             "action",
             "completed_at",
@@ -242,6 +289,7 @@ SUPPORT_REQUEST_QUEUE_FIELDS = (
     "resolved_at",
     "resolution_category",
     "resolution_summary",
+    "personal_content_redacted_at",
 )
 
 
@@ -256,7 +304,13 @@ class SupportRequestQueueSerializer(serializers.ModelSerializer[SupportRequest])
 
 
 class SupportRequestEventSerializer(serializers.ModelSerializer[SupportRequestEvent]):
-    actor_email = serializers.EmailField(source="actor.email", read_only=True)
+    actor_reference = serializers.UUIDField(
+        source="actor.historical_actor_reference", read_only=True
+    )
+    actor_label = serializers.CharField(source="actor.historical_actor_label", read_only=True)
+    actor_email = serializers.EmailField(
+        source="actor.historical_actor_email", read_only=True, allow_null=True
+    )
 
     class Meta:
         model = SupportRequestEvent
@@ -264,6 +318,8 @@ class SupportRequestEventSerializer(serializers.ModelSerializer[SupportRequestEv
             "id",
             "event_type",
             "actor_id",
+            "actor_reference",
+            "actor_label",
             "actor_email",
             "prior_state",
             "new_state",

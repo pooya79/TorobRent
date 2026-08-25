@@ -12,11 +12,13 @@ from .operator_views import (
     OperatorSupportRequestReopenView,
     OperatorSupportRequestResolveView,
     OperatorSupportRequestTriageView,
+    OperatorSupportSummaryView,
 )
 
 app_name = "operator-support-requests"
 
 urlpatterns = [
+    path("summary/", OperatorSupportSummaryView.as_view(), name="summary"),
     path("", OperatorSupportRequestListView.as_view(), name="list"),
     path(
         "<uuid:support_request_id>/",

@@ -81,7 +81,7 @@ export function SupportPrivacyPanel({
                 >
                   <p>{verification.summary}</p>
                   <p className="text-muted-foreground mt-1 text-xs">
-                    {verification.actor_email} ·{" "}
+                    {verification.actor_label} ·{" "}
                     {new Date(verification.verified_at).toLocaleString("fa-IR")}
                   </p>
                 </li>
@@ -104,7 +104,7 @@ export function SupportPrivacyPanel({
               >
                 <p>{privacyRecord.summary}</p>
                 <p className="text-muted-foreground mt-1 text-xs">
-                  {privacyRecord.action} · {privacyRecord.actor_email} ·{" "}
+                  {privacyRecord.action} · {privacyRecord.actor_label} ·{" "}
                   {new Date(privacyRecord.completed_at).toLocaleString("fa-IR")}
                 </p>
               </li>

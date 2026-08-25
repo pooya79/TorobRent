@@ -1,10 +1,14 @@
 import pytest
 from django.contrib.auth.models import Group, Permission
+from django.core.exceptions import ValidationError
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework.test import APIClient
 
 from apps.accounts.models import User
+from apps.accounts.services import anonymize_operator_account
+from apps.contact.models import IntakeKind, SupportRequest, SupportRequestEvent
+from apps.contact.serializers import SupportRequestEventSerializer
 
 
 @pytest.mark.django_db
@@ -37,6 +41,73 @@ def test_current_account_exposes_domain_capabilities_without_permission_codename
     ]
     assert "review_submission" not in response.data["operator_capabilities"]
     assert "manage_operator_queue" not in response.data["operator_capabilities"]
+
+
+@pytest.mark.django_db
+def test_account_anonymization_preserves_an_opaque_former_operator_history_reference():
+    administrator = User.objects.create_superuser(
+        email="administrator@example.com", password="password"
+    )
+    operator = User.objects.create_user(
+        email="former.operator@example.com",
+        password="password",
+        first_name="Former",
+        last_name="Operator",
+        email_verified_at=timezone.now(),
+    )
+    operator.user_permissions.add(
+        Permission.objects.get(codename="handle_general_support_requests")
+    )
+    support_request = SupportRequest.objects.create(
+        name="Requester",
+        email="requester@example.com",
+        intake_kind=IntakeKind.GENERAL,
+        message="Please preserve the operational event.",
+    )
+    event = SupportRequestEvent.objects.create(
+        support_request=support_request,
+        actor=operator,
+        event_type="classified",
+        prior_state="open",
+        new_state="open",
+        classification="guidance",
+    )
+    actor_reference = str(operator.id)
+
+    anonymize_operator_account(target=operator, actor=administrator)
+
+    operator.refresh_from_db()
+    serialized = SupportRequestEventSerializer(event).data
+    assert operator.anonymized_at is not None
+    assert operator.first_name == operator.last_name == ""
+    assert "former.operator@example.com" not in operator.email
+    assert not operator.is_active
+    assert not operator.email_verified
+    assert not operator.has_usable_password()
+    assert not operator.groups.exists()
+    assert not operator.user_permissions.exists()
+    assert serialized["actor_reference"] == actor_reference
+    assert serialized["actor_label"] == "Former Operator"
+    assert serialized["actor_email"] is None
+
+
+@pytest.mark.django_db
+def test_operator_anonymization_rejects_an_account_that_never_had_an_operator_grant():
+    administrator = User.objects.create_superuser(
+        email="administrator@example.com", password="password"
+    )
+    submitter = User.objects.create_user(
+        email="submitter@example.com",
+        password="password",
+        email_verified_at=timezone.now(),
+    )
+
+    with pytest.raises(ValidationError, match="Operator grant"):
+        anonymize_operator_account(target=submitter, actor=administrator)
+
+    submitter.refresh_from_db()
+    assert submitter.anonymized_at is None
+    assert submitter.email == "submitter@example.com"
 
 
 @pytest.mark.django_db

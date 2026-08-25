@@ -96,14 +96,21 @@ async function seedCompleteDraft(
     },
   });
   expect(uploaded.ok()).toBe(true);
-  expect(
-    (
-      await api.patch(detail, {
-        headers,
-        data: { completed_step: "images" },
-      })
-    ).ok(),
-  ).toBe(true);
+  await expect
+    .poll(
+      async () =>
+        (
+          await api.patch(detail, {
+            headers,
+            data: { completed_step: "images" },
+          })
+        ).ok(),
+      {
+        message: "wait for the uploaded image to finish background processing",
+        timeout: 15_000,
+      },
+    )
+    .toBe(true);
   expect(
     (
       await api.patch(detail, {
@@ -316,4 +323,122 @@ test("@milestone browser covers changes, resubmit, reject, group, publish, and p
 
   await page.goto(`/properties/${firstApprovalBody.property_id}`);
   await expect(page.getByRole("article")).toHaveCount(1);
+});
+
+test("@milestone browser covers capability-aware Support privacy routing and finalization", async ({
+  page,
+  request,
+}) => {
+  test.setTimeout(120_000);
+  test.skip(
+    !mailpitAvailable && !process.env.E2E_REQUIRE_MAILPIT,
+    "Creating a verified capability-limited Operator requires Mailpit",
+  );
+  test.skip(
+    externalEnvironment && !process.env.E2E_OPERATOR_EMAIL,
+    "External stacks must provide a privileged E2E Operator",
+  );
+
+  const generalOperator = await registerVerifiedSubmitter(page, request);
+  const currentAccount = await page.context().request.get("/api/v1/users/me/");
+  const generalOperatorId = ((await currentAccount.json()) as { id: string })
+    .id;
+  await endSession(page);
+
+  await loginOperator(page);
+  await page.goto(`/admin/accounts/user/${generalOperatorId}/change/`);
+  const supportGroup = page
+    .locator("#id_groups_from option")
+    .filter({ hasText: "Support Operator" });
+  const supportGroupId = await supportGroup.getAttribute("value");
+  expect(supportGroupId).toBeTruthy();
+  await page.locator("#id_groups_from").selectOption(supportGroupId);
+  await page.getByRole("button", { name: "Choose selected groups" }).click();
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(page).toHaveURL(/\/admin\/accounts\/user\/$/);
+  await endSession(page);
+
+  const requesterEmail = `privacy-routing-${Date.now()}@example.com`;
+  await page.goto("/contact");
+  await page
+    .getByLabel("نام و نام خانوادگی")
+    .fill("درخواست‌کننده مسیر حریم خصوصی");
+  await page.getByLabel("ایمیل").fill(requesterEmail);
+  await page.getByLabel("موضوع پیام").selectOption("general");
+  await page
+    .getByLabel("متن پیام")
+    .fill("این درخواست عمومی پس از بررسی باید به مسیر حریم خصوصی منتقل شود.");
+  await page.getByRole("button", { name: "ارسال پیام" }).click();
+  await expect(
+    page.getByRole("status").filter({ hasText: "پیام شما ثبت شد" }),
+  ).toBeVisible();
+
+  await loginSubmitter(page, generalOperator);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/operator");
+  await expect(page.getByRole("link", { name: "پشتیبانی" })).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "بررسی Submissionها" }),
+  ).toHaveCount(0);
+  expect(
+    await page.evaluate(() => document.documentElement.scrollWidth),
+  ).toBeLessThanOrEqual(390);
+  const menu = page.getByRole("button", { name: "باز کردن راهبری اپراتور" });
+  await menu.focus();
+  await page.keyboard.press("Enter");
+  await expect(
+    page.getByRole("navigation", { name: "راهبری فضای اپراتور" }),
+  ).toBeVisible();
+
+  await page.setViewportSize({ width: 1024, height: 900 });
+  await page.goto("/operator/support");
+  await page.getByLabel("جست‌وجو").fill(requesterEmail);
+  await expect(
+    page.getByText("درخواست‌کننده مسیر حریم خصوصی").first(),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "پذیرفتن درخواست" }).click();
+  await expect(
+    page.getByRole("button", { name: "آزاد کردن درخواست" }),
+  ).toBeVisible();
+
+  await page.getByLabel("دسته‌بندی عملیاتی").selectOption("privacy");
+  await page.getByLabel("مسیر‌دهی تخصصی").selectOption("escalated");
+  await page
+    .getByLabel("قابلیت مورد نیاز")
+    .selectOption("handle_privacy_requests");
+  await page.getByLabel("مقصد ارجاع").fill("صف حریم خصوصی");
+  await page
+    .getByLabel("دلیل تریاژ")
+    .fill("محتوا پس از بررسی به رسیدگی تخصصی حریم خصوصی نیاز دارد.");
+  await page.getByRole("button", { name: "ثبت تریاژ" }).click();
+  await expect(page.getByText("موردی در صف نیست.")).toBeVisible();
+  await expect(page.getByText("نتیجه نهایی")).toHaveCount(0);
+
+  await endSession(page);
+  await loginOperator(page);
+  await page.goto("/operator/support");
+  await page.getByLabel("جست‌وجو").fill(requesterEmail);
+  await expect(
+    page.getByText("درخواست‌کننده مسیر حریم خصوصی").first(),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "پذیرفتن درخواست" }).click();
+  await page.getByLabel("نتیجه نهایی").selectOption("no_action_required");
+  await page
+    .getByLabel("خلاصه داخلی نتیجه")
+    .fill("درخواست پس از بررسی تخصصی بدون اقدام بیشتری بسته شد.");
+  const resolution = page.waitForResponse(
+    (response) =>
+      response.url().includes("/operator/support-requests/") &&
+      response.url().endsWith("/resolve/") &&
+      response.request().method() === "POST",
+  );
+  await page.getByRole("button", { name: "ثبت نتیجه و بستن" }).click();
+  const resolutionResponse = await resolution;
+  expect(resolutionResponse.status(), await resolutionResponse.text()).toBe(
+    200,
+  );
+  await expect(page.getByText("نتیجه ثبت‌شده")).toBeVisible();
+
+  await page.goto("/operator/review");
+  await expect(page).toHaveURL(/\/operator\/submissions$/);
 });

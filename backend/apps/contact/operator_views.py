@@ -29,7 +29,7 @@ from .models import (
     SupportRequest,
     SupportRequestStatus,
 )
-from .selectors import support_requests_visible_to
+from .selectors import support_requests_visible_to, support_workload_summary
 from .serializers import (
     SupportExternalContactCreateSerializer,
     SupportExternalContactSerializer,
@@ -45,6 +45,7 @@ from .serializers import (
     SupportRequestSerializer,
     SupportResolutionSerializer,
     SupportTriageSerializer,
+    SupportWorkloadSummarySerializer,
 )
 from .services import (
     SupportRequestConflict,
@@ -253,6 +254,18 @@ class OperatorSupportRequestListView(ListAPIView[SupportRequest]):
             "-created_at" if self.request.query_params.get("ordering") == "newest" else "created_at"
         )
         return support_requests.order_by(ordering, "id")
+
+
+class OperatorSupportSummaryView(APIView):
+    permission_classes = (CanHandleSupportRequests,)
+
+    @extend_schema(
+        summary="Summarize actionable Support Request workload",
+        responses=SupportWorkloadSummarySerializer,
+    )
+    def get(self, request: Request) -> Response:
+        summary = support_workload_summary(operator=cast(User, request.user))
+        return Response(SupportWorkloadSummarySerializer(summary).data)
 
 
 def operator_support_request(*, request: Request, support_request_id: str) -> SupportRequest:

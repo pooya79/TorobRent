@@ -7,6 +7,8 @@ import type { components, operations } from "@/lib/api/schema";
 export type SupportRequest = components["schemas"]["SupportRequest"];
 export type SupportRequestQueueItem =
   components["schemas"]["SupportRequestQueue"];
+export type SupportWorkloadSummary =
+  components["schemas"]["SupportWorkloadSummary"];
 export type SupportRequestStatus =
   components["schemas"]["SupportRequestStatusEnum"];
 export type IntakeKind = components["schemas"]["IntakeKindEnum"];
@@ -56,6 +58,21 @@ export function supportQueueQueryOptions(filters: SupportQueueFilters = {}) {
       if (error || !data) throw apiError(error);
       return data;
     },
+    refetchInterval: 30_000,
+  });
+}
+
+export function supportWorkloadSummaryQueryOptions(enabled = true) {
+  return queryOptions({
+    queryKey: ["operator-support-requests", "summary"] as const,
+    queryFn: async () => {
+      const { data, error } = await api.GET(
+        "/api/v1/operator/support-requests/summary/",
+      );
+      if (error || !data) throw apiError(error);
+      return data;
+    },
+    enabled,
     refetchInterval: 30_000,
   });
 }

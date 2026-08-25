@@ -17,6 +17,7 @@ class User(AbstractUser):
     username = None  # type: ignore[assignment]
     email = models.EmailField(unique=True)
     email_verified_at = models.DateTimeField(null=True, blank=True)
+    anonymized_at = models.DateTimeField(null=True, blank=True, editable=False)
 
     USERNAME_FIELD: ClassVar[str] = "email"  # type: ignore[misc]
     REQUIRED_FIELDS: ClassVar[list[str]] = []
@@ -35,6 +36,18 @@ class User(AbstractUser):
         from .capabilities import capabilities_for
 
         return capabilities_for(self)
+
+    @property
+    def historical_actor_reference(self) -> uuid.UUID:
+        return self.id
+
+    @property
+    def historical_actor_label(self) -> str:
+        return "Former Operator" if self.anonymized_at is not None else self.email
+
+    @property
+    def historical_actor_email(self) -> str | None:
+        return None if self.anonymized_at is not None else self.email
 
     class Meta:
         permissions = (

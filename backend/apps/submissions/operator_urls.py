@@ -10,11 +10,13 @@ from .views import (
     OperatorSubmissionDetailView,
     OperatorSubmissionListView,
     OperatorSubmissionNotificationRetryView,
+    OperatorSubmissionSummaryView,
 )
 
 app_name = "operator-submissions"
 
 urlpatterns = [
+    path("summary/", OperatorSubmissionSummaryView.as_view(), name="summary"),
     path("", OperatorSubmissionListView.as_view(), name="list"),
     path("<uuid:submission_id>/", OperatorSubmissionDetailView.as_view(), name="detail"),
     path(

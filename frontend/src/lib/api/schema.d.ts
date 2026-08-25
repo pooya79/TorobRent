@@ -396,6 +396,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/v1/operator/submissions/summary/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Summarize actionable Submission Review workload */
+    get: operations["v1_operator_submissions_summary_retrieve"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/v1/operator/support-requests/": {
     parameters: {
       query?: never;
@@ -582,6 +599,23 @@ export interface paths {
     head?: never;
     /** Classify and route a Support Request */
     patch: operations["v1_operator_support_requests_triage_partial_update"];
+    trace?: never;
+  };
+  "/api/v1/operator/support-requests/summary/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Summarize actionable Support Request workload */
+    get: operations["v1_operator_support_requests_summary_retrieve"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
     trace?: never;
   };
   "/api/v1/submissions/": {
@@ -1462,8 +1496,11 @@ export interface components {
       /** Format: uuid */
       readonly id: string;
       event_type?: components["schemas"]["SubmissionEventEventTypeEnum"];
+      /** Format: uuid */
+      readonly actor_reference: string;
+      readonly actor_label: string;
       /** Format: email */
-      readonly actor_email: string;
+      readonly actor_email: string | null;
       /** Format: int64 */
       revision: number;
       readonly reviewed_revision: number;
@@ -1541,6 +1578,12 @@ export interface components {
      */
     SubmissionStateEnum:
       "draft" | "pending" | "changes_requested" | "rejected" | "published";
+    SubmissionWorkloadSummary: {
+      unclaimed_count: number;
+      assigned_to_me_count: number;
+      aging_count: number;
+      aging_after_hours: number;
+    };
     /**
      * @description * `unclassified` - دسته‌بندی‌نشده
      *     * `guidance` - راهنمایی
@@ -1556,8 +1599,11 @@ export interface components {
       readonly id: string;
       /** Format: uuid */
       readonly actor_id: string;
+      /** Format: uuid */
+      readonly actor_reference: string;
+      readonly actor_label: string;
       /** Format: email */
-      readonly actor_email: string;
+      readonly actor_email: string | null;
       channel: components["schemas"]["ExternalContactChannelEnum"];
       /** Format: date-time */
       occurred_at: string;
@@ -1578,8 +1624,11 @@ export interface components {
       readonly id: string;
       /** Format: uuid */
       readonly actor_id: string;
+      /** Format: uuid */
+      readonly actor_reference: string;
+      readonly actor_label: string;
       /** Format: email */
-      readonly actor_email: string;
+      readonly actor_email: string | null;
       method: components["schemas"]["IdentityVerificationMethodEnum"];
       /** Format: date-time */
       verified_at: string;
@@ -1604,8 +1653,11 @@ export interface components {
       readonly id: string;
       /** Format: uuid */
       readonly actor_id: string;
+      /** Format: uuid */
+      readonly actor_reference: string;
+      readonly actor_label: string;
       /** Format: email */
-      readonly actor_email: string;
+      readonly actor_email: string | null;
       action: components["schemas"]["PrivacyActionTypeEnum"];
       /** Format: date-time */
       completed_at: string;
@@ -1661,6 +1713,8 @@ export interface components {
         | components["schemas"]["SupportResolutionCategoryEnum"]
         | components["schemas"]["NullEnum"];
       readonly resolution_summary: string;
+      /** Format: date-time */
+      readonly personal_content_redacted_at: string | null;
       message: string;
       readonly notes: components["schemas"]["SupportRequestNote"][];
       readonly external_contacts: components["schemas"]["SupportExternalContact"][];
@@ -1674,8 +1728,11 @@ export interface components {
       event_type: components["schemas"]["SupportRequestEventTypeEnum"];
       /** Format: uuid */
       readonly actor_id: string;
+      /** Format: uuid */
+      readonly actor_reference: string;
+      readonly actor_label: string;
       /** Format: email */
-      readonly actor_email: string;
+      readonly actor_email: string | null;
       prior_state: components["schemas"]["SupportRequestStatusEnum"];
       new_state: components["schemas"]["SupportRequestStatusEnum"];
       classification?: components["schemas"]["SupportClassificationEnum"];
@@ -1725,6 +1782,7 @@ export interface components {
      *     * `reopened` - دوباره باز شد
      *     * `identity_verified` - هویت تأیید شد
      *     * `privacy_action_recorded` - اقدام حریم خصوصی ثبت شد
+     *     * `personal_content_redacted` - محتوای شخصی حذف شد
      * @enum {string}
      */
     SupportRequestEventTypeEnum:
@@ -1739,14 +1797,18 @@ export interface components {
       | "resolved"
       | "reopened"
       | "identity_verified"
-      | "privacy_action_recorded";
+      | "privacy_action_recorded"
+      | "personal_content_redacted";
     SupportRequestNote: {
       /** Format: uuid */
       readonly id: string;
       /** Format: uuid */
       readonly actor_id: string;
+      /** Format: uuid */
+      readonly actor_reference: string;
+      readonly actor_label: string;
       /** Format: email */
-      readonly actor_email: string;
+      readonly actor_email: string | null;
       body: string;
       /** Format: uuid */
       corrects_note?: string | null;
@@ -1792,6 +1854,8 @@ export interface components {
         | components["schemas"]["SupportResolutionCategoryEnum"]
         | components["schemas"]["NullEnum"];
       readonly resolution_summary: string;
+      /** Format: date-time */
+      readonly personal_content_redacted_at: string | null;
     };
     /**
      * @description * `open` - باز
@@ -1830,6 +1894,13 @@ export interface components {
      * @enum {string}
      */
     SupportTriageStatusEnum: "escalated";
+    SupportWorkloadSummary: {
+      unclaimed_count: number;
+      assigned_to_me_count: number;
+      urgent_count: number;
+      aging_count: number;
+      aging_after_hours: number;
+    };
     Token: {
       token: string;
     };
@@ -2725,6 +2796,25 @@ export interface operations {
       };
     };
   };
+  v1_operator_submissions_summary_retrieve: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SubmissionWorkloadSummary"];
+        };
+      };
+    };
+  };
   v1_operator_support_requests_list: {
     parameters: {
       query?: {
@@ -3028,6 +3118,25 @@ export interface operations {
           [name: string]: unknown;
         };
         content?: never;
+      };
+    };
+  };
+  v1_operator_support_requests_summary_retrieve: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SupportWorkloadSummary"];
+        };
       };
     };
   };

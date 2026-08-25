@@ -98,6 +98,65 @@ def create_support_request(
 
 
 @transaction.atomic
+def redact_support_request_content(
+    *, support_request: SupportRequest, actor: User
+) -> SupportRequest:
+    if not actor.is_superuser:
+        raise ValidationError("Only a superuser may redact personal Support Request content.")
+    support_request = SupportRequest.objects.select_for_update().get(id=support_request.id)
+    if support_request.personal_content_redacted_at is not None:
+        return support_request
+
+    support_request.submitter = None
+    support_request.name = "Former requester"
+    support_request.email = f"redacted-{support_request.id.hex}@anonymized.invalid"
+    support_request.message = "[Personal Support Request content redacted]"
+    support_request.operator_note = ""
+    support_request.resolution_summary = "[Personal content redacted]"
+    support_request.personal_content_redacted_at = timezone.now()
+    support_request.save(
+        update_fields=(
+            "submitter",
+            "name",
+            "email",
+            "message",
+            "operator_note",
+            "resolution_summary",
+            "personal_content_redacted_at",
+            "updated_at",
+        )
+    )
+    # These models are append-only for operational facts. This privileged privacy action uses each
+    # plain base manager to replace only fields designated as personal content; identities,
+    # timestamps, state, classification, routing, outcomes, and correction links remain untouched.
+    SupportRequestEvent._base_manager.filter(support_request=support_request).update(
+        resolution_summary="[Personal content redacted]",
+    )
+    SupportRequestNote._base_manager.filter(support_request=support_request).update(
+        body="[Personal content redacted]"
+    )
+    SupportExternalContact._base_manager.filter(support_request=support_request).update(
+        summary="[Personal content redacted]",
+    )
+    SupportIdentityVerification._base_manager.filter(support_request=support_request).update(
+        summary="[Personal content redacted]"
+    )
+    SupportPrivacyAction._base_manager.filter(support_request=support_request).update(
+        summary="[Personal content redacted]"
+    )
+    SupportRequestEvent.objects.create(
+        support_request=support_request,
+        actor=actor,
+        event_type=SupportRequestEventType.PERSONAL_CONTENT_REDACTED,
+        prior_state=support_request.status,
+        new_state=support_request.status,
+        classification=support_request.classification,
+        reason="Personal Support Request content redacted through privileged administration.",
+    )
+    return support_request
+
+
+@transaction.atomic
 def add_support_request_note(
     *,
     support_request: SupportRequest,
@@ -352,12 +411,7 @@ def reassign_abandoned_support_request(
     new_assignee: User,
     reason: str,
 ) -> SupportRequest:
-    support_request = (
-        SupportRequest.objects
-        .select_for_update()
-        .select_related("assignee")
-        .get(id=support_request.id)
-    )
+    support_request = SupportRequest.objects.select_for_update().get(id=support_request.id)
     _ensure_operator_may_handle(support_request=support_request, actor=actor)
     if not has_capability(actor, OperatorCapability.MANAGE_OPERATOR_QUEUES):
         raise ValidationError("Queue-management capability is required to reassign work.")
@@ -543,12 +597,7 @@ def resolve_support_request(
     category: SupportResolutionCategory,
     summary: str,
 ) -> SupportRequest:
-    support_request = (
-        SupportRequest.objects
-        .select_for_update()
-        .select_related("assignee")
-        .get(id=support_request.id)
-    )
+    support_request = SupportRequest.objects.select_for_update().get(id=support_request.id)
     _ensure_assigned_operator(support_request=support_request, actor=actor)
     summary = summary.strip()
     if not summary:

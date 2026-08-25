@@ -401,6 +401,75 @@ def test_support_queue_priority_filter_never_counts_or_returns_restricted_privac
 
 
 @pytest.mark.django_db
+def test_support_summary_counts_only_unresolved_work_visible_to_operator(api_client: APIClient):
+    operator = User.objects.create_user(
+        email="summary-operator@example.com",
+        password="password",
+        email_verified_at=timezone.now(),
+    )
+    operator.user_permissions.add(
+        Permission.objects.get(codename="handle_general_support_requests")
+    )
+    unclaimed = SupportRequest.objects.create(
+        name="Visible urgent",
+        email="visible-urgent@example.com",
+        intake_kind=IntakeKind.GENERAL,
+        classification=SupportClassification.GUIDANCE,
+        priority=SupportPriority.URGENT,
+        message="An old actionable Support Request.",
+    )
+    SupportRequest.objects.create(
+        name="Assigned to me",
+        email="mine@example.com",
+        intake_kind=IntakeKind.GENERAL,
+        classification=SupportClassification.GUIDANCE,
+        message="An assigned actionable Support Request.",
+        status=SupportRequestStatus.IN_PROGRESS,
+        assignee=operator,
+        assigned_at=timezone.now(),
+    )
+    SupportRequest.objects.create(
+        name="Restricted urgent",
+        email="restricted@example.com",
+        intake_kind=IntakeKind.GENERAL,
+        classification=SupportClassification.PRIVACY,
+        priority=SupportPriority.URGENT,
+        message="This restricted record must not affect counts.",
+    )
+    SupportRequest.objects.create(
+        name="Own request",
+        email=operator.email,
+        intake_kind=IntakeKind.GENERAL,
+        priority=SupportPriority.URGENT,
+        message="This self-work record must not affect counts.",
+        submitter=operator,
+    )
+    SupportRequest.objects.create(
+        name="Already resolved",
+        email="resolved@example.com",
+        intake_kind=IntakeKind.GENERAL,
+        priority=SupportPriority.URGENT,
+        status=SupportRequestStatus.RESOLVED,
+        message="Resolved work is no longer actionable.",
+    )
+    SupportRequest.objects.filter(id=unclaimed.id).update(
+        created_at=timezone.now() - timedelta(hours=49)
+    )
+    api_client.force_authenticate(operator)
+
+    response = api_client.get("/api/v1/operator/support-requests/summary/")
+
+    assert response.status_code == 200
+    assert response.data == {
+        "unclaimed_count": 1,
+        "assigned_to_me_count": 1,
+        "urgent_count": 1,
+        "aging_count": 1,
+        "aging_after_hours": 48,
+    }
+
+
+@pytest.mark.django_db
 def test_support_queue_defaults_to_fifty_records_and_caps_page_size_at_one_hundred(
     api_client: APIClient,
 ):

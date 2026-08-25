@@ -9,15 +9,23 @@ from rest_framework.test import APIClient
 
 from apps.accounts.models import User
 from apps.contact.models import (
+    ExternalContactChannel,
+    IdentityVerificationMethod,
     IntakeKind,
+    PrivacyActionType,
     SupportClassification,
+    SupportExternalContact,
+    SupportIdentityVerification,
+    SupportPrivacyAction,
     SupportRequest,
     SupportRequestEventType,
+    SupportRequestNote,
     SupportRequestStatus,
     SupportResolutionCategory,
 )
 from apps.contact.services import (
     SupportRequestConflict,
+    redact_support_request_content,
     resolve_support_request,
     triage_support_request,
 )
@@ -48,6 +56,98 @@ def assigned_request(*, operator: User, **overrides: object) -> SupportRequest:
     }
     values.update(overrides)
     return SupportRequest.objects.create(**values)
+
+
+@pytest.mark.django_db
+def test_privileged_redaction_removes_personal_content_without_rewriting_operational_history():
+    administrator = User.objects.create_superuser(
+        email="administrator@example.com", password="password"
+    )
+    operator = operator_with_support_capability()
+    support_request = assigned_request(
+        operator=operator,
+        name="Personal Requester Name",
+        email="personal.requester@example.com",
+        message="Personal Support Request content to remove.",
+        escalation_destination="Privacy queue",
+    )
+    original_event = support_request.events.create(
+        actor=operator,
+        event_type=SupportRequestEventType.ASSIGNED,
+        prior_state=SupportRequestStatus.OPEN,
+        new_state=SupportRequestStatus.IN_PROGRESS,
+        classification=SupportClassification.GUIDANCE,
+        new_assignee=operator,
+        reason="Routed to the privacy queue.",
+        escalation_destination="Privacy queue",
+        resolution_summary="Personal resolution content to remove.",
+    )
+    note = SupportRequestNote.objects.create(
+        support_request=support_request,
+        actor=operator,
+        body="Personal note content to remove.",
+    )
+    external_contact = SupportExternalContact.objects.create(
+        support_request=support_request,
+        actor=operator,
+        channel=ExternalContactChannel.EMAIL,
+        occurred_at=timezone.now(),
+        outcome="answered",
+        summary="Personal external contact content to remove.",
+    )
+    identity_verification = SupportIdentityVerification.objects.create(
+        support_request=support_request,
+        actor=operator,
+        method=IdentityVerificationMethod.OUT_OF_BAND,
+        verified_at=timezone.now(),
+        summary="Personal verification content to remove.",
+    )
+    privacy_action = SupportPrivacyAction.objects.create(
+        support_request=support_request,
+        actor=operator,
+        action=PrivacyActionType.DEFENSIVE_CONTACT_REMOVAL,
+        completed_at=timezone.now(),
+        summary="Personal privacy action content to remove.",
+    )
+    original_created_at = original_event.created_at
+
+    redact_support_request_content(support_request=support_request, actor=administrator)
+
+    support_request.refresh_from_db()
+    original_event.refresh_from_db()
+    note.refresh_from_db()
+    external_contact.refresh_from_db()
+    identity_verification.refresh_from_db()
+    privacy_action.refresh_from_db()
+    assert support_request.name == "Former requester"
+    assert "personal.requester@example.com" not in support_request.email
+    assert support_request.message == "[Personal Support Request content redacted]"
+    assert support_request.submitter is None
+    assert support_request.assignee == operator
+    assert support_request.status == SupportRequestStatus.IN_PROGRESS
+    assert support_request.escalation_destination == "Privacy queue"
+    assert support_request.personal_content_redacted_at is not None
+    assert original_event.actor == operator
+    assert original_event.created_at == original_created_at
+    assert original_event.event_type == SupportRequestEventType.ASSIGNED
+    assert original_event.new_state == SupportRequestStatus.IN_PROGRESS
+    assert original_event.new_assignee == operator
+    assert original_event.reason == "Routed to the privacy queue."
+    assert original_event.escalation_destination == "Privacy queue"
+    assert original_event.resolution_summary == "[Personal content redacted]"
+    assert note.actor == operator
+    assert note.body == "[Personal content redacted]"
+    assert external_contact.channel == ExternalContactChannel.EMAIL
+    assert external_contact.outcome == "answered"
+    assert external_contact.summary == "[Personal content redacted]"
+    assert identity_verification.method == IdentityVerificationMethod.OUT_OF_BAND
+    assert identity_verification.summary == "[Personal content redacted]"
+    assert privacy_action.action == PrivacyActionType.DEFENSIVE_CONTACT_REMOVAL
+    assert privacy_action.summary == "[Personal content redacted]"
+    assert support_request.events.filter(
+        event_type=SupportRequestEventType.PERSONAL_CONTENT_REDACTED,
+        actor=administrator,
+    ).exists()
 
 
 @pytest.mark.django_db

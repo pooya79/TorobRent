@@ -842,7 +842,7 @@ export function OperatorReviewPage() {
                     : `${submissionStateLabels[event.prior_state]} ← ${submissionStateLabels[event.new_state]}`}
                 </p>
                 <p className="text-muted-foreground mt-1">
-                  {event.actor_email} ·{" "}
+                  {event.actor_label} ·{" "}
                   {new Date(event.created_at).toLocaleString("fa-IR")}
                 </p>
                 <p className="text-muted-foreground mt-1">

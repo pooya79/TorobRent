@@ -56,6 +56,7 @@ class SupportRequestEventType(models.TextChoices):
     REOPENED = "reopened", "دوباره باز شد"
     IDENTITY_VERIFIED = "identity_verified", "هویت تأیید شد"
     PRIVACY_ACTION_RECORDED = "privacy_action_recorded", "اقدام حریم خصوصی ثبت شد"
+    PERSONAL_CONTENT_REDACTED = "personal_content_redacted", "محتوای شخصی حذف شد"
 
 
 class ExternalContactChannel(models.TextChoices):
@@ -211,6 +212,7 @@ class SupportRequest(models.Model):
         editable=False,
     )
     resolution_summary = models.TextField(max_length=1000, blank=True, editable=False)
+    personal_content_redacted_at = models.DateTimeField(null=True, blank=True, editable=False)
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
     updated_at = models.DateTimeField(auto_now=True)
 

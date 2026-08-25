@@ -1009,6 +1009,36 @@ def test_queue_filters_age_and_assignment_without_counting_self_work(api_client:
     assert [item["id"] for item in response.data["results"]] == [str(mine.id)]
 
 
+@pytest.mark.django_db
+def test_submission_summary_counts_only_actionable_review_work_visible_to_operator(
+    api_client: APIClient,
+):
+    operator = make_operator()
+    unclaimed = make_complete_submission(email="summary-unclaimed@example.com")
+    mine = make_complete_submission(email="summary-mine@example.com")
+    recent = make_complete_submission(email="summary-recent@example.com")
+    self_work = make_complete_submission(email="summary-self@example.com")
+    self_work.submitter = operator
+    self_work.save(update_fields=("submitter",))
+    for submission in (unclaimed, mine, recent, self_work):
+        submit_for_review(submission=submission, actor=submission.submitter)
+    Submission.objects.filter(id__in=(unclaimed.id, mine.id, self_work.id)).update(
+        pending_since=timezone.now() - timezone.timedelta(hours=49)
+    )
+    claim_submission_review(submission=mine, actor=operator)
+    api_client.force_authenticate(operator)
+
+    response = api_client.get("/api/v1/operator/submissions/summary/")
+
+    assert response.status_code == 200
+    assert response.data == {
+        "unclaimed_count": 2,
+        "assigned_to_me_count": 1,
+        "aging_count": 2,
+        "aging_after_hours": 48,
+    }
+
+
 @pytest.mark.django_db(transaction=True)
 def test_competing_claims_have_one_winner():
     if connection.vendor != "postgresql":

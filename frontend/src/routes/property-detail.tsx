@@ -34,8 +34,12 @@ export async function loader({
       new Response("Property identity is required", { status: 404 }),
     );
   }
-  const baseUrl = new URL(request.url).origin;
   const requestUrl = new URL(request.url);
+  const requestOrigin = requestUrl.origin;
+  const baseUrl =
+    typeof window === "undefined"
+      ? (process.env.VITE_PROXY_TARGET ?? requestOrigin)
+      : requestOrigin;
   const queryClient = new QueryClient();
   let property: PropertyDetail;
   try {

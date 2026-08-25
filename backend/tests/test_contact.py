@@ -6,6 +6,7 @@ from django.core.cache import cache
 from django.utils import timezone
 from rest_framework.test import APIClient
 
+from apps.accounts.models import User
 from apps.contact.models import IntakeKind, SupportRequest, SupportRequestStatus
 
 
@@ -144,7 +145,7 @@ def test_contact_length_validation_messages_are_persian(api_client: APIClient):
 
 
 @pytest.mark.django_db
-def test_admin_cannot_bypass_append_only_support_resolution_workflow(client, user):
+def test_routine_support_handling_is_retired_from_ordinary_django_admin(client, user):
     message_data = valid_message()
     message = SupportRequest.objects.create(intake_kind=message_data.pop("kind"), **message_data)
     user.is_staff = True
@@ -169,9 +170,8 @@ def test_admin_cannot_bypass_append_only_support_resolution_workflow(client, use
         },
     )
 
-    assert changelist.status_code == 200
-    assert "نگار محمدی" in changelist.content.decode()
-    assert change.status_code == 302
+    assert changelist.status_code == 403
+    assert change.status_code == 403
     message.refresh_from_db()
     assert message.status == SupportRequestStatus.OPEN
     assert message.resolved_by is None
@@ -181,8 +181,8 @@ def test_admin_cannot_bypass_append_only_support_resolution_workflow(client, use
 
 
 @pytest.mark.django_db
-def test_general_support_operator_cannot_view_or_finalize_privacy_content_in_admin(client, user):
-    general = SupportRequest.objects.create(
+def test_general_support_operator_cannot_use_django_admin_as_a_routine_queue(client, user):
+    SupportRequest.objects.create(
         name="General requester",
         email="general@example.com",
         intake_kind=IntakeKind.GENERAL,
@@ -233,11 +233,7 @@ def test_general_support_operator_cannot_view_or_finalize_privacy_content_in_adm
         },
     )
 
-    assert changelist.status_code == 200
-    content = changelist.content.decode()
-    assert general.name in content
-    assert privacy.name not in content
-    assert specialized.name not in content
+    assert changelist.status_code == 403
     assert protected_change.status_code != 200
     assert specialized_change.status_code != 200
     privacy.refresh_from_db()
@@ -246,6 +242,37 @@ def test_general_support_operator_cannot_view_or_finalize_privacy_content_in_adm
     assert privacy.resolved_by is None
     assert specialized.status == SupportRequestStatus.ESCALATED
     assert specialized.resolved_by is None
+
+
+@pytest.mark.django_db
+def test_superuser_keeps_read_only_break_glass_and_personal_content_redaction(client):
+    support_request = SupportRequest.objects.create(
+        name="Requester to redact",
+        email="redact@example.com",
+        intake_kind=IntakeKind.GENERAL,
+        message="Personal content requiring privileged redaction.",
+    )
+    superuser = User.objects.create_superuser(email="break-glass@example.com", password="password")
+    client.force_login(superuser)
+
+    changelist = client.get("/admin/contact/supportrequest/")
+    redacted = client.post(
+        "/admin/contact/supportrequest/",
+        {
+            "action": "redact_selected_personal_content",
+            "_selected_action": [support_request.id],
+            "index": "0",
+        },
+    )
+
+    assert changelist.status_code == 200
+    assert redacted.status_code == 302
+    support_request.refresh_from_db()
+    assert support_request.personal_content_redacted_at is not None
+    assert support_request.name == "Former requester"
+    assert support_request.events.filter(
+        event_type="personal_content_redacted", actor=superuser
+    ).exists()
 
 
 @pytest.mark.django_db

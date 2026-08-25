@@ -75,6 +75,7 @@ const eventLabels = {
   reopened: "بازگشایی",
   identity_verified: "تأیید هویت",
   privacy_action_recorded: "ثبت اقدام حریم خصوصی",
+  personal_content_redacted: "حذف محتوای شخصی",
 } as const;
 
 function requestTitle(supportRequest: SupportRequestQueueItem) {
@@ -625,7 +626,7 @@ export function OperatorSupportPage() {
                         {eventLabels[event.event_type]}
                       </p>
                       <p className="text-muted-foreground mt-1">
-                        {event.actor_email} · {statusLabels[event.prior_state]}{" "}
+                        {event.actor_label} · {statusLabels[event.prior_state]}{" "}
                         ← {statusLabels[event.new_state]}
                       </p>
                       <time

@@ -85,6 +85,8 @@ test("shows current review state, reason, history, and the available edit action
           history: [
             {
               id: "40000000-0000-4000-8000-000000000004",
+              actor_reference: "50000000-0000-4000-8000-000000000005",
+              actor_label: "operator@example.com",
               actor_email: "operator@example.com",
               revision: 1,
               prior_state: "pending",
@@ -144,6 +146,8 @@ test("shows decision email delivery state without hiding the durable decision", 
           history: [
             {
               id: "40000000-0000-4000-8000-000000000014",
+              actor_reference: "50000000-0000-4000-8000-000000000005",
+              actor_label: "operator@example.com",
               actor_email: "operator@example.com",
               revision: 1,
               prior_state: "pending",

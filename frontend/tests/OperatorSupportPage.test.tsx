@@ -55,6 +55,8 @@ function serveSupportRequest() {
             id: "30000000-0000-4000-8000-000000000039",
             event_type: "assigned",
             actor_id: queueItem.assignee_id,
+            actor_reference: queueItem.assignee_id,
+            actor_label: queueItem.assignee_email,
             actor_email: queueItem.assignee_email,
             prior_state: "open",
             new_state: "in_progress",
@@ -104,6 +106,37 @@ test("loads an existing durable assignment with request and event details", asyn
   expect(
     screen.getByRole("button", { name: "آزاد کردن درخواست" }),
   ).toBeVisible();
+});
+
+test("identifies an anonymized historical author without displaying former identity", async () => {
+  serveSupportRequest();
+  server.use(
+    http.get("*/api/v1/operator/support-requests/:id/", () =>
+      HttpResponse.json({
+        ...queueItem,
+        message: "درخواست حفظ‌شده",
+        history: [
+          {
+            id: "30000000-0000-4000-8000-000000000040",
+            event_type: "classified",
+            actor_id: "40000000-0000-4000-8000-000000000040",
+            actor_reference: "40000000-0000-4000-8000-000000000040",
+            actor_label: "Former Operator",
+            actor_email: null,
+            prior_state: "open",
+            new_state: "open",
+            reason: "",
+            created_at: assignedAt,
+          },
+        ],
+      }),
+    ),
+  );
+
+  renderPage();
+
+  expect(await screen.findByText(/Former Operator/)).toBeVisible();
+  expect(screen.queryByText(/former\.private@example\.com/)).toBeNull();
 });
 
 test("claims an open request and lets its assignee release it", async () => {

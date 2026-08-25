@@ -32,7 +32,7 @@ from apps.common.pagination import StandardPageNumberPagination
 from apps.common.serializers import ProblemSerializer
 
 from .models import ReviewClaim, Submission, SubmissionImage, SubmissionImageVariant, SubmissionStep
-from .selectors import submissions_reviewable_by
+from .selectors import submission_workload_summary, submissions_reviewable_by
 from .serializers import (
     ForceReleaseReviewClaimSerializer,
     OperatorSubmissionQueueSerializer,
@@ -45,6 +45,7 @@ from .serializers import (
     SubmissionImageUploadSerializer,
     SubmissionSerializer,
     SubmissionStepUpdateSerializer,
+    SubmissionWorkloadSummarySerializer,
 )
 from .services import (
     ReviewWorkflowConflict,
@@ -369,6 +370,18 @@ class OperatorSubmissionListView(ListAPIView[Submission]):
             else "-pending_since"
         )
         return submissions.order_by(ordering, "id").distinct()
+
+
+class OperatorSubmissionSummaryView(APIView):
+    permission_classes = (CanReviewSubmission,)
+
+    @extend_schema(
+        summary="Summarize actionable Submission Review workload",
+        responses=SubmissionWorkloadSummarySerializer,
+    )
+    def get(self, request: Request) -> Response:
+        summary = submission_workload_summary(operator=cast(User, request.user))
+        return Response(SubmissionWorkloadSummarySerializer(summary).data)
 
 
 class OperatorSubmissionDetailView(APIView):

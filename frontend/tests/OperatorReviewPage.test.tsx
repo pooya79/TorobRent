@@ -66,6 +66,8 @@ const pendingSubmission = {
   history: [
     {
       id: "40000000-0000-4000-8000-000000000004",
+      actor_reference: "50000000-0000-4000-8000-000000000005",
+      actor_label: "owner@example.com",
       actor_email: "owner@example.com",
       revision: 1,
       prior_state: "draft",

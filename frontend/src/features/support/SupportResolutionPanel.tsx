@@ -175,7 +175,7 @@ export function SupportResolutionPanel({
               <li className="bg-muted rounded-lg p-3 text-sm" key={item.id}>
                 <p className="whitespace-pre-wrap">{item.body}</p>
                 <p className="text-muted-foreground mt-1 text-xs">
-                  {item.actor_email} ·{" "}
+                  {item.actor_label} ·{" "}
                   {new Date(item.created_at).toLocaleString("fa-IR")}
                 </p>
                 {canRecord && (
@@ -202,7 +202,7 @@ export function SupportResolutionPanel({
               <li className="bg-muted rounded-lg p-3 text-sm" key={contact.id}>
                 <p>{contact.summary}</p>
                 <p className="text-muted-foreground mt-1 text-xs">
-                  {contact.channel} · {contact.outcome} · {contact.actor_email}
+                  {contact.channel} · {contact.outcome} · {contact.actor_label}
                 </p>
               </li>
             ))}

@@ -43,6 +43,15 @@ def _operator_group_ids(groups: Iterable[Group]) -> frozenset[int]:
     )
 
 
+def _has_operator_grant(user: User) -> bool:
+    direct_permissions = user.user_permissions.select_related("content_type")
+    groups = user.groups.prefetch_related("permissions__content_type")
+    return bool(
+        _operator_permission_ids(direct_permissions)
+        or any(_operator_permission_ids(group.permissions.all()) for group in groups)
+    )
+
+
 def validate_operator_access_change(
     *,
     actor: User,
@@ -170,3 +179,45 @@ def reset_password(*, token: str, new_password: str) -> bool:
         user.set_password(new_password)
         user.save(update_fields=["password"])
     return True
+
+
+@transaction.atomic
+def anonymize_operator_account(*, target: User, actor: User) -> User:
+    if not actor.is_superuser:
+        raise ValidationError("Only a superuser may anonymize an account.")
+    if target.id == actor.id or target.is_superuser:
+        raise ValidationError("A superuser account cannot be anonymized through this action.")
+
+    locked = User.objects.select_for_update().get(id=target.id)
+    if locked.anonymized_at is not None:
+        return locked
+    if not _has_operator_grant(locked):
+        raise ValidationError("Only an account with an Operator grant may be anonymized here.")
+    locked.email = f"former-operator-{locked.id.hex}@anonymized.invalid"
+    locked.first_name = ""
+    locked.last_name = ""
+    locked.email_verified_at = None
+    locked.last_login = None
+    locked.is_active = False
+    locked.is_staff = False
+    locked.is_superuser = False
+    locked.anonymized_at = timezone.now()
+    locked.set_unusable_password()
+    locked.save(
+        update_fields=(
+            "email",
+            "first_name",
+            "last_name",
+            "email_verified_at",
+            "last_login",
+            "is_active",
+            "is_staff",
+            "is_superuser",
+            "anonymized_at",
+            "password",
+        )
+    )
+    locked.groups.clear()
+    locked.user_permissions.clear()
+    target.refresh_from_db()
+    return locked

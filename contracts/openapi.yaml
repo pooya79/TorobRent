@@ -930,6 +930,21 @@ paths:
                 $ref: '#/components/schemas/Problem'
           description: The Review Claim, reviewed revision, or decision state is no
             longer current.
+  /api/v1/operator/submissions/summary/:
+    get:
+      operationId: v1_operator_submissions_summary_retrieve
+      summary: Summarize actionable Submission Review workload
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubmissionWorkloadSummary'
+          description: ''
   /api/v1/operator/support-requests/:
     get:
       operationId: v1_operator_support_requests_list
@@ -1318,6 +1333,21 @@ paths:
       responses:
         '204':
           description: No response body
+  /api/v1/operator/support-requests/summary/:
+    get:
+      operationId: v1_operator_support_requests_summary_retrieve
+      summary: Summarize actionable Support Request workload
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SupportWorkloadSummary'
+          description: ''
   /api/v1/submissions/:
     get:
       operationId: v1_submissions_list
@@ -3149,8 +3179,17 @@ components:
           readOnly: true
         event_type:
           $ref: '#/components/schemas/SubmissionEventEventTypeEnum'
-        actor_email:
+        actor_reference:
           type: string
+          format: uuid
+          readOnly: true
+        actor_label:
+          type: string
+          readOnly: true
+        actor_email:
+          type:
+          - string
+          - 'null'
           format: email
           readOnly: true
         revision:
@@ -3202,6 +3241,8 @@ components:
           readOnly: true
       required:
       - actor_email
+      - actor_label
+      - actor_reference
       - correction
       - corrects_id
       - created_at
@@ -3333,6 +3374,26 @@ components:
         * `changes_requested` - نیازمند اصلاح
         * `rejected` - ردشده
         * `published` - منتشرشده
+    SubmissionWorkloadSummary:
+      type: object
+      properties:
+        unclaimed_count:
+          type: integer
+          minimum: 0
+        assigned_to_me_count:
+          type: integer
+          minimum: 0
+        aging_count:
+          type: integer
+          minimum: 0
+        aging_after_hours:
+          type: integer
+          minimum: 1
+      required:
+      - aging_after_hours
+      - aging_count
+      - assigned_to_me_count
+      - unclaimed_count
     SupportClassificationEnum:
       enum:
       - unclassified
@@ -3358,8 +3419,17 @@ components:
           type: string
           format: uuid
           readOnly: true
-        actor_email:
+        actor_reference:
           type: string
+          format: uuid
+          readOnly: true
+        actor_label:
+          type: string
+          readOnly: true
+        actor_email:
+          type:
+          - string
+          - 'null'
           format: email
           readOnly: true
         channel:
@@ -3380,6 +3450,8 @@ components:
       required:
       - actor_email
       - actor_id
+      - actor_label
+      - actor_reference
       - channel
       - created_at
       - id
@@ -3416,8 +3488,17 @@ components:
           type: string
           format: uuid
           readOnly: true
-        actor_email:
+        actor_reference:
           type: string
+          format: uuid
+          readOnly: true
+        actor_label:
+          type: string
+          readOnly: true
+        actor_email:
+          type:
+          - string
+          - 'null'
           format: email
           readOnly: true
         method:
@@ -3435,6 +3516,8 @@ components:
       required:
       - actor_email
       - actor_id
+      - actor_label
+      - actor_reference
       - created_at
       - id
       - method
@@ -3474,8 +3557,17 @@ components:
           type: string
           format: uuid
           readOnly: true
-        actor_email:
+        actor_reference:
           type: string
+          format: uuid
+          readOnly: true
+        actor_label:
+          type: string
+          readOnly: true
+        actor_email:
+          type:
+          - string
+          - 'null'
           format: email
           readOnly: true
         action:
@@ -3494,6 +3586,8 @@ components:
       - action
       - actor_email
       - actor_id
+      - actor_label
+      - actor_reference
       - completed_at
       - created_at
       - id
@@ -3616,6 +3710,12 @@ components:
         resolution_summary:
           type: string
           readOnly: true
+        personal_content_redacted_at:
+          type:
+          - string
+          - 'null'
+          format: date-time
+          readOnly: true
         message:
           type: string
           maxLength: 4000
@@ -3659,6 +3759,7 @@ components:
       - message
       - name
       - notes
+      - personal_content_redacted_at
       - priority_locked
       - privacy_actions
       - resolution_category
@@ -3679,8 +3780,17 @@ components:
           type: string
           format: uuid
           readOnly: true
-        actor_email:
+        actor_reference:
           type: string
+          format: uuid
+          readOnly: true
+        actor_label:
+          type: string
+          readOnly: true
+        actor_email:
+          type:
+          - string
+          - 'null'
           format: email
           readOnly: true
         prior_state:
@@ -3744,6 +3854,8 @@ components:
       required:
       - actor_email
       - actor_id
+      - actor_label
+      - actor_reference
       - created_at
       - event_type
       - id
@@ -3765,6 +3877,7 @@ components:
       - reopened
       - identity_verified
       - privacy_action_recorded
+      - personal_content_redacted
       type: string
       description: |-
         * `assigned` - واگذار شد
@@ -3779,6 +3892,7 @@ components:
         * `reopened` - دوباره باز شد
         * `identity_verified` - هویت تأیید شد
         * `privacy_action_recorded` - اقدام حریم خصوصی ثبت شد
+        * `personal_content_redacted` - محتوای شخصی حذف شد
     SupportRequestNote:
       type: object
       properties:
@@ -3790,8 +3904,17 @@ components:
           type: string
           format: uuid
           readOnly: true
-        actor_email:
+        actor_reference:
           type: string
+          format: uuid
+          readOnly: true
+        actor_label:
+          type: string
+          readOnly: true
+        actor_email:
+          type:
+          - string
+          - 'null'
           format: email
           readOnly: true
         body:
@@ -3809,6 +3932,8 @@ components:
       required:
       - actor_email
       - actor_id
+      - actor_label
+      - actor_reference
       - body
       - created_at
       - id
@@ -3908,6 +4033,12 @@ components:
         resolution_summary:
           type: string
           readOnly: true
+        personal_content_redacted_at:
+          type:
+          - string
+          - 'null'
+          format: date-time
+          readOnly: true
       required:
       - account_linked_at_intake
       - assigned_at
@@ -3918,6 +4049,7 @@ components:
       - id
       - intake_kind
       - name
+      - personal_content_redacted_at
       - priority_locked
       - resolution_category
       - resolution_summary
@@ -3974,6 +4106,30 @@ components:
       - escalated
       type: string
       description: '* `escalated` - Escalated'
+    SupportWorkloadSummary:
+      type: object
+      properties:
+        unclaimed_count:
+          type: integer
+          minimum: 0
+        assigned_to_me_count:
+          type: integer
+          minimum: 0
+        urgent_count:
+          type: integer
+          minimum: 0
+        aging_count:
+          type: integer
+          minimum: 0
+        aging_after_hours:
+          type: integer
+          minimum: 1
+      required:
+      - aging_after_hours
+      - aging_count
+      - assigned_to_me_count
+      - unclaimed_count
+      - urgent_count
     Token:
       type: object
       properties:

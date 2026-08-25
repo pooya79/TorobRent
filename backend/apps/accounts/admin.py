@@ -6,10 +6,12 @@ from django.contrib.auth.admin import GroupAdmin as DjangoGroupAdmin
 from django.contrib.auth.admin import UserAdmin as DjangoUserAdmin
 from django.contrib.auth.forms import UserChangeForm
 from django.contrib.auth.models import Group
+from django.core.exceptions import ValidationError
 from django.http import HttpRequest
 
 from .models import User
 from .services import (
+    anonymize_operator_account,
     can_delete_operator_group,
     validate_operator_access_change,
     validate_operator_group_change,
@@ -69,9 +71,10 @@ class OperatorAwareGroupChangeForm(forms.ModelForm):  # type: ignore[type-arg]
 class UserAdmin(DjangoUserAdmin):  # type: ignore[type-arg]
     form = OperatorAwareUserChangeForm
     ordering = ("email",)
-    list_display = ("email", "email_verified_at", "is_staff", "is_active")
+    list_display = ("email", "email_verified_at", "anonymized_at", "is_staff", "is_active")
     search_fields = ("email",)
-    readonly_fields = ("email_verified_at", "last_login", "date_joined")
+    readonly_fields = ("email_verified_at", "anonymized_at", "last_login", "date_joined")
+    actions = ("anonymize_selected_accounts",)
     fieldsets = (
         (None, {"fields": ("email", "password")}),
         ("Personal info", {"fields": ("first_name", "last_name")}),
@@ -79,7 +82,10 @@ class UserAdmin(DjangoUserAdmin):  # type: ignore[type-arg]
             "Permissions",
             {"fields": ("is_active", "is_staff", "is_superuser", "groups", "user_permissions")},
         ),
-        ("Important dates", {"fields": ("email_verified_at", "last_login", "date_joined")}),
+        (
+            "Important dates",
+            {"fields": ("email_verified_at", "anonymized_at", "last_login", "date_joined")},
+        ),
     )
     add_fieldsets = (
         (
@@ -108,6 +114,33 @@ class UserAdmin(DjangoUserAdmin):  # type: ignore[type-arg]
     def get_readonly_fields(self, request: HttpRequest, obj: User | None = None) -> tuple[str, ...]:
         fields = tuple(super().get_readonly_fields(request, obj))
         return fields if request.user.is_superuser else fields + ("is_superuser",)
+
+    @admin.action(description="Anonymize selected former Operator accounts")
+    def anonymize_selected_accounts(
+        self,
+        request: HttpRequest,
+        queryset: Any,
+    ) -> None:
+        actor = cast(User, request.user)
+        if not actor.is_superuser:
+            self.message_user(request, "Only superusers may anonymize accounts.", level="error")
+            return
+        anonymized = 0
+        skipped = 0
+        for target in queryset:
+            if target.is_superuser or target.id == actor.id:
+                skipped += 1
+                continue
+            try:
+                anonymize_operator_account(target=target, actor=actor)
+            except ValidationError:
+                skipped += 1
+                continue
+            anonymized += 1
+        self.message_user(
+            request,
+            f"Anonymized {anonymized} former Operator account(s); skipped {skipped}.",
+        )
 
 
 admin.site.unregister(Group)

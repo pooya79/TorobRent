@@ -360,8 +360,21 @@ class SubmissionDecisionNotificationSerializer(
         }.get(notification.failure_kind)
 
 
+class SubmissionWorkloadSummarySerializer(serializers.Serializer[dict[str, int]]):
+    unclaimed_count = serializers.IntegerField(min_value=0)
+    assigned_to_me_count = serializers.IntegerField(min_value=0)
+    aging_count = serializers.IntegerField(min_value=0)
+    aging_after_hours = serializers.IntegerField(min_value=1)
+
+
 class SubmissionEventSerializer(serializers.ModelSerializer[SubmissionEvent]):
-    actor_email = serializers.EmailField(source="actor.email", read_only=True)
+    actor_reference = serializers.UUIDField(
+        source="actor.historical_actor_reference", read_only=True
+    )
+    actor_label = serializers.CharField(source="actor.historical_actor_label", read_only=True)
+    actor_email = serializers.EmailField(
+        source="actor.historical_actor_email", read_only=True, allow_null=True
+    )
     reviewed_revision = serializers.IntegerField(source="revision", read_only=True)
     review_claim_id = serializers.UUIDField(read_only=True, allow_null=True)
     corrects_id = serializers.UUIDField(read_only=True, allow_null=True)
@@ -375,6 +388,8 @@ class SubmissionEventSerializer(serializers.ModelSerializer[SubmissionEvent]):
         fields = (
             "id",
             "event_type",
+            "actor_reference",
+            "actor_label",
             "actor_email",
             "revision",
             "reviewed_revision",

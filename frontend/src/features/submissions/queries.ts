@@ -13,6 +13,8 @@ export type SubmissionImageOrder =
 export type SubmissionApproval = components["schemas"]["SubmissionApproval"];
 export type OperatorSubmissionQueueItem =
   components["schemas"]["OperatorSubmissionQueue"];
+export type SubmissionWorkloadSummary =
+  components["schemas"]["SubmissionWorkloadSummary"];
 
 export type OperatorQueueFilters = {
   state?: string;
@@ -144,6 +146,21 @@ export function operatorQueueQueryOptions(filters: OperatorQueueFilters = {}) {
       if (error || !data) throw apiError(error);
       return data;
     },
+    refetchInterval: 30_000,
+  });
+}
+
+export function submissionWorkloadSummaryQueryOptions(enabled = true) {
+  return queryOptions({
+    queryKey: ["operator-submissions", "summary"] as const,
+    queryFn: async () => {
+      const { data, error } = await api.GET(
+        "/api/v1/operator/submissions/summary/",
+      );
+      if (error || !data) throw apiError(error);
+      return data;
+    },
+    enabled,
     refetchInterval: 30_000,
   });
 }
