@@ -142,16 +142,22 @@ SPECTACULAR_SETTINGS = {
     "OAS_VERSION": "3.1.0",
     "SERVE_INCLUDE_SCHEMA": False,
     "ENUM_NAME_OVERRIDES": {
+        "ExternalContactChannelEnum": "apps.contact.models.ExternalContactChannel.choices",
         "FeatureStateEnum": "apps.catalog.models.FeatureState.choices",
+        "IdentityVerificationMethodEnum": (
+            "apps.contact.models.IdentityVerificationMethod.choices"
+        ),
         "IntakeKindEnum": "apps.contact.models.IntakeKind.choices",
         "OutboundPolicyEnum": "apps.catalog.models.OutboundPolicy.choices",
         "PropertyTypeEnum": "apps.catalog.models.PropertyType.choices",
+        "PrivacyActionTypeEnum": "apps.contact.models.PrivacyActionType.choices",
         "SubmissionStateEnum": "apps.submissions.models.SubmissionState.choices",
         "SupportClassificationEnum": "apps.contact.models.SupportClassification.choices",
         "SupportPriorityEnum": "apps.contact.models.SupportPriority.choices",
         "SupportRequiredCapabilityEnum": ("apps.contact.models.SupportRequiredCapability.choices"),
         "SupportRequestEventTypeEnum": "apps.contact.models.SupportRequestEventType.choices",
         "SupportRequestStatusEnum": "apps.contact.models.SupportRequestStatus.choices",
+        "SupportResolutionCategoryEnum": ("apps.contact.models.SupportResolutionCategory.choices"),
     },
     "SWAGGER_UI_DIST": "SIDECAR",
     "SWAGGER_UI_FAVICON_HREF": "SIDECAR",

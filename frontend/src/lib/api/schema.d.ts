@@ -448,6 +448,74 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/v1/operator/support-requests/{support_request_id}/external-contacts/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Record a privacy-minimal external-contact summary */
+    post: operations["v1_operator_support_requests_external_contacts_create"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/operator/support-requests/{support_request_id}/identity-verifications/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Record out-of-band identity verification */
+    post: operations["v1_operator_support_requests_identity_verifications_create"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/operator/support-requests/{support_request_id}/notes/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Append an internal note to a Support Request */
+    post: operations["v1_operator_support_requests_notes_create"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/operator/support-requests/{support_request_id}/privacy-actions/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Record privacy-action completion without performing the action */
+    post: operations["v1_operator_support_requests_privacy_actions_create"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/v1/operator/support-requests/{support_request_id}/reassign/": {
     parameters: {
       query?: never;
@@ -459,6 +527,40 @@ export interface paths {
     put?: never;
     /** Reassign an abandoned Support Request */
     post: operations["v1_operator_support_requests_reassign_create"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/operator/support-requests/{support_request_id}/reopen/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Reopen a resolved Support Request with a reason */
+    post: operations["v1_operator_support_requests_reopen_create"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/operator/support-requests/{support_request_id}/resolve/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Resolve an assigned Support Request */
+    post: operations["v1_operator_support_requests_resolve_create"];
     delete?: never;
     options?: never;
     head?: never;
@@ -839,6 +941,14 @@ export interface components {
     Detail: {
       detail: string;
     };
+    /**
+     * @description * `email` - ایمیل
+     *     * `phone` - تلفن
+     *     * `in_person` - حضوری
+     *     * `other` - سایر
+     * @enum {string}
+     */
+    ExternalContactChannelEnum: "email" | "phone" | "in_person" | "other";
     ExternalContinuation: {
       /** Format: uri */
       url: string;
@@ -879,6 +989,11 @@ export interface components {
      * @enum {string}
      */
     HealthStatusEnum: "ok" | "unavailable";
+    /**
+     * @description * `out_of_band` - تأیید خارج از TorobRent
+     * @enum {string}
+     */
+    IdentityVerificationMethodEnum: "out_of_band";
     /**
      * @description * `general` - راهنمایی و پرسش
      *     * `account_deletion` - درخواست حذف حساب
@@ -1093,6 +1208,13 @@ export interface components {
     PhoneReveal: {
       phone: string;
     };
+    /**
+     * @description * `defensive_contact_removal` - حذف دفاعی اطلاعات تماس عمومی
+     *     * `permanent_account_action` - اقدام دائمی حساب
+     * @enum {string}
+     */
+    PrivacyActionTypeEnum:
+      "defensive_contact_removal" | "permanent_account_action";
     Problem: {
       /** Format: uri */
       type: string;
@@ -1429,15 +1551,80 @@ export interface components {
      */
     SupportClassificationEnum:
       "unclassified" | "guidance" | "privacy" | "account_deletion" | "spam";
+    SupportExternalContact: {
+      /** Format: uuid */
+      readonly id: string;
+      /** Format: uuid */
+      readonly actor_id: string;
+      /** Format: email */
+      readonly actor_email: string;
+      channel: components["schemas"]["ExternalContactChannelEnum"];
+      /** Format: date-time */
+      occurred_at: string;
+      outcome: string;
+      summary: string;
+      /** Format: date-time */
+      readonly created_at: string;
+    };
+    SupportExternalContactCreate: {
+      channel: components["schemas"]["ExternalContactChannelEnum"];
+      /** Format: date-time */
+      occurred_at: string;
+      outcome: string;
+      summary: string;
+    };
+    SupportIdentityVerification: {
+      /** Format: uuid */
+      readonly id: string;
+      /** Format: uuid */
+      readonly actor_id: string;
+      /** Format: email */
+      readonly actor_email: string;
+      method: components["schemas"]["IdentityVerificationMethodEnum"];
+      /** Format: date-time */
+      verified_at: string;
+      summary: string;
+      /** Format: date-time */
+      readonly created_at: string;
+    };
+    SupportIdentityVerificationCreate: {
+      method: components["schemas"]["IdentityVerificationMethodEnum"];
+      /** Format: date-time */
+      verified_at: string;
+      summary: string;
+    };
     /**
      * @description * `normal` - عادی
      *     * `urgent` - فوری
      * @enum {string}
      */
     SupportPriorityEnum: "normal" | "urgent";
+    SupportPrivacyAction: {
+      /** Format: uuid */
+      readonly id: string;
+      /** Format: uuid */
+      readonly actor_id: string;
+      /** Format: email */
+      readonly actor_email: string;
+      action: components["schemas"]["PrivacyActionTypeEnum"];
+      /** Format: date-time */
+      completed_at: string;
+      summary: string;
+      /** Format: date-time */
+      readonly created_at: string;
+    };
+    SupportPrivacyActionCreate: {
+      action: components["schemas"]["PrivacyActionTypeEnum"];
+      /** Format: date-time */
+      completed_at: string;
+      summary: string;
+    };
     SupportReassignment: {
       /** Format: email */
       assignee_email: string;
+      reason: string;
+    };
+    SupportReopen: {
       reason: string;
     };
     SupportRequest: {
@@ -1446,6 +1633,7 @@ export interface components {
       name: string;
       /** Format: email */
       email: string;
+      readonly account_linked_at_intake: boolean;
       readonly intake_kind: components["schemas"]["IntakeKindEnum"];
       classification?: components["schemas"]["SupportClassificationEnum"];
       priority?: components["schemas"]["SupportPriorityEnum"];
@@ -1465,8 +1653,19 @@ export interface components {
       readonly created_at: string;
       /** Format: date-time */
       readonly updated_at: string;
+      /** Format: uuid */
+      readonly resolved_by_id: string | null;
+      /** Format: date-time */
+      readonly resolved_at: string | null;
+      readonly resolution_category:
+        | components["schemas"]["SupportResolutionCategoryEnum"]
+        | components["schemas"]["NullEnum"];
+      readonly resolution_summary: string;
       message: string;
-      operator_note?: string;
+      readonly notes: components["schemas"]["SupportRequestNote"][];
+      readonly external_contacts: components["schemas"]["SupportExternalContact"][];
+      readonly identity_verifications: components["schemas"]["SupportIdentityVerification"][];
+      readonly privacy_actions: components["schemas"]["SupportPrivacyAction"][];
       readonly history: components["schemas"]["SupportRequestEvent"][];
     };
     SupportRequestEvent: {
@@ -1479,6 +1678,7 @@ export interface components {
       readonly actor_email: string;
       prior_state: components["schemas"]["SupportRequestStatusEnum"];
       new_state: components["schemas"]["SupportRequestStatusEnum"];
+      classification?: components["schemas"]["SupportClassificationEnum"];
       prior_classification?:
         | components["schemas"]["SupportClassificationEnum"]
         | components["schemas"]["BlankEnum"]
@@ -1504,6 +1704,11 @@ export interface components {
       /** Format: uuid */
       readonly new_assignee_id: string | null;
       reason?: string;
+      resolution_category?:
+        | components["schemas"]["SupportResolutionCategoryEnum"]
+        | components["schemas"]["BlankEnum"]
+        | components["schemas"]["NullEnum"];
+      resolution_summary?: string;
       /** Format: date-time */
       readonly created_at: string;
     };
@@ -1514,6 +1719,12 @@ export interface components {
      *     * `priority_changed` - فوریت تغییر یافت
      *     * `reassigned` - دوباره واگذار شد
      *     * `released` - آزاد شد
+     *     * `note_added` - یادداشت افزوده شد
+     *     * `external_contact_recorded` - ارتباط بیرونی ثبت شد
+     *     * `resolved` - رسیدگی نهایی شد
+     *     * `reopened` - دوباره باز شد
+     *     * `identity_verified` - هویت تأیید شد
+     *     * `privacy_action_recorded` - اقدام حریم خصوصی ثبت شد
      * @enum {string}
      */
     SupportRequestEventTypeEnum:
@@ -1522,13 +1733,38 @@ export interface components {
       | "escalated"
       | "priority_changed"
       | "reassigned"
-      | "released";
+      | "released"
+      | "note_added"
+      | "external_contact_recorded"
+      | "resolved"
+      | "reopened"
+      | "identity_verified"
+      | "privacy_action_recorded";
+    SupportRequestNote: {
+      /** Format: uuid */
+      readonly id: string;
+      /** Format: uuid */
+      readonly actor_id: string;
+      /** Format: email */
+      readonly actor_email: string;
+      body: string;
+      /** Format: uuid */
+      corrects_note?: string | null;
+      /** Format: date-time */
+      readonly created_at: string;
+    };
+    SupportRequestNoteCreate: {
+      body: string;
+      /** Format: uuid */
+      corrects_note?: string | null;
+    };
     SupportRequestQueue: {
       /** Format: uuid */
       readonly id: string;
       name: string;
       /** Format: email */
       email: string;
+      readonly account_linked_at_intake: boolean;
       readonly intake_kind: components["schemas"]["IntakeKindEnum"];
       classification?: components["schemas"]["SupportClassificationEnum"];
       priority?: components["schemas"]["SupportPriorityEnum"];
@@ -1548,6 +1784,14 @@ export interface components {
       readonly created_at: string;
       /** Format: date-time */
       readonly updated_at: string;
+      /** Format: uuid */
+      readonly resolved_by_id: string | null;
+      /** Format: date-time */
+      readonly resolved_at: string | null;
+      readonly resolution_category:
+        | components["schemas"]["SupportResolutionCategoryEnum"]
+        | components["schemas"]["NullEnum"];
+      readonly resolution_summary: string;
     };
     /**
      * @description * `open` - باز
@@ -1563,6 +1807,24 @@ export interface components {
      * @enum {string}
      */
     SupportRequiredCapabilityEnum: "handle_support" | "handle_privacy_requests";
+    SupportResolution: {
+      category: components["schemas"]["SupportResolutionCategoryEnum"];
+      summary: string;
+    };
+    /**
+     * @description * `answered_externally` - پاسخ بیرون از TorobRent
+     *     * `action_completed` - اقدام تکمیل شد
+     *     * `duplicate` - تکراری
+     *     * `spam` - هرزنامه
+     *     * `no_action_required` - بدون اقدام لازم
+     * @enum {string}
+     */
+    SupportResolutionCategoryEnum:
+      | "answered_externally"
+      | "action_completed"
+      | "duplicate"
+      | "spam"
+      | "no_action_required";
     /**
      * @description * `escalated` - Escalated
      * @enum {string}
@@ -2570,6 +2832,106 @@ export interface operations {
       };
     };
   };
+  v1_operator_support_requests_external_contacts_create: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        support_request_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["SupportExternalContactCreate"];
+      };
+    };
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SupportExternalContact"];
+        };
+      };
+    };
+  };
+  v1_operator_support_requests_identity_verifications_create: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        support_request_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["SupportIdentityVerificationCreate"];
+      };
+    };
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SupportIdentityVerification"];
+        };
+      };
+    };
+  };
+  v1_operator_support_requests_notes_create: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        support_request_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["SupportRequestNoteCreate"];
+      };
+    };
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SupportRequestNote"];
+        };
+      };
+    };
+  };
+  v1_operator_support_requests_privacy_actions_create: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        support_request_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["SupportPrivacyActionCreate"];
+      };
+    };
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SupportPrivacyAction"];
+        };
+      };
+    };
+  };
   v1_operator_support_requests_reassign_create: {
     parameters: {
       query?: never;
@@ -2582,6 +2944,56 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": components["schemas"]["SupportReassignment"];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SupportRequest"];
+        };
+      };
+    };
+  };
+  v1_operator_support_requests_reopen_create: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        support_request_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["SupportReopen"];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SupportRequest"];
+        };
+      };
+    };
+  };
+  v1_operator_support_requests_resolve_create: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        support_request_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["SupportResolution"];
       };
     };
     responses: {

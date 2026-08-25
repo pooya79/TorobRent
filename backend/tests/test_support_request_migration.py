@@ -97,3 +97,48 @@ def test_existing_classification_is_preserved_while_public_exposure_becomes_lock
         assert migrated_removal.priority_locked is True
     finally:
         MigrationExecutor(connection).migrate(latest_targets)
+
+
+@pytest.mark.django_db(transaction=True)
+def test_resolution_history_migration_preserves_account_link_and_event_classification():
+    executor = MigrationExecutor(connection)
+    latest_targets = executor.loader.graph.leaf_nodes()
+    old_target = [("contact", "0003_add_privacy_aware_support_triage")]
+    new_target = [("contact", "0007_supportrequest_account_linked_at_intake_and_more")]
+
+    try:
+        executor.migrate(old_target)
+        old_apps = executor.loader.project_state(old_target).apps
+        SupportRequest = old_apps.get_model("contact", "SupportRequest")
+        SupportRequestEvent = old_apps.get_model("contact", "SupportRequestEvent")
+        User = old_apps.get_model("accounts", "User")
+        requester = User.objects.create(email="linked@example.com")
+        operator = User.objects.create(email="operator@example.com")
+        support_request = SupportRequest.objects.create(
+            submitter=requester,
+            name="Linked requester",
+            email=requester.email,
+            intake_kind="general",
+            classification="guidance",
+            message="This request and event predate immutable resolution history.",
+        )
+        event = SupportRequestEvent.objects.create(
+            support_request=support_request,
+            actor=operator,
+            event_type="assigned",
+            prior_state="open",
+            new_state="in_progress",
+        )
+
+        executor = MigrationExecutor(connection)
+        executor.migrate(new_target)
+        new_apps = executor.loader.project_state(new_target).apps
+        SupportRequest = new_apps.get_model("contact", "SupportRequest")
+        SupportRequestEvent = new_apps.get_model("contact", "SupportRequestEvent")
+
+        migrated_request = SupportRequest.objects.get(id=support_request.id)
+        migrated_event = SupportRequestEvent.objects.get(id=event.id)
+        assert migrated_request.account_linked_at_intake is True
+        assert migrated_event.classification == "guidance"
+    finally:
+        MigrationExecutor(connection).migrate(latest_targets)

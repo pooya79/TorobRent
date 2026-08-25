@@ -16,6 +16,16 @@ export type SupportPriority = NonNullable<SupportRequestQueueItem["priority"]>;
 export type SupportTriageInput = components["schemas"]["PatchedSupportTriage"];
 export type SupportReassignmentInput =
   components["schemas"]["SupportReassignment"];
+export type SupportNoteInput =
+  components["schemas"]["SupportRequestNoteCreate"];
+export type SupportExternalContactInput =
+  components["schemas"]["SupportExternalContactCreate"];
+export type SupportResolutionInput = components["schemas"]["SupportResolution"];
+export type SupportReopenInput = components["schemas"]["SupportReopen"];
+export type SupportIdentityVerificationInput =
+  components["schemas"]["SupportIdentityVerificationCreate"];
+export type SupportPrivacyActionInput =
+  components["schemas"]["SupportPrivacyActionCreate"];
 type GeneratedSupportQueueFilters = NonNullable<
   operations["v1_operator_support_requests_list"]["parameters"]["query"]
 >;
@@ -26,6 +36,14 @@ export type SupportQueueFilters = Omit<
   GeneratedSupportQueueFilters,
   "assignee"
 > & { assignee?: AssigneeFacet };
+
+async function requireSupportCommandData<Data>(
+  request: Promise<{ data?: Data; error?: unknown }>,
+) {
+  const { data, error } = await request;
+  if (error || !data) throw apiError(error);
+  return data;
+}
 
 export function supportQueueQueryOptions(filters: SupportQueueFilters = {}) {
   return queryOptions({
@@ -62,12 +80,11 @@ export function supportRequestQueryOptions(supportRequestId: string) {
 }
 
 export async function claimSupportRequest(supportRequestId: string) {
-  const { data, error } = await api.POST(
-    "/api/v1/operator/support-requests/{support_request_id}/claim/",
-    { params: { path: { support_request_id: supportRequestId } } },
+  return requireSupportCommandData(
+    api.POST("/api/v1/operator/support-requests/{support_request_id}/claim/", {
+      params: { path: { support_request_id: supportRequestId } },
+    }),
   );
-  if (error || !data) throw apiError(error);
-  return data;
 }
 
 export async function releaseSupportRequest(supportRequestId: string) {
@@ -96,13 +113,97 @@ export async function reassignSupportRequest(
   supportRequestId: string,
   input: SupportReassignmentInput,
 ) {
-  const { data, error } = await api.POST(
-    "/api/v1/operator/support-requests/{support_request_id}/reassign/",
-    {
+  return requireSupportCommandData(
+    api.POST(
+      "/api/v1/operator/support-requests/{support_request_id}/reassign/",
+      {
+        params: { path: { support_request_id: supportRequestId } },
+        body: input,
+      },
+    ),
+  );
+}
+
+export async function addSupportNote(
+  supportRequestId: string,
+  input: SupportNoteInput,
+) {
+  return requireSupportCommandData(
+    api.POST("/api/v1/operator/support-requests/{support_request_id}/notes/", {
       params: { path: { support_request_id: supportRequestId } },
       body: input,
-    },
+    }),
   );
-  if (error || !data) throw apiError(error);
-  return data;
+}
+
+export async function recordSupportExternalContact(
+  supportRequestId: string,
+  input: SupportExternalContactInput,
+) {
+  return requireSupportCommandData(
+    api.POST(
+      "/api/v1/operator/support-requests/{support_request_id}/external-contacts/",
+      {
+        params: { path: { support_request_id: supportRequestId } },
+        body: input,
+      },
+    ),
+  );
+}
+
+export async function resolveSupportRequest(
+  supportRequestId: string,
+  input: SupportResolutionInput,
+) {
+  return requireSupportCommandData(
+    api.POST(
+      "/api/v1/operator/support-requests/{support_request_id}/resolve/",
+      {
+        params: { path: { support_request_id: supportRequestId } },
+        body: input,
+      },
+    ),
+  );
+}
+
+export async function reopenSupportRequest(
+  supportRequestId: string,
+  input: SupportReopenInput,
+) {
+  return requireSupportCommandData(
+    api.POST("/api/v1/operator/support-requests/{support_request_id}/reopen/", {
+      params: { path: { support_request_id: supportRequestId } },
+      body: input,
+    }),
+  );
+}
+
+export async function recordSupportIdentityVerification(
+  supportRequestId: string,
+  input: SupportIdentityVerificationInput,
+) {
+  return requireSupportCommandData(
+    api.POST(
+      "/api/v1/operator/support-requests/{support_request_id}/identity-verifications/",
+      {
+        params: { path: { support_request_id: supportRequestId } },
+        body: input,
+      },
+    ),
+  );
+}
+
+export async function recordSupportPrivacyAction(
+  supportRequestId: string,
+  input: SupportPrivacyActionInput,
+) {
+  return requireSupportCommandData(
+    api.POST(
+      "/api/v1/operator/support-requests/{support_request_id}/privacy-actions/",
+      {
+        params: { path: { support_request_id: supportRequestId } },
+        body: input,
+      },
+    ),
+  );
 }

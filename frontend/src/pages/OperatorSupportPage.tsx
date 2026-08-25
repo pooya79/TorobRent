@@ -12,11 +12,18 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { currentUserQuery } from "@/features/session/queries";
 import { supportClassificationLabels } from "@/features/support/labels";
+import { SupportResolutionPanel } from "@/features/support/SupportResolutionPanel";
 import { SupportTriagePanel } from "@/features/support/SupportTriagePanel";
 import {
+  addSupportNote,
   claimSupportRequest,
   reassignSupportRequest,
+  recordSupportExternalContact,
+  recordSupportIdentityVerification,
+  recordSupportPrivacyAction,
   releaseSupportRequest,
+  reopenSupportRequest,
+  resolveSupportRequest,
   supportQueueQueryOptions,
   supportRequestQueryOptions,
   triageSupportRequest,
@@ -25,6 +32,12 @@ import {
   type IntakeKind,
   type SupportClassification,
   type SupportReassignmentInput,
+  type SupportExternalContactInput,
+  type SupportIdentityVerificationInput,
+  type SupportNoteInput,
+  type SupportPrivacyActionInput,
+  type SupportReopenInput,
+  type SupportResolutionInput,
   type SupportRequestQueueItem,
   type SupportRequestStatus,
   type SupportTriageInput,
@@ -56,6 +69,12 @@ const eventLabels = {
   priority_changed: "تغییر فوریت",
   reassigned: "واگذاری مجدد",
   released: "آزادسازی",
+  note_added: "یادداشت داخلی",
+  external_contact_recorded: "ثبت ارتباط بیرونی",
+  resolved: "نتیجه نهایی",
+  reopened: "بازگشایی",
+  identity_verified: "تأیید هویت",
+  privacy_action_recorded: "ثبت اقدام حریم خصوصی",
 } as const;
 
 function requestTitle(supportRequest: SupportRequestQueueItem) {
@@ -143,8 +162,53 @@ export function OperatorSupportPage() {
       reassignSupportRequest(activeId, input),
     onSuccess: refreshSupportRequest,
   });
+  const addNote = useMutation({
+    mutationFn: (input: SupportNoteInput) => addSupportNote(activeId, input),
+    onSuccess: refreshSupportRequest,
+  });
+  const recordExternalContact = useMutation({
+    mutationFn: (input: SupportExternalContactInput) =>
+      recordSupportExternalContact(activeId, input),
+    onSuccess: refreshSupportRequest,
+  });
+  const resolve = useMutation({
+    mutationFn: (input: SupportResolutionInput) =>
+      resolveSupportRequest(activeId, input),
+    onSuccess: refreshSupportRequest,
+  });
+  const reopen = useMutation({
+    mutationFn: (input: SupportReopenInput) =>
+      reopenSupportRequest(activeId, input),
+    onSuccess: refreshSupportRequest,
+  });
+  const recordIdentityVerification = useMutation({
+    mutationFn: (input: SupportIdentityVerificationInput) =>
+      recordSupportIdentityVerification(activeId, input),
+    onSuccess: refreshSupportRequest,
+  });
+  const recordPrivacyAction = useMutation({
+    mutationFn: (input: SupportPrivacyActionInput) =>
+      recordSupportPrivacyAction(activeId, input),
+    onSuccess: refreshSupportRequest,
+  });
   const mutationError =
-    claim.error ?? release.error ?? triage.error ?? reassign.error;
+    claim.error ??
+    release.error ??
+    triage.error ??
+    reassign.error ??
+    addNote.error ??
+    recordExternalContact.error ??
+    resolve.error ??
+    reopen.error ??
+    recordIdentityVerification.error ??
+    recordPrivacyAction.error;
+  const operationalMutationPending =
+    addNote.isPending ||
+    recordExternalContact.isPending ||
+    resolve.isPending ||
+    reopen.isPending ||
+    recordIdentityVerification.isPending ||
+    recordPrivacyAction.isPending;
 
   if (queue.isPending) {
     return (
@@ -529,12 +593,30 @@ export function OperatorSupportPage() {
                 supportRequest={selected}
               />
 
+              <SupportResolutionPanel
+                isAssignee={selected.assignee_id === currentUser.data?.id}
+                isPending={operationalMutationPending}
+                onAddNote={(input) => addNote.mutate(input)}
+                onRecordExternalContact={(input) =>
+                  recordExternalContact.mutate(input)
+                }
+                onRecordIdentityVerification={(input) =>
+                  recordIdentityVerification.mutate(input)
+                }
+                onRecordPrivacyAction={(input) =>
+                  recordPrivacyAction.mutate(input)
+                }
+                onReopen={(input) => reopen.mutate(input)}
+                onResolve={(input) => resolve.mutate(input)}
+                supportRequest={selected}
+              />
+
               <section aria-labelledby="support-history-title">
                 <h2 id="support-history-title" className="font-semibold">
                   تاریخچه عملیاتی
                 </h2>
                 <ol className="mt-3 space-y-3">
-                  {selected.history.map((event) => (
+                  {(selected.history ?? []).map((event) => (
                     <li
                       className="border-border rounded-lg border p-3 text-sm"
                       key={event.id}
@@ -554,9 +636,17 @@ export function OperatorSupportPage() {
                         {new Date(event.created_at).toLocaleString("fa-IR")}
                       </time>
                       {event.reason && <p className="mt-1">{event.reason}</p>}
+                      {event.resolution_category && (
+                        <p className="mt-1">{event.resolution_category}</p>
+                      )}
+                      {event.resolution_summary && (
+                        <p className="mt-1 whitespace-pre-wrap">
+                          {event.resolution_summary}
+                        </p>
+                      )}
                     </li>
                   ))}
-                  {selected.history.length === 0 && (
+                  {(selected.history ?? []).length === 0 && (
                     <li className="text-muted-foreground text-sm">
                       هنوز رویدادی ثبت نشده است.
                     </li>

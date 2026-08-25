@@ -1,9 +1,13 @@
 from __future__ import annotations
 
 import uuid
+from collections.abc import Iterable
+from typing import ClassVar, TypeVar
 
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.db import models
+from django.db.models.base import ModelBase
 
 from apps.accounts.capabilities import OperatorCapability
 
@@ -46,6 +50,94 @@ class SupportRequestEventType(models.TextChoices):
     PRIORITY_CHANGED = "priority_changed", "فوریت تغییر یافت"
     REASSIGNED = "reassigned", "دوباره واگذار شد"
     RELEASED = "released", "آزاد شد"
+    NOTE_ADDED = "note_added", "یادداشت افزوده شد"
+    EXTERNAL_CONTACT_RECORDED = "external_contact_recorded", "ارتباط بیرونی ثبت شد"
+    RESOLVED = "resolved", "رسیدگی نهایی شد"
+    REOPENED = "reopened", "دوباره باز شد"
+    IDENTITY_VERIFIED = "identity_verified", "هویت تأیید شد"
+    PRIVACY_ACTION_RECORDED = "privacy_action_recorded", "اقدام حریم خصوصی ثبت شد"
+
+
+class ExternalContactChannel(models.TextChoices):
+    EMAIL = "email", "ایمیل"
+    PHONE = "phone", "تلفن"
+    IN_PERSON = "in_person", "حضوری"
+    OTHER = "other", "سایر"
+
+
+class SupportResolutionCategory(models.TextChoices):
+    ANSWERED_EXTERNALLY = "answered_externally", "پاسخ بیرون از TorobRent"
+    ACTION_COMPLETED = "action_completed", "اقدام تکمیل شد"
+    DUPLICATE = "duplicate", "تکراری"
+    SPAM = "spam", "هرزنامه"
+    NO_ACTION_REQUIRED = "no_action_required", "بدون اقدام لازم"
+
+
+class IdentityVerificationMethod(models.TextChoices):
+    OUT_OF_BAND = "out_of_band", "تأیید خارج از TorobRent"
+
+
+class PrivacyActionType(models.TextChoices):
+    DEFENSIVE_CONTACT_REMOVAL = (
+        "defensive_contact_removal",
+        "حذف دفاعی اطلاعات تماس عمومی",
+    )
+    PERMANENT_ACCOUNT_ACTION = "permanent_account_action", "اقدام دائمی حساب"
+
+
+AppendOnlyModelT = TypeVar("AppendOnlyModelT", bound=models.Model)
+
+
+class AppendOnlyQuerySet(models.QuerySet[AppendOnlyModelT]):
+    def update(self, **kwargs: object) -> int:
+        raise ValidationError("Operational history is append-only.")
+
+    def delete(self) -> tuple[int, dict[str, int]]:
+        raise ValidationError("Operational history is append-only.")
+
+    def bulk_update(
+        self,
+        objs: Iterable[models.Model],
+        fields: Iterable[str],
+        batch_size: int | None = None,
+    ) -> int:
+        raise ValidationError("Operational history is append-only.")
+
+
+class AppendOnlyManager(models.Manager[AppendOnlyModelT]):
+    def get_queryset(self) -> AppendOnlyQuerySet[AppendOnlyModelT]:
+        return AppendOnlyQuerySet(self.model, using=self._db)
+
+
+class AppendOnlyModel(models.Model):
+    objects: ClassVar[AppendOnlyManager] = AppendOnlyManager()  # type: ignore[type-arg]
+
+    class Meta:
+        abstract = True
+
+    def save(
+        self,
+        *,
+        force_insert: bool | tuple[ModelBase, ...] = False,
+        force_update: bool = False,
+        using: str | None = None,
+        update_fields: Iterable[str] | None = None,
+    ) -> None:
+        if not self._state.adding:
+            raise ValidationError("Operational history is append-only.")
+        super().save(
+            force_insert=force_insert,
+            force_update=force_update,
+            using=using,
+            update_fields=update_fields,
+        )
+
+    def delete(
+        self,
+        using: str | None = None,
+        keep_parents: bool = False,
+    ) -> tuple[int, dict[str, int]]:
+        raise ValidationError("Operational history is append-only.")
 
 
 class SupportRequest(models.Model):
@@ -66,6 +158,7 @@ class SupportRequest(models.Model):
         editable=False,
     )
     message = models.TextField(max_length=4000)
+    account_linked_at_intake = models.BooleanField(default=False, editable=False)
     classification = models.CharField(
         max_length=24,
         choices=SupportClassification,
@@ -110,6 +203,14 @@ class SupportRequest(models.Model):
         editable=False,
     )
     resolved_at = models.DateTimeField(null=True, blank=True, editable=False)
+    resolution_category = models.CharField(
+        max_length=24,
+        choices=SupportResolutionCategory,
+        null=True,
+        blank=True,
+        editable=False,
+    )
+    resolution_summary = models.TextField(max_length=1000, blank=True, editable=False)
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -133,7 +234,7 @@ class SupportRequest(models.Model):
         return f"{self.get_intake_kind_display()}: {self.name}"
 
 
-class SupportRequestEvent(models.Model):
+class SupportRequestEvent(AppendOnlyModel):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     support_request = models.ForeignKey(
         SupportRequest,
@@ -145,9 +246,14 @@ class SupportRequestEvent(models.Model):
         on_delete=models.PROTECT,
         related_name="support_request_events",
     )
-    event_type = models.CharField(max_length=24, choices=SupportRequestEventType)
+    event_type = models.CharField(max_length=32, choices=SupportRequestEventType)
     prior_state = models.CharField(max_length=16, choices=SupportRequestStatus)
     new_state = models.CharField(max_length=16, choices=SupportRequestStatus)
+    classification = models.CharField(
+        max_length=24,
+        choices=SupportClassification,
+        default=SupportClassification.UNCLASSIFIED,
+    )
     prior_classification = models.CharField(
         max_length=24,
         choices=SupportClassification,
@@ -193,6 +299,13 @@ class SupportRequestEvent(models.Model):
         related_name="support_request_events_reassigned_to",
     )
     reason = models.TextField(blank=True)
+    resolution_category = models.CharField(
+        max_length=24,
+        choices=SupportResolutionCategory,
+        null=True,
+        blank=True,
+    )
+    resolution_summary = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -200,3 +313,105 @@ class SupportRequestEvent(models.Model):
 
     def __str__(self) -> str:
         return f"{self.support_request_id}: {self.prior_state} → {self.new_state}"
+
+
+class SupportRequestNote(AppendOnlyModel):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    support_request = models.ForeignKey(
+        SupportRequest,
+        on_delete=models.PROTECT,
+        related_name="notes",
+    )
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="support_request_notes",
+    )
+    body = models.TextField(max_length=2000)
+    corrects_note = models.ForeignKey(
+        "self",
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="corrections",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ("created_at", "id")
+
+    def __str__(self) -> str:
+        return f"{self.support_request_id}: {self.actor_id}"
+
+
+class SupportExternalContact(AppendOnlyModel):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    support_request = models.ForeignKey(
+        SupportRequest,
+        on_delete=models.PROTECT,
+        related_name="external_contacts",
+    )
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="support_external_contacts",
+    )
+    channel = models.CharField(max_length=16, choices=ExternalContactChannel)
+    occurred_at = models.DateTimeField()
+    outcome = models.CharField(max_length=120)
+    summary = models.TextField(max_length=1000)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ("occurred_at", "created_at", "id")
+
+    def __str__(self) -> str:
+        return f"{self.support_request_id}: {self.channel}"
+
+
+class SupportIdentityVerification(AppendOnlyModel):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    support_request = models.ForeignKey(
+        SupportRequest,
+        on_delete=models.PROTECT,
+        related_name="identity_verifications",
+    )
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="support_identity_verifications",
+    )
+    method = models.CharField(max_length=16, choices=IdentityVerificationMethod)
+    verified_at = models.DateTimeField()
+    summary = models.TextField(max_length=1000)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ("verified_at", "created_at", "id")
+
+    def __str__(self) -> str:
+        return f"{self.support_request_id}: {self.method}"
+
+
+class SupportPrivacyAction(AppendOnlyModel):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    support_request = models.ForeignKey(
+        SupportRequest,
+        on_delete=models.PROTECT,
+        related_name="privacy_actions",
+    )
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="support_privacy_actions",
+    )
+    action = models.CharField(max_length=32, choices=PrivacyActionType)
+    completed_at = models.DateTimeField()
+    summary = models.TextField(max_length=1000)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ("completed_at", "created_at", "id")
+
+    def __str__(self) -> str:
+        return f"{self.support_request_id}: {self.action}"

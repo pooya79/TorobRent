@@ -223,7 +223,7 @@ def test_support_operator_claims_and_releases_a_request_with_durable_event_histo
             operator.id,
             SupportRequestStatus.IN_PROGRESS,
             SupportRequestStatus.OPEN,
-            "Released by the assigned Support Operator.",
+            "Released by the assigned Operator.",
         ),
     ]
 

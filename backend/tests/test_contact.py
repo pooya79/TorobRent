@@ -57,6 +57,7 @@ def test_authenticated_submitter_identifies_account_deletion_request(api_client:
     assert response.status_code == 201
     message = SupportRequest.objects.get()
     assert message.submitter == user
+    assert message.account_linked_at_intake is True
     assert message.intake_kind == IntakeKind.ACCOUNT_DELETION
 
 
@@ -143,7 +144,7 @@ def test_contact_length_validation_messages_are_persian(api_client: APIClient):
 
 
 @pytest.mark.django_db
-def test_operator_can_find_classify_and_resolve_contact_message(client, user):
+def test_admin_cannot_bypass_append_only_support_resolution_workflow(client, user):
     message_data = valid_message()
     message = SupportRequest.objects.create(intake_kind=message_data.pop("kind"), **message_data)
     user.is_staff = True
@@ -172,10 +173,10 @@ def test_operator_can_find_classify_and_resolve_contact_message(client, user):
     assert "نگار محمدی" in changelist.content.decode()
     assert change.status_code == 302
     message.refresh_from_db()
-    assert message.status == SupportRequestStatus.RESOLVED
-    assert message.resolved_by == user
-    assert message.resolved_at is not None
-    assert message.operator_note == "راهنما ارائه شد."
+    assert message.status == SupportRequestStatus.OPEN
+    assert message.resolved_by is None
+    assert message.resolved_at is None
+    assert message.operator_note == ""
     assert admin.site.is_registered(SupportRequest)
 
 

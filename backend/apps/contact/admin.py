@@ -3,12 +3,11 @@ from typing import cast
 from django.contrib import admin
 from django.db.models import QuerySet
 from django.http import HttpRequest
-from django.utils import timezone
 
 from apps.accounts.capabilities import OperatorCapability, has_capability
 from apps.accounts.models import User
 
-from .models import SupportRequest, SupportRequestStatus
+from .models import SupportRequest
 from .selectors import (
     operator_has_required_support_capability,
     support_request_requires_privacy_capability,
@@ -61,6 +60,7 @@ class SupportRequestAdmin(admin.ModelAdmin):  # type: ignore[type-arg]
         "email",
         "intake_kind",
         "message",
+        "account_linked_at_intake",
         "classification",
         "priority",
         "priority_locked",
@@ -72,6 +72,8 @@ class SupportRequestAdmin(admin.ModelAdmin):  # type: ignore[type-arg]
         "assigned_at",
         "resolved_by",
         "resolved_at",
+        "resolution_category",
+        "resolution_summary",
         "created_at",
         "updated_at",
     )
@@ -82,15 +84,20 @@ class SupportRequestAdmin(admin.ModelAdmin):  # type: ignore[type-arg]
         "email",
         "message",
         "intake_kind",
+        "account_linked_at_intake",
         "classification",
         "priority",
         "priority_locked",
+        "status",
         "escalation_destination",
         "required_capability",
         "assignee",
         "assigned_at",
         "resolved_by",
         "resolved_at",
+        "resolution_category",
+        "resolution_summary",
+        "operator_note",
         "created_at",
         "updated_at",
     )
@@ -130,18 +137,3 @@ class SupportRequestAdmin(admin.ModelAdmin):  # type: ignore[type-arg]
         self, request: HttpRequest, obj: SupportRequest | None = None
     ) -> bool:
         return False
-
-    def save_model(
-        self,
-        request: HttpRequest,
-        obj: SupportRequest,
-        form: object,
-        change: bool,
-    ) -> None:
-        if obj.status == SupportRequestStatus.RESOLVED and obj.resolved_at is None:
-            obj.resolved_at = timezone.now()
-            obj.resolved_by = cast(User, request.user)
-        elif obj.status != SupportRequestStatus.RESOLVED:
-            obj.resolved_at = None
-            obj.resolved_by = None
-        super().save_model(request, obj, form, change)

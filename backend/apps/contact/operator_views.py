@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from datetime import timedelta
 from typing import cast
 from uuid import UUID
@@ -30,16 +31,32 @@ from .models import (
 )
 from .selectors import support_requests_visible_to
 from .serializers import (
+    SupportExternalContactCreateSerializer,
+    SupportExternalContactSerializer,
+    SupportIdentityVerificationCreateSerializer,
+    SupportIdentityVerificationSerializer,
+    SupportPrivacyActionCreateSerializer,
+    SupportPrivacyActionSerializer,
     SupportReassignmentSerializer,
+    SupportReopenSerializer,
+    SupportRequestNoteCreateSerializer,
+    SupportRequestNoteSerializer,
     SupportRequestQueueSerializer,
     SupportRequestSerializer,
+    SupportResolutionSerializer,
     SupportTriageSerializer,
 )
 from .services import (
     SupportRequestConflict,
+    add_support_request_note,
     claim_support_request,
     reassign_abandoned_support_request,
+    record_external_contact,
+    record_identity_verification,
+    record_privacy_action,
     release_support_request,
+    reopen_support_request,
+    resolve_support_request,
     triage_support_request,
 )
 
@@ -78,6 +95,17 @@ class SupportConflict(APIException):
     def __init__(self, conflict: SupportRequestConflict) -> None:
         self.default_code = conflict.code
         super().__init__(str(conflict), code=conflict.code)
+
+
+def execute_support_command[SupportCommandResult](
+    command: Callable[[], SupportCommandResult],
+) -> SupportCommandResult:
+    try:
+        return command()
+    except DjangoValidationError as exc:
+        raise ValidationError(exc.messages) from None
+    except SupportRequestConflict as exc:
+        raise SupportConflict(exc) from None
 
 
 class OperatorSupportRequestListView(ListAPIView[SupportRequest]):
@@ -231,7 +259,13 @@ def operator_support_request(*, request: Request, support_request_id: str) -> Su
     return get_object_or_404(
         support_requests_visible_to(operator=cast(User, request.user))
         .select_related("assignee")
-        .prefetch_related("events__actor"),
+        .prefetch_related(
+            "events__actor",
+            "notes__actor",
+            "external_contacts__actor",
+            "identity_verifications__actor",
+            "privacy_actions__actor",
+        ),
         id=support_request_id,
     )
 
@@ -241,6 +275,170 @@ class OperatorSupportRequestDetailView(APIView):
 
     @extend_schema(summary="Inspect a Support Request", responses=SupportRequestSerializer)
     def get(self, request: Request, support_request_id: str) -> Response:
+        support_request = operator_support_request(
+            request=request, support_request_id=support_request_id
+        )
+        return Response(SupportRequestSerializer(support_request).data)
+
+
+class OperatorSupportRequestNoteView(APIView):
+    permission_classes = (CanHandleSupportRequests,)
+
+    @extend_schema(
+        summary="Append an internal note to a Support Request",
+        request=SupportRequestNoteCreateSerializer,
+        responses={201: SupportRequestNoteSerializer},
+    )
+    def post(self, request: Request, support_request_id: str) -> Response:
+        support_request = operator_support_request(
+            request=request, support_request_id=support_request_id
+        )
+        serializer = SupportRequestNoteCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        note = execute_support_command(
+            lambda: add_support_request_note(
+                support_request=support_request,
+                actor=cast(User, request.user),
+                body=serializer.validated_data["body"],
+                corrects_note_id=serializer.validated_data.get("corrects_note"),
+            )
+        )
+        return Response(
+            SupportRequestNoteSerializer(note).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class OperatorSupportExternalContactView(APIView):
+    permission_classes = (CanHandleSupportRequests,)
+
+    @extend_schema(
+        summary="Record a privacy-minimal external-contact summary",
+        request=SupportExternalContactCreateSerializer,
+        responses={201: SupportExternalContactSerializer},
+    )
+    def post(self, request: Request, support_request_id: str) -> Response:
+        support_request = operator_support_request(
+            request=request, support_request_id=support_request_id
+        )
+        serializer = SupportExternalContactCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        contact = execute_support_command(
+            lambda: record_external_contact(
+                support_request=support_request,
+                actor=cast(User, request.user),
+                **serializer.validated_data,
+            )
+        )
+        return Response(
+            SupportExternalContactSerializer(contact).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class OperatorSupportIdentityVerificationView(APIView):
+    permission_classes = (CanHandleSupportRequests,)
+
+    @extend_schema(
+        summary="Record out-of-band identity verification",
+        request=SupportIdentityVerificationCreateSerializer,
+        responses={201: SupportIdentityVerificationSerializer},
+    )
+    def post(self, request: Request, support_request_id: str) -> Response:
+        support_request = operator_support_request(
+            request=request, support_request_id=support_request_id
+        )
+        serializer = SupportIdentityVerificationCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        verification = execute_support_command(
+            lambda: record_identity_verification(
+                support_request=support_request,
+                actor=cast(User, request.user),
+                **serializer.validated_data,
+            )
+        )
+        return Response(
+            SupportIdentityVerificationSerializer(verification).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class OperatorSupportPrivacyActionView(APIView):
+    permission_classes = (CanHandleSupportRequests,)
+
+    @extend_schema(
+        summary="Record privacy-action completion without performing the action",
+        request=SupportPrivacyActionCreateSerializer,
+        responses={201: SupportPrivacyActionSerializer},
+    )
+    def post(self, request: Request, support_request_id: str) -> Response:
+        support_request = operator_support_request(
+            request=request, support_request_id=support_request_id
+        )
+        serializer = SupportPrivacyActionCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        privacy_action = execute_support_command(
+            lambda: record_privacy_action(
+                support_request=support_request,
+                actor=cast(User, request.user),
+                **serializer.validated_data,
+            )
+        )
+        return Response(
+            SupportPrivacyActionSerializer(privacy_action).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class OperatorSupportRequestResolveView(APIView):
+    permission_classes = (CanHandleSupportRequests,)
+
+    @extend_schema(
+        summary="Resolve an assigned Support Request",
+        request=SupportResolutionSerializer,
+        responses={200: SupportRequestSerializer},
+    )
+    def post(self, request: Request, support_request_id: str) -> Response:
+        support_request = operator_support_request(
+            request=request, support_request_id=support_request_id
+        )
+        serializer = SupportResolutionSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        execute_support_command(
+            lambda: resolve_support_request(
+                support_request=support_request,
+                actor=cast(User, request.user),
+                category=serializer.validated_data["category"],
+                summary=serializer.validated_data["summary"],
+            )
+        )
+        support_request = operator_support_request(
+            request=request, support_request_id=support_request_id
+        )
+        return Response(SupportRequestSerializer(support_request).data)
+
+
+class OperatorSupportRequestReopenView(APIView):
+    permission_classes = (CanHandleSupportRequests,)
+
+    @extend_schema(
+        summary="Reopen a resolved Support Request with a reason",
+        request=SupportReopenSerializer,
+        responses={200: SupportRequestSerializer},
+    )
+    def post(self, request: Request, support_request_id: str) -> Response:
+        support_request = operator_support_request(
+            request=request, support_request_id=support_request_id
+        )
+        serializer = SupportReopenSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        execute_support_command(
+            lambda: reopen_support_request(
+                support_request=support_request,
+                actor=cast(User, request.user),
+                reason=serializer.validated_data["reason"],
+            )
+        )
         support_request = operator_support_request(
             request=request, support_request_id=support_request_id
         )
@@ -306,8 +504,8 @@ class OperatorSupportRequestTriageView(APIView):
         )
         serializer = SupportTriageSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        try:
-            triage_support_request(
+        execute_support_command(
+            lambda: triage_support_request(
                 support_request=support_request,
                 actor=cast(User, request.user),
                 classification=serializer.validated_data.get("classification"),
@@ -317,10 +515,7 @@ class OperatorSupportRequestTriageView(APIView):
                 required_capability=serializer.validated_data.get("required_capability"),
                 reason=serializer.validated_data.get("reason", ""),
             )
-        except DjangoValidationError as exc:
-            raise ValidationError(exc.messages) from None
-        except SupportRequestConflict as exc:
-            raise SupportConflict(exc) from None
+        )
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
@@ -342,17 +537,14 @@ class OperatorSupportRequestReassignView(APIView):
             User,
             email__iexact=serializer.validated_data["assignee_email"],
         )
-        try:
-            support_request = reassign_abandoned_support_request(
+        support_request = execute_support_command(
+            lambda: reassign_abandoned_support_request(
                 support_request=support_request,
                 actor=cast(User, request.user),
                 new_assignee=new_assignee,
                 reason=serializer.validated_data["reason"],
             )
-        except DjangoValidationError as exc:
-            raise ValidationError(exc.messages) from None
-        except SupportRequestConflict as exc:
-            raise SupportConflict(exc) from None
+        )
         support_request = operator_support_request(
             request=request, support_request_id=support_request_id
         )

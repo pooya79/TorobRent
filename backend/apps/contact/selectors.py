@@ -38,6 +38,13 @@ def support_request_requires_privacy_capability(support_request: SupportRequest)
     )
 
 
+def support_request_is_account_deletion(support_request: SupportRequest) -> bool:
+    return support_request.classification == SupportClassification.ACCOUNT_DELETION or (
+        support_request.classification == SupportClassification.UNCLASSIFIED
+        and support_request.intake_kind == IntakeKind.ACCOUNT_DELETION
+    )
+
+
 def operator_has_required_support_capability(
     *, support_request: SupportRequest, operator: User
 ) -> bool:

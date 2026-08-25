@@ -3,13 +3,21 @@ from typing import Any, cast
 from rest_framework import serializers
 
 from .models import (
+    ExternalContactChannel,
+    IdentityVerificationMethod,
     IntakeKind,
+    PrivacyActionType,
     SupportClassification,
+    SupportExternalContact,
+    SupportIdentityVerification,
     SupportPriority,
+    SupportPrivacyAction,
     SupportRequest,
     SupportRequestEvent,
+    SupportRequestNote,
     SupportRequestStatus,
     SupportRequiredCapability,
+    SupportResolutionCategory,
 )
 from .services import create_support_request
 
@@ -121,10 +129,103 @@ class SupportReassignmentSerializer(serializers.Serializer[Any]):
     reason = serializers.CharField(max_length=1000)
 
 
+class SupportResolutionSerializer(serializers.Serializer[Any]):
+    category = serializers.ChoiceField(choices=SupportResolutionCategory.choices)
+    summary = serializers.CharField(max_length=1000)
+
+
+class SupportReopenSerializer(serializers.Serializer[Any]):
+    reason = serializers.CharField(max_length=1000)
+
+
+class SupportRequestNoteCreateSerializer(serializers.Serializer[Any]):
+    body = serializers.CharField(max_length=2000)
+    corrects_note = serializers.UUIDField(required=False, allow_null=True)
+
+
+class SupportRequestNoteSerializer(serializers.ModelSerializer[SupportRequestNote]):
+    actor_email = serializers.EmailField(source="actor.email", read_only=True)
+
+    class Meta:
+        model = SupportRequestNote
+        fields = ("id", "actor_id", "actor_email", "body", "corrects_note", "created_at")
+
+
+class SupportExternalContactCreateSerializer(serializers.Serializer[Any]):
+    channel = serializers.ChoiceField(choices=ExternalContactChannel.choices)
+    occurred_at = serializers.DateTimeField()
+    outcome = serializers.CharField(max_length=120)
+    summary = serializers.CharField(max_length=1000)
+
+
+class SupportExternalContactSerializer(serializers.ModelSerializer[SupportExternalContact]):
+    actor_email = serializers.EmailField(source="actor.email", read_only=True)
+
+    class Meta:
+        model = SupportExternalContact
+        fields = (
+            "id",
+            "actor_id",
+            "actor_email",
+            "channel",
+            "occurred_at",
+            "outcome",
+            "summary",
+            "created_at",
+        )
+
+
+class SupportIdentityVerificationCreateSerializer(serializers.Serializer[Any]):
+    method = serializers.ChoiceField(choices=IdentityVerificationMethod.choices)
+    verified_at = serializers.DateTimeField()
+    summary = serializers.CharField(max_length=1000)
+
+
+class SupportIdentityVerificationSerializer(
+    serializers.ModelSerializer[SupportIdentityVerification]
+):
+    actor_email = serializers.EmailField(source="actor.email", read_only=True)
+
+    class Meta:
+        model = SupportIdentityVerification
+        fields = (
+            "id",
+            "actor_id",
+            "actor_email",
+            "method",
+            "verified_at",
+            "summary",
+            "created_at",
+        )
+
+
+class SupportPrivacyActionCreateSerializer(serializers.Serializer[Any]):
+    action = serializers.ChoiceField(choices=PrivacyActionType.choices)
+    completed_at = serializers.DateTimeField()
+    summary = serializers.CharField(max_length=1000)
+
+
+class SupportPrivacyActionSerializer(serializers.ModelSerializer[SupportPrivacyAction]):
+    actor_email = serializers.EmailField(source="actor.email", read_only=True)
+
+    class Meta:
+        model = SupportPrivacyAction
+        fields = (
+            "id",
+            "actor_id",
+            "actor_email",
+            "action",
+            "completed_at",
+            "summary",
+            "created_at",
+        )
+
+
 SUPPORT_REQUEST_QUEUE_FIELDS = (
     "id",
     "name",
     "email",
+    "account_linked_at_intake",
     "intake_kind",
     "classification",
     "priority",
@@ -137,6 +238,10 @@ SUPPORT_REQUEST_QUEUE_FIELDS = (
     "assigned_at",
     "created_at",
     "updated_at",
+    "resolved_by_id",
+    "resolved_at",
+    "resolution_category",
+    "resolution_summary",
 )
 
 
@@ -162,6 +267,7 @@ class SupportRequestEventSerializer(serializers.ModelSerializer[SupportRequestEv
             "actor_email",
             "prior_state",
             "new_state",
+            "classification",
             "prior_classification",
             "new_classification",
             "prior_priority",
@@ -171,13 +277,27 @@ class SupportRequestEventSerializer(serializers.ModelSerializer[SupportRequestEv
             "prior_assignee_id",
             "new_assignee_id",
             "reason",
+            "resolution_category",
+            "resolution_summary",
             "created_at",
         )
 
 
 class SupportRequestSerializer(SupportRequestQueueSerializer):
     history = SupportRequestEventSerializer(source="events", many=True, read_only=True)
+    notes = SupportRequestNoteSerializer(many=True, read_only=True)
+    external_contacts = SupportExternalContactSerializer(many=True, read_only=True)
+    identity_verifications = SupportIdentityVerificationSerializer(many=True, read_only=True)
+    privacy_actions = SupportPrivacyActionSerializer(many=True, read_only=True)
 
     class Meta:
         model = SupportRequest
-        fields = (*SUPPORT_REQUEST_QUEUE_FIELDS, "message", "operator_note", "history")
+        fields = (
+            *SUPPORT_REQUEST_QUEUE_FIELDS,
+            "message",
+            "notes",
+            "external_contacts",
+            "identity_verifications",
+            "privacy_actions",
+            "history",
+        )

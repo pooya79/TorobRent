@@ -477,3 +477,230 @@ test("keeps privacy-reclassified content visible for an Operator with both capab
     await screen.findByText("محتوای حفاظت‌شده برای اپراتور دو قابلیتی"),
   ).toBeVisible();
 });
+
+test("records internal work and resolves without pretending to send a reply", async () => {
+  const user = userEvent.setup();
+  let noteBody: Record<string, unknown> | undefined;
+  let contactBody: Record<string, unknown> | undefined;
+  let resolutionBody: Record<string, unknown> | undefined;
+  serveSupportRequest();
+  server.use(
+    http.post(
+      "*/api/v1/operator/support-requests/:id/notes/",
+      async ({ request }) => {
+        noteBody = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json({ id: "note-id" }, { status: 201 });
+      },
+    ),
+    http.post(
+      "*/api/v1/operator/support-requests/:id/external-contacts/",
+      async ({ request }) => {
+        contactBody = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json({ id: "contact-id" }, { status: 201 });
+      },
+    ),
+    http.post(
+      "*/api/v1/operator/support-requests/:id/resolve/",
+      async ({ request }) => {
+        resolutionBody = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json({});
+      },
+    ),
+  );
+  renderPage();
+
+  await user.type(
+    await screen.findByLabelText("یادداشت داخلی"),
+    "نتیجه بررسی اولیه ثبت شد.",
+  );
+  await user.click(screen.getByRole("button", { name: "ثبت یادداشت" }));
+  await waitFor(() =>
+    expect(noteBody).toEqual({ body: "نتیجه بررسی اولیه ثبت شد." }),
+  );
+
+  await user.selectOptions(
+    screen.getByLabelText("کانال ارتباط بیرونی"),
+    "email",
+  );
+  await user.type(
+    screen.getByLabelText("زمان ارتباط بیرونی"),
+    "2026-08-25T10:30",
+  );
+  await user.type(screen.getByLabelText("نتیجه ارتباط بیرونی"), "answered");
+  await user.type(
+    screen.getByLabelText("خلاصه ارتباط بیرونی"),
+    "راهنمای بازیابی حساب ایمیل شد؛ متن کامل گفتگو ذخیره نشد.",
+  );
+  await user.click(screen.getByRole("button", { name: "ثبت خلاصه ارتباط" }));
+  await waitFor(() =>
+    expect(contactBody).toEqual({
+      channel: "email",
+      occurred_at: new Date("2026-08-25T10:30").toISOString(),
+      outcome: "answered",
+      summary: "راهنمای بازیابی حساب ایمیل شد؛ متن کامل گفتگو ذخیره نشد.",
+    }),
+  );
+
+  await user.selectOptions(
+    screen.getByLabelText("نتیجه نهایی"),
+    "answered_externally",
+  );
+  await user.type(
+    screen.getByLabelText("خلاصه داخلی نتیجه"),
+    "راهنما خارج از TorobRent ارائه شد.",
+  );
+  await user.click(screen.getByRole("button", { name: "ثبت نتیجه و بستن" }));
+  await waitFor(() =>
+    expect(resolutionBody).toEqual({
+      category: "answered_externally",
+      summary: "راهنما خارج از TorobRent ارائه شد.",
+    }),
+  );
+  expect(
+    screen.queryByRole("button", { name: /ارسال پاسخ/ }),
+  ).not.toBeInTheDocument();
+});
+
+test("records privacy verification and admin action completion without deleting an account", async () => {
+  const user = userEvent.setup();
+  let verificationBody: Record<string, unknown> | undefined;
+  let privacyActionBody: Record<string, unknown> | undefined;
+  const privacyRequest = {
+    ...queueItem,
+    intake_kind: "account_deletion",
+    classification: "account_deletion",
+    account_linked_at_intake: false,
+  };
+  server.use(
+    http.get("*/api/v1/users/me/", () =>
+      HttpResponse.json({
+        id: queueItem.assignee_id,
+        email: queueItem.assignee_email,
+        first_name: "",
+        last_name: "",
+        email_verified: true,
+        operator_capabilities: ["handle_privacy_requests"],
+      }),
+    ),
+    http.get("*/api/v1/operator/support-requests/", () =>
+      HttpResponse.json({
+        count: 1,
+        next: null,
+        previous: null,
+        results: [privacyRequest],
+      }),
+    ),
+    http.get("*/api/v1/operator/support-requests/:id/", () =>
+      HttpResponse.json({
+        ...privacyRequest,
+        message: "درخواست حذف حساب",
+        notes: [],
+        external_contacts: [],
+        identity_verifications: [],
+        privacy_actions: [],
+        history: [],
+      }),
+    ),
+    http.post(
+      "*/api/v1/operator/support-requests/:id/identity-verifications/",
+      async ({ request }) => {
+        verificationBody = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json({ id: "verification-id" }, { status: 201 });
+      },
+    ),
+    http.post(
+      "*/api/v1/operator/support-requests/:id/privacy-actions/",
+      async ({ request }) => {
+        privacyActionBody = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json({ id: "privacy-action-id" }, { status: 201 });
+      },
+    ),
+  );
+  renderPage();
+
+  await user.type(
+    await screen.findByLabelText("زمان تأیید هویت"),
+    "2026-08-25T11:15",
+  );
+  await user.type(
+    screen.getByLabelText("خلاصه تأیید هویت"),
+    "تأیید از مسیر بازیابی ثبت‌شده انجام شد.",
+  );
+  await user.click(screen.getByRole("button", { name: "ثبت تأیید هویت" }));
+  await waitFor(() =>
+    expect(verificationBody).toEqual({
+      method: "out_of_band",
+      verified_at: new Date("2026-08-25T11:15").toISOString(),
+      summary: "تأیید از مسیر بازیابی ثبت‌شده انجام شد.",
+    }),
+  );
+
+  await user.selectOptions(
+    screen.getByLabelText("نوع اقدام ثبت‌شده"),
+    "permanent_account_action",
+  );
+  await user.type(
+    screen.getByLabelText("زمان تکمیل اقدام"),
+    "2026-08-25T11:20",
+  );
+  await user.type(
+    screen.getByLabelText("خلاصه اقدام تکمیل‌شده"),
+    "تکمیل حذف حساب در Django admin ثبت شد.",
+  );
+  await user.click(screen.getByRole("button", { name: "ثبت تکمیل اقدام" }));
+  await waitFor(() =>
+    expect(privacyActionBody).toEqual({
+      action: "permanent_account_action",
+      completed_at: new Date("2026-08-25T11:20").toISOString(),
+      summary: "تکمیل حذف حساب در Django admin ثبت شد.",
+    }),
+  );
+});
+
+test("hides privacy controls after a sensitive intake is authoritatively corrected", async () => {
+  const correctedRequest = {
+    ...queueItem,
+    intake_kind: "account_deletion",
+    classification: "guidance",
+    account_linked_at_intake: false,
+  };
+  server.use(
+    http.get("*/api/v1/users/me/", () =>
+      HttpResponse.json({
+        id: queueItem.assignee_id,
+        email: queueItem.assignee_email,
+        first_name: "",
+        last_name: "",
+        email_verified: true,
+        operator_capabilities: ["handle_support"],
+      }),
+    ),
+    http.get("*/api/v1/operator/support-requests/", () =>
+      HttpResponse.json({
+        count: 1,
+        next: null,
+        previous: null,
+        results: [correctedRequest],
+      }),
+    ),
+    http.get("*/api/v1/operator/support-requests/:id/", () =>
+      HttpResponse.json({
+        ...correctedRequest,
+        message: "درخواست به اشتباه حذف حساب ثبت شده بود.",
+        notes: [],
+        external_contacts: [],
+        identity_verifications: [],
+        privacy_actions: [],
+        history: [],
+      }),
+    ),
+  );
+  renderPage();
+
+  expect(
+    await screen.findByRole("heading", { name: "سوابق و نتیجه رسیدگی" }),
+  ).toBeVisible();
+  expect(screen.queryByLabelText("زمان تأیید هویت")).not.toBeInTheDocument();
+  expect(screen.queryByLabelText("نوع اقدام ثبت‌شده")).not.toBeInTheDocument();
+  expect(screen.getByLabelText("نتیجه نهایی")).toBeVisible();
+});

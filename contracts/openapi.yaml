@@ -1099,6 +1099,118 @@ paths:
       responses:
         '204':
           description: No response body
+  /api/v1/operator/support-requests/{support_request_id}/external-contacts/:
+    post:
+      operationId: v1_operator_support_requests_external_contacts_create
+      summary: Record a privacy-minimal external-contact summary
+      parameters:
+      - in: path
+        name: support_request_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SupportExternalContactCreate'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SupportExternalContact'
+          description: ''
+  /api/v1/operator/support-requests/{support_request_id}/identity-verifications/:
+    post:
+      operationId: v1_operator_support_requests_identity_verifications_create
+      summary: Record out-of-band identity verification
+      parameters:
+      - in: path
+        name: support_request_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SupportIdentityVerificationCreate'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SupportIdentityVerification'
+          description: ''
+  /api/v1/operator/support-requests/{support_request_id}/notes/:
+    post:
+      operationId: v1_operator_support_requests_notes_create
+      summary: Append an internal note to a Support Request
+      parameters:
+      - in: path
+        name: support_request_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SupportRequestNoteCreate'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SupportRequestNote'
+          description: ''
+  /api/v1/operator/support-requests/{support_request_id}/privacy-actions/:
+    post:
+      operationId: v1_operator_support_requests_privacy_actions_create
+      summary: Record privacy-action completion without performing the action
+      parameters:
+      - in: path
+        name: support_request_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SupportPrivacyActionCreate'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SupportPrivacyAction'
+          description: ''
   /api/v1/operator/support-requests/{support_request_id}/reassign/:
     post:
       operationId: v1_operator_support_requests_reassign_create
@@ -1117,6 +1229,62 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/SupportReassignment'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SupportRequest'
+          description: ''
+  /api/v1/operator/support-requests/{support_request_id}/reopen/:
+    post:
+      operationId: v1_operator_support_requests_reopen_create
+      summary: Reopen a resolved Support Request with a reason
+      parameters:
+      - in: path
+        name: support_request_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SupportReopen'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SupportRequest'
+          description: ''
+  /api/v1/operator/support-requests/{support_request_id}/resolve/:
+    post:
+      operationId: v1_operator_support_requests_resolve_create
+      summary: Resolve an assigned Support Request
+      parameters:
+      - in: path
+        name: support_request_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SupportResolution'
         required: true
       security:
       - cookieAuth: []
@@ -1785,6 +1953,18 @@ components:
           type: string
       required:
       - detail
+    ExternalContactChannelEnum:
+      enum:
+      - email
+      - phone
+      - in_person
+      - other
+      type: string
+      description: |-
+        * `email` - ایمیل
+        * `phone` - تلفن
+        * `in_person` - حضوری
+        * `other` - سایر
     ExternalContinuation:
       type: object
       properties:
@@ -1869,6 +2049,11 @@ components:
       description: |-
         * `ok` - ok
         * `unavailable` - unavailable
+    IdentityVerificationMethodEnum:
+      enum:
+      - out_of_band
+      type: string
+      description: '* `out_of_band` - تأیید خارج از TorobRent'
     IntakeKindEnum:
       enum:
       - general
@@ -2321,6 +2506,14 @@ components:
           type: string
       required:
       - phone
+    PrivacyActionTypeEnum:
+      enum:
+      - defensive_contact_removal
+      - permanent_account_action
+      type: string
+      description: |-
+        * `defensive_contact_removal` - حذف دفاعی اطلاعات تماس عمومی
+        * `permanent_account_action` - اقدام دائمی حساب
     Problem:
       type: object
       properties:
@@ -3154,6 +3347,114 @@ components:
         * `privacy` - حریم خصوصی
         * `account_deletion` - حذف حساب
         * `spam` - هرزنامه
+    SupportExternalContact:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        actor_id:
+          type: string
+          format: uuid
+          readOnly: true
+        actor_email:
+          type: string
+          format: email
+          readOnly: true
+        channel:
+          $ref: '#/components/schemas/ExternalContactChannelEnum'
+        occurred_at:
+          type: string
+          format: date-time
+        outcome:
+          type: string
+          maxLength: 120
+        summary:
+          type: string
+          maxLength: 1000
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - actor_email
+      - actor_id
+      - channel
+      - created_at
+      - id
+      - occurred_at
+      - outcome
+      - summary
+    SupportExternalContactCreate:
+      type: object
+      properties:
+        channel:
+          $ref: '#/components/schemas/ExternalContactChannelEnum'
+        occurred_at:
+          type: string
+          format: date-time
+        outcome:
+          type: string
+          maxLength: 120
+        summary:
+          type: string
+          maxLength: 1000
+      required:
+      - channel
+      - occurred_at
+      - outcome
+      - summary
+    SupportIdentityVerification:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        actor_id:
+          type: string
+          format: uuid
+          readOnly: true
+        actor_email:
+          type: string
+          format: email
+          readOnly: true
+        method:
+          $ref: '#/components/schemas/IdentityVerificationMethodEnum'
+        verified_at:
+          type: string
+          format: date-time
+        summary:
+          type: string
+          maxLength: 1000
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - actor_email
+      - actor_id
+      - created_at
+      - id
+      - method
+      - summary
+      - verified_at
+    SupportIdentityVerificationCreate:
+      type: object
+      properties:
+        method:
+          $ref: '#/components/schemas/IdentityVerificationMethodEnum'
+        verified_at:
+          type: string
+          format: date-time
+        summary:
+          type: string
+          maxLength: 1000
+      required:
+      - method
+      - summary
+      - verified_at
     SupportPriorityEnum:
       enum:
       - normal
@@ -3162,6 +3463,56 @@ components:
       description: |-
         * `normal` - عادی
         * `urgent` - فوری
+    SupportPrivacyAction:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        actor_id:
+          type: string
+          format: uuid
+          readOnly: true
+        actor_email:
+          type: string
+          format: email
+          readOnly: true
+        action:
+          $ref: '#/components/schemas/PrivacyActionTypeEnum'
+        completed_at:
+          type: string
+          format: date-time
+        summary:
+          type: string
+          maxLength: 1000
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - action
+      - actor_email
+      - actor_id
+      - completed_at
+      - created_at
+      - id
+      - summary
+    SupportPrivacyActionCreate:
+      type: object
+      properties:
+        action:
+          $ref: '#/components/schemas/PrivacyActionTypeEnum'
+        completed_at:
+          type: string
+          format: date-time
+        summary:
+          type: string
+          maxLength: 1000
+      required:
+      - action
+      - completed_at
+      - summary
     SupportReassignment:
       type: object
       properties:
@@ -3173,6 +3524,14 @@ components:
           maxLength: 1000
       required:
       - assignee_email
+      - reason
+    SupportReopen:
+      type: object
+      properties:
+        reason:
+          type: string
+          maxLength: 1000
+      required:
       - reason
     SupportRequest:
       type: object
@@ -3188,6 +3547,9 @@ components:
           type: string
           format: email
           maxLength: 254
+        account_linked_at_intake:
+          type: boolean
+          readOnly: true
         intake_kind:
           allOf:
           - $ref: '#/components/schemas/IntakeKindEnum'
@@ -3234,29 +3596,75 @@ components:
           type: string
           format: date-time
           readOnly: true
+        resolved_by_id:
+          type:
+          - string
+          - 'null'
+          format: uuid
+          readOnly: true
+        resolved_at:
+          type:
+          - string
+          - 'null'
+          format: date-time
+          readOnly: true
+        resolution_category:
+          readOnly: true
+          oneOf:
+          - $ref: '#/components/schemas/SupportResolutionCategoryEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        resolution_summary:
+          type: string
+          readOnly: true
         message:
           type: string
           maxLength: 4000
-        operator_note:
-          type: string
-          maxLength: 1000
+        notes:
+          type: array
+          items:
+            $ref: '#/components/schemas/SupportRequestNote'
+          readOnly: true
+        external_contacts:
+          type: array
+          items:
+            $ref: '#/components/schemas/SupportExternalContact'
+          readOnly: true
+        identity_verifications:
+          type: array
+          items:
+            $ref: '#/components/schemas/SupportIdentityVerification'
+          readOnly: true
+        privacy_actions:
+          type: array
+          items:
+            $ref: '#/components/schemas/SupportPrivacyAction'
+          readOnly: true
         history:
           type: array
           items:
             $ref: '#/components/schemas/SupportRequestEvent'
           readOnly: true
       required:
+      - account_linked_at_intake
       - assigned_at
       - assignee_email
       - assignee_id
       - created_at
       - email
+      - external_contacts
       - history
       - id
+      - identity_verifications
       - intake_kind
       - message
       - name
+      - notes
       - priority_locked
+      - privacy_actions
+      - resolution_category
+      - resolution_summary
+      - resolved_at
+      - resolved_by_id
       - updated_at
     SupportRequestEvent:
       type: object
@@ -3279,6 +3687,8 @@ components:
           $ref: '#/components/schemas/SupportRequestStatusEnum'
         new_state:
           $ref: '#/components/schemas/SupportRequestStatusEnum'
+        classification:
+          $ref: '#/components/schemas/SupportClassificationEnum'
         prior_classification:
           oneOf:
           - $ref: '#/components/schemas/SupportClassificationEnum'
@@ -3320,6 +3730,13 @@ components:
           readOnly: true
         reason:
           type: string
+        resolution_category:
+          oneOf:
+          - $ref: '#/components/schemas/SupportResolutionCategoryEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        resolution_summary:
+          type: string
         created_at:
           type: string
           format: date-time
@@ -3342,6 +3759,12 @@ components:
       - priority_changed
       - reassigned
       - released
+      - note_added
+      - external_contact_recorded
+      - resolved
+      - reopened
+      - identity_verified
+      - privacy_action_recorded
       type: string
       description: |-
         * `assigned` - واگذار شد
@@ -3350,6 +3773,58 @@ components:
         * `priority_changed` - فوریت تغییر یافت
         * `reassigned` - دوباره واگذار شد
         * `released` - آزاد شد
+        * `note_added` - یادداشت افزوده شد
+        * `external_contact_recorded` - ارتباط بیرونی ثبت شد
+        * `resolved` - رسیدگی نهایی شد
+        * `reopened` - دوباره باز شد
+        * `identity_verified` - هویت تأیید شد
+        * `privacy_action_recorded` - اقدام حریم خصوصی ثبت شد
+    SupportRequestNote:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        actor_id:
+          type: string
+          format: uuid
+          readOnly: true
+        actor_email:
+          type: string
+          format: email
+          readOnly: true
+        body:
+          type: string
+          maxLength: 2000
+        corrects_note:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - actor_email
+      - actor_id
+      - body
+      - created_at
+      - id
+    SupportRequestNoteCreate:
+      type: object
+      properties:
+        body:
+          type: string
+          maxLength: 2000
+        corrects_note:
+          type:
+          - string
+          - 'null'
+          format: uuid
+      required:
+      - body
     SupportRequestQueue:
       type: object
       properties:
@@ -3364,6 +3839,9 @@ components:
           type: string
           format: email
           maxLength: 254
+        account_linked_at_intake:
+          type: boolean
+          readOnly: true
         intake_kind:
           allOf:
           - $ref: '#/components/schemas/IntakeKindEnum'
@@ -3410,7 +3888,28 @@ components:
           type: string
           format: date-time
           readOnly: true
+        resolved_by_id:
+          type:
+          - string
+          - 'null'
+          format: uuid
+          readOnly: true
+        resolved_at:
+          type:
+          - string
+          - 'null'
+          format: date-time
+          readOnly: true
+        resolution_category:
+          readOnly: true
+          oneOf:
+          - $ref: '#/components/schemas/SupportResolutionCategoryEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        resolution_summary:
+          type: string
+          readOnly: true
       required:
+      - account_linked_at_intake
       - assigned_at
       - assignee_email
       - assignee_id
@@ -3420,6 +3919,10 @@ components:
       - intake_kind
       - name
       - priority_locked
+      - resolution_category
+      - resolution_summary
+      - resolved_at
+      - resolved_by_id
       - updated_at
     SupportRequestStatusEnum:
       enum:
@@ -3441,6 +3944,31 @@ components:
       description: |-
         * `handle_support` - General Support handling
         * `handle_privacy_requests` - Privacy Support handling
+    SupportResolution:
+      type: object
+      properties:
+        category:
+          $ref: '#/components/schemas/SupportResolutionCategoryEnum'
+        summary:
+          type: string
+          maxLength: 1000
+      required:
+      - category
+      - summary
+    SupportResolutionCategoryEnum:
+      enum:
+      - answered_externally
+      - action_completed
+      - duplicate
+      - spam
+      - no_action_required
+      type: string
+      description: |-
+        * `answered_externally` - پاسخ بیرون از TorobRent
+        * `action_completed` - اقدام تکمیل شد
+        * `duplicate` - تکراری
+        * `spam` - هرزنامه
+        * `no_action_required` - بدون اقدام لازم
     SupportTriageStatusEnum:
       enum:
       - escalated
