@@ -22,6 +22,7 @@ from apps.catalog.models import (
     Source,
 )
 from apps.submissions.models import (
+    ReviewClaim,
     Submission,
     SubmissionEvent,
     SubmissionImage,
@@ -29,7 +30,9 @@ from apps.submissions.models import (
     SubmissionState,
 )
 from apps.submissions.services import (
+    ReviewWorkflowConflict,
     approve_submission,
+    claim_submission_review,
     reject_submission,
     request_submission_changes,
     submit_for_review,
@@ -166,6 +169,12 @@ def test_operator_requests_changes_with_reason_and_submitter_resubmits(api_clien
     submit_for_review(submission=submission, actor=submission.submitter)
     operator = make_operator()
     api_client.force_authenticate(operator)
+    assert (
+        api_client.post(
+            f"/api/v1/operator/submissions/{submission.id}/claim/", {}, format="json"
+        ).status_code
+        == 201
+    )
 
     missing_reason = api_client.post(
         f"/api/v1/operator/submissions/{submission.id}/request-changes/",
@@ -230,7 +239,14 @@ def test_operator_rejects_terminally_and_review_permission_is_required(api_clien
     submitter_approval = api_client.post(
         f"/api/v1/operator/submissions/{submission.id}/approve/", {}, format="json"
     )
-    api_client.force_authenticate(make_operator())
+    operator = make_operator()
+    api_client.force_authenticate(operator)
+    assert (
+        api_client.post(
+            f"/api/v1/operator/submissions/{submission.id}/claim/", {}, format="json"
+        ).status_code
+        == 201
+    )
     rejected = api_client.post(url, {"reason": "محتوای ممنوع"}, format="json")
     api_client.force_authenticate(submission.submitter)
     edit = api_client.patch(
@@ -251,7 +267,14 @@ def test_operator_rejects_terminally_and_review_permission_is_required(api_clien
 def test_approval_creates_and_publishes_a_normalized_direct_listing(api_client: APIClient):
     submission = make_complete_submission()
     submit_for_review(submission=submission, actor=submission.submitter)
-    api_client.force_authenticate(make_operator())
+    operator = make_operator()
+    api_client.force_authenticate(operator)
+    assert (
+        api_client.post(
+            f"/api/v1/operator/submissions/{submission.id}/claim/", {}, format="json"
+        ).status_code
+        == 201
+    )
 
     approved = api_client.post(
         f"/api/v1/operator/submissions/{submission.id}/approve/",
@@ -297,7 +320,14 @@ def test_approval_can_group_with_existing_property_and_new_revision_stays_privat
         room_count=2,
     )
     submit_for_review(submission=submission, actor=submission.submitter)
-    api_client.force_authenticate(make_operator())
+    operator = make_operator()
+    api_client.force_authenticate(operator)
+    assert (
+        api_client.post(
+            f"/api/v1/operator/submissions/{submission.id}/claim/", {}, format="json"
+        ).status_code
+        == 201
+    )
     approved = api_client.post(
         f"/api/v1/operator/submissions/{submission.id}/approve/",
         {"property_id": str(existing.id)},
@@ -345,14 +375,275 @@ def test_operator_queue_filters_state_source_location_and_freshness(api_client: 
             "state": SubmissionState.PENDING,
             "source": str(pending.source_id),
             "city": str(pending.city_id),
-            "updated_after": (timezone.now() - timezone.timedelta(minutes=5)).isoformat(),
+            "pending_after": (timezone.now() - timezone.timedelta(minutes=5)).isoformat(),
             "ordering": "oldest",
         },
     )
 
     assert response.status_code == 200
-    assert [item["id"] for item in response.data] == [str(pending.id)]
-    assert str(other.id) not in {item["id"] for item in response.data}
+    assert [item["id"] for item in response.data["results"]] == [str(pending.id)]
+    assert str(other.id) not in {item["id"] for item in response.data["results"]}
+
+
+@pytest.mark.django_db
+def test_operator_queue_is_paginated_and_uses_the_current_pending_period(api_client: APIClient):
+    older = make_complete_submission(email="older@example.com")
+    newer = make_complete_submission(email="newer@example.com")
+    submit_for_review(submission=older, actor=older.submitter)
+    submit_for_review(submission=newer, actor=newer.submitter)
+    Submission.objects.filter(id=older.id).update(
+        pending_since=timezone.now() - timezone.timedelta(days=2),
+        updated_at=timezone.now(),
+    )
+    Submission.objects.filter(id=newer.id).update(
+        pending_since=timezone.now() - timezone.timedelta(days=1),
+        updated_at=timezone.now() - timezone.timedelta(days=3),
+    )
+    Submission.objects.bulk_create([
+        Submission(
+            submitter=older.submitter,
+            role="owner",
+            state=SubmissionState.PENDING,
+            pending_since=timezone.now() + timezone.timedelta(minutes=index),
+        )
+        for index in range(101)
+    ])
+    api_client.force_authenticate(make_operator())
+
+    default_page = api_client.get("/api/v1/operator/submissions/")
+    capped_page = api_client.get("/api/v1/operator/submissions/", {"page_size": 500})
+
+    assert default_page.status_code == 200
+    assert default_page.data["count"] == 103
+    assert len(default_page.data["results"]) == 50
+    assert capped_page.status_code == 200
+    assert len(capped_page.data["results"]) == 100
+    assert [item["id"] for item in capped_page.data["results"][:2]] == [
+        str(older.id),
+        str(newer.id),
+    ]
+
+
+@pytest.mark.django_db
+def test_resubmission_starts_a_new_pending_period_and_keeps_history(api_client: APIClient):
+    submission = make_complete_submission()
+    first_pending = submit_for_review(
+        submission=submission, actor=submission.submitter
+    ).pending_since
+    operator = make_operator()
+    claim_url = f"/api/v1/operator/submissions/{submission.id}/claim/"
+    api_client.force_authenticate(operator)
+    assert api_client.post(claim_url, {}, format="json").status_code == 201
+    assert (
+        api_client.post(
+            f"/api/v1/operator/submissions/{submission.id}/request-changes/",
+            {"reason": "اصلاح شود"},
+            format="json",
+        ).status_code
+        == 200
+    )
+    api_client.force_authenticate(submission.submitter)
+    assert (
+        api_client.patch(
+            f"/api/v1/submissions/{submission.id}/",
+            {
+                "completed_step": "contact",
+                "contact": {
+                    "name": submission.contact_name,
+                    "phone": submission.contact_phone,
+                    "authorization_declared": True,
+                    "phone_publication_consent": True,
+                },
+            },
+            format="json",
+        ).status_code
+        == 200
+    )
+    assert (
+        api_client.patch(
+            f"/api/v1/submissions/{submission.id}/",
+            {"completed_step": "review", "review": {"accuracy_confirmed": True}},
+            format="json",
+        ).status_code
+        == 200
+    )
+
+    resubmitted = api_client.post(f"/api/v1/submissions/{submission.id}/submit/", {}, format="json")
+
+    assert resubmitted.status_code == 200
+    assert timezone.datetime.fromisoformat(resubmitted.data["pending_since"]) > first_pending
+    assert [event["new_state"] for event in resubmitted.data["history"]] == [
+        "pending",
+        "changes_requested",
+        "draft",
+        "pending",
+    ]
+
+
+@pytest.mark.django_db
+def test_claim_is_explicit_exclusive_renewable_and_releasable(api_client: APIClient):
+    submission = make_complete_submission()
+    submit_for_review(submission=submission, actor=submission.submitter)
+    first = make_operator(email="first@example.com")
+    second = make_operator(email="second@example.com")
+    claim_url = f"/api/v1/operator/submissions/{submission.id}/claim/"
+
+    api_client.force_authenticate(first)
+    detail = api_client.get(f"/api/v1/operator/submissions/{submission.id}/")
+    claimed = api_client.post(claim_url, {}, format="json")
+    api_client.force_authenticate(second)
+    blocked = api_client.post(claim_url, {}, format="json")
+    api_client.force_authenticate(first)
+    renewed = api_client.post(f"{claim_url}renew/", {}, format="json")
+    released = api_client.delete(claim_url)
+
+    assert detail.status_code == 200
+    assert detail.data["claim_status"] == "unclaimed"
+    assert ReviewClaim.objects.count() == 1
+    assert claimed.status_code == 201
+    assert claimed.data["claim_status"] == "claimed_by_me"
+    assert blocked.status_code == 409
+    assert blocked.data["code"] == "review_claim_conflict"
+    assert renewed.status_code == 200
+    assert released.status_code == 204
+
+    api_client.force_authenticate(second)
+    reclaimed = api_client.post(claim_url, {}, format="json")
+    assert reclaimed.status_code == 201
+    assert ReviewClaim.objects.filter(submission=submission).count() == 2
+
+
+@pytest.mark.django_db
+def test_decision_requires_current_claim_and_exact_revision(api_client: APIClient):
+    submission = make_complete_submission()
+    submit_for_review(submission=submission, actor=submission.submitter)
+    operator = make_operator()
+    api_client.force_authenticate(operator)
+    decision_url = f"/api/v1/operator/submissions/{submission.id}/reject/"
+
+    unclaimed = api_client.post(decision_url, {"reason": "رد"}, format="json")
+    assert (
+        api_client.post(
+            f"/api/v1/operator/submissions/{submission.id}/claim/", {}, format="json"
+        ).status_code
+        == 201
+    )
+    Submission.objects.filter(id=submission.id).update(revision=2)
+    stale = api_client.post(decision_url, {"reason": "رد"}, format="json")
+
+    assert unclaimed.status_code == 409
+    assert unclaimed.data["code"] == "review_claim_required"
+    assert stale.status_code == 409
+    assert stale.data["code"] == "review_revision_conflict"
+
+
+@pytest.mark.django_db
+def test_lead_can_force_release_with_an_audited_reason(api_client: APIClient):
+    submission = make_complete_submission()
+    submit_for_review(submission=submission, actor=submission.submitter)
+    reviewer = make_operator(email="reviewer@example.com")
+    lead = make_operator(email="lead@example.com")
+    lead.user_permissions.add(
+        Permission.objects.get(content_type__app_label="accounts", codename="manage_operator_queue")
+    )
+    claim_url = f"/api/v1/operator/submissions/{submission.id}/claim/"
+    api_client.force_authenticate(reviewer)
+    assert api_client.post(claim_url, {}, format="json").status_code == 201
+
+    api_client.force_authenticate(lead)
+    missing = api_client.post(f"{claim_url}force-release/", {"reason": ""}, format="json")
+    released = api_client.post(
+        f"{claim_url}force-release/", {"reason": "مرورگر اپراتور از دسترس خارج شد"}, format="json"
+    )
+
+    assert missing.status_code == 400
+    assert released.status_code == 204
+    claim = ReviewClaim.objects.get(submission=submission)
+    assert claim.released_by == lead
+    assert claim.release_reason == "مرورگر اپراتور از دسترس خارج شد"
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("access_change", ["expired", "deactivated", "revoked"])
+def test_unavailable_claim_becomes_reclaimable_on_the_next_request(
+    api_client: APIClient, access_change: str
+):
+    submission = make_complete_submission()
+    submit_for_review(submission=submission, actor=submission.submitter)
+    first = make_operator(email="first-holder@example.com")
+    second = make_operator(email="next-reviewer@example.com")
+    api_client.force_authenticate(first)
+    claim_url = f"/api/v1/operator/submissions/{submission.id}/claim/"
+    assert api_client.post(claim_url, {}, format="json").status_code == 201
+    if access_change == "expired":
+        ReviewClaim.objects.update(expires_at=timezone.now() - timezone.timedelta(seconds=1))
+    elif access_change == "deactivated":
+        first.is_active = False
+        first.save(update_fields=("is_active",))
+    else:
+        first.user_permissions.remove(review_permission())
+
+    api_client.force_authenticate(second)
+    reclaimed = api_client.post(claim_url, {}, format="json")
+
+    assert reclaimed.status_code == 201
+    claims = list(ReviewClaim.objects.filter(submission=submission).order_by("created_at"))
+    assert claims[0].released_at is not None
+    assert claims[1].operator == second
+
+
+@pytest.mark.django_db
+def test_queue_filters_age_and_assignment_without_counting_self_work(api_client: APIClient):
+    operator = make_operator()
+    unclaimed = make_complete_submission(email="unclaimed-filter@example.com")
+    mine = make_complete_submission(email="mine-filter@example.com")
+    self_work = make_complete_submission(email="temporary-self-filter@example.com")
+    self_work.submitter = operator
+    self_work.save(update_fields=("submitter",))
+    for submission in (unclaimed, mine, self_work):
+        submit_for_review(submission=submission, actor=submission.submitter)
+        Submission.objects.filter(id=submission.id).update(
+            pending_since=timezone.now() - timezone.timedelta(days=3)
+        )
+    claim_submission_review(submission=mine, actor=operator)
+    api_client.force_authenticate(operator)
+
+    response = api_client.get("/api/v1/operator/submissions/", {"assignee": "mine", "age_days": 2})
+
+    assert response.status_code == 200
+    assert response.data["count"] == 1
+    assert [item["id"] for item in response.data["results"]] == [str(mine.id)]
+
+
+@pytest.mark.django_db(transaction=True)
+def test_competing_claims_have_one_winner():
+    if connection.vendor != "postgresql":
+        pytest.skip("row-lock concurrency behavior is PostgreSQL-specific")
+    submission = make_complete_submission()
+    submit_for_review(submission=submission, actor=submission.submitter)
+    operators = (
+        make_operator(email="claim-one@example.com"),
+        make_operator(email="claim-two@example.com"),
+    )
+
+    def claim(index: int) -> str:
+        close_old_connections()
+        try:
+            claim_submission_review(
+                submission=Submission.objects.get(id=submission.id),
+                actor=User.objects.get(id=operators[index].id),
+            )
+        except ReviewWorkflowConflict:
+            return "lost"
+        finally:
+            close_old_connections()
+        return "won"
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        results = list(pool.map(claim, range(2)))
+
+    assert results.count("won") == 1
+    assert ReviewClaim.objects.filter(submission=submission, released_at__isnull=True).count() == 1
 
 
 @pytest.mark.django_db
@@ -394,7 +685,7 @@ def test_operator_cannot_see_or_decide_their_own_submission(api_client: APIClien
     )
 
     assert queue.status_code == 200
-    assert str(submission.id) not in {item["id"] for item in queue.data}
+    assert str(submission.id) not in {item["id"] for item in queue.data["results"]}
     assert decision.status_code == 404
 
     with pytest.raises(ValidationError, match="own Submission"):
@@ -448,6 +739,7 @@ def test_competing_operator_decisions_have_one_winner():
         make_operator(email="changes@example.com"),
         make_operator(email="reject@example.com"),
     )
+    claim_submission_review(submission=submission, actor=operators[0])
 
     def decide(index: int) -> str:
         close_old_connections()
@@ -466,7 +758,7 @@ def test_competing_operator_decisions_have_one_winner():
                     actor=operator,
                     reason="رد نهایی",
                 )
-        except ValidationError:
+        except ValidationError, ReviewWorkflowConflict:
             return "lost"
         finally:
             close_old_connections()
@@ -491,6 +783,7 @@ def test_competing_approvals_publish_one_listing():
         make_operator(email="approve-one@example.com"),
         make_operator(email="approve-two@example.com"),
     )
+    claim_submission_review(submission=submission, actor=operators[0])
 
     def approve(index: int) -> str:
         close_old_connections()
@@ -499,7 +792,7 @@ def test_competing_approvals_publish_one_listing():
                 submission=Submission.objects.get(id=submission.id),
                 actor=User.objects.get(id=operators[index].id),
             )
-        except ValidationError:
+        except ValidationError, ReviewWorkflowConflict:
             return "lost"
         finally:
             close_old_connections()

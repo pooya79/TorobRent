@@ -112,6 +112,7 @@ class Submission(models.Model):
     authorization_declared = models.BooleanField(default=False)
     phone_publication_consent = models.BooleanField(default=False)
     review_data = models.JSONField(default=dict, blank=True)
+    pending_since = models.DateTimeField(null=True, blank=True, db_index=True, editable=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -153,6 +154,46 @@ class SubmissionEvent(models.Model):
 
     def __str__(self) -> str:
         return f"{self.submission_id}: {self.prior_state} → {self.new_state}"
+
+
+class ReviewClaim(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    submission = models.ForeignKey(
+        Submission,
+        on_delete=models.CASCADE,
+        related_name="review_claims",
+    )
+    operator = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="submission_review_claims",
+    )
+    revision = models.PositiveIntegerField()
+    expires_at = models.DateTimeField()
+    renewed_at = models.DateTimeField()
+    released_at = models.DateTimeField(null=True, blank=True)
+    released_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="released_submission_review_claims",
+        null=True,
+        blank=True,
+    )
+    release_reason = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ("-created_at",)
+        constraints = [
+            models.UniqueConstraint(
+                fields=("submission", "revision"),
+                condition=models.Q(released_at__isnull=True),
+                name="one_open_review_claim_per_submission_revision",
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.submission_id}: {self.operator_id} (revision {self.revision})"
 
 
 class SubmissionImage(models.Model):

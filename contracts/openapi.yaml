@@ -619,6 +619,14 @@ paths:
       summary: List and filter the Operator review queue
       parameters:
       - in: query
+        name: age_days
+        schema:
+          type: integer
+      - in: query
+        name: assignee
+        schema:
+          type: string
+      - in: query
         name: city
         schema:
           type: string
@@ -640,6 +648,28 @@ paths:
           enum:
           - newest
           - oldest
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - in: query
+        name: pending_after
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: pending_before
+        schema:
+          type: string
+          format: date-time
       - in: query
         name: source
         schema:
@@ -649,16 +679,6 @@ paths:
         name: state
         schema:
           type: string
-      - in: query
-        name: updated_after
-        schema:
-          type: string
-          format: date-time
-      - in: query
-        name: updated_before
-        schema:
-          type: string
-          format: date-time
       tags:
       - v1
       security:
@@ -668,9 +688,29 @@ paths:
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/Submission'
+                $ref: '#/components/schemas/PaginatedOperatorSubmissionQueueList'
+          description: ''
+  /api/v1/operator/submissions/{submission_id}/:
+    get:
+      operationId: v1_operator_submissions_retrieve
+      summary: Inspect a Submission without claiming it
+      parameters:
+      - in: path
+        name: submission_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Submission'
           description: ''
   /api/v1/operator/submissions/{submission_id}/approve/:
     post:
@@ -698,6 +738,91 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Submission'
+          description: ''
+  /api/v1/operator/submissions/{submission_id}/claim/:
+    post:
+      operationId: v1_operator_submissions_claim_create
+      summary: Claim a Submission revision
+      parameters:
+      - in: path
+        name: submission_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Submission'
+          description: ''
+    delete:
+      operationId: v1_operator_submissions_claim_destroy
+      summary: Release the current Operator's Review Claim
+      parameters:
+      - in: path
+        name: submission_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/operator/submissions/{submission_id}/claim/force-release/:
+    post:
+      operationId: v1_operator_submissions_claim_force_release_create
+      summary: Force-release a Review Claim
+      parameters:
+      - in: path
+        name: submission_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ForceReleaseReviewClaim'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/operator/submissions/{submission_id}/claim/renew/:
+    post:
+      operationId: v1_operator_submissions_claim_renew_create
+      summary: Renew the current Operator's Review Claim
+      parameters:
+      - in: path
+        name: submission_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReviewClaim'
           description: ''
   /api/v1/operator/submissions/{submission_id}/reject/:
     post:
@@ -1163,6 +1288,16 @@ components:
       - confirmed_at
       - expiring_soon
       - state
+    ClaimStatusEnum:
+      enum:
+      - unclaimed
+      - claimed_by_me
+      - claimed_by_another
+      type: string
+      description: |-
+        * `unclaimed` - unclaimed
+        * `claimed_by_me` - claimed_by_me
+        * `claimed_by_another` - claimed_by_another
     CompletedStepEnum:
       enum:
       - location
@@ -1375,6 +1510,13 @@ components:
       - furnished
       - parking
       - storage
+    ForceReleaseReviewClaim:
+      type: object
+      properties:
+        reason:
+          type: string
+      required:
+      - reason
     Formatting:
       type: object
       properties:
@@ -1613,6 +1755,55 @@ components:
         * `handle_support` - General Support handling
         * `manage_operator_queues` - Operator queue management
         * `review_submissions` - Submission Review
+    OperatorSubmissionQueue:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        role:
+          $ref: '#/components/schemas/RoleEnum'
+        state:
+          $ref: '#/components/schemas/SubmissionStateEnum'
+        revision:
+          type: integer
+          readOnly: true
+        source_id:
+          type:
+          - string
+          - 'null'
+          format: uuid
+          readOnly: true
+        location:
+          oneOf:
+          - $ref: '#/components/schemas/LocationOutput'
+          - type: 'null'
+          readOnly: true
+        pending_since:
+          type:
+          - string
+          - 'null'
+          format: date-time
+          readOnly: true
+        claim_status:
+          allOf:
+          - $ref: '#/components/schemas/ClaimStatusEnum'
+          readOnly: true
+        claim:
+          oneOf:
+          - $ref: '#/components/schemas/ReviewClaim'
+          - type: 'null'
+          readOnly: true
+      required:
+      - claim
+      - claim_status
+      - id
+      - location
+      - pending_since
+      - revision
+      - role
+      - source_id
     OutboundPolicyEnum:
       enum:
       - direct_contact
@@ -1623,6 +1814,31 @@ components:
         * `direct_contact` - تماس مستقیم
         * `external_link` - پیوند منبع
         * `disabled` - غیرفعال
+    PaginatedOperatorSubmissionQueueList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type:
+          - string
+          - 'null'
+          format: uri
+          example: http://api.example.org/properties/?page=2
+        previous:
+          type:
+          - string
+          - 'null'
+          format: uri
+          example: http://api.example.org/properties/?page=1
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/OperatorSubmissionQueue'
     PaginatedPropertySummaryList:
       type: object
       required:
@@ -1984,6 +2200,39 @@ components:
       - deposit_toman
       - monthly_rent_rial
       - monthly_rent_toman
+    ReviewClaim:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        operator_id:
+          type: string
+          format: uuid
+          readOnly: true
+        operator_email:
+          type: string
+          format: email
+          readOnly: true
+        revision:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 0
+          format: int64
+        expires_at:
+          type: string
+          format: date-time
+        renewed_at:
+          type: string
+          format: date-time
+      required:
+      - expires_at
+      - id
+      - operator_email
+      - operator_id
+      - renewed_at
+      - revision
     ReviewInput:
       type: object
       properties:
@@ -2122,6 +2371,21 @@ components:
           - type: 'null'
           readOnly: true
         review: {}
+        pending_since:
+          type:
+          - string
+          - 'null'
+          format: date-time
+          readOnly: true
+        claim_status:
+          allOf:
+          - $ref: '#/components/schemas/ClaimStatusEnum'
+          readOnly: true
+        claim:
+          oneOf:
+          - $ref: '#/components/schemas/ReviewClaim'
+          - type: 'null'
+          readOnly: true
         history:
           type: array
           items:
@@ -2148,6 +2412,8 @@ components:
       required:
       - availability
       - available_actions
+      - claim
+      - claim_status
       - contact
       - created_at
       - features
@@ -2157,6 +2423,7 @@ components:
       - listing_id
       - location
       - media_complete
+      - pending_since
       - property_facts
       - property_id
       - rental_terms
@@ -2179,6 +2446,8 @@ components:
           $ref: '#/components/schemas/SourceMetadata'
         formatting:
           $ref: '#/components/schemas/Formatting'
+        internal_note:
+          type: string
     SubmissionCreate:
       type: object
       properties:

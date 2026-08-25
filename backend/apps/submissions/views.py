@@ -1,15 +1,19 @@
 from collections.abc import AsyncIterator, Callable
+from datetime import timedelta
 from typing import cast
+from uuid import UUID
 
 from asgiref.sync import sync_to_async
 from django.core.exceptions import ValidationError as DjangoValidationError
+from django.db.models import F, Prefetch, Q, QuerySet
 from django.http import StreamingHttpResponse
+from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import status
-from rest_framework.exceptions import PermissionDenied, ValidationError
-from rest_framework.generics import get_object_or_404
+from rest_framework.exceptions import APIException, PermissionDenied, ValidationError
+from rest_framework.generics import ListAPIView, get_object_or_404
 from rest_framework.parsers import JSONParser, MultiPartParser
 from rest_framework.permissions import BasePermission
 from rest_framework.request import Request
@@ -24,10 +28,14 @@ from apps.catalog.services import (
     confirm_listing_availability,
     mark_listing_unavailable,
 )
+from apps.common.pagination import StandardPageNumberPagination
 
-from .models import Submission, SubmissionImage, SubmissionImageVariant, SubmissionStep
+from .models import ReviewClaim, Submission, SubmissionImage, SubmissionImageVariant, SubmissionStep
 from .selectors import submissions_reviewable_by
 from .serializers import (
+    ForceReleaseReviewClaimSerializer,
+    OperatorSubmissionQueueSerializer,
+    ReviewClaimSerializer,
     ReviewReasonSerializer,
     SubmissionApprovalSerializer,
     SubmissionCreateSerializer,
@@ -38,10 +46,16 @@ from .serializers import (
     SubmissionStepUpdateSerializer,
 )
 from .services import (
+    ReviewWorkflowConflict,
     add_submission_image_for_actor,
     approve_submission,
+    claim_submission_review,
+    force_release_submission_review_claim,
     reject_submission,
+    release_submission_review_claim,
+    release_unavailable_review_claims,
     remove_submission_image_for_actor,
+    renew_submission_review_claim,
     reorder_submission_images_for_actor,
     request_submission_changes,
     retry_submission_image_for_actor,
@@ -58,6 +72,24 @@ class CanReviewSubmission(BasePermission):
             cast(User, request.user),
             OperatorCapability.REVIEW_SUBMISSIONS,
         )
+
+
+class CanManageSubmissionQueue(BasePermission):
+    message = "مجوز مدیریت صف اپراتور لازم است."
+
+    def has_permission(self, request: Request, view: APIView) -> bool:
+        user = cast(User, request.user)
+        return has_capability(user, OperatorCapability.REVIEW_SUBMISSIONS) and has_capability(
+            user, OperatorCapability.MANAGE_OPERATOR_QUEUES
+        )
+
+
+class ReviewConflict(APIException):
+    status_code = status.HTTP_409_CONFLICT
+
+    def __init__(self, conflict: ReviewWorkflowConflict) -> None:
+        self.default_code = conflict.code
+        super().__init__(str(conflict), code=conflict.code)
 
 
 def validation_response(exc: DjangoValidationError) -> ValidationError:
@@ -214,8 +246,35 @@ class SubmissionArchiveView(APIView):
         )
 
 
-class OperatorSubmissionListView(APIView):
+class OperatorSubmissionPagination(StandardPageNumberPagination):
+    page_size = 50
+    max_page_size = 100
+
+
+def operator_submission_queryset(*, operator: User) -> QuerySet[Submission]:
+    release_unavailable_review_claims()
+    return (
+        submissions_reviewable_by(operator=operator)
+        .select_related("submitter", "source", "city", "district", "neighborhood", "listing")
+        .prefetch_related(
+            "images__variants__asset",
+            "events__actor",
+            Prefetch(
+                "review_claims",
+                queryset=ReviewClaim.objects.filter(
+                    released_at__isnull=True,
+                    expires_at__gt=timezone.now(),
+                ).select_related("operator"),
+                to_attr="open_review_claims",
+            ),
+        )
+    )
+
+
+class OperatorSubmissionListView(ListAPIView[Submission]):
     permission_classes = (CanReviewSubmission,)
+    serializer_class = OperatorSubmissionQueueSerializer
+    pagination_class = OperatorSubmissionPagination
 
     @extend_schema(
         summary="List and filter the Operator review queue",
@@ -225,19 +284,21 @@ class OperatorSubmissionListView(APIView):
             OpenApiParameter("city", OpenApiTypes.UUID),
             OpenApiParameter("district", OpenApiTypes.UUID),
             OpenApiParameter("neighborhood", OpenApiTypes.UUID),
-            OpenApiParameter("updated_after", OpenApiTypes.DATETIME),
-            OpenApiParameter("updated_before", OpenApiTypes.DATETIME),
+            OpenApiParameter("pending_after", OpenApiTypes.DATETIME),
+            OpenApiParameter("pending_before", OpenApiTypes.DATETIME),
+            OpenApiParameter("age_days", int),
+            OpenApiParameter("assignee", str),
             OpenApiParameter("ordering", str, enum=["newest", "oldest"]),
         ],
-        responses=SubmissionSerializer(many=True),
+        responses=OperatorSubmissionQueueSerializer(many=True),
     )
-    def get(self, request: Request) -> Response:
+    def get(self, request: Request, *args: object, **kwargs: object) -> Response:
+        return self.list(request, *args, **kwargs)
+
+    def get_queryset(self) -> QuerySet[Submission]:
+        request = self.request
         operator = cast(User, request.user)
-        submissions = (
-            submissions_reviewable_by(operator=operator)
-            .select_related("submitter", "source", "city", "district", "neighborhood")
-            .prefetch_related("images__variants__asset", "events__actor")
-        )
+        submissions = operator_submission_queryset(operator=operator)
         filters = {
             "state": "state",
             "source": "source_id",
@@ -248,20 +309,153 @@ class OperatorSubmissionListView(APIView):
         for parameter, field in filters.items():
             if value := request.query_params.get(parameter):
                 submissions = submissions.filter(**{field: value})
-        if updated_after := request.query_params.get("updated_after"):
-            parsed = parse_datetime(updated_after)
+        for parameter, lookup in (
+            ("pending_after", "pending_since__gte"),
+            ("pending_before", "pending_since__lte"),
+        ):
+            value = request.query_params.get(parameter)
+            if not value:
+                continue
+            parsed = parse_datetime(value)
             if parsed is None:
-                raise ValidationError({"updated_after": "زمان تازگی نامعتبر است."})
-            submissions = submissions.filter(updated_at__gte=parsed)
-        if updated_before := request.query_params.get("updated_before"):
-            parsed = parse_datetime(updated_before)
-            if parsed is None:
-                raise ValidationError({"updated_before": "زمان تازگی نامعتبر است."})
-            submissions = submissions.filter(updated_at__lte=parsed)
-        ordering = (
-            "updated_at" if request.query_params.get("ordering") == "oldest" else "-updated_at"
+                raise ValidationError({parameter: "زمان دوره انتظار نامعتبر است."})
+            submissions = submissions.filter(**{lookup: parsed})
+        if age_days := request.query_params.get("age_days"):
+            try:
+                days = int(age_days)
+                if days < 0:
+                    raise ValueError
+            except ValueError:
+                raise ValidationError({"age_days": "سن صف باید تعداد روز نامنفی باشد."}) from None
+            submissions = submissions.filter(
+                pending_since__lte=timezone.now() - timedelta(days=days)
+            )
+        active_claim = Q(
+            review_claims__released_at__isnull=True,
+            review_claims__revision=F("revision"),
+            review_claims__expires_at__gt=timezone.now(),
         )
-        return Response(SubmissionSerializer(submissions.order_by(ordering), many=True).data)
+        if assignee := request.query_params.get("assignee"):
+            if assignee == "unclaimed":
+                submissions = submissions.exclude(active_claim)
+            elif assignee == "mine":
+                submissions = submissions.filter(active_claim, review_claims__operator=operator)
+            elif assignee == "claimed":
+                submissions = submissions.filter(active_claim)
+            elif assignee == "other":
+                submissions = submissions.filter(active_claim).exclude(
+                    review_claims__operator=operator
+                )
+            else:
+                try:
+                    assignee_id = UUID(assignee)
+                except ValueError:
+                    raise ValidationError({"assignee": "شناسه اپراتور نامعتبر است."}) from None
+                submissions = submissions.filter(
+                    active_claim, review_claims__operator_id=assignee_id
+                )
+        ordering = (
+            "pending_since"
+            if request.query_params.get("ordering") != "newest"
+            else "-pending_since"
+        )
+        return submissions.order_by(ordering, "id").distinct()
+
+
+class OperatorSubmissionDetailView(APIView):
+    permission_classes = (CanReviewSubmission,)
+
+    @extend_schema(
+        summary="Inspect a Submission without claiming it", responses=SubmissionSerializer
+    )
+    def get(self, request: Request, submission_id: str) -> Response:
+        submission = get_object_or_404(
+            operator_submission_queryset(operator=cast(User, request.user)),
+            id=submission_id,
+        )
+        return Response(SubmissionSerializer(submission, context={"request": request}).data)
+
+
+class OperatorReviewClaimView(APIView):
+    permission_classes = (CanReviewSubmission,)
+
+    @extend_schema(
+        summary="Claim a Submission revision", request=None, responses={201: SubmissionSerializer}
+    )
+    def post(self, request: Request, submission_id: str) -> Response:
+        operator = cast(User, request.user)
+        submission = get_object_or_404(
+            submissions_reviewable_by(operator=operator), id=submission_id
+        )
+        try:
+            claim_submission_review(submission=submission, actor=operator)
+        except ReviewWorkflowConflict as exc:
+            raise ReviewConflict(exc) from None
+        except DjangoValidationError as exc:
+            raise validation_response(exc) from None
+        submission = get_object_or_404(
+            operator_submission_queryset(operator=operator), id=submission_id
+        )
+        data = SubmissionSerializer(submission, context={"request": request}).data
+        return Response(data, status=status.HTTP_201_CREATED)
+
+    @extend_schema(summary="Release the current Operator's Review Claim", responses={204: None})
+    def delete(self, request: Request, submission_id: str) -> Response:
+        operator = cast(User, request.user)
+        submission = get_object_or_404(
+            submissions_reviewable_by(operator=operator), id=submission_id
+        )
+        try:
+            release_submission_review_claim(submission=submission, actor=operator)
+        except ReviewWorkflowConflict as exc:
+            raise ReviewConflict(exc) from None
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class OperatorReviewClaimRenewView(APIView):
+    permission_classes = (CanReviewSubmission,)
+
+    @extend_schema(
+        summary="Renew the current Operator's Review Claim",
+        request=None,
+        responses=ReviewClaimSerializer,
+    )
+    def post(self, request: Request, submission_id: str) -> Response:
+        operator = cast(User, request.user)
+        submission = get_object_or_404(
+            submissions_reviewable_by(operator=operator), id=submission_id
+        )
+        try:
+            claim = renew_submission_review_claim(submission=submission, actor=operator)
+        except ReviewWorkflowConflict as exc:
+            raise ReviewConflict(exc) from None
+        return Response(ReviewClaimSerializer(claim).data)
+
+
+class OperatorReviewClaimForceReleaseView(APIView):
+    permission_classes = (CanManageSubmissionQueue,)
+
+    @extend_schema(
+        summary="Force-release a Review Claim",
+        request=ForceReleaseReviewClaimSerializer,
+        responses={204: None},
+    )
+    def post(self, request: Request, submission_id: str) -> Response:
+        serializer = ForceReleaseReviewClaimSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        operator = cast(User, request.user)
+        submission = get_object_or_404(
+            submissions_reviewable_by(operator=operator), id=submission_id
+        )
+        try:
+            force_release_submission_review_claim(
+                submission=submission,
+                actor=operator,
+                reason=serializer.validated_data["reason"],
+            )
+        except ReviewWorkflowConflict as exc:
+            raise ReviewConflict(exc) from None
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 ReviewDecision = Callable[..., Submission]
@@ -284,7 +478,9 @@ def review_reason_response(
         )
     except DjangoValidationError as exc:
         raise validation_response(exc) from None
-    return Response(SubmissionSerializer(submission).data)
+    except ReviewWorkflowConflict as exc:
+        raise ReviewConflict(exc) from None
+    return Response(SubmissionSerializer(submission, context={"request": request}).data)
 
 
 class OperatorRequestChangesView(APIView):
@@ -342,9 +538,11 @@ class OperatorApproveView(APIView):
             )
         except Property.DoesNotExist:
             raise ValidationError({"property_id": "Property مقصد پیدا نشد."}) from None
+        except ReviewWorkflowConflict as exc:
+            raise ReviewConflict(exc) from None
         except DjangoValidationError as exc:
             raise validation_response(exc) from None
-        return Response(SubmissionSerializer(submission).data)
+        return Response(SubmissionSerializer(submission, context={"request": request}).data)
 
 
 class SubmissionImageListCreateView(APIView):

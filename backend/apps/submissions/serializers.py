@@ -19,6 +19,7 @@ from apps.catalog.money import rial_to_toman
 from apps.catalog.serializers import LocalizedIntegerField, TomanRialField
 
 from .models import (
+    ReviewClaim,
     Submission,
     SubmissionEvent,
     SubmissionImage,
@@ -344,6 +345,49 @@ class SubmissionEventSerializer(serializers.ModelSerializer[SubmissionEvent]):
         )
 
 
+class ReviewClaimSerializer(serializers.ModelSerializer[ReviewClaim]):
+    operator_email = serializers.EmailField(source="operator.email", read_only=True)
+
+    class Meta:
+        model = ReviewClaim
+        fields = ("id", "operator_id", "operator_email", "revision", "expires_at", "renewed_at")
+
+
+class ClaimStatusMixin:
+    context: dict[str, Any]
+
+    def _active_claim(self, submission: Submission) -> ReviewClaim | None:
+        claims = getattr(submission, "open_review_claims", None)
+        if claims is None:
+            claims = list(
+                submission.review_claims.select_related("operator").filter(
+                    revision=submission.revision,
+                    released_at__isnull=True,
+                    expires_at__gt=timezone.now(),
+                )
+            )
+        return claims[0] if claims else None
+
+    @extend_schema_field(
+        serializers.ChoiceField(choices=("unclaimed", "claimed_by_me", "claimed_by_another"))
+    )
+    def get_claim_status(self, submission: Submission) -> str:
+        claim = self._active_claim(submission)
+        if claim is None:
+            return "unclaimed"
+        request = self.context.get("request")
+        return (
+            "claimed_by_me"
+            if request and claim.operator_id == request.user.id
+            else "claimed_by_another"
+        )
+
+    @extend_schema_field(ReviewClaimSerializer(allow_null=True))
+    def get_claim(self, submission: Submission) -> dict[str, Any] | None:
+        claim = self._active_claim(submission)
+        return dict(ReviewClaimSerializer(claim).data) if claim else None
+
+
 class AvailabilityOutputSerializer(serializers.Serializer[dict[str, object]]):
     state = serializers.CharField()
     confirmed_at = serializers.DateTimeField(allow_null=True)
@@ -351,7 +395,7 @@ class AvailabilityOutputSerializer(serializers.Serializer[dict[str, object]]):
     expiring_soon = serializers.BooleanField()
 
 
-class SubmissionSerializer(serializers.ModelSerializer[Submission]):
+class SubmissionSerializer(ClaimStatusMixin, serializers.ModelSerializer[Submission]):
     location = serializers.SerializerMethodField()
     property_facts = serializers.SerializerMethodField()
     rental_terms = serializers.SerializerMethodField()
@@ -367,6 +411,8 @@ class SubmissionSerializer(serializers.ModelSerializer[Submission]):
     )
     source_id = serializers.UUIDField(read_only=True, allow_null=True)
     availability = serializers.SerializerMethodField()
+    claim_status = serializers.SerializerMethodField()
+    claim = serializers.SerializerMethodField()
 
     class Meta:
         model = Submission
@@ -388,6 +434,9 @@ class SubmissionSerializer(serializers.ModelSerializer[Submission]):
             "description",
             "contact",
             "review",
+            "pending_since",
+            "claim_status",
+            "claim",
             "history",
             "available_actions",
             "availability",
@@ -561,3 +610,45 @@ class SubmissionApprovalSerializer(serializers.Serializer[Any]):
     normalized_property = NormalizedPropertySerializer(required=False)
     source_metadata = SourceMetadataSerializer(required=False)
     formatting = FormattingSerializer(required=False)
+    internal_note = serializers.CharField(allow_blank=True, required=False)
+
+
+class OperatorSubmissionQueueSerializer(ClaimStatusMixin, serializers.ModelSerializer[Submission]):
+    location = serializers.SerializerMethodField()
+    claim_status = serializers.SerializerMethodField()
+    claim = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Submission
+        fields = (
+            "id",
+            "role",
+            "state",
+            "revision",
+            "source_id",
+            "location",
+            "pending_since",
+            "claim_status",
+            "claim",
+        )
+
+    @extend_schema_field(LocationOutputSerializer(allow_null=True))
+    def get_location(self, submission: Submission) -> dict[str, Any] | None:
+        if not submission.city or not submission.district or not submission.neighborhood:
+            return None
+        return {
+            "city_id": submission.city_id,
+            "city": submission.city.name_fa,
+            "district_id": submission.district_id,
+            "district": submission.district.name_fa,
+            "neighborhood_id": submission.neighborhood_id,
+            "neighborhood": submission.neighborhood.name_fa,
+            "address": submission.address,
+        }
+
+
+class ForceReleaseReviewClaimSerializer(serializers.Serializer[Any]):
+    reason = serializers.CharField(
+        trim_whitespace=True,
+        error_messages={"required": REQUIRED_ERROR, "blank": "دلیل آزادسازی الزامی است."},
+    )

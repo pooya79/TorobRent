@@ -6,7 +6,7 @@ import {
   ShieldX,
   UserRound,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router";
 
 import { PageMain } from "@/components/layout/PageMain";
@@ -29,9 +29,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   approveSubmission,
+  claimSubmission,
   operatorQueueQueryOptions,
+  operatorSubmissionQueryOptions,
   rejectSubmission,
+  releaseSubmissionClaim,
+  renewSubmissionClaim,
   requestSubmissionChanges,
+  type OperatorSubmissionQueueItem,
   type OperatorQueueFilters,
   type Submission,
   type SubmissionApproval,
@@ -60,7 +65,7 @@ const featureFields = [
   ["furnished", "مبله"],
 ] as const;
 
-function submissionTitle(submission: Submission) {
+function submissionTitle(submission: Submission | OperatorSubmissionQueueItem) {
   return (
     submission.location?.neighborhood ??
     `Submission ${submission.id.slice(0, 8)}`
@@ -111,9 +116,10 @@ export function OperatorReviewPage() {
   const [sourceReference, setSourceReference] = useState("");
   const [sourceClaims, setSourceClaims] = useState("");
   const [provenanceNote, setProvenanceNote] = useState("");
-  const selected =
-    queue.data?.find((submission) => submission.id === selectedId) ??
-    queue.data?.[0];
+  const queueItems = queue.data?.results ?? [];
+  const activeId = selectedId ?? queueItems[0]?.id ?? "";
+  const detail = useQuery(operatorSubmissionQueryOptions(activeId));
+  const selected = detail.data;
 
   const finishDecision = async () => {
     await queryClient.invalidateQueries({ queryKey: ["operator-submissions"] });
@@ -125,6 +131,22 @@ export function OperatorReviewPage() {
     setSourceClaims("");
     setProvenanceNote("");
   };
+  const refreshSelected = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["operator-submissions"] }),
+      queryClient.invalidateQueries({
+        queryKey: ["operator-submissions", "detail", activeId],
+      }),
+    ]);
+  };
+  const claimMutation = useMutation({
+    mutationFn: () => claimSubmission(activeId),
+    onSuccess: refreshSelected,
+  });
+  const releaseMutation = useMutation({
+    mutationFn: () => releaseSubmissionClaim(activeId),
+    onSuccess: refreshSelected,
+  });
   const changesMutation = useMutation({
     mutationFn: () => requestSubmissionChanges(selected!.id, reason),
     onSuccess: finishDecision,
@@ -160,7 +182,26 @@ export function OperatorReviewPage() {
     onSuccess: finishDecision,
   });
   const mutationError =
-    changesMutation.error ?? rejectMutation.error ?? approveMutation.error;
+    claimMutation.error ??
+    releaseMutation.error ??
+    changesMutation.error ??
+    rejectMutation.error ??
+    approveMutation.error;
+
+  useEffect(() => {
+    if (!activeId || selected?.claim_status !== "claimed_by_me") return;
+    const timer = window.setInterval(
+      () => {
+        void renewSubmissionClaim(activeId).catch(() => {
+          void queryClient.invalidateQueries({
+            queryKey: ["operator-submissions"],
+          });
+        });
+      },
+      5 * 60 * 1000,
+    );
+    return () => window.clearInterval(timer);
+  }, [activeId, queryClient, selected?.claim_status]);
 
   if (queue.isPending) {
     return (
@@ -197,7 +238,7 @@ export function OperatorReviewPage() {
           صف بررسی آگهی‌ها
         </h1>
         <p className="text-muted-foreground mt-2">
-          {queue.data.length.toLocaleString("fa-IR")} مورد مطابق فیلترها
+          {queue.data.count.toLocaleString("fa-IR")} مورد مطابق فیلترها
         </p>
       </header>
 
@@ -272,13 +313,13 @@ export function OperatorReviewPage() {
             />
           </Label>
           <Label>
-            به‌روزشده پیش از
+            ورود به صف پیش از
             <Input
               type="datetime-local"
               onChange={(event) =>
                 setFilters({
                   ...filters,
-                  updated_before: event.target.value
+                  pending_before: event.target.value
                     ? new Date(event.target.value).toISOString()
                     : undefined,
                 })
@@ -286,15 +327,51 @@ export function OperatorReviewPage() {
             />
           </Label>
           <Label>
-            به‌روزشده پس از
+            ورود به صف پس از
             <Input
               type="datetime-local"
               onChange={(event) =>
                 setFilters({
                   ...filters,
-                  updated_after: event.target.value
+                  pending_after: event.target.value
                     ? new Date(event.target.value).toISOString()
                     : undefined,
+                })
+              }
+            />
+          </Label>
+          <Label>
+            مسئول بررسی
+            <select
+              className="border-input bg-background mt-1 h-11 w-full rounded-md border px-3"
+              value={filters.assignee ?? ""}
+              onChange={(event) =>
+                setFilters({
+                  ...filters,
+                  assignee: event.target.value || undefined,
+                  page: 1,
+                })
+              }
+            >
+              <option value="">همه</option>
+              <option value="unclaimed">بدون مسئول</option>
+              <option value="mine">در اختیار من</option>
+              <option value="other">در اختیار دیگران</option>
+            </select>
+          </Label>
+          <Label>
+            حداقل سن صف (روز)
+            <Input
+              min="0"
+              type="number"
+              value={filters.age_days ?? ""}
+              onChange={(event) =>
+                setFilters({
+                  ...filters,
+                  age_days: event.target.value
+                    ? Number(event.target.value)
+                    : undefined,
+                  page: 1,
                 })
               }
             />
@@ -327,7 +404,7 @@ export function OperatorReviewPage() {
       )}
       <div className="grid gap-6 xl:grid-cols-[20rem_minmax(0,1fr)_20rem]">
         <section className="space-y-3" aria-label="صف ارسال‌ها">
-          {queue.data.map((submission) => (
+          {queueItems.map((submission) => (
             <button
               className={`border-border min-h-24 w-full rounded-xl border p-4 text-start ${submission.id === selected?.id ? "border-primary bg-primary/5" : "bg-card"}`}
               key={submission.id}
@@ -353,11 +430,41 @@ export function OperatorReviewPage() {
                 <Clock3 className="size-3" aria-hidden="true" />
                 نسخه {submission.revision.toLocaleString("fa-IR")}
               </span>
+              <span className="mt-2 block text-xs">
+                {submission.claim_status === "unclaimed"
+                  ? "بدون مسئول"
+                  : submission.claim_status === "claimed_by_me"
+                    ? "در اختیار من"
+                    : "در اختیار اپراتور دیگر"}
+              </span>
             </button>
           ))}
-          {queue.data.length === 0 && (
+          {queueItems.length === 0 && (
             <p className="text-muted-foreground">موردی در صف نیست.</p>
           )}
+          <div className="flex justify-between gap-3">
+            <Button
+              variant="outline"
+              disabled={!queue.data.previous}
+              onClick={() =>
+                setFilters({
+                  ...filters,
+                  page: Math.max(1, (filters.page ?? 1) - 1),
+                })
+              }
+            >
+              صفحه قبل
+            </Button>
+            <Button
+              variant="outline"
+              disabled={!queue.data.next}
+              onClick={() =>
+                setFilters({ ...filters, page: (filters.page ?? 1) + 1 })
+              }
+            >
+              صفحه بعد
+            </Button>
+          </div>
         </section>
 
         {selected ? (
@@ -395,185 +502,220 @@ export function OperatorReviewPage() {
                   <dd className="font-semibold">{selected.description}</dd>
                 </div>
               </dl>
-              {selected.state === "pending" && (
-                <div className="flex flex-wrap justify-end gap-3">
-                  <DecisionDialog
-                    title="درخواست اصلاح ارسال شود؟"
-                    trigger="درخواست اصلاح"
-                    reason={reason}
-                    setReason={setReason}
-                    label="دلیل درخواست اصلاح"
-                    confirm="ارسال درخواست اصلاح"
-                    pending={changesMutation.isPending}
-                    onConfirm={() => changesMutation.mutate()}
-                  />
-                  <DecisionDialog
-                    title="Submission رد شود؟"
-                    trigger="رد نهایی"
-                    reason={reason}
-                    setReason={setReason}
-                    label="دلیل رد"
-                    confirm="رد Submission"
-                    pending={rejectMutation.isPending}
-                    onConfirm={() => rejectMutation.mutate()}
-                  />
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button>
-                        <Check aria-hidden="true" /> تأیید و انتشار
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent dir="rtl">
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>آگهی منتشر شود؟</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          برای گروه‌بندی، شناسه Property موجود را وارد کنید؛
-                          خالی‌بودن آن یک Property تازه می‌سازد.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <div className="max-h-[60vh] space-y-3 overflow-y-auto pe-1">
-                        <Label>
-                          شناسه Property موجود (اختیاری)
-                          <Input
-                            value={propertyId}
-                            onChange={(event) =>
-                              setPropertyId(event.target.value)
-                            }
-                          />
-                        </Label>
-                        {(
-                          ["city_id", "district_id", "neighborhood_id"] as const
-                        ).map((field) => (
-                          <Label key={field}>
-                            {locationFieldLabel(field)}
+              {selected.state === "pending" &&
+                selected.claim_status === "unclaimed" && (
+                  <div className="flex justify-end">
+                    <Button
+                      disabled={claimMutation.isPending}
+                      onClick={() => claimMutation.mutate()}
+                    >
+                      پذیرفتن مسئولیت بررسی
+                    </Button>
+                  </div>
+                )}
+              {selected.state === "pending" &&
+                selected.claim_status === "claimed_by_another" && (
+                  <Alert>
+                    <AlertDescription>
+                      این Submission در اختیار اپراتور دیگری است و فقط خواندنی
+                      نمایش داده می‌شود.
+                    </AlertDescription>
+                  </Alert>
+                )}
+              {selected.state === "pending" &&
+                selected.claim_status === "claimed_by_me" && (
+                  <div className="flex flex-wrap justify-end gap-3">
+                    <Button
+                      variant="ghost"
+                      disabled={releaseMutation.isPending}
+                      onClick={() => releaseMutation.mutate()}
+                    >
+                      آزاد کردن بررسی
+                    </Button>
+                    <DecisionDialog
+                      title="درخواست اصلاح ارسال شود؟"
+                      trigger="درخواست اصلاح"
+                      reason={reason}
+                      setReason={setReason}
+                      label="دلیل درخواست اصلاح"
+                      confirm="ارسال درخواست اصلاح"
+                      pending={changesMutation.isPending}
+                      onConfirm={() => changesMutation.mutate()}
+                    />
+                    <DecisionDialog
+                      title="Submission رد شود؟"
+                      trigger="رد نهایی"
+                      reason={reason}
+                      setReason={setReason}
+                      label="دلیل رد"
+                      confirm="رد Submission"
+                      pending={rejectMutation.isPending}
+                      onConfirm={() => rejectMutation.mutate()}
+                    />
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button>
+                          <Check aria-hidden="true" /> تأیید و انتشار
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent dir="rtl">
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>آگهی منتشر شود؟</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            برای گروه‌بندی، شناسه Property موجود را وارد کنید؛
+                            خالی‌بودن آن یک Property تازه می‌سازد.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <div className="max-h-[60vh] space-y-3 overflow-y-auto pe-1">
+                          <Label>
+                            شناسه Property موجود (اختیاری)
                             <Input
-                              value={corrections[field] ?? ""}
+                              value={propertyId}
                               onChange={(event) =>
-                                setCorrections({
-                                  ...corrections,
-                                  [field]: event.target.value,
-                                })
+                                setPropertyId(event.target.value)
                               }
                             />
                           </Label>
-                        ))}
-                        <Label>
-                          نوع ملک نرمال‌شده
-                          <select
-                            className="border-input bg-background mt-1 h-11 w-full rounded-md border px-3"
-                            value={corrections.property_type ?? ""}
-                            onChange={(event) =>
-                              setCorrections({
-                                ...corrections,
-                                property_type: event.target.value,
-                              })
-                            }
-                          >
-                            <option value="">بدون تغییر</option>
-                            <option value="apartment">آپارتمان</option>
-                            <option value="house">خانه</option>
-                            <option value="villa">ویلا</option>
-                          </select>
-                        </Label>
-                        {numericCorrectionFields.map((field) => (
-                          <Label key={field}>
-                            {normalizedFieldLabel(field)}
-                            <Input
-                              inputMode="numeric"
-                              value={corrections[field] ?? ""}
-                              placeholder={currentNumericValue(selected, field)}
-                              onChange={(event) =>
-                                setCorrections({
-                                  ...corrections,
-                                  [field]: event.target.value,
-                                })
-                              }
-                            />
-                          </Label>
-                        ))}
-                        {featureFields.map(([field, label]) => (
-                          <Label key={field}>
-                            {label}
+                          {(
+                            [
+                              "city_id",
+                              "district_id",
+                              "neighborhood_id",
+                            ] as const
+                          ).map((field) => (
+                            <Label key={field}>
+                              {locationFieldLabel(field)}
+                              <Input
+                                value={corrections[field] ?? ""}
+                                onChange={(event) =>
+                                  setCorrections({
+                                    ...corrections,
+                                    [field]: event.target.value,
+                                  })
+                                }
+                              />
+                            </Label>
+                          ))}
+                          <Label>
+                            نوع ملک نرمال‌شده
                             <select
                               className="border-input bg-background mt-1 h-11 w-full rounded-md border px-3"
-                              value={corrections[field] ?? ""}
+                              value={corrections.property_type ?? ""}
                               onChange={(event) =>
                                 setCorrections({
                                   ...corrections,
-                                  [field]: event.target.value,
+                                  property_type: event.target.value,
                                 })
                               }
                             >
                               <option value="">بدون تغییر</option>
-                              <option value="unknown">نامشخص</option>
-                              <option value="present">دارد</option>
-                              <option value="absent">ندارد</option>
+                              <option value="apartment">آپارتمان</option>
+                              <option value="house">خانه</option>
+                              <option value="villa">ویلا</option>
                             </select>
                           </Label>
-                        ))}
-                        <Label>
-                          یادداشت مکانی اپراتور
-                          <Input
-                            value={corrections.operator_location_notes ?? ""}
-                            onChange={(event) =>
-                              setCorrections({
-                                ...corrections,
-                                operator_location_notes: event.target.value,
-                              })
-                            }
-                          />
-                        </Label>
-                        <Label>
-                          شناسه در Source
-                          <Input
-                            value={sourceReference}
-                            onChange={(event) =>
-                              setSourceReference(event.target.value)
-                            }
-                          />
-                        </Label>
-                        <Label>
-                          ادعاهای Source (JSON)
-                          <textarea
-                            className="border-input bg-background mt-1 min-h-20 w-full rounded-md border px-3 py-2"
-                            value={sourceClaims}
-                            onChange={(event) =>
-                              setSourceClaims(event.target.value)
-                            }
-                          />
-                        </Label>
-                        <Label>
-                          یادداشت منشأ
-                          <Input
-                            value={provenanceNote}
-                            onChange={(event) =>
-                              setProvenanceNote(event.target.value)
-                            }
-                          />
-                        </Label>
-                        <Label>
-                          قالب‌بندی توضیحات
-                          <Input
-                            value={description || selected.description || ""}
-                            onChange={(event) =>
-                              setDescription(event.target.value)
-                            }
-                          />
-                        </Label>
-                      </div>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>انصراف</AlertDialogCancel>
-                        <AlertDialogAction
-                          disabled={approveMutation.isPending}
-                          onClick={() => approveMutation.mutate()}
-                        >
-                          تأیید نهایی و انتشار
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
-                </div>
-              )}
+                          {numericCorrectionFields.map((field) => (
+                            <Label key={field}>
+                              {normalizedFieldLabel(field)}
+                              <Input
+                                inputMode="numeric"
+                                value={corrections[field] ?? ""}
+                                placeholder={currentNumericValue(
+                                  selected,
+                                  field,
+                                )}
+                                onChange={(event) =>
+                                  setCorrections({
+                                    ...corrections,
+                                    [field]: event.target.value,
+                                  })
+                                }
+                              />
+                            </Label>
+                          ))}
+                          {featureFields.map(([field, label]) => (
+                            <Label key={field}>
+                              {label}
+                              <select
+                                className="border-input bg-background mt-1 h-11 w-full rounded-md border px-3"
+                                value={corrections[field] ?? ""}
+                                onChange={(event) =>
+                                  setCorrections({
+                                    ...corrections,
+                                    [field]: event.target.value,
+                                  })
+                                }
+                              >
+                                <option value="">بدون تغییر</option>
+                                <option value="unknown">نامشخص</option>
+                                <option value="present">دارد</option>
+                                <option value="absent">ندارد</option>
+                              </select>
+                            </Label>
+                          ))}
+                          <Label>
+                            یادداشت مکانی اپراتور
+                            <Input
+                              value={corrections.operator_location_notes ?? ""}
+                              onChange={(event) =>
+                                setCorrections({
+                                  ...corrections,
+                                  operator_location_notes: event.target.value,
+                                })
+                              }
+                            />
+                          </Label>
+                          <Label>
+                            شناسه در Source
+                            <Input
+                              value={sourceReference}
+                              onChange={(event) =>
+                                setSourceReference(event.target.value)
+                              }
+                            />
+                          </Label>
+                          <Label>
+                            ادعاهای Source (JSON)
+                            <textarea
+                              className="border-input bg-background mt-1 min-h-20 w-full rounded-md border px-3 py-2"
+                              value={sourceClaims}
+                              onChange={(event) =>
+                                setSourceClaims(event.target.value)
+                              }
+                            />
+                          </Label>
+                          <Label>
+                            یادداشت منشأ
+                            <Input
+                              value={provenanceNote}
+                              onChange={(event) =>
+                                setProvenanceNote(event.target.value)
+                              }
+                            />
+                          </Label>
+                          <Label>
+                            قالب‌بندی توضیحات
+                            <Input
+                              value={description || selected.description || ""}
+                              onChange={(event) =>
+                                setDescription(event.target.value)
+                              }
+                            />
+                          </Label>
+                        </div>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>انصراف</AlertDialogCancel>
+                          <AlertDialogAction
+                            disabled={approveMutation.isPending}
+                            onClick={() => approveMutation.mutate()}
+                          >
+                            تأیید نهایی و انتشار
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  </div>
+                )}
             </CardContent>
           </Card>
         ) : (

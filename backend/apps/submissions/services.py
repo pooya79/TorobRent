@@ -1,6 +1,6 @@
 import logging
 from dataclasses import dataclass
-from datetime import timedelta
+from datetime import datetime, timedelta
 from io import BytesIO
 from typing import Any
 from uuid import UUID
@@ -15,6 +15,7 @@ from django.db.models.deletion import ProtectedError
 from django.utils import timezone
 from PIL import Image, ImageOps, UnidentifiedImageError
 
+from apps.accounts.capabilities import OperatorCapability, has_capability
 from apps.accounts.models import User
 from apps.catalog.models import Listing, ListingImage, Source
 from apps.catalog.services import (
@@ -27,6 +28,7 @@ from apps.catalog.services import (
 
 from .models import (
     MediaAsset,
+    ReviewClaim,
     Submission,
     SubmissionEvent,
     SubmissionImage,
@@ -45,6 +47,7 @@ VARIANT_WIDTHS = {
 }
 MAX_SUBMISSION_IMAGES = 12
 PROCESSING_FAILURE_REASON = "پردازش تصویر ناموفق بود. فایل را جایگزین و دوباره تلاش کنید."
+REVIEW_CLAIM_DURATION = timedelta(minutes=15)
 
 logger = logging.getLogger(__name__)
 
@@ -127,6 +130,143 @@ def _record_transition(
     )
 
 
+class ReviewWorkflowConflict(Exception):
+    def __init__(self, code: str, message: str) -> None:
+        self.code = code
+        super().__init__(message)
+
+
+def _release_claim(
+    claim: ReviewClaim,
+    *,
+    actor: User | None,
+    reason: str,
+    released_at: datetime | None = None,
+) -> None:
+    claim.released_at = released_at or timezone.now()
+    claim.released_by = actor
+    claim.release_reason = reason
+    claim.save(update_fields=("released_at", "released_by", "release_reason"))
+
+
+def _open_claim(submission: Submission) -> ReviewClaim | None:
+    return (
+        submission.review_claims.select_related("operator").filter(released_at__isnull=True).first()
+    )
+
+
+def _claim_is_available(claim: ReviewClaim, *, now: datetime) -> bool:
+    return claim.expires_at > now and has_capability(
+        claim.operator, OperatorCapability.REVIEW_SUBMISSIONS
+    )
+
+
+def _release_if_unavailable(claim: ReviewClaim | None, *, now: datetime) -> ReviewClaim | None:
+    if claim is None or _claim_is_available(claim, now=now):
+        return claim
+    reason = (
+        "Review Claim expired."
+        if claim.expires_at <= now
+        else "Operator capability or account access is no longer active."
+    )
+    _release_claim(claim, actor=None, reason=reason, released_at=now)
+    return None
+
+
+@transaction.atomic
+def claim_submission_review(*, submission: Submission, actor: User) -> ReviewClaim:
+    submission = Submission.objects.select_for_update().get(id=submission.id)
+    ensure_operator_is_not_submitter(submission=submission, actor=actor)
+    if submission.state != SubmissionState.PENDING:
+        raise ValidationError("Only a pending Submission can be claimed.")
+    now = timezone.now()
+    claim = _release_if_unavailable(_open_claim(submission), now=now)
+    if claim is not None and claim.revision != submission.revision:
+        _release_claim(
+            claim, actor=None, reason="The Submission revision changed.", released_at=now
+        )
+        claim = None
+    if claim is not None:
+        if claim.operator_id == actor.id:
+            return claim
+        raise ReviewWorkflowConflict(
+            "review_claim_conflict",
+            "This Submission revision is already claimed by another Operator.",
+        )
+    return ReviewClaim.objects.create(
+        submission=submission,
+        operator=actor,
+        revision=submission.revision,
+        renewed_at=now,
+        expires_at=now + REVIEW_CLAIM_DURATION,
+    )
+
+
+@transaction.atomic
+def renew_submission_review_claim(*, submission: Submission, actor: User) -> ReviewClaim:
+    submission = Submission.objects.select_for_update().get(id=submission.id)
+    now = timezone.now()
+    claim = _release_if_unavailable(_open_claim(submission), now=now)
+    if claim is not None and claim.revision != submission.revision:
+        raise ReviewWorkflowConflict(
+            "review_revision_conflict",
+            "The Submission revision changed. Refresh and claim the current revision.",
+        )
+    if claim is None or claim.operator_id != actor.id:
+        raise ReviewWorkflowConflict(
+            "review_claim_required",
+            "A current Review Claim owned by this Operator is required.",
+        )
+    claim.renewed_at = now
+    claim.expires_at = now + REVIEW_CLAIM_DURATION
+    claim.save(update_fields=("renewed_at", "expires_at"))
+    return claim
+
+
+@transaction.atomic
+def release_submission_review_claim(*, submission: Submission, actor: User) -> None:
+    submission = Submission.objects.select_for_update().get(id=submission.id)
+    claim = _release_if_unavailable(_open_claim(submission), now=timezone.now())
+    if claim is None or claim.operator_id != actor.id:
+        raise ReviewWorkflowConflict(
+            "review_claim_required",
+            "A current Review Claim owned by this Operator is required.",
+        )
+    _release_claim(claim, actor=actor, reason="Released by the reviewing Operator.")
+
+
+@transaction.atomic
+def force_release_submission_review_claim(
+    *, submission: Submission, actor: User, reason: str
+) -> None:
+    submission = Submission.objects.select_for_update().get(id=submission.id)
+    claim = _release_if_unavailable(_open_claim(submission), now=timezone.now())
+    if claim is None:
+        raise ReviewWorkflowConflict("review_claim_required", "There is no active Review Claim.")
+    _release_claim(claim, actor=actor, reason=reason)
+
+
+def ensure_current_review_claim(*, submission: Submission, actor: User) -> ReviewClaim:
+    claim = _release_if_unavailable(_open_claim(submission), now=timezone.now())
+    if claim is not None and claim.revision != submission.revision:
+        raise ReviewWorkflowConflict(
+            "review_revision_conflict",
+            "The Submission revision changed. Refresh and claim the current revision.",
+        )
+    if claim is None or claim.operator_id != actor.id:
+        raise ReviewWorkflowConflict(
+            "review_claim_required",
+            "A current Review Claim owned by this Operator is required.",
+        )
+    return claim
+
+
+def release_unavailable_review_claims() -> None:
+    now = timezone.now()
+    for claim in ReviewClaim.objects.select_related("operator").filter(released_at__isnull=True):
+        _release_if_unavailable(claim, now=now)
+
+
 def _validate_complete_submission(submission: Submission) -> None:
     required = {
         "city": submission.city_id,
@@ -165,6 +305,8 @@ def submit_for_review(*, submission: Submission, actor: User) -> Submission:
         except Source.DoesNotExist:
             raise ValidationError("منبع مستقیم TorobRent پیکربندی نشده است.") from None
         submission.save(update_fields=("source", "updated_at"))
+    submission.pending_since = timezone.now()
+    submission.save(update_fields=("pending_since", "updated_at"))
     _record_transition(submission=submission, actor=actor, new_state=SubmissionState.PENDING)
     return submission
 
@@ -245,6 +387,7 @@ def ensure_operator_is_not_submitter(*, submission: Submission, actor: User) -> 
 def request_submission_changes(*, submission: Submission, actor: User, reason: str) -> Submission:
     submission = Submission.objects.select_for_update().get(id=submission.id)
     ensure_operator_is_not_submitter(submission=submission, actor=actor)
+    claim = ensure_current_review_claim(submission=submission, actor=actor)
     if submission.state != SubmissionState.PENDING:
         raise ValidationError("فقط Submission در انتظار بررسی قابل بازگشت است.")
     _record_transition(
@@ -253,6 +396,7 @@ def request_submission_changes(*, submission: Submission, actor: User, reason: s
         new_state=SubmissionState.CHANGES_REQUESTED,
         reason=reason,
     )
+    _release_claim(claim, actor=actor, reason="Review decision completed.")
     return submission
 
 
@@ -260,6 +404,7 @@ def request_submission_changes(*, submission: Submission, actor: User, reason: s
 def reject_submission(*, submission: Submission, actor: User, reason: str) -> Submission:
     submission = Submission.objects.select_for_update().get(id=submission.id)
     ensure_operator_is_not_submitter(submission=submission, actor=actor)
+    claim = ensure_current_review_claim(submission=submission, actor=actor)
     if submission.state != SubmissionState.PENDING:
         raise ValidationError("فقط Submission در انتظار بررسی قابل رد است.")
     _record_transition(
@@ -268,6 +413,7 @@ def reject_submission(*, submission: Submission, actor: User, reason: str) -> Su
         new_state=SubmissionState.REJECTED,
         reason=reason,
     )
+    _release_claim(claim, actor=actor, reason="Review decision completed.")
     return submission
 
 
@@ -295,9 +441,11 @@ def approve_submission(
     normalized_property: dict[str, object] | None = None,
     source_metadata: dict[str, object] | None = None,
     formatting: dict[str, object] | None = None,
+    internal_note: str = "",
 ) -> Submission:
     submission = Submission.objects.select_for_update().get(id=submission.id)
     ensure_operator_is_not_submitter(submission=submission, actor=actor)
+    claim = ensure_current_review_claim(submission=submission, actor=actor)
     if submission.state != SubmissionState.PENDING:
         raise ValidationError("فقط Submission در انتظار بررسی قابل تأیید است.")
     _validate_complete_submission(submission)
@@ -345,7 +493,13 @@ def approve_submission(
     )
     submission.listing = listing
     submission.save(update_fields=("listing", "updated_at"))
-    _record_transition(submission=submission, actor=actor, new_state=SubmissionState.PUBLISHED)
+    _record_transition(
+        submission=submission,
+        actor=actor,
+        new_state=SubmissionState.PUBLISHED,
+        reason=internal_note,
+    )
+    _release_claim(claim, actor=actor, reason="Review decision completed.")
     return submission
 
 

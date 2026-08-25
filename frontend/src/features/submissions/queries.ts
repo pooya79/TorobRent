@@ -11,6 +11,8 @@ export type SubmissionImage = components["schemas"]["SubmissionImage"];
 export type SubmissionImageOrder =
   components["schemas"]["PatchedSubmissionImageOrder"];
 export type SubmissionApproval = components["schemas"]["SubmissionApproval"];
+export type OperatorSubmissionQueueItem =
+  components["schemas"]["OperatorSubmissionQueue"];
 
 export type OperatorQueueFilters = {
   state?: string;
@@ -18,9 +20,13 @@ export type OperatorQueueFilters = {
   city?: string;
   district?: string;
   neighborhood?: string;
-  updated_after?: string;
-  updated_before?: string;
+  pending_after?: string;
+  pending_before?: string;
+  age_days?: number;
+  assignee?: string;
   ordering?: "newest" | "oldest";
+  page?: number;
+  page_size?: number;
 };
 
 function multipartBody(body: { file: string }) {
@@ -138,7 +144,49 @@ export function operatorQueueQueryOptions(filters: OperatorQueueFilters = {}) {
       if (error || !data) throw apiError(error);
       return data;
     },
+    refetchInterval: 30_000,
   });
+}
+
+export function operatorSubmissionQueryOptions(submissionId: string) {
+  return queryOptions({
+    queryKey: ["operator-submissions", "detail", submissionId] as const,
+    queryFn: async () => {
+      const { data, error } = await api.GET(
+        "/api/v1/operator/submissions/{submission_id}/",
+        { params: { path: { submission_id: submissionId } } },
+      );
+      if (error || !data) throw apiError(error);
+      return data;
+    },
+    enabled: Boolean(submissionId),
+  });
+}
+
+export async function claimSubmission(submissionId: string) {
+  const { data, error } = await api.POST(
+    "/api/v1/operator/submissions/{submission_id}/claim/",
+    { params: { path: { submission_id: submissionId } } },
+  );
+  if (error || !data) throw apiError(error);
+  return data;
+}
+
+export async function renewSubmissionClaim(submissionId: string) {
+  const { data, error } = await api.POST(
+    "/api/v1/operator/submissions/{submission_id}/claim/renew/",
+    { params: { path: { submission_id: submissionId } } },
+  );
+  if (error || !data) throw apiError(error);
+  return data;
+}
+
+export async function releaseSubmissionClaim(submissionId: string) {
+  const { error } = await api.DELETE(
+    "/api/v1/operator/submissions/{submission_id}/claim/",
+    { params: { path: { submission_id: submissionId } } },
+  );
+  if (error) throw apiError(error);
 }
 
 export async function requestSubmissionChanges(

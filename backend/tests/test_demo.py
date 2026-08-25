@@ -140,7 +140,8 @@ def test_seed_demo_personas_can_access_their_prepared_queues():
     operator = login("operator@torobrent.local", "demo-operator")
     response = operator.get("/api/v1/operator/submissions/?state=pending")
     assert response.status_code == 200
-    assert len(response.data) == 1
+    assert response.data["count"] == 1
+    assert len(response.data["results"]) == 1
 
 
 def test_demo_compose_and_make_targets_define_a_scoped_persistent_lifecycle():

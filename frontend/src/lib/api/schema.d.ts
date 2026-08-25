@@ -259,6 +259,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/v1/operator/submissions/{submission_id}/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Inspect a Submission without claiming it */
+    get: operations["v1_operator_submissions_retrieve"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/v1/operator/submissions/{submission_id}/approve/": {
     parameters: {
       query?: never;
@@ -270,6 +287,58 @@ export interface paths {
     put?: never;
     /** Approve, group, and publish a pending Submission */
     post: operations["v1_operator_submissions_approve_create"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/operator/submissions/{submission_id}/claim/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Claim a Submission revision */
+    post: operations["v1_operator_submissions_claim_create"];
+    /** Release the current Operator's Review Claim */
+    delete: operations["v1_operator_submissions_claim_destroy"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/operator/submissions/{submission_id}/claim/force-release/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Force-release a Review Claim */
+    post: operations["v1_operator_submissions_claim_force_release_create"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/operator/submissions/{submission_id}/claim/renew/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Renew the current Operator's Review Claim */
+    post: operations["v1_operator_submissions_claim_renew_create"];
     delete?: never;
     options?: never;
     head?: never;
@@ -547,6 +616,13 @@ export interface components {
       expiring_soon: boolean;
     };
     /**
+     * @description * `unclaimed` - unclaimed
+     *     * `claimed_by_me` - claimed_by_me
+     *     * `claimed_by_another` - claimed_by_another
+     * @enum {string}
+     */
+    ClaimStatusEnum: "unclaimed" | "claimed_by_me" | "claimed_by_another";
+    /**
      * @description * `location` - location
      *     * `property_facts` - property_facts
      *     * `rental_terms` - rental_terms
@@ -656,6 +732,9 @@ export interface components {
       storage: components["schemas"]["FeatureStateEnum"];
       balcony: components["schemas"]["FeatureStateEnum"];
       furnished: components["schemas"]["FeatureStateEnum"];
+    };
+    ForceReleaseReviewClaim: {
+      reason: string;
     };
     Formatting: {
       description?: string;
@@ -768,6 +847,20 @@ export interface components {
       | "handle_support"
       | "manage_operator_queues"
       | "review_submissions";
+    OperatorSubmissionQueue: {
+      /** Format: uuid */
+      readonly id: string;
+      role: components["schemas"]["RoleEnum"];
+      state?: components["schemas"]["SubmissionStateEnum"];
+      readonly revision: number;
+      /** Format: uuid */
+      readonly source_id: string | null;
+      readonly location: components["schemas"]["LocationOutput"] | null;
+      /** Format: date-time */
+      readonly pending_since: string | null;
+      readonly claim_status: components["schemas"]["ClaimStatusEnum"];
+      readonly claim: components["schemas"]["ReviewClaim"] | null;
+    };
     /**
      * @description * `direct_contact` - تماس مستقیم
      *     * `external_link` - پیوند منبع
@@ -775,6 +868,21 @@ export interface components {
      * @enum {string}
      */
     OutboundPolicyEnum: "direct_contact" | "external_link" | "disabled";
+    PaginatedOperatorSubmissionQueueList: {
+      /** @example 123 */
+      count: number;
+      /**
+       * Format: uri
+       * @example http://api.example.org/properties/?page=2
+       */
+      next?: string | null;
+      /**
+       * Format: uri
+       * @example http://api.example.org/properties/?page=1
+       */
+      previous?: string | null;
+      results: components["schemas"]["OperatorSubmissionQueue"][];
+    };
     PaginatedPropertySummaryList: {
       /** @example 123 */
       count: number;
@@ -913,6 +1021,20 @@ export interface components {
       deposit_toman: number;
       monthly_rent_toman: number;
     };
+    ReviewClaim: {
+      /** Format: uuid */
+      readonly id: string;
+      /** Format: uuid */
+      readonly operator_id: string;
+      /** Format: email */
+      readonly operator_email: string;
+      /** Format: int64 */
+      revision: number;
+      /** Format: date-time */
+      expires_at: string;
+      /** Format: date-time */
+      renewed_at: string;
+    };
     ReviewInput: {
       accuracy_confirmed: boolean;
     };
@@ -969,6 +1091,10 @@ export interface components {
       description?: string;
       readonly contact: components["schemas"]["ContactOutput"] | null;
       review: unknown;
+      /** Format: date-time */
+      readonly pending_since: string | null;
+      readonly claim_status: components["schemas"]["ClaimStatusEnum"];
+      readonly claim: components["schemas"]["ReviewClaim"] | null;
       readonly history: components["schemas"]["SubmissionEvent"][];
       readonly available_actions: string[];
       readonly availability: components["schemas"]["AvailabilityOutput"] | null;
@@ -983,6 +1109,7 @@ export interface components {
       normalized_property?: components["schemas"]["NormalizedProperty"];
       source_metadata?: components["schemas"]["SourceMetadata"];
       formatting?: components["schemas"]["Formatting"];
+      internal_note?: string;
     };
     SubmissionCreate: {
       role: components["schemas"]["RoleEnum"];
@@ -1686,14 +1813,20 @@ export interface operations {
   v1_operator_submissions_list: {
     parameters: {
       query?: {
+        age_days?: number;
+        assignee?: string;
         city?: string;
         district?: string;
         neighborhood?: string;
         ordering?: "newest" | "oldest";
+        /** @description A page number within the paginated result set. */
+        page?: number;
+        /** @description Number of results to return per page. */
+        page_size?: number;
+        pending_after?: string;
+        pending_before?: string;
         source?: string;
         state?: string;
-        updated_after?: string;
-        updated_before?: string;
       };
       header?: never;
       path?: never;
@@ -1706,7 +1839,28 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["Submission"][];
+          "application/json": components["schemas"]["PaginatedOperatorSubmissionQueueList"];
+        };
+      };
+    };
+  };
+  v1_operator_submissions_retrieve: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        submission_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Submission"];
         };
       };
     };
@@ -1732,6 +1886,92 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["Submission"];
+        };
+      };
+    };
+  };
+  v1_operator_submissions_claim_create: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        submission_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Submission"];
+        };
+      };
+    };
+  };
+  v1_operator_submissions_claim_destroy: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        submission_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description No response body */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  v1_operator_submissions_claim_force_release_create: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        submission_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ForceReleaseReviewClaim"];
+      };
+    };
+    responses: {
+      /** @description No response body */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  v1_operator_submissions_claim_renew_create: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        submission_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ReviewClaim"];
         };
       };
     };
