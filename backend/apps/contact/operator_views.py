@@ -2,6 +2,7 @@ from datetime import timedelta
 from typing import cast
 from uuid import UUID
 
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db.models import Q, QuerySet
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -9,7 +10,7 @@ from django.utils.dateparse import parse_datetime
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import status
-from rest_framework.exceptions import APIException, ValidationError
+from rest_framework.exceptions import APIException, PermissionDenied, ValidationError
 from rest_framework.generics import ListAPIView
 from rest_framework.permissions import BasePermission
 from rest_framework.request import Request
@@ -20,10 +21,27 @@ from apps.accounts.capabilities import OperatorCapability, has_capability
 from apps.accounts.models import User
 from apps.common.pagination import StandardPageNumberPagination
 
-from .models import IntakeKind, SupportClassification, SupportRequest, SupportRequestStatus
+from .models import (
+    IntakeKind,
+    SupportClassification,
+    SupportPriority,
+    SupportRequest,
+    SupportRequestStatus,
+)
 from .selectors import support_requests_visible_to
-from .serializers import SupportRequestQueueSerializer, SupportRequestSerializer
-from .services import SupportRequestConflict, claim_support_request, release_support_request
+from .serializers import (
+    SupportReassignmentSerializer,
+    SupportRequestQueueSerializer,
+    SupportRequestSerializer,
+    SupportTriageSerializer,
+)
+from .services import (
+    SupportRequestConflict,
+    claim_support_request,
+    reassign_abandoned_support_request,
+    release_support_request,
+    triage_support_request,
+)
 
 
 class CanHandleSupportRequests(BasePermission):
@@ -33,6 +51,19 @@ class CanHandleSupportRequests(BasePermission):
         user = cast(User, request.user)
         return has_capability(user, OperatorCapability.HANDLE_SUPPORT) or has_capability(
             user, OperatorCapability.HANDLE_PRIVACY_REQUESTS
+        )
+
+
+class CanManageSupportQueue(BasePermission):
+    message = "مجوز مدیریت صف همراه با دسترسی پشتیبانی لازم است."
+
+    def has_permission(self, request: Request, view: APIView) -> bool:
+        user = cast(User, request.user)
+        has_support_access = has_capability(
+            user, OperatorCapability.HANDLE_SUPPORT
+        ) or has_capability(user, OperatorCapability.HANDLE_PRIVACY_REQUESTS)
+        return has_support_access and has_capability(
+            user, OperatorCapability.MANAGE_OPERATOR_QUEUES
         )
 
 
@@ -74,6 +105,12 @@ class OperatorSupportRequestListView(ListAPIView[SupportRequest]):
                 str,
                 enum=SupportClassification.values,
                 description="Match the authoritative Support Classification.",
+            ),
+            OpenApiParameter(
+                "priority",
+                str,
+                enum=SupportPriority.values,
+                description="Match the current Support Request priority.",
             ),
             OpenApiParameter(
                 "assignee",
@@ -135,7 +172,7 @@ class OperatorSupportRequestListView(ListAPIView[SupportRequest]):
     def get_queryset(self) -> QuerySet[SupportRequest]:
         operator = cast(User, self.request.user)
         support_requests = support_requests_visible_to(operator=operator).select_related("assignee")
-        for parameter in ("status", "intake_kind", "classification"):
+        for parameter in ("status", "intake_kind", "classification", "priority"):
             if value := self.request.query_params.get(parameter):
                 support_requests = support_requests.filter(**{parameter: value})
         for parameter, lookup in (
@@ -226,6 +263,8 @@ class OperatorSupportRequestClaimView(APIView):
             support_request = claim_support_request(
                 support_request=support_request, actor=cast(User, request.user)
             )
+        except DjangoValidationError as exc:
+            raise PermissionDenied(exc.messages) from None
         except SupportRequestConflict as exc:
             raise SupportConflict(exc) from None
         support_request = operator_support_request(
@@ -246,6 +285,75 @@ class OperatorSupportRequestClaimView(APIView):
         )
         try:
             release_support_request(support_request=support_request, actor=cast(User, request.user))
+        except DjangoValidationError as exc:
+            raise PermissionDenied(exc.messages) from None
         except SupportRequestConflict as exc:
             raise SupportConflict(exc) from None
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class OperatorSupportRequestTriageView(APIView):
+    permission_classes = (CanHandleSupportRequests,)
+
+    @extend_schema(
+        summary="Classify and route a Support Request",
+        request=SupportTriageSerializer,
+        responses={204: None},
+    )
+    def patch(self, request: Request, support_request_id: str) -> Response:
+        support_request = operator_support_request(
+            request=request, support_request_id=support_request_id
+        )
+        serializer = SupportTriageSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            triage_support_request(
+                support_request=support_request,
+                actor=cast(User, request.user),
+                classification=serializer.validated_data.get("classification"),
+                priority=serializer.validated_data.get("priority"),
+                new_status=serializer.validated_data.get("status"),
+                escalation_destination=serializer.validated_data.get("escalation_destination", ""),
+                required_capability=serializer.validated_data.get("required_capability"),
+                reason=serializer.validated_data.get("reason", ""),
+            )
+        except DjangoValidationError as exc:
+            raise ValidationError(exc.messages) from None
+        except SupportRequestConflict as exc:
+            raise SupportConflict(exc) from None
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class OperatorSupportRequestReassignView(APIView):
+    permission_classes = (CanManageSupportQueue,)
+
+    @extend_schema(
+        summary="Reassign an abandoned Support Request",
+        request=SupportReassignmentSerializer,
+        responses={200: SupportRequestSerializer},
+    )
+    def post(self, request: Request, support_request_id: str) -> Response:
+        support_request = operator_support_request(
+            request=request, support_request_id=support_request_id
+        )
+        serializer = SupportReassignmentSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        new_assignee = get_object_or_404(
+            User,
+            email__iexact=serializer.validated_data["assignee_email"],
+        )
+        try:
+            support_request = reassign_abandoned_support_request(
+                support_request=support_request,
+                actor=cast(User, request.user),
+                new_assignee=new_assignee,
+                reason=serializer.validated_data["reason"],
+            )
+        except DjangoValidationError as exc:
+            raise ValidationError(exc.messages) from None
+        except SupportRequestConflict as exc:
+            raise SupportConflict(exc) from None
+        support_request = operator_support_request(
+            request=request, support_request_id=support_request_id
+        )
+        return Response(SupportRequestSerializer(support_request).data)

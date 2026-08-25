@@ -4,6 +4,8 @@ from .operator_views import (
     OperatorSupportRequestClaimView,
     OperatorSupportRequestDetailView,
     OperatorSupportRequestListView,
+    OperatorSupportRequestReassignView,
+    OperatorSupportRequestTriageView,
 )
 
 app_name = "operator-support-requests"
@@ -19,5 +21,15 @@ urlpatterns = [
         "<uuid:support_request_id>/claim/",
         OperatorSupportRequestClaimView.as_view(),
         name="claim",
+    ),
+    path(
+        "<uuid:support_request_id>/triage/",
+        OperatorSupportRequestTriageView.as_view(),
+        name="triage",
+    ),
+    path(
+        "<uuid:support_request_id>/reassign/",
+        OperatorSupportRequestReassignView.as_view(),
+        name="reassign",
     ),
 ]

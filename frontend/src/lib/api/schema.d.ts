@@ -448,6 +448,40 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/v1/operator/support-requests/{support_request_id}/reassign/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Reassign an abandoned Support Request */
+    post: operations["v1_operator_support_requests_reassign_create"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/operator/support-requests/{support_request_id}/triage/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /** Classify and route a Support Request */
+    patch: operations["v1_operator_support_requests_triage_partial_update"];
+    trace?: never;
+  };
   "/api/v1/submissions/": {
     parameters: {
       query?: never;
@@ -713,6 +747,8 @@ export interface components {
       available_until: string | null;
       expiring_soon: boolean;
     };
+    /** @enum {unknown} */
+    BlankEnum: "";
     /**
      * @description * `unclaimed` - unclaimed
      *     * `claimed_by_me` - claimed_by_me
@@ -942,6 +978,7 @@ export interface components {
       furnished?: components["schemas"]["FeatureStateEnum"];
       operator_location_notes?: string;
     };
+    NullEnum: null;
     /**
      * @description * `handle_privacy_requests` - Privacy Support handling
      *     * `handle_support` - General Support handling
@@ -1042,6 +1079,16 @@ export interface components {
       description?: string;
       contact?: components["schemas"]["ContactInput"];
       review?: components["schemas"]["ReviewInput"];
+    };
+    PatchedSupportTriage: {
+      classification?: components["schemas"]["SupportClassificationEnum"];
+      priority?: components["schemas"]["SupportPriorityEnum"];
+      status?: components["schemas"]["SupportTriageStatusEnum"];
+      escalation_destination?: string;
+      required_capability?:
+        | components["schemas"]["SupportRequiredCapabilityEnum"]
+        | components["schemas"]["BlankEnum"];
+      reason?: string;
     };
     PhoneReveal: {
       phone: string;
@@ -1382,15 +1429,32 @@ export interface components {
      */
     SupportClassificationEnum:
       "unclassified" | "guidance" | "privacy" | "account_deletion" | "spam";
+    /**
+     * @description * `normal` - عادی
+     *     * `urgent` - فوری
+     * @enum {string}
+     */
+    SupportPriorityEnum: "normal" | "urgent";
+    SupportReassignment: {
+      /** Format: email */
+      assignee_email: string;
+      reason: string;
+    };
     SupportRequest: {
       /** Format: uuid */
       readonly id: string;
       name: string;
       /** Format: email */
       email: string;
-      intake_kind: components["schemas"]["IntakeKindEnum"];
+      readonly intake_kind: components["schemas"]["IntakeKindEnum"];
       classification?: components["schemas"]["SupportClassificationEnum"];
+      priority?: components["schemas"]["SupportPriorityEnum"];
+      readonly priority_locked: boolean;
       status?: components["schemas"]["SupportRequestStatusEnum"];
+      escalation_destination?: string;
+      required_capability?:
+        | components["schemas"]["SupportRequiredCapabilityEnum"]
+        | components["schemas"]["BlankEnum"];
       /** Format: uuid */
       readonly assignee_id: string | null;
       /** Format: email */
@@ -1415,25 +1479,65 @@ export interface components {
       readonly actor_email: string;
       prior_state: components["schemas"]["SupportRequestStatusEnum"];
       new_state: components["schemas"]["SupportRequestStatusEnum"];
+      prior_classification?:
+        | components["schemas"]["SupportClassificationEnum"]
+        | components["schemas"]["BlankEnum"]
+        | components["schemas"]["NullEnum"];
+      new_classification?:
+        | components["schemas"]["SupportClassificationEnum"]
+        | components["schemas"]["BlankEnum"]
+        | components["schemas"]["NullEnum"];
+      prior_priority?:
+        | components["schemas"]["SupportPriorityEnum"]
+        | components["schemas"]["BlankEnum"]
+        | components["schemas"]["NullEnum"];
+      new_priority?:
+        | components["schemas"]["SupportPriorityEnum"]
+        | components["schemas"]["BlankEnum"]
+        | components["schemas"]["NullEnum"];
+      escalation_destination?: string;
+      required_capability?:
+        | components["schemas"]["SupportRequiredCapabilityEnum"]
+        | components["schemas"]["BlankEnum"];
+      /** Format: uuid */
+      readonly prior_assignee_id: string | null;
+      /** Format: uuid */
+      readonly new_assignee_id: string | null;
       reason?: string;
       /** Format: date-time */
       readonly created_at: string;
     };
     /**
      * @description * `assigned` - واگذار شد
+     *     * `classified` - دسته‌بندی شد
+     *     * `escalated` - ارجاع شد
+     *     * `priority_changed` - فوریت تغییر یافت
+     *     * `reassigned` - دوباره واگذار شد
      *     * `released` - آزاد شد
      * @enum {string}
      */
-    SupportRequestEventTypeEnum: "assigned" | "released";
+    SupportRequestEventTypeEnum:
+      | "assigned"
+      | "classified"
+      | "escalated"
+      | "priority_changed"
+      | "reassigned"
+      | "released";
     SupportRequestQueue: {
       /** Format: uuid */
       readonly id: string;
       name: string;
       /** Format: email */
       email: string;
-      intake_kind: components["schemas"]["IntakeKindEnum"];
+      readonly intake_kind: components["schemas"]["IntakeKindEnum"];
       classification?: components["schemas"]["SupportClassificationEnum"];
+      priority?: components["schemas"]["SupportPriorityEnum"];
+      readonly priority_locked: boolean;
       status?: components["schemas"]["SupportRequestStatusEnum"];
+      escalation_destination?: string;
+      required_capability?:
+        | components["schemas"]["SupportRequiredCapabilityEnum"]
+        | components["schemas"]["BlankEnum"];
       /** Format: uuid */
       readonly assignee_id: string | null;
       /** Format: email */
@@ -1448,10 +1552,22 @@ export interface components {
     /**
      * @description * `open` - باز
      *     * `in_progress` - در حال بررسی
+     *     * `escalated` - ارجاع‌شده
      *     * `resolved` - رسیدگی‌شده
      * @enum {string}
      */
-    SupportRequestStatusEnum: "open" | "in_progress" | "resolved";
+    SupportRequestStatusEnum: "open" | "in_progress" | "escalated" | "resolved";
+    /**
+     * @description * `handle_support` - General Support handling
+     *     * `handle_privacy_requests` - Privacy Support handling
+     * @enum {string}
+     */
+    SupportRequiredCapabilityEnum: "handle_support" | "handle_privacy_requests";
+    /**
+     * @description * `escalated` - Escalated
+     * @enum {string}
+     */
+    SupportTriageStatusEnum: "escalated";
     Token: {
       token: string;
     };
@@ -2369,10 +2485,12 @@ export interface operations {
         page?: number;
         /** @description Records per page; defaults to 50 and is capped at 100. */
         page_size?: number;
+        /** @description Match the current Support Request priority. */
+        priority?: "normal" | "urgent";
         /** @description Case-insensitive search across requester name, email, and message. */
         search?: string;
         /** @description Match the current operational state. */
-        status?: "in_progress" | "open" | "resolved";
+        status?: "escalated" | "in_progress" | "open" | "resolved";
       };
       header?: never;
       path?: never;
@@ -2442,6 +2560,55 @@ export interface operations {
       cookie?: never;
     };
     requestBody?: never;
+    responses: {
+      /** @description No response body */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  v1_operator_support_requests_reassign_create: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        support_request_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["SupportReassignment"];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SupportRequest"];
+        };
+      };
+    };
+  };
+  v1_operator_support_requests_triage_partial_update: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        support_request_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: {
+      content: {
+        "application/json": components["schemas"]["PatchedSupportTriage"];
+      };
+    };
     responses: {
       /** @description No response body */
       204: {

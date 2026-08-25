@@ -12,6 +12,10 @@ export type SupportRequestStatus =
 export type IntakeKind = components["schemas"]["IntakeKindEnum"];
 export type SupportClassification =
   components["schemas"]["SupportClassificationEnum"];
+export type SupportPriority = NonNullable<SupportRequestQueueItem["priority"]>;
+export type SupportTriageInput = components["schemas"]["PatchedSupportTriage"];
+export type SupportReassignmentInput =
+  components["schemas"]["SupportReassignment"];
 type GeneratedSupportQueueFilters = NonNullable<
   operations["v1_operator_support_requests_list"]["parameters"]["query"]
 >;
@@ -72,4 +76,33 @@ export async function releaseSupportRequest(supportRequestId: string) {
     { params: { path: { support_request_id: supportRequestId } } },
   );
   if (error) throw apiError(error);
+}
+
+export async function triageSupportRequest(
+  supportRequestId: string,
+  input: SupportTriageInput,
+) {
+  const { error } = await api.PATCH(
+    "/api/v1/operator/support-requests/{support_request_id}/triage/",
+    {
+      params: { path: { support_request_id: supportRequestId } },
+      body: input,
+    },
+  );
+  if (error) throw apiError(error);
+}
+
+export async function reassignSupportRequest(
+  supportRequestId: string,
+  input: SupportReassignmentInput,
+) {
+  const { data, error } = await api.POST(
+    "/api/v1/operator/support-requests/{support_request_id}/reassign/",
+    {
+      params: { path: { support_request_id: supportRequestId } },
+      body: input,
+    },
+  );
+  if (error || !data) throw apiError(error);
+  return data;
 }

@@ -3,6 +3,7 @@ from django.contrib import admin
 from django.contrib.auth.models import Permission
 from django.core import mail
 from django.core.cache import cache
+from django.utils import timezone
 from rest_framework.test import APIClient
 
 from apps.contact.models import IntakeKind, SupportRequest, SupportRequestStatus
@@ -146,11 +147,13 @@ def test_operator_can_find_classify_and_resolve_contact_message(client, user):
     message_data = valid_message()
     message = SupportRequest.objects.create(intake_kind=message_data.pop("kind"), **message_data)
     user.is_staff = True
+    user.email_verified_at = timezone.now()
     user.user_permissions.add(
         Permission.objects.get(codename="view_supportrequest"),
         Permission.objects.get(codename="change_supportrequest"),
+        Permission.objects.get(codename="handle_general_support_requests"),
     )
-    user.save(update_fields=["is_staff"])
+    user.save(update_fields=["is_staff", "email_verified_at"])
     client.force_login(user)
 
     changelist = client.get("/admin/contact/supportrequest/", {"q": "نگار"})
@@ -174,6 +177,74 @@ def test_operator_can_find_classify_and_resolve_contact_message(client, user):
     assert message.resolved_at is not None
     assert message.operator_note == "راهنما ارائه شد."
     assert admin.site.is_registered(SupportRequest)
+
+
+@pytest.mark.django_db
+def test_general_support_operator_cannot_view_or_finalize_privacy_content_in_admin(client, user):
+    general = SupportRequest.objects.create(
+        name="General requester",
+        email="general@example.com",
+        intake_kind=IntakeKind.GENERAL,
+        classification="guidance",
+        message="Visible general Support content.",
+    )
+    privacy = SupportRequest.objects.create(
+        name="Privacy requester",
+        email="privacy@example.com",
+        intake_kind=IntakeKind.GENERAL,
+        classification="privacy",
+        message="Restricted privacy Support content.",
+    )
+    specialized = SupportRequest.objects.create(
+        name="Specialized requester",
+        email="specialized@example.com",
+        intake_kind=IntakeKind.GENERAL,
+        classification="guidance",
+        status=SupportRequestStatus.ESCALATED,
+        required_capability="handle_privacy_requests",
+        message="General content whose handling requires a Privacy Operator.",
+    )
+    user.is_staff = True
+    user.email_verified_at = timezone.now()
+    user.user_permissions.add(
+        Permission.objects.get(codename="view_supportrequest"),
+        Permission.objects.get(codename="change_supportrequest"),
+        Permission.objects.get(codename="handle_general_support_requests"),
+    )
+    user.save(update_fields=["is_staff", "email_verified_at"])
+    client.force_login(user)
+
+    changelist = client.get("/admin/contact/supportrequest/")
+    protected_change = client.post(
+        f"/admin/contact/supportrequest/{privacy.pk}/change/",
+        {
+            "status": SupportRequestStatus.RESOLVED,
+            "operator_note": "Unauthorized finalization attempt.",
+            "_save": "ذخیره",
+        },
+    )
+    specialized_change = client.post(
+        f"/admin/contact/supportrequest/{specialized.pk}/change/",
+        {
+            "status": SupportRequestStatus.RESOLVED,
+            "operator_note": "Unauthorized specialized finalization attempt.",
+            "_save": "ذخیره",
+        },
+    )
+
+    assert changelist.status_code == 200
+    content = changelist.content.decode()
+    assert general.name in content
+    assert privacy.name not in content
+    assert specialized.name not in content
+    assert protected_change.status_code != 200
+    assert specialized_change.status_code != 200
+    privacy.refresh_from_db()
+    specialized.refresh_from_db()
+    assert privacy.status == SupportRequestStatus.OPEN
+    assert privacy.resolved_by is None
+    assert specialized.status == SupportRequestStatus.ESCALATED
+    assert specialized.resolved_by is None
 
 
 @pytest.mark.django_db

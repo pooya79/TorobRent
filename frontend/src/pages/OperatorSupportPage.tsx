@@ -11,23 +11,30 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { currentUserQuery } from "@/features/session/queries";
+import { supportClassificationLabels } from "@/features/support/labels";
+import { SupportTriagePanel } from "@/features/support/SupportTriagePanel";
 import {
   claimSupportRequest,
+  reassignSupportRequest,
   releaseSupportRequest,
   supportQueueQueryOptions,
   supportRequestQueryOptions,
+  triageSupportRequest,
   type AssigneeFacet,
   type SupportQueueFilters,
   type IntakeKind,
   type SupportClassification,
+  type SupportReassignmentInput,
   type SupportRequestQueueItem,
   type SupportRequestStatus,
+  type SupportTriageInput,
 } from "@/features/support/queries";
 import { errorMessage } from "@/lib/api/errors";
 
 const statusLabels = {
   open: "باز",
   in_progress: "در حال رسیدگی",
+  escalated: "ارجاع‌شده",
   resolved: "رسیدگی‌شده",
 } satisfies Record<SupportRequestStatus, string>;
 
@@ -37,13 +44,19 @@ const intakeKindLabels = {
   public_contact_removal: "حذف اطلاعات تماس عمومی",
 } satisfies Record<IntakeKind, string>;
 
-const classificationLabels = {
-  unclassified: "دسته‌بندی‌نشده",
-  guidance: "راهنمایی",
-  privacy: "حریم خصوصی",
-  account_deletion: "حذف حساب",
-  spam: "هرزنامه",
-} satisfies Record<SupportClassification, string>;
+const priorityLabels = {
+  normal: "عادی",
+  urgent: "فوری",
+} as const;
+
+const eventLabels = {
+  assigned: "واگذاری",
+  classified: "تغییر دسته‌بندی",
+  escalated: "ارجاع تخصصی",
+  priority_changed: "تغییر فوریت",
+  reassigned: "واگذاری مجدد",
+  released: "آزادسازی",
+} as const;
 
 function requestTitle(supportRequest: SupportRequestQueueItem) {
   return supportRequest.name || supportRequest.email;
@@ -67,9 +80,17 @@ export function OperatorSupportPage() {
     ordering: "oldest",
   });
   const [selectedId, setSelectedId] = useState<string>();
+  const [suppressedIds, setSuppressedIds] = useState<Set<string>>(
+    () => new Set(),
+  );
   const queue = useQuery(supportQueueQueryOptions(filters));
-  const queueItems = queue.data?.results ?? [];
-  const activeId = selectedId ?? queueItems[0]?.id ?? "";
+  const queueItems = (queue.data?.results ?? []).filter(
+    ({ id }) => !suppressedIds.has(id),
+  );
+  const activeId =
+    selectedId && !suppressedIds.has(selectedId)
+      ? selectedId
+      : (queueItems[0]?.id ?? "");
   const detail = useQuery(supportRequestQueryOptions(activeId));
   const selected = detail.data;
 
@@ -91,7 +112,39 @@ export function OperatorSupportPage() {
     mutationFn: () => releaseSupportRequest(activeId),
     onSuccess: refreshSupportRequest,
   });
-  const mutationError = claim.error ?? release.error;
+  const triage = useMutation({
+    mutationFn: (input: SupportTriageInput) =>
+      triageSupportRequest(activeId, input),
+    onSuccess: async (_, input) => {
+      const losesPrivacyAccess =
+        (input.classification === "privacy" ||
+          input.classification === "account_deletion") &&
+        !currentUser.data?.operator_capabilities.includes(
+          "handle_privacy_requests",
+        );
+      const lacksRequiredCapability = Boolean(
+        input.required_capability &&
+        !currentUser.data?.operator_capabilities.includes(
+          input.required_capability,
+        ),
+      );
+      if (losesPrivacyAccess || lacksRequiredCapability) {
+        setSuppressedIds((current) => new Set(current).add(activeId));
+        setSelectedId(undefined);
+        queryClient.removeQueries({
+          queryKey: ["operator-support-requests", "detail", activeId],
+        });
+      }
+      await refreshSupportRequest();
+    },
+  });
+  const reassign = useMutation({
+    mutationFn: (input: SupportReassignmentInput) =>
+      reassignSupportRequest(activeId, input),
+    onSuccess: refreshSupportRequest,
+  });
+  const mutationError =
+    claim.error ?? release.error ?? triage.error ?? reassign.error;
 
   if (queue.isPending) {
     return (
@@ -173,6 +226,7 @@ export function OperatorSupportPage() {
               <option value="">همه وضعیت‌ها</option>
               <option value="open">باز</option>
               <option value="in_progress">در حال رسیدگی</option>
+              <option value="escalated">ارجاع‌شده</option>
               <option value="resolved">رسیدگی‌شده</option>
             </select>
           </Label>
@@ -236,11 +290,13 @@ export function OperatorSupportPage() {
               }
             >
               <option value="">همه دسته‌بندی‌ها</option>
-              {Object.entries(classificationLabels).map(([value, label]) => (
-                <option key={value} value={value}>
-                  {label}
-                </option>
-              ))}
+              {Object.entries(supportClassificationLabels).map(
+                ([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ),
+              )}
             </select>
           </Label>
           <Label>
@@ -259,6 +315,26 @@ export function OperatorSupportPage() {
                 })
               }
             />
+          </Label>
+          <Label>
+            اولویت
+            <select
+              className="border-input bg-background mt-1 h-11 w-full rounded-md border px-3"
+              value={filters.priority ?? ""}
+              onChange={(event) =>
+                setFilters({
+                  ...filters,
+                  priority: event.target.value
+                    ? (event.target.value as "normal" | "urgent")
+                    : undefined,
+                  page: 1,
+                })
+              }
+            >
+              <option value="">همه اولویت‌ها</option>
+              <option value="normal">عادی</option>
+              <option value="urgent">فوری</option>
+            </select>
           </Label>
           <Label>
             ترتیب
@@ -310,6 +386,11 @@ export function OperatorSupportPage() {
               <span className="text-muted-foreground block text-xs">
                 {intakeKindLabels[supportRequest.intake_kind]}
               </span>
+              {supportRequest.priority === "urgent" && (
+                <Badge className="mt-2" variant="destructive">
+                  فوری
+                </Badge>
+              )}
               <span className="mt-2 flex items-center gap-2 text-xs">
                 <UserRound className="size-3" aria-hidden="true" />
                 {supportRequest.assignee_email ?? "بدون مسئول"}
@@ -366,11 +447,27 @@ export function OperatorSupportPage() {
                 <div className="bg-muted rounded-lg p-4">
                   <dt>Support Classification</dt>
                   <dd className="mt-1 font-semibold">
-                    {classificationLabels[
+                    {supportClassificationLabels[
                       selected.classification ?? "unclassified"
                     ] ?? selected.classification}
                   </dd>
                 </div>
+                <div className="bg-muted rounded-lg p-4">
+                  <dt>اولویت</dt>
+                  <dd className="mt-1 font-semibold">
+                    {priorityLabels[selected.priority ?? "normal"]}
+                  </dd>
+                </div>
+                {(selected.escalation_destination ||
+                  selected.required_capability) && (
+                  <div className="bg-muted rounded-lg p-4">
+                    <dt>مسیر تخصصی</dt>
+                    <dd className="mt-1 font-semibold">
+                      {selected.escalation_destination ||
+                        selected.required_capability}
+                    </dd>
+                  </div>
+                )}
                 <div className="bg-muted rounded-lg p-4 sm:col-span-2">
                   <dt>متن درخواست</dt>
                   <dd className="mt-1 font-semibold whitespace-pre-wrap">
@@ -396,7 +493,8 @@ export function OperatorSupportPage() {
                 )}
               </dl>
 
-              {selected.status === "open" && (
+              {(selected.status === "open" ||
+                selected.status === "escalated") && (
                 <div className="flex justify-end">
                   <Button
                     disabled={claim.isPending}
@@ -419,6 +517,18 @@ export function OperatorSupportPage() {
                   </div>
                 )}
 
+              <SupportTriagePanel
+                canManageQueue={Boolean(
+                  currentUser.data?.operator_capabilities.includes(
+                    "manage_operator_queues",
+                  ),
+                )}
+                isPending={triage.isPending || reassign.isPending}
+                onReassign={(input) => reassign.mutate(input)}
+                onTriage={(input) => triage.mutate(input)}
+                supportRequest={selected}
+              />
+
               <section aria-labelledby="support-history-title">
                 <h2 id="support-history-title" className="font-semibold">
                   تاریخچه عملیاتی
@@ -430,9 +540,7 @@ export function OperatorSupportPage() {
                       key={event.id}
                     >
                       <p className="font-medium">
-                        {event.event_type === "assigned"
-                          ? "واگذاری"
-                          : "آزادسازی"}
+                        {eventLabels[event.event_type]}
                       </p>
                       <p className="text-muted-foreground mt-1">
                         {event.actor_email} · {statusLabels[event.prior_state]}{" "}

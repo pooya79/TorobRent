@@ -54,3 +54,46 @@ def test_contact_message_record_is_renamed_without_loss_or_duplication():
         ).exists()
     finally:
         MigrationExecutor(connection).migrate(latest_targets)
+
+
+@pytest.mark.django_db(transaction=True)
+def test_existing_classification_is_preserved_while_public_exposure_becomes_locked_urgent():
+    executor = MigrationExecutor(connection)
+    latest_targets = executor.loader.graph.leaf_nodes()
+    old_target = [("contact", "0002_rename_support_request")]
+    new_target = [("contact", "0003_add_privacy_aware_support_triage")]
+
+    try:
+        executor.migrate(old_target)
+        old_apps = executor.loader.project_state(old_target).apps
+        SupportRequest = old_apps.get_model("contact", "SupportRequest")
+        deletion = SupportRequest.objects.create(
+            name="Existing deletion",
+            email="deletion@example.com",
+            intake_kind="account_deletion",
+            classification="guidance",
+            message="This deletion request predates authoritative Support triage.",
+        )
+        removal = SupportRequest.objects.create(
+            name="Existing public exposure",
+            email="removal@example.com",
+            intake_kind="public_contact_removal",
+            classification="spam",
+            message="This public exposure request predates authoritative Support triage.",
+        )
+
+        executor = MigrationExecutor(connection)
+        executor.migrate(new_target)
+        new_apps = executor.loader.project_state(new_target).apps
+        SupportRequest = new_apps.get_model("contact", "SupportRequest")
+
+        migrated_deletion = SupportRequest.objects.get(id=deletion.id)
+        assert migrated_deletion.classification == "guidance"
+        assert migrated_deletion.priority == "normal"
+        assert migrated_deletion.priority_locked is False
+        migrated_removal = SupportRequest.objects.get(id=removal.id)
+        assert migrated_removal.classification == "spam"
+        assert migrated_removal.priority == "urgent"
+        assert migrated_removal.priority_locked is True
+    finally:
+        MigrationExecutor(connection).migrate(latest_targets)

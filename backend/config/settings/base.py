@@ -148,6 +148,8 @@ SPECTACULAR_SETTINGS = {
         "PropertyTypeEnum": "apps.catalog.models.PropertyType.choices",
         "SubmissionStateEnum": "apps.submissions.models.SubmissionState.choices",
         "SupportClassificationEnum": "apps.contact.models.SupportClassification.choices",
+        "SupportPriorityEnum": "apps.contact.models.SupportPriority.choices",
+        "SupportRequiredCapabilityEnum": ("apps.contact.models.SupportRequiredCapability.choices"),
         "SupportRequestEventTypeEnum": "apps.contact.models.SupportRequestEventType.choices",
         "SupportRequestStatusEnum": "apps.contact.models.SupportRequestStatus.choices",
     },

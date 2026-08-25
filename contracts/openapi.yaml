@@ -1005,6 +1005,14 @@ paths:
           type: integer
         description: Records per page; defaults to 50 and is capped at 100.
       - in: query
+        name: priority
+        schema:
+          type: string
+          enum:
+          - normal
+          - urgent
+        description: Match the current Support Request priority.
+      - in: query
         name: search
         schema:
           type: string
@@ -1014,6 +1022,7 @@ paths:
         schema:
           type: string
           enum:
+          - escalated
           - in_progress
           - open
           - resolved
@@ -1085,6 +1094,57 @@ paths:
         required: true
       tags:
       - v1
+      security:
+      - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/operator/support-requests/{support_request_id}/reassign/:
+    post:
+      operationId: v1_operator_support_requests_reassign_create
+      summary: Reassign an abandoned Support Request
+      parameters:
+      - in: path
+        name: support_request_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SupportReassignment'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SupportRequest'
+          description: ''
+  /api/v1/operator/support-requests/{support_request_id}/triage/:
+    patch:
+      operationId: v1_operator_support_requests_triage_partial_update
+      summary: Classify and route a Support Request
+      parameters:
+      - in: path
+        name: support_request_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedSupportTriage'
       security:
       - cookieAuth: []
       responses:
@@ -1557,6 +1617,9 @@ components:
       - confirmed_at
       - expiring_soon
       - state
+    BlankEnum:
+      enum:
+      - ''
     ClaimStatusEnum:
       enum:
       - unclaimed
@@ -2030,6 +2093,8 @@ components:
           $ref: '#/components/schemas/FeatureStateEnum'
         operator_location_notes:
           type: string
+    NullEnum:
+      type: 'null'
     OperatorCapabilitiesEnum:
       enum:
       - handle_privacy_requests
@@ -2230,6 +2295,25 @@ components:
           $ref: '#/components/schemas/ContactInput'
         review:
           $ref: '#/components/schemas/ReviewInput'
+    PatchedSupportTriage:
+      type: object
+      properties:
+        classification:
+          $ref: '#/components/schemas/SupportClassificationEnum'
+        priority:
+          $ref: '#/components/schemas/SupportPriorityEnum'
+        status:
+          $ref: '#/components/schemas/SupportTriageStatusEnum'
+        escalation_destination:
+          type: string
+          maxLength: 120
+        required_capability:
+          oneOf:
+          - $ref: '#/components/schemas/SupportRequiredCapabilityEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+        reason:
+          type: string
+          maxLength: 1000
     PhoneReveal:
       type: object
       properties:
@@ -3070,6 +3154,26 @@ components:
         * `privacy` - حریم خصوصی
         * `account_deletion` - حذف حساب
         * `spam` - هرزنامه
+    SupportPriorityEnum:
+      enum:
+      - normal
+      - urgent
+      type: string
+      description: |-
+        * `normal` - عادی
+        * `urgent` - فوری
+    SupportReassignment:
+      type: object
+      properties:
+        assignee_email:
+          type: string
+          format: email
+        reason:
+          type: string
+          maxLength: 1000
+      required:
+      - assignee_email
+      - reason
     SupportRequest:
       type: object
       properties:
@@ -3085,11 +3189,25 @@ components:
           format: email
           maxLength: 254
         intake_kind:
-          $ref: '#/components/schemas/IntakeKindEnum'
+          allOf:
+          - $ref: '#/components/schemas/IntakeKindEnum'
+          readOnly: true
         classification:
           $ref: '#/components/schemas/SupportClassificationEnum'
+        priority:
+          $ref: '#/components/schemas/SupportPriorityEnum'
+        priority_locked:
+          type: boolean
+          readOnly: true
         status:
           $ref: '#/components/schemas/SupportRequestStatusEnum'
+        escalation_destination:
+          type: string
+          maxLength: 120
+        required_capability:
+          oneOf:
+          - $ref: '#/components/schemas/SupportRequiredCapabilityEnum'
+          - $ref: '#/components/schemas/BlankEnum'
         assignee_id:
           type:
           - string
@@ -3138,6 +3256,7 @@ components:
       - intake_kind
       - message
       - name
+      - priority_locked
       - updated_at
     SupportRequestEvent:
       type: object
@@ -3160,6 +3279,45 @@ components:
           $ref: '#/components/schemas/SupportRequestStatusEnum'
         new_state:
           $ref: '#/components/schemas/SupportRequestStatusEnum'
+        prior_classification:
+          oneOf:
+          - $ref: '#/components/schemas/SupportClassificationEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        new_classification:
+          oneOf:
+          - $ref: '#/components/schemas/SupportClassificationEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        prior_priority:
+          oneOf:
+          - $ref: '#/components/schemas/SupportPriorityEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        new_priority:
+          oneOf:
+          - $ref: '#/components/schemas/SupportPriorityEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        escalation_destination:
+          type: string
+          maxLength: 120
+        required_capability:
+          oneOf:
+          - $ref: '#/components/schemas/SupportRequiredCapabilityEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+        prior_assignee_id:
+          type:
+          - string
+          - 'null'
+          format: uuid
+          readOnly: true
+        new_assignee_id:
+          type:
+          - string
+          - 'null'
+          format: uuid
+          readOnly: true
         reason:
           type: string
         created_at:
@@ -3172,15 +3330,25 @@ components:
       - created_at
       - event_type
       - id
+      - new_assignee_id
       - new_state
+      - prior_assignee_id
       - prior_state
     SupportRequestEventTypeEnum:
       enum:
       - assigned
+      - classified
+      - escalated
+      - priority_changed
+      - reassigned
       - released
       type: string
       description: |-
         * `assigned` - واگذار شد
+        * `classified` - دسته‌بندی شد
+        * `escalated` - ارجاع شد
+        * `priority_changed` - فوریت تغییر یافت
+        * `reassigned` - دوباره واگذار شد
         * `released` - آزاد شد
     SupportRequestQueue:
       type: object
@@ -3197,11 +3365,25 @@ components:
           format: email
           maxLength: 254
         intake_kind:
-          $ref: '#/components/schemas/IntakeKindEnum'
+          allOf:
+          - $ref: '#/components/schemas/IntakeKindEnum'
+          readOnly: true
         classification:
           $ref: '#/components/schemas/SupportClassificationEnum'
+        priority:
+          $ref: '#/components/schemas/SupportPriorityEnum'
+        priority_locked:
+          type: boolean
+          readOnly: true
         status:
           $ref: '#/components/schemas/SupportRequestStatusEnum'
+        escalation_destination:
+          type: string
+          maxLength: 120
+        required_capability:
+          oneOf:
+          - $ref: '#/components/schemas/SupportRequiredCapabilityEnum'
+          - $ref: '#/components/schemas/BlankEnum'
         assignee_id:
           type:
           - string
@@ -3237,17 +3419,33 @@ components:
       - id
       - intake_kind
       - name
+      - priority_locked
       - updated_at
     SupportRequestStatusEnum:
       enum:
       - open
       - in_progress
+      - escalated
       - resolved
       type: string
       description: |-
         * `open` - باز
         * `in_progress` - در حال بررسی
+        * `escalated` - ارجاع‌شده
         * `resolved` - رسیدگی‌شده
+    SupportRequiredCapabilityEnum:
+      enum:
+      - handle_support
+      - handle_privacy_requests
+      type: string
+      description: |-
+        * `handle_support` - General Support handling
+        * `handle_privacy_requests` - Privacy Support handling
+    SupportTriageStatusEnum:
+      enum:
+      - escalated
+      type: string
+      description: '* `escalated` - Escalated'
     Token:
       type: object
       properties:

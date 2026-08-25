@@ -214,3 +214,266 @@ test("sends queue filters to the server", async () => {
 
   await waitFor(() => expect(requestedStatus).toBe("in_progress"));
 });
+
+test("classifies and escalates privacy work without retaining its protected content", async () => {
+  const user = userEvent.setup();
+  let triageBody: Record<string, unknown> | undefined;
+  let visible = true;
+  const unclassified = {
+    ...queueItem,
+    classification: "unclassified",
+    priority: "normal",
+    status: "open",
+    assignee_id: null,
+    assignee_email: null,
+    assigned_at: null,
+  };
+  server.use(
+    http.get("*/api/v1/users/me/", () =>
+      HttpResponse.json({
+        id: queueItem.assignee_id,
+        email: queueItem.assignee_email,
+        first_name: "",
+        last_name: "",
+        email_verified: true,
+        operator_capabilities: ["handle_support"],
+      }),
+    ),
+    http.get("*/api/v1/operator/support-requests/", () =>
+      HttpResponse.json({
+        count: visible ? 1 : 0,
+        next: null,
+        previous: null,
+        results: visible ? [unclassified] : [],
+      }),
+    ),
+    http.get("*/api/v1/operator/support-requests/:id/", () =>
+      HttpResponse.json({
+        ...unclassified,
+        message: "این درخواست در واقع به حذف داده خصوصی نیاز دارد.",
+        operator_note: "",
+        history: [],
+      }),
+    ),
+    http.patch(
+      "*/api/v1/operator/support-requests/:id/triage/",
+      async ({ request }) => {
+        triageBody = (await request.json()) as Record<string, unknown>;
+        visible = false;
+        return new HttpResponse(null, { status: 204 });
+      },
+    ),
+  );
+  renderPage();
+
+  await user.selectOptions(
+    await screen.findByLabelText("دسته‌بندی عملیاتی"),
+    "privacy",
+  );
+  await user.selectOptions(
+    screen.getByLabelText("مسیر‌دهی تخصصی"),
+    "escalated",
+  );
+  await user.selectOptions(
+    screen.getByLabelText("قابلیت مورد نیاز"),
+    "handle_privacy_requests",
+  );
+  await user.type(
+    screen.getByLabelText("دلیل تریاژ"),
+    "نیازمند رسیدگی حفاظت‌شده است.",
+  );
+  await user.click(screen.getByRole("button", { name: "ثبت تریاژ" }));
+
+  await waitFor(() =>
+    expect(triageBody).toEqual({
+      classification: "privacy",
+      status: "escalated",
+      required_capability: "handle_privacy_requests",
+      reason: "نیازمند رسیدگی حفاظت‌شده است.",
+    }),
+  );
+  expect(await screen.findByText("موردی در صف نیست.")).toBeVisible();
+  expect(
+    screen.queryByText("این درخواست در واقع به حذف داده خصوصی نیاز دارد."),
+  ).not.toBeInTheDocument();
+});
+
+test("escalates to an unavailable capability without retaining request content", async () => {
+  const user = userEvent.setup();
+  let visible = true;
+  const content = "این درخواست پس از ارجاع فقط برای متخصص حریم خصوصی است.";
+  server.use(
+    http.get("*/api/v1/users/me/", () =>
+      HttpResponse.json({
+        id: queueItem.assignee_id,
+        email: queueItem.assignee_email,
+        first_name: "",
+        last_name: "",
+        email_verified: true,
+        operator_capabilities: ["handle_support"],
+      }),
+    ),
+    http.get("*/api/v1/operator/support-requests/", () =>
+      HttpResponse.json({
+        count: visible ? 1 : 0,
+        next: null,
+        previous: null,
+        results: visible ? [{ ...queueItem, priority: "normal" }] : [],
+      }),
+    ),
+    http.get("*/api/v1/operator/support-requests/:id/", () =>
+      visible
+        ? HttpResponse.json({
+            ...queueItem,
+            priority: "normal",
+            message: content,
+            operator_note: "",
+            history: [],
+          })
+        : HttpResponse.json({}, { status: 404 }),
+    ),
+    http.patch("*/api/v1/operator/support-requests/:id/triage/", () => {
+      visible = false;
+      return new HttpResponse(null, { status: 204 });
+    }),
+  );
+  renderPage();
+
+  await user.click(await screen.findByRole("button", { name: /نگار محمدی/ }));
+  expect(await screen.findByText(content)).toBeVisible();
+  await user.selectOptions(
+    screen.getByLabelText("مسیر‌دهی تخصصی"),
+    "escalated",
+  );
+  await user.selectOptions(
+    screen.getByLabelText("قابلیت مورد نیاز"),
+    "handle_privacy_requests",
+  );
+  await user.type(
+    screen.getByLabelText("دلیل تریاژ"),
+    "این رسیدگی به قابلیت تخصصی نیاز دارد.",
+  );
+  await user.click(screen.getByRole("button", { name: "ثبت تریاژ" }));
+
+  expect(await screen.findByText("موردی در صف نیست.")).toBeVisible();
+  expect(screen.queryByText(content)).not.toBeInTheDocument();
+});
+
+test("lets a Support lead submit a reasoned reassignment", async () => {
+  const user = userEvent.setup();
+  let reassignmentBody: Record<string, unknown> | undefined;
+  server.use(
+    http.get("*/api/v1/users/me/", () =>
+      HttpResponse.json({
+        id: "40000000-0000-4000-8000-000000000039",
+        email: "lead@example.com",
+        first_name: "",
+        last_name: "",
+        email_verified: true,
+        operator_capabilities: ["handle_support", "manage_operator_queues"],
+      }),
+    ),
+    http.get("*/api/v1/operator/support-requests/", () =>
+      HttpResponse.json({
+        count: 1,
+        next: null,
+        previous: null,
+        results: [queueItem],
+      }),
+    ),
+    http.get("*/api/v1/operator/support-requests/:id/", () =>
+      HttpResponse.json({
+        ...queueItem,
+        priority: "normal",
+        escalation_destination: "",
+        required_capability: "",
+        message: "این کار پس از لغو دسترسی مسئول قبلی رها شده است.",
+        operator_note: "",
+        history: [],
+      }),
+    ),
+    http.post(
+      "*/api/v1/operator/support-requests/:id/reassign/",
+      async ({ request }) => {
+        reassignmentBody = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json({
+          ...queueItem,
+          assignee_email: "replacement@example.com",
+          message: "درخواست",
+          operator_note: "",
+          history: [],
+        });
+      },
+    ),
+  );
+  renderPage();
+
+  await user.type(
+    await screen.findByLabelText("ایمیل مسئول جدید"),
+    "replacement@example.com",
+  );
+  await user.type(
+    screen.getByLabelText("دلیل واگذاری مجدد"),
+    "دسترسی مسئول قبلی لغو شده است.",
+  );
+  await user.click(screen.getByRole("button", { name: "واگذاری مجدد" }));
+
+  await waitFor(() =>
+    expect(reassignmentBody).toEqual({
+      assignee_email: "replacement@example.com",
+      reason: "دسترسی مسئول قبلی لغو شده است.",
+    }),
+  );
+});
+
+test("keeps privacy-reclassified content visible for an Operator with both capabilities", async () => {
+  const user = userEvent.setup();
+  server.use(
+    http.get("*/api/v1/users/me/", () =>
+      HttpResponse.json({
+        id: queueItem.assignee_id,
+        email: queueItem.assignee_email,
+        first_name: "",
+        last_name: "",
+        email_verified: true,
+        operator_capabilities: ["handle_support", "handle_privacy_requests"],
+      }),
+    ),
+    http.get("*/api/v1/operator/support-requests/", () =>
+      HttpResponse.json({
+        count: 1,
+        next: null,
+        previous: null,
+        results: [{ ...queueItem, classification: "unclassified" }],
+      }),
+    ),
+    http.get("*/api/v1/operator/support-requests/:id/", () =>
+      HttpResponse.json({
+        ...queueItem,
+        classification: "unclassified",
+        message: "محتوای حفاظت‌شده برای اپراتور دو قابلیتی",
+        operator_note: "",
+        history: [],
+      }),
+    ),
+    http.patch(
+      "*/api/v1/operator/support-requests/:id/triage/",
+      () => new HttpResponse(null, { status: 204 }),
+    ),
+  );
+  renderPage();
+
+  await user.selectOptions(
+    await screen.findByLabelText("دسته‌بندی عملیاتی"),
+    "privacy",
+  );
+  await user.type(
+    screen.getByLabelText("دلیل تریاژ"),
+    "این اپراتور قابلیت حریم خصوصی را نیز دارد.",
+  );
+  await user.click(screen.getByRole("button", { name: "ثبت تریاژ" }));
+
+  expect(
+    await screen.findByText("محتوای حفاظت‌شده برای اپراتور دو قابلیتی"),
+  ).toBeVisible();
+});
