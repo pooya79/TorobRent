@@ -9,6 +9,7 @@ from .views import (
     OperatorReviewClaimView,
     OperatorSubmissionDetailView,
     OperatorSubmissionListView,
+    OperatorSubmissionNotificationRetryView,
 )
 
 app_name = "operator-submissions"
@@ -16,6 +17,11 @@ app_name = "operator-submissions"
 urlpatterns = [
     path("", OperatorSubmissionListView.as_view(), name="list"),
     path("<uuid:submission_id>/", OperatorSubmissionDetailView.as_view(), name="detail"),
+    path(
+        "<uuid:submission_id>/notifications/<uuid:notification_id>/retry/",
+        OperatorSubmissionNotificationRetryView.as_view(),
+        name="notification-retry",
+    ),
     path("<uuid:submission_id>/claim/", OperatorReviewClaimView.as_view(), name="claim"),
     path(
         "<uuid:submission_id>/claim/renew/",

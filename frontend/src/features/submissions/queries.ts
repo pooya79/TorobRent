@@ -236,6 +236,25 @@ export async function approveSubmission(
   return data;
 }
 
+export async function retrySubmissionNotification(
+  submissionId: string,
+  notificationId: string,
+) {
+  const { data, error } = await api.POST(
+    "/api/v1/operator/submissions/{submission_id}/notifications/{notification_id}/retry/",
+    {
+      params: {
+        path: {
+          submission_id: submissionId,
+          notification_id: notificationId,
+        },
+      },
+    },
+  );
+  if (error || !data) throw apiError(error);
+  return data;
+}
+
 export async function uploadSubmissionImage(submissionId: string, file: File) {
   const { data, error } = await api.POST(
     "/api/v1/submissions/{submission_id}/images/",

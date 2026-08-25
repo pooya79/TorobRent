@@ -40,6 +40,17 @@ class SubmissionEventType(models.TextChoices):
     DECISION_CORRECTION = "decision_correction", "اصلاح تصمیم"
 
 
+class SubmissionDecisionNotificationStatus(models.TextChoices):
+    PENDING = "pending", "در انتظار ارسال"
+    DELIVERED = "delivered", "ارسال‌شده"
+    FAILED = "failed", "ناموفق"
+
+
+class SubmissionDecisionNotificationFailure(models.TextChoices):
+    DISPATCH_FAILED = "dispatch_failed", "صف ارسال در دسترس نبود"
+    DELIVERY_FAILED = "delivery_failed", "سرویس ایمیل پیام را نپذیرفت"
+
+
 class SubmissionImageStatus(models.TextChoices):
     PENDING = "pending", "در صف پردازش"
     PROCESSING = "processing", "در حال پردازش"
@@ -235,6 +246,36 @@ class SubmissionEvent(models.Model):
 
     def delete(self, *args: Any, **kwargs: Any) -> tuple[int, dict[str, int]]:
         raise ValidationError("Submission decision history is immutable.")
+
+
+class SubmissionDecisionNotification(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    decision = models.OneToOneField(
+        SubmissionEvent,
+        on_delete=models.PROTECT,
+        related_name="notification",
+    )
+    status = models.CharField(
+        max_length=16,
+        choices=SubmissionDecisionNotificationStatus,
+        default=SubmissionDecisionNotificationStatus.PENDING,
+    )
+    attempt_count = models.PositiveIntegerField(default=0)
+    failure_kind = models.CharField(
+        max_length=24,
+        choices=SubmissionDecisionNotificationFailure,
+        blank=True,
+    )
+    last_error = models.CharField(max_length=500, blank=True)
+    delivered_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ("-created_at",)
+
+    def __str__(self) -> str:
+        return f"{self.decision_id}: {self.status}"
 
 
 class ReviewClaim(models.Model):

@@ -27,6 +27,7 @@ from .audit_serializers import (
 from .models import (
     ReviewClaim,
     Submission,
+    SubmissionDecisionNotification,
     SubmissionEvent,
     SubmissionImage,
     SubmissionImageVariant,
@@ -335,6 +336,30 @@ class SubmissionStepUpdateSerializer(serializers.Serializer[Any]):
         return attrs
 
 
+class SubmissionDecisionNotificationSerializer(
+    serializers.ModelSerializer[SubmissionDecisionNotification]
+):
+    failure_reason = serializers.SerializerMethodField()
+
+    class Meta:
+        model = SubmissionDecisionNotification
+        fields = (
+            "id",
+            "status",
+            "attempt_count",
+            "failure_reason",
+            "delivered_at",
+            "updated_at",
+        )
+
+    @extend_schema_field(serializers.CharField(allow_null=True))
+    def get_failure_reason(self, notification: SubmissionDecisionNotification) -> str | None:
+        return {
+            "dispatch_failed": "صف ارسال موقتاً در دسترس نبود.",
+            "delivery_failed": "سرویس ایمیل پیام را نپذیرفت.",
+        }.get(notification.failure_kind)
+
+
 class SubmissionEventSerializer(serializers.ModelSerializer[SubmissionEvent]):
     actor_email = serializers.EmailField(source="actor.email", read_only=True)
     reviewed_revision = serializers.IntegerField(source="revision", read_only=True)
@@ -343,6 +368,7 @@ class SubmissionEventSerializer(serializers.ModelSerializer[SubmissionEvent]):
     normalized_corrections = NormalizedCorrectionsAuditSerializer(read_only=True)
     publication_result = PublicationResultAuditSerializer(read_only=True)
     correction = DecisionCorrectionAuditSerializer(read_only=True)
+    notification = serializers.SerializerMethodField()
 
     class Meta:
         model = SubmissionEvent
@@ -360,8 +386,16 @@ class SubmissionEventSerializer(serializers.ModelSerializer[SubmissionEvent]):
             "publication_result",
             "corrects_id",
             "correction",
+            "notification",
             "created_at",
         )
+
+    @extend_schema_field(SubmissionDecisionNotificationSerializer(allow_null=True))
+    def get_notification(self, event: SubmissionEvent) -> dict[str, Any] | None:
+        notification = getattr(event, "notification", None)
+        if notification is None:
+            return None
+        return dict(SubmissionDecisionNotificationSerializer(notification).data)
 
 
 class ReviewClaimSerializer(serializers.ModelSerializer[ReviewClaim]):
@@ -432,6 +466,7 @@ class SubmissionSerializer(ClaimStatusMixin, serializers.ModelSerializer[Submiss
     availability = serializers.SerializerMethodField()
     claim_status = serializers.SerializerMethodField()
     claim = serializers.SerializerMethodField()
+    notification = serializers.SerializerMethodField()
 
     class Meta:
         model = Submission
@@ -457,6 +492,7 @@ class SubmissionSerializer(ClaimStatusMixin, serializers.ModelSerializer[Submiss
             "claim_status",
             "claim",
             "history",
+            "notification",
             "available_actions",
             "availability",
             "created_at",
@@ -466,6 +502,14 @@ class SubmissionSerializer(ClaimStatusMixin, serializers.ModelSerializer[Submiss
     @extend_schema_field(SubmissionEventSerializer(many=True))
     def get_history(self, submission: Submission) -> list[dict[str, Any]]:
         return list(SubmissionEventSerializer(submission.events.all(), many=True).data)
+
+    @extend_schema_field(SubmissionDecisionNotificationSerializer(allow_null=True))
+    def get_notification(self, submission: Submission) -> dict[str, Any] | None:
+        for event in reversed(list(submission.events.all())):
+            notification = getattr(event, "notification", None)
+            if notification is not None:
+                return dict(SubmissionDecisionNotificationSerializer(notification).data)
+        return None
 
     def get_available_actions(self, submission: Submission) -> list[str]:
         if submission.state == SubmissionState.DRAFT:

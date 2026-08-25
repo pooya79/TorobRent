@@ -345,6 +345,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/v1/operator/submissions/{submission_id}/notifications/{notification_id}/retry/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Retry a failed Submission decision notification */
+    post: operations["v1_operator_submissions_notifications_retry_create"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/v1/operator/submissions/{submission_id}/reject/": {
     parameters: {
       query?: never;
@@ -1171,6 +1188,8 @@ export interface components {
       readonly claim_status: components["schemas"]["ClaimStatusEnum"];
       readonly claim: components["schemas"]["ReviewClaim"] | null;
       readonly history: components["schemas"]["SubmissionEvent"][];
+      readonly notification:
+        components["schemas"]["SubmissionDecisionNotification"] | null;
       readonly available_actions: string[];
       readonly availability: components["schemas"]["AvailabilityOutput"] | null;
       /** Format: date-time */
@@ -1190,6 +1209,26 @@ export interface components {
     SubmissionCreate: {
       role: components["schemas"]["RoleEnum"];
     };
+    SubmissionDecisionNotification: {
+      /** Format: uuid */
+      readonly id: string;
+      status?: components["schemas"]["SubmissionDecisionNotificationStatusEnum"];
+      /** Format: int64 */
+      attempt_count?: number;
+      readonly failure_reason: string | null;
+      /** Format: date-time */
+      delivered_at?: string | null;
+      /** Format: date-time */
+      readonly updated_at: string;
+    };
+    /**
+     * @description * `pending` - در انتظار ارسال
+     *     * `delivered` - ارسال‌شده
+     *     * `failed` - ناموفق
+     * @enum {string}
+     */
+    SubmissionDecisionNotificationStatusEnum:
+      "pending" | "delivered" | "failed";
     SubmissionEvent: {
       /** Format: uuid */
       readonly id: string;
@@ -1209,6 +1248,8 @@ export interface components {
       /** Format: uuid */
       readonly corrects_id: string | null;
       readonly correction: components["schemas"]["DecisionCorrectionAudit"];
+      readonly notification:
+        components["schemas"]["SubmissionDecisionNotification"] | null;
       /** Format: date-time */
       readonly created_at: string;
     };
@@ -2066,6 +2107,28 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["ReviewClaim"];
+        };
+      };
+    };
+  };
+  v1_operator_submissions_notifications_retry_create: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        notification_id: string;
+        submission_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Submission"];
         };
       };
     };

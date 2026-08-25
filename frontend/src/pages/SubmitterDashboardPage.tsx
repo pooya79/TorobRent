@@ -15,6 +15,10 @@ import {
   submissionsQueryOptions,
 } from "@/features/submissions/queries";
 import {
+  notificationAlertVariant,
+  notificationStatusLabel,
+} from "@/features/submissions/notification";
+import {
   submissionStateLabels,
   submissionStepLabel,
 } from "@/features/submissions/steps";
@@ -98,7 +102,11 @@ export function SubmitterDashboardPage() {
             .reverse()
             .find((event) => event.reason)?.reason;
           return (
-            <Card className="shadow-none" key={submission.id}>
+            <Card
+              className="shadow-none"
+              id={`submission-${submission.id}`}
+              key={submission.id}
+            >
               <CardContent className="flex flex-col gap-5">
                 <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
                   <div className="bg-muted flex size-12 shrink-0 items-center justify-center rounded-full">
@@ -227,6 +235,19 @@ export function SubmitterDashboardPage() {
                 {latestReason && (
                   <Alert>
                     <AlertDescription>{latestReason}</AlertDescription>
+                  </Alert>
+                )}
+                {submission.notification && (
+                  <Alert
+                    variant={notificationAlertVariant(
+                      submission.notification.status,
+                    )}
+                  >
+                    <AlertDescription>
+                      {notificationStatusLabel(submission.notification.status)}
+                      {submission.notification.status === "failed" &&
+                        " تصمیم و جزئیات آن همچنان در همین داشبورد معتبر است."}
+                    </AlertDescription>
                   </Alert>
                 )}
                 {submission.history && submission.history.length > 0 && (

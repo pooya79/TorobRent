@@ -228,6 +228,58 @@ test("shows historical queue entries without decision controls", async () => {
   expect(screen.getByLabelText("ورود به صف پیش از")).toBeInTheDocument();
 });
 
+test("retries a failed decision notification without repeating the decision", async () => {
+  const user = userEvent.setup();
+  let retryCount = 0;
+  const notification = {
+    id: "60000000-0000-4000-8000-000000000016",
+    status: "failed",
+    attempt_count: 4,
+    failure_reason: "سرویس ایمیل پیام را نپذیرفت.",
+    delivered_at: null,
+    updated_at: "2026-08-22T09:05:00Z",
+  };
+  const failedSubmission = {
+    ...pendingSubmission,
+    state: "published",
+    notification,
+    history: pendingSubmission.history.map((event) => ({
+      ...event,
+      notification,
+    })),
+  };
+  serveSubmission(failedSubmission);
+  server.use(
+    http.post(
+      "*/api/v1/operator/submissions/:id/notifications/:notificationId/retry/",
+      ({ params }) => {
+        retryCount += 1;
+        expect(params.notificationId).toBe(notification.id);
+        return HttpResponse.json({
+          ...failedSubmission,
+          notification: { ...notification, status: "pending" },
+          history: failedSubmission.history.map((event) => ({
+            ...event,
+            notification: { ...notification, status: "pending" },
+          })),
+        });
+      },
+    ),
+  );
+  renderPage();
+
+  expect(await screen.findAllByText("ارسال ایمیل ناموفق بود.")).toHaveLength(2);
+  await user.click(
+    screen.getByRole("button", { name: "تلاش دوباره برای ارسال ایمیل" }),
+  );
+
+  await waitFor(() => expect(retryCount).toBe(1));
+  expect(await screen.findAllByText("ایمیل در صف ارسال است.")).toHaveLength(2);
+  expect(
+    screen.queryByRole("button", { name: "تأیید و انتشار" }),
+  ).not.toBeInTheDocument();
+});
+
 test("opening is read-only until the reviewer explicitly claims the Submission", async () => {
   const user = userEvent.setup();
   let claimed = false;

@@ -1,6 +1,7 @@
 import logging
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from functools import partial
 from io import BytesIO
 from typing import Any
 from uuid import UUID
@@ -10,6 +11,7 @@ from django.core.exceptions import ValidationError
 from django.core.files.base import ContentFile, File
 from django.core.files.storage import Storage
 from django.core.files.uploadedfile import UploadedFile
+from django.core.mail import EmailMessage
 from django.db import models, transaction
 from django.db.models.deletion import ProtectedError
 from django.utils import timezone
@@ -31,6 +33,9 @@ from .models import (
     MediaAsset,
     ReviewClaim,
     Submission,
+    SubmissionDecisionNotification,
+    SubmissionDecisionNotificationFailure,
+    SubmissionDecisionNotificationStatus,
     SubmissionEvent,
     SubmissionEventType,
     SubmissionImage,
@@ -140,6 +145,125 @@ def _record_transition(
         normalized_corrections=normalized_corrections or {},
         publication_result=publication_result or {},
     )
+
+
+def _dispatch_decision_notification(notification_id: UUID) -> None:
+    from .tasks import deliver_submission_decision_notification
+
+    try:
+        deliver_submission_decision_notification.delay(str(notification_id))
+    except Exception as exc:
+        with transaction.atomic():
+            notification = SubmissionDecisionNotification.objects.select_for_update().get(
+                id=notification_id
+            )
+            if notification.status != SubmissionDecisionNotificationStatus.DELIVERED:
+                notification.status = SubmissionDecisionNotificationStatus.FAILED
+                notification.failure_kind = SubmissionDecisionNotificationFailure.DISPATCH_FAILED
+                notification.last_error = str(exc)[:500]
+                notification.save(
+                    update_fields=(
+                        "status",
+                        "failure_kind",
+                        "last_error",
+                        "updated_at",
+                    )
+                )
+        logger.exception("Could not dispatch Submission decision notification")
+
+
+def _schedule_decision_notification(decision: SubmissionEvent) -> None:
+    notification = SubmissionDecisionNotification.objects.create(decision=decision)
+    transaction.on_commit(partial(_dispatch_decision_notification, notification.id))
+
+
+def dispatch_pending_decision_notifications() -> int:
+    notification_ids = list(
+        SubmissionDecisionNotification.objects.filter(
+            models.Q(status=SubmissionDecisionNotificationStatus.PENDING)
+            | models.Q(failure_kind=SubmissionDecisionNotificationFailure.DISPATCH_FAILED)
+        ).values_list("id", flat=True)
+    )
+    for notification_id in notification_ids:
+        _dispatch_decision_notification(notification_id)
+    return len(notification_ids)
+
+
+def deliver_decision_notification(notification_id: str) -> bool:
+    failure: Exception | None = None
+    with transaction.atomic():
+        notification = (
+            SubmissionDecisionNotification.objects
+            .select_for_update()
+            .select_related("decision__submission__submitter")
+            .get(id=notification_id)
+        )
+        if notification.status == SubmissionDecisionNotificationStatus.DELIVERED:
+            return False
+        notification.attempt_count += 1
+        submission = notification.decision.submission
+        dashboard_url = f"{settings.FRONTEND_ORIGIN}/dashboard#submission-{submission.id}"
+        try:
+            sent_count = EmailMessage(
+                subject="به‌روزرسانی وضعیت پیشنهاد در ترب‌رنت",
+                body=(
+                    "وضعیت پیشنهاد شما به‌روزرسانی شد. برای مشاهده جزئیات، "
+                    f"وارد داشبورد امن خود شوید:\n{dashboard_url}"
+                ),
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                to=[submission.submitter.email],
+                headers={
+                    "Message-ID": (f"<submission-decision-{notification.id}@torobrent.local>")
+                },
+            ).send()
+            if sent_count != 1:
+                raise OSError("The email backend did not accept the notification.")
+        except Exception as exc:
+            notification.status = SubmissionDecisionNotificationStatus.FAILED
+            notification.failure_kind = SubmissionDecisionNotificationFailure.DELIVERY_FAILED
+            notification.last_error = str(exc)[:500]
+            notification.delivered_at = None
+            failure = exc
+        else:
+            notification.status = SubmissionDecisionNotificationStatus.DELIVERED
+            notification.failure_kind = ""
+            notification.last_error = ""
+            notification.delivered_at = timezone.now()
+        notification.save(
+            update_fields=(
+                "status",
+                "attempt_count",
+                "failure_kind",
+                "last_error",
+                "delivered_at",
+                "updated_at",
+            )
+        )
+    if failure is not None:
+        raise failure
+    return True
+
+
+@transaction.atomic
+def retry_submission_decision_notification(
+    *, submission: Submission, notification_id: UUID, actor: User
+) -> None:
+    ensure_operator_is_not_submitter(submission=submission, actor=actor)
+    if not has_capability(actor, OperatorCapability.REVIEW_SUBMISSIONS):
+        raise ValidationError("Only a Submission Reviewer may retry notification delivery.")
+    notification = (
+        SubmissionDecisionNotification.objects
+        .select_for_update()
+        .filter(id=notification_id, decision__submission=submission)
+        .first()
+    )
+    if notification is None or notification.status != SubmissionDecisionNotificationStatus.FAILED:
+        raise ValidationError("Only a failed Submission decision notification can be retried.")
+    notification.status = SubmissionDecisionNotificationStatus.PENDING
+    notification.failure_kind = ""
+    notification.last_error = ""
+    notification.save(update_fields=("status", "failure_kind", "last_error", "updated_at"))
+    transaction.on_commit(partial(_dispatch_decision_notification, notification.id))
 
 
 class ReviewWorkflowConflict(Exception):
@@ -452,13 +576,14 @@ def request_submission_changes(
         submission=submission, actor=actor, reviewed_revision=reviewed_revision
     )
     reason = _required_decision_reason(reason)
-    _record_transition(
+    decision = _record_transition(
         submission=submission,
         actor=actor,
         new_state=SubmissionState.CHANGES_REQUESTED,
         reason=reason,
         review_claim=claim,
     )
+    _schedule_decision_notification(decision)
     _release_claim(claim, actor=actor, reason="Review decision completed.")
     return submission
 
@@ -473,13 +598,14 @@ def reject_submission(
         submission=submission, actor=actor, reviewed_revision=reviewed_revision
     )
     reason = _required_decision_reason(reason)
-    _record_transition(
+    decision = _record_transition(
         submission=submission,
         actor=actor,
         new_state=SubmissionState.REJECTED,
         reason=reason,
         review_claim=claim,
     )
+    _schedule_decision_notification(decision)
     _release_claim(claim, actor=actor, reason="Review decision completed.")
     return submission
 
@@ -583,7 +709,7 @@ def approve_submission(
         }.items()
         if values
     }
-    _record_transition(
+    decision = _record_transition(
         submission=submission,
         actor=actor,
         new_state=SubmissionState.PUBLISHED,
@@ -600,6 +726,7 @@ def approve_submission(
             ),
         },
     )
+    _schedule_decision_notification(decision)
     _release_claim(claim, actor=actor, reason="Review decision completed.")
     return submission
 

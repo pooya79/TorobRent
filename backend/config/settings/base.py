@@ -160,6 +160,10 @@ CELERY_TASK_SOFT_TIME_LIMIT = 25 * 60
 CELERY_TASK_ACKS_LATE = True
 CELERY_WORKER_PREFETCH_MULTIPLIER = 1
 CELERY_BEAT_SCHEDULE = {
+    "dispatch-pending-submission-decision-notifications": {
+        "task": "apps.submissions.tasks.dispatch_pending_submission_decision_notifications",
+        "schedule": 5 * 60,
+    },
     "cleanup-abandoned-submission-images": {
         "task": "apps.submissions.tasks.cleanup_abandoned_submission_images",
         "schedule": 60 * 60,

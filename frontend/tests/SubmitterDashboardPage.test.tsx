@@ -122,6 +122,65 @@ test("shows current review state, reason, history, and the available edit action
   );
 });
 
+test("shows decision email delivery state without hiding the durable decision", async () => {
+  server.use(
+    http.get("*/api/v1/submissions/", () =>
+      HttpResponse.json([
+        {
+          id: "10000000-0000-4000-8000-000000000014",
+          role: "owner",
+          state: "rejected",
+          revision: 1,
+          current_step: "review",
+          media_complete: true,
+          images: [],
+          location: { neighborhood: "سعادت‌آباد" },
+          property_facts: null,
+          rental_terms: null,
+          features: {},
+          description: "",
+          contact: null,
+          review: {},
+          history: [
+            {
+              id: "40000000-0000-4000-8000-000000000014",
+              actor_email: "operator@example.com",
+              revision: 1,
+              prior_state: "pending",
+              new_state: "rejected",
+              reason: "شرایط انتشار را ندارد.",
+              created_at: "2026-08-22T09:00:00Z",
+            },
+          ],
+          notification: {
+            status: "failed",
+            attempt_count: 4,
+            delivered_at: null,
+            updated_at: "2026-08-22T09:05:00Z",
+          },
+          available_actions: [],
+          created_at: "2026-08-22T08:00:00Z",
+          updated_at: "2026-08-22T09:00:00Z",
+        },
+      ]),
+    ),
+  );
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  render(
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter>
+        <SubmitterDashboardPage />
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+
+  expect(await screen.findByText("ردشده")).toBeVisible();
+  expect(screen.getAllByText("شرایط انتشار را ندارد.")).toHaveLength(2);
+  expect(screen.getByText(/ارسال ایمیل ناموفق بود/)).toBeVisible();
+});
+
 test("warns about final-week expiry and confirms unchanged availability in one action", async () => {
   const user = userEvent.setup();
   let confirmationCount = 0;

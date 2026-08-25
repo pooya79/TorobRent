@@ -59,6 +59,7 @@ from .services import (
     renew_submission_review_claim,
     reorder_submission_images_for_actor,
     request_submission_changes,
+    retry_submission_decision_notification,
     retry_submission_image_for_actor,
     save_submission_step_for_actor,
     submit_for_review,
@@ -113,7 +114,7 @@ class SubmissionListCreateView(APIView):
     def get(self, request: Request) -> Response:
         user = cast(User, request.user)
         submissions = user.submissions.select_related("listing").prefetch_related(
-            "images__variants__asset", "events__actor"
+            "images__variants__asset", "events__actor", "events__notification"
         )
         return Response(SubmissionSerializer(submissions, many=True).data)
 
@@ -136,7 +137,7 @@ class SubmissionDetailView(APIView):
     def get_object(self, request: Request, submission_id: str) -> Submission:
         return get_object_or_404(
             Submission.objects.select_related("city", "district", "neighborhood").prefetch_related(
-                "images__variants__asset"
+                "images__variants__asset", "events__notification"
             ),
             id=submission_id,
             submitter=request.user,
@@ -266,6 +267,7 @@ def operator_submission_queryset(*, operator: User) -> QuerySet[Submission]:
         .prefetch_related(
             "images__variants__asset",
             "events__actor",
+            "events__notification",
             Prefetch(
                 "review_claims",
                 queryset=ReviewClaim.objects.filter(
@@ -379,6 +381,33 @@ class OperatorSubmissionDetailView(APIView):
         submission = get_object_or_404(
             operator_submission_queryset(operator=cast(User, request.user)),
             id=submission_id,
+        )
+        return Response(SubmissionSerializer(submission, context={"request": request}).data)
+
+
+class OperatorSubmissionNotificationRetryView(APIView):
+    permission_classes = (CanReviewSubmission,)
+
+    @extend_schema(
+        summary="Retry a failed Submission decision notification",
+        request=None,
+        responses=SubmissionSerializer,
+    )
+    def post(self, request: Request, submission_id: str, notification_id: UUID) -> Response:
+        operator = cast(User, request.user)
+        submission = get_object_or_404(
+            submissions_reviewable_by(operator=operator), id=submission_id
+        )
+        try:
+            retry_submission_decision_notification(
+                submission=submission,
+                notification_id=notification_id,
+                actor=operator,
+            )
+        except DjangoValidationError as exc:
+            raise validation_response(exc) from None
+        submission = get_object_or_404(
+            operator_submission_queryset(operator=operator), id=submission_id
         )
         return Response(SubmissionSerializer(submission, context={"request": request}).data)
 

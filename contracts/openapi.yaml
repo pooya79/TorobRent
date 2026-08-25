@@ -832,6 +832,34 @@ paths:
               schema:
                 $ref: '#/components/schemas/ReviewClaim'
           description: ''
+  /api/v1/operator/submissions/{submission_id}/notifications/{notification_id}/retry/:
+    post:
+      operationId: v1_operator_submissions_notifications_retry_create
+      summary: Retry a failed Submission decision notification
+      parameters:
+      - in: path
+        name: notification_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: submission_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Submission'
+          description: ''
   /api/v1/operator/submissions/{submission_id}/reject/:
     post:
       operationId: v1_operator_submissions_reject_create
@@ -2541,6 +2569,11 @@ components:
           items:
             $ref: '#/components/schemas/SubmissionEvent'
           readOnly: true
+        notification:
+          oneOf:
+          - $ref: '#/components/schemas/SubmissionDecisionNotification'
+          - type: 'null'
+          readOnly: true
         available_actions:
           type: array
           items:
@@ -2573,6 +2606,7 @@ components:
       - listing_id
       - location
       - media_complete
+      - notification
       - pending_since
       - property_facts
       - property_id
@@ -2610,6 +2644,48 @@ components:
           $ref: '#/components/schemas/RoleEnum'
       required:
       - role
+    SubmissionDecisionNotification:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        status:
+          $ref: '#/components/schemas/SubmissionDecisionNotificationStatusEnum'
+        attempt_count:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 0
+          format: int64
+        failure_reason:
+          type:
+          - string
+          - 'null'
+          readOnly: true
+        delivered_at:
+          type:
+          - string
+          - 'null'
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - failure_reason
+      - id
+      - updated_at
+    SubmissionDecisionNotificationStatusEnum:
+      enum:
+      - pending
+      - delivered
+      - failed
+      type: string
+      description: |-
+        * `pending` - در انتظار ارسال
+        * `delivered` - ارسال‌شده
+        * `failed` - ناموفق
     SubmissionEvent:
       type: object
       properties:
@@ -2661,6 +2737,11 @@ components:
           allOf:
           - $ref: '#/components/schemas/DecisionCorrectionAudit'
           readOnly: true
+        notification:
+          oneOf:
+          - $ref: '#/components/schemas/SubmissionDecisionNotification'
+          - type: 'null'
+          readOnly: true
         created_at:
           type: string
           format: date-time
@@ -2673,6 +2754,7 @@ components:
       - id
       - new_state
       - normalized_corrections
+      - notification
       - prior_state
       - publication_result
       - review_claim_id

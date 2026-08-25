@@ -36,12 +36,17 @@ import {
   releaseSubmissionClaim,
   renewSubmissionClaim,
   requestSubmissionChanges,
+  retrySubmissionNotification,
   type OperatorSubmissionQueueItem,
   type OperatorQueueFilters,
   type Submission,
   type SubmissionApproval,
 } from "@/features/submissions/queries";
 import { submissionStateLabels } from "@/features/submissions/steps";
+import {
+  notificationAlertVariant,
+  notificationStatusLabel,
+} from "@/features/submissions/notification";
 import { ApiError, errorMessage } from "@/lib/api/errors";
 
 type NormalizedProperty = NonNullable<
@@ -228,12 +233,23 @@ export function OperatorReviewPage() {
     onSuccess: finishDecision,
     onError: handleDecisionError,
   });
+  const retryNotificationMutation = useMutation({
+    mutationFn: (notificationId: string) =>
+      retrySubmissionNotification(selected!.id, notificationId),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(
+        ["operator-submissions", "detail", updated.id],
+        updated,
+      );
+    },
+  });
   const mutationError =
     claimMutation.error ??
     releaseMutation.error ??
     changesMutation.error ??
     rejectMutation.error ??
-    approveMutation.error;
+    approveMutation.error ??
+    retryNotificationMutation.error;
 
   useEffect(() => {
     if (!activeId || selected?.claim_status !== "claimed_by_me") return;
@@ -565,6 +581,22 @@ export function OperatorReviewPage() {
                   <dd className="font-semibold">{selected.description}</dd>
                 </div>
               </dl>
+              {selected.notification && (
+                <Alert
+                  variant={notificationAlertVariant(
+                    selected.notification.status,
+                  )}
+                >
+                  <AlertDescription>
+                    {notificationStatusLabel(selected.notification.status)}
+                    {selected.notification.failure_reason && (
+                      <span className="mt-1 block">
+                        {selected.notification.failure_reason}
+                      </span>
+                    )}
+                  </AlertDescription>
+                </Alert>
+              )}
               {selected.state === "pending" &&
                 selected.claim_status === "unclaimed" && (
                   <div className="flex justify-end">
@@ -820,6 +852,30 @@ export function OperatorReviewPage() {
                   )}
                 </p>
                 {event.reason && <p className="mt-1">{event.reason}</p>}
+                {event.notification && (
+                  <div className="mt-2 space-y-2">
+                    <p>{notificationStatusLabel(event.notification.status)}</p>
+                    {event.notification.failure_reason && (
+                      <p className="text-muted-foreground">
+                        {event.notification.failure_reason}
+                      </p>
+                    )}
+                    {event.notification.status === "failed" && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        disabled={retryNotificationMutation.isPending}
+                        onClick={() =>
+                          retryNotificationMutation.mutate(
+                            event.notification!.id,
+                          )
+                        }
+                      >
+                        تلاش دوباره برای ارسال ایمیل
+                      </Button>
+                    )}
+                  </div>
+                )}
                 {hasAuditData(event.normalized_corrections) && (
                   <pre className="mt-2 overflow-x-auto text-xs whitespace-pre-wrap">
                     اصلاحات نرمال‌شده:{" "}
