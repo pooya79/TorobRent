@@ -134,6 +134,19 @@ async function submitFromReview(page: Page, submissionId: string) {
   ).toBeVisible();
 }
 
+async function claimSelectedSubmission(page: Page, submissionId: string) {
+  const claim = page.waitForResponse(
+    (response) =>
+      response.url().includes(`/operator/submissions/${submissionId}/claim/`) &&
+      response.request().method() === "POST",
+  );
+  await page.getByRole("button", { name: "پذیرفتن مسئولیت بررسی" }).click();
+  expect((await claim).ok()).toBe(true);
+  await expect(
+    page.getByRole("button", { name: "آزاد کردن بررسی" }),
+  ).toBeVisible();
+}
+
 test("@milestone browser covers changes, resubmit, reject, group, publish, and public visibility", async ({
   page,
   request,
@@ -161,6 +174,7 @@ test("@milestone browser covers changes, resubmit, reject, group, publish, and p
   await endSession(page);
   await loginOperator(page);
   await page.goto("/operator/submissions");
+  await claimSelectedSubmission(page, revisedId);
   await page.getByRole("button", { name: "درخواست اصلاح" }).click();
   await page.getByLabel("دلیل درخواست اصلاح").fill("شماره تماس را اصلاح کنید.");
   await page.getByRole("button", { name: "ارسال درخواست اصلاح" }).click();
@@ -188,6 +202,7 @@ test("@milestone browser covers changes, resubmit, reject, group, publish, and p
   await endSession(page);
   await loginOperator(page);
   await page.goto("/operator/submissions");
+  await claimSelectedSubmission(page, revisedId);
   await page.getByRole("button", { name: "تأیید و انتشار" }).click();
   const firstApproval = page.waitForResponse(
     (response) =>
@@ -203,6 +218,7 @@ test("@milestone browser covers changes, resubmit, reject, group, publish, and p
   expect(firstApprovalBody.listing_id).toBeTruthy();
 
   await page.goto("/operator/submissions");
+  await claimSelectedSubmission(page, groupedId);
   await page.getByRole("button", { name: "تأیید و انتشار" }).click();
   await page
     .getByLabel("شناسه Property موجود (اختیاری)")
@@ -216,6 +232,7 @@ test("@milestone browser covers changes, resubmit, reject, group, publish, and p
   expect((await groupedApproval).ok()).toBe(true);
 
   await page.goto("/operator/submissions");
+  await claimSelectedSubmission(page, rejectedId);
   await page.getByRole("button", { name: "رد نهایی" }).click();
   await page.getByLabel("دلیل رد").fill("محتوای نامعتبر");
   const rejection = page.waitForResponse(
