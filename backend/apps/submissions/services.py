@@ -26,11 +26,13 @@ from apps.catalog.services import (
     replace_listing_images,
 )
 
+from .audit_serializers import validate_decision_correction
 from .models import (
     MediaAsset,
     ReviewClaim,
     Submission,
     SubmissionEvent,
+    SubmissionEventType,
     SubmissionImage,
     SubmissionImageStatus,
     SubmissionImageVariant,
@@ -115,18 +117,28 @@ STEP_ORDER = tuple(SubmissionStep.values)
 
 
 def _record_transition(
-    *, submission: Submission, actor: User, new_state: SubmissionState, reason: str = ""
-) -> None:
+    *,
+    submission: Submission,
+    actor: User,
+    new_state: SubmissionState,
+    reason: str = "",
+    review_claim: ReviewClaim | None = None,
+    normalized_corrections: dict[str, object] | None = None,
+    publication_result: dict[str, object] | None = None,
+) -> SubmissionEvent:
     prior_state = submission.state
     submission.state = new_state
     submission.save(update_fields=("state", "updated_at"))
-    SubmissionEvent.objects.create(
+    return SubmissionEvent.objects.create(
         submission=submission,
         actor=actor,
+        review_claim=review_claim,
         revision=submission.revision,
         prior_state=prior_state,
         new_state=new_state,
         reason=reason,
+        normalized_corrections=normalized_corrections or {},
+        publication_result=publication_result or {},
     )
 
 
@@ -246,14 +258,54 @@ def force_release_submission_review_claim(
     _release_claim(claim, actor=actor, reason=reason)
 
 
-def ensure_current_review_claim(*, submission: Submission, actor: User) -> ReviewClaim:
-    claim = _release_if_unavailable(_open_claim(submission), now=timezone.now())
-    if claim is not None and claim.revision != submission.revision:
+def ensure_current_review_claim(
+    *, submission: Submission, actor: User, reviewed_revision: int
+) -> ReviewClaim:
+    if submission.revision != reviewed_revision:
         raise ReviewWorkflowConflict(
             "review_revision_conflict",
             "The Submission revision changed. Refresh and claim the current revision.",
         )
-    if claim is None or claim.operator_id != actor.id:
+    if submission.state != SubmissionState.PENDING:
+        raise ReviewWorkflowConflict(
+            "review_decision_conflict",
+            "Another decision already changed this Submission. Refresh before continuing.",
+        )
+    now = timezone.now()
+    claim = _open_claim(submission)
+    if claim is not None and claim.revision != reviewed_revision:
+        raise ReviewWorkflowConflict(
+            "review_revision_conflict",
+            "The Submission revision changed. Refresh and claim the current revision.",
+        )
+    if claim is not None and claim.operator_id != actor.id:
+        raise ReviewWorkflowConflict(
+            "review_claim_replaced",
+            "Another Operator now owns the current Review Claim. Refresh before continuing.",
+        )
+    if claim is not None and claim.expires_at <= now:
+        _release_claim(claim, actor=None, reason="Review Claim expired.", released_at=now)
+        raise ReviewWorkflowConflict(
+            "review_claim_expired",
+            "The Review Claim expired. Refresh and claim the Submission again.",
+        )
+    claim = _release_if_unavailable(claim, now=now)
+    if claim is None:
+        previous_claim = (
+            submission.review_claims
+            .filter(operator=actor, revision=reviewed_revision)
+            .order_by("-created_at")
+            .first()
+        )
+        if (
+            previous_claim is not None
+            and previous_claim.release_reason == "Review Claim expired."
+            and previous_claim.expires_at <= now
+        ):
+            raise ReviewWorkflowConflict(
+                "review_claim_expired",
+                "The Review Claim expired. Refresh and claim the Submission again.",
+            )
         raise ReviewWorkflowConflict(
             "review_claim_required",
             "A current Review Claim owned by this Operator is required.",
@@ -383,35 +435,50 @@ def ensure_operator_is_not_submitter(*, submission: Submission, actor: User) -> 
         raise ValidationError("An Operator cannot decide their own Submission.")
 
 
+def _required_decision_reason(reason: str) -> str:
+    reason = reason.strip()
+    if not reason:
+        raise ValidationError("A rejection or Request Changes decision requires a reason.")
+    return reason
+
+
 @transaction.atomic
-def request_submission_changes(*, submission: Submission, actor: User, reason: str) -> Submission:
+def request_submission_changes(
+    *, submission: Submission, actor: User, reviewed_revision: int, reason: str
+) -> Submission:
     submission = Submission.objects.select_for_update().get(id=submission.id)
     ensure_operator_is_not_submitter(submission=submission, actor=actor)
-    claim = ensure_current_review_claim(submission=submission, actor=actor)
-    if submission.state != SubmissionState.PENDING:
-        raise ValidationError("فقط Submission در انتظار بررسی قابل بازگشت است.")
+    claim = ensure_current_review_claim(
+        submission=submission, actor=actor, reviewed_revision=reviewed_revision
+    )
+    reason = _required_decision_reason(reason)
     _record_transition(
         submission=submission,
         actor=actor,
         new_state=SubmissionState.CHANGES_REQUESTED,
         reason=reason,
+        review_claim=claim,
     )
     _release_claim(claim, actor=actor, reason="Review decision completed.")
     return submission
 
 
 @transaction.atomic
-def reject_submission(*, submission: Submission, actor: User, reason: str) -> Submission:
+def reject_submission(
+    *, submission: Submission, actor: User, reviewed_revision: int, reason: str
+) -> Submission:
     submission = Submission.objects.select_for_update().get(id=submission.id)
     ensure_operator_is_not_submitter(submission=submission, actor=actor)
-    claim = ensure_current_review_claim(submission=submission, actor=actor)
-    if submission.state != SubmissionState.PENDING:
-        raise ValidationError("فقط Submission در انتظار بررسی قابل رد است.")
+    claim = ensure_current_review_claim(
+        submission=submission, actor=actor, reviewed_revision=reviewed_revision
+    )
+    reason = _required_decision_reason(reason)
     _record_transition(
         submission=submission,
         actor=actor,
         new_state=SubmissionState.REJECTED,
         reason=reason,
+        review_claim=claim,
     )
     _release_claim(claim, actor=actor, reason="Review decision completed.")
     return submission
@@ -432,11 +499,25 @@ def _formatting_only(original: str, formatted: str) -> bool:
     return meaningful_original.casefold() == meaningful_formatted.casefold()
 
 
+def _audit_property_corrections(corrections: dict[str, object]) -> dict[str, object]:
+    relation_names = {
+        "city": "city_id",
+        "district": "district_id",
+        "neighborhood": "neighborhood_id",
+    }
+    audited: dict[str, object] = {}
+    for field, value in corrections.items():
+        output_field = relation_names.get(field, field)
+        audited[output_field] = str(value.pk) if isinstance(value, models.Model) else value
+    return audited
+
+
 @transaction.atomic
 def approve_submission(
     *,
     submission: Submission,
     actor: User,
+    reviewed_revision: int,
     property_id: UUID | None = None,
     normalized_property: dict[str, object] | None = None,
     source_metadata: dict[str, object] | None = None,
@@ -445,9 +526,9 @@ def approve_submission(
 ) -> Submission:
     submission = Submission.objects.select_for_update().get(id=submission.id)
     ensure_operator_is_not_submitter(submission=submission, actor=actor)
-    claim = ensure_current_review_claim(submission=submission, actor=actor)
-    if submission.state != SubmissionState.PENDING:
-        raise ValidationError("فقط Submission در انتظار بررسی قابل تأیید است.")
+    claim = ensure_current_review_claim(
+        submission=submission, actor=actor, reviewed_revision=reviewed_revision
+    )
     _validate_complete_submission(submission)
     corrections = normalized_property or {}
     values = _property_values(submission, corrections)
@@ -493,14 +574,80 @@ def approve_submission(
     )
     submission.listing = listing
     submission.save(update_fields=("listing", "updated_at"))
+    normalized_corrections: dict[str, object] = {
+        category: values
+        for category, values in {
+            "property": _audit_property_corrections(corrections),
+            "source_metadata": metadata,
+            "formatting": formatted,
+        }.items()
+        if values
+    }
     _record_transition(
         submission=submission,
         actor=actor,
         new_state=SubmissionState.PUBLISHED,
         reason=internal_note,
+        review_claim=claim,
+        normalized_corrections=normalized_corrections,
+        publication_result={
+            "listing_id": str(listing.id),
+            "property_id": str(listing.property_id),
+            "state": listing.state,
+            "published_at": listing.published_at.isoformat() if listing.published_at else None,
+            "available_until": (
+                listing.available_until.isoformat() if listing.available_until else None
+            ),
+        },
     )
     _release_claim(claim, actor=actor, reason="Review decision completed.")
     return submission
+
+
+@transaction.atomic
+def append_submission_decision_correction(
+    *,
+    original_event: SubmissionEvent,
+    actor: User,
+    reason: str,
+    correction: dict[str, object],
+) -> SubmissionEvent:
+    if not actor.is_active or not actor.is_superuser:
+        raise ValidationError("Only an active superuser may append a break-glass correction.")
+    if not reason.strip():
+        raise ValidationError("A break-glass correction requires a reason.")
+    if not correction:
+        raise ValidationError("A break-glass correction must describe the corrected record.")
+    validate_decision_correction(correction)
+    original = (
+        SubmissionEvent.objects
+        .select_for_update()
+        .select_related("submission")
+        .get(id=original_event.id)
+    )
+    decision_states = {
+        SubmissionState.CHANGES_REQUESTED,
+        SubmissionState.REJECTED,
+        SubmissionState.PUBLISHED,
+    }
+    if (
+        original.event_type != SubmissionEventType.TRANSITION
+        or original.review_claim_id is None
+        or original.new_state not in decision_states
+    ):
+        raise ValidationError("Only an original Submission decision may be corrected.")
+    return SubmissionEvent.objects.create(
+        submission=original.submission,
+        actor=actor,
+        event_type=SubmissionEventType.DECISION_CORRECTION,
+        review_claim=original.review_claim,
+        revision=original.revision,
+        prior_state=original.prior_state,
+        new_state=original.new_state,
+        reason=reason.strip(),
+        corrects=original,
+        correction=correction,
+    )
 
 
 def validate_image_upload(upload: UploadedFile[bytes]) -> None:

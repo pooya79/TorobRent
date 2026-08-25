@@ -607,6 +607,35 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
   schemas: {
+    AuditedFormatting: {
+      description?: string;
+    };
+    AuditedNormalizedProperty: {
+      /** Format: uuid */
+      city_id?: string;
+      /** Format: uuid */
+      district_id?: string;
+      /** Format: uuid */
+      neighborhood_id?: string;
+      property_type?: components["schemas"]["PropertyTypeEnum"];
+      area_sqm?: number;
+      room_count?: number;
+      construction_year?: number | null;
+      floor?: number | null;
+      total_floors?: number | null;
+      units_per_floor?: number | null;
+      parking?: components["schemas"]["FeatureStateEnum"];
+      elevator?: components["schemas"]["FeatureStateEnum"];
+      storage?: components["schemas"]["FeatureStateEnum"];
+      balcony?: components["schemas"]["FeatureStateEnum"];
+      furnished?: components["schemas"]["FeatureStateEnum"];
+      operator_location_notes?: string;
+    };
+    AuditedSourceMetadata: {
+      source_reference?: string;
+      source_claims?: unknown;
+      provenance_note?: string;
+    };
     AvailabilityOutput: {
       state: string;
       /** Format: date-time */
@@ -705,9 +734,20 @@ export interface components {
       readonly email_verified: boolean;
       readonly operator_capabilities: components["schemas"]["OperatorCapabilitiesEnum"][];
     };
+    DecisionCorrectionAudit: {
+      internal_note?: string;
+      normalized_corrections?: components["schemas"]["NormalizedCorrectionsAudit"];
+      publication_result?: components["schemas"]["PublicationResultAudit"];
+    };
     Detail: {
       detail: string;
     };
+    /**
+     * @description * `transition` - تغییر وضعیت
+     *     * `decision_correction` - اصلاح تصمیم
+     * @enum {string}
+     */
+    EventTypeEnum: "transition" | "decision_correction";
     ExternalContinuation: {
       /** Format: uri */
       url: string;
@@ -813,6 +853,11 @@ export interface components {
       /** Format: email */
       email: string;
       password: string;
+    };
+    NormalizedCorrectionsAudit: {
+      property?: components["schemas"]["AuditedNormalizedProperty"];
+      source_metadata?: components["schemas"]["AuditedSourceMetadata"];
+      formatting?: components["schemas"]["AuditedFormatting"];
     };
     NormalizedProperty: {
       /** Format: uuid */
@@ -992,6 +1037,35 @@ export interface components {
      * @enum {string}
      */
     PropertyTypeEnum: "apartment" | "house" | "villa";
+    PublicationResultAudit: {
+      /** Format: uuid */
+      listing_id?: string;
+      /** Format: uuid */
+      property_id?: string;
+      state?: components["schemas"]["PublicationResultAuditStateEnum"];
+      /** Format: date-time */
+      published_at?: string | null;
+      /** Format: date-time */
+      available_until?: string | null;
+    };
+    /**
+     * @description * `draft` - پیش‌نویس
+     *     * `pending` - در انتظار بررسی
+     *     * `published` - منتشرشده
+     *     * `expired` - منقضی‌شده
+     *     * `rejected` - ردشده
+     *     * `unavailable` - ناموجود
+     *     * `archived` - بایگانی‌شده
+     * @enum {string}
+     */
+    PublicationResultAuditStateEnum:
+      | "draft"
+      | "pending"
+      | "published"
+      | "expired"
+      | "rejected"
+      | "unavailable"
+      | "archived";
     Registration: {
       /** Format: email */
       email: string;
@@ -1039,6 +1113,7 @@ export interface components {
       accuracy_confirmed: boolean;
     };
     ReviewReason: {
+      reviewed_revision: number;
       reason: string;
     };
     /**
@@ -1104,6 +1179,7 @@ export interface components {
       readonly updated_at: string;
     };
     SubmissionApproval: {
+      reviewed_revision: number;
       /** Format: uuid */
       property_id?: string | null;
       normalized_property?: components["schemas"]["NormalizedProperty"];
@@ -1117,13 +1193,22 @@ export interface components {
     SubmissionEvent: {
       /** Format: uuid */
       readonly id: string;
+      event_type?: components["schemas"]["EventTypeEnum"];
       /** Format: email */
       readonly actor_email: string;
       /** Format: int64 */
       revision: number;
+      readonly reviewed_revision: number;
+      /** Format: uuid */
+      readonly review_claim_id: string | null;
       prior_state: components["schemas"]["SubmissionStateEnum"];
       new_state: components["schemas"]["SubmissionStateEnum"];
       reason?: string;
+      readonly normalized_corrections: components["schemas"]["NormalizedCorrectionsAudit"];
+      readonly publication_result: components["schemas"]["PublicationResultAudit"];
+      /** Format: uuid */
+      readonly corrects_id: string | null;
+      readonly correction: components["schemas"]["DecisionCorrectionAudit"];
       /** Format: date-time */
       readonly created_at: string;
     };
@@ -1874,7 +1959,7 @@ export interface operations {
       };
       cookie?: never;
     };
-    requestBody?: {
+    requestBody: {
       content: {
         "application/json": components["schemas"]["SubmissionApproval"];
       };
@@ -1886,6 +1971,15 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["Submission"];
+        };
+      };
+      /** @description The Review Claim, reviewed revision, or decision state is no longer current. */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Problem"];
         };
       };
     };
@@ -1999,6 +2093,15 @@ export interface operations {
           "application/json": components["schemas"]["Submission"];
         };
       };
+      /** @description The Review Claim, reviewed revision, or decision state is no longer current. */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Problem"];
+        };
+      };
     };
   };
   v1_operator_submissions_request_changes_create: {
@@ -2022,6 +2125,15 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["Submission"];
+        };
+      };
+      /** @description The Review Claim, reviewed revision, or decision state is no longer current. */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Problem"];
         };
       };
     };

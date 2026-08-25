@@ -6,6 +6,7 @@ import pytest
 from django.contrib.auth.models import Permission
 from django.core.exceptions import ValidationError
 from django.db import close_old_connections, connection
+from django.db.models.deletion import ProtectedError
 from django.utils import timezone
 from rest_framework.test import APIClient
 
@@ -34,6 +35,8 @@ from apps.submissions.services import (
     approve_submission,
     claim_submission_review,
     reject_submission,
+    release_submission_review_claim,
+    release_unavailable_review_claims,
     request_submission_changes,
     submit_for_review,
 )
@@ -178,12 +181,15 @@ def test_operator_requests_changes_with_reason_and_submitter_resubmits(api_clien
 
     missing_reason = api_client.post(
         f"/api/v1/operator/submissions/{submission.id}/request-changes/",
-        {"reason": ""},
+        {"reason": "", "reviewed_revision": submission.revision},
         format="json",
     )
     requested = api_client.post(
         f"/api/v1/operator/submissions/{submission.id}/request-changes/",
-        {"reason": "شماره تماس را اصلاح کنید."},
+        {
+            "reason": "شماره تماس را اصلاح کنید.",
+            "reviewed_revision": submission.revision,
+        },
         format="json",
     )
 
@@ -234,10 +240,16 @@ def test_operator_rejects_terminally_and_review_permission_is_required(api_clien
     api_client.force_authenticate(unpermitted)
     url = f"/api/v1/operator/submissions/{submission.id}/reject/"
 
-    denied = api_client.post(url, {"reason": "محتوای ممنوع"}, format="json")
+    denied = api_client.post(
+        url,
+        {"reason": "محتوای ممنوع", "reviewed_revision": submission.revision},
+        format="json",
+    )
     api_client.force_authenticate(submission.submitter)
     submitter_approval = api_client.post(
-        f"/api/v1/operator/submissions/{submission.id}/approve/", {}, format="json"
+        f"/api/v1/operator/submissions/{submission.id}/approve/",
+        {"reviewed_revision": submission.revision},
+        format="json",
     )
     operator = make_operator()
     api_client.force_authenticate(operator)
@@ -247,7 +259,11 @@ def test_operator_rejects_terminally_and_review_permission_is_required(api_clien
         ).status_code
         == 201
     )
-    rejected = api_client.post(url, {"reason": "محتوای ممنوع"}, format="json")
+    rejected = api_client.post(
+        url,
+        {"reason": "محتوای ممنوع", "reviewed_revision": submission.revision},
+        format="json",
+    )
     api_client.force_authenticate(submission.submitter)
     edit = api_client.patch(
         f"/api/v1/submissions/{submission.id}/",
@@ -279,6 +295,7 @@ def test_approval_creates_and_publishes_a_normalized_direct_listing(api_client: 
     approved = api_client.post(
         f"/api/v1/operator/submissions/{submission.id}/approve/",
         {
+            "reviewed_revision": submission.revision,
             "normalized_property": {
                 "area_sqm": 112,
                 "parking": "present",
@@ -307,6 +324,241 @@ def test_approval_creates_and_publishes_a_normalized_direct_listing(api_client: 
 
 
 @pytest.mark.django_db
+def test_approval_records_the_reviewed_claim_corrections_and_publication_result(
+    api_client: APIClient,
+):
+    submission = make_complete_submission()
+    submit_for_review(submission=submission, actor=submission.submitter)
+    operator = make_operator()
+    api_client.force_authenticate(operator)
+    claimed = api_client.post(
+        f"/api/v1/operator/submissions/{submission.id}/claim/", {}, format="json"
+    )
+
+    approved = api_client.post(
+        f"/api/v1/operator/submissions/{submission.id}/approve/",
+        {
+            "reviewed_revision": submission.revision,
+            "internal_note": "مدارک منبع بررسی شد.",
+            "normalized_property": {"area_sqm": 112},
+            "source_metadata": {"provenance_note": "بازبینی تلفنی"},
+            "formatting": {"description": "نورگیر و آرام."},
+        },
+        format="json",
+    )
+
+    assert approved.status_code == 200, approved.data
+    event = approved.data["history"][-1]
+    assert event["actor_email"] == operator.email
+    assert event["prior_state"] == SubmissionState.PENDING
+    assert event["new_state"] == SubmissionState.PUBLISHED
+    assert event["reviewed_revision"] == submission.revision
+    assert event["review_claim_id"] == claimed.data["claim"]["id"]
+    assert event["reason"] == "مدارک منبع بررسی شد."
+    assert event["normalized_corrections"] == {
+        "property": {"area_sqm": 112},
+        "source_metadata": {"provenance_note": "بازبینی تلفنی"},
+        "formatting": {"description": "نورگیر و آرام."},
+    }
+    assert event["publication_result"] == {
+        "listing_id": approved.data["listing_id"],
+        "property_id": approved.data["property_id"],
+        "state": ListingState.PUBLISHED,
+        "published_at": event["publication_result"]["published_at"],
+        "available_until": event["publication_result"]["available_until"],
+    }
+    assert event["publication_result"]["published_at"]
+    assert event["publication_result"]["available_until"]
+
+
+@pytest.mark.django_db
+def test_break_glass_correction_appends_history_without_changing_the_decision(
+    api_client: APIClient,
+):
+    from apps.submissions.services import append_submission_decision_correction
+
+    submission = make_complete_submission()
+    submit_for_review(submission=submission, actor=submission.submitter)
+    operator = make_operator()
+    claim_submission_review(submission=submission, actor=operator)
+    approve_submission(
+        submission=submission,
+        actor=operator,
+        reviewed_revision=submission.revision,
+        internal_note="مدارک بررسی شد.",
+    )
+    decision = SubmissionEvent.objects.get(
+        submission=submission,
+        new_state=SubmissionState.PUBLISHED,
+    )
+    original = {
+        "actor_id": decision.actor_id,
+        "reason": decision.reason,
+        "revision": decision.revision,
+        "prior_state": decision.prior_state,
+        "new_state": decision.new_state,
+    }
+    administrator = User.objects.create_superuser(
+        email="administrator@example.com", password="password"
+    )
+
+    with pytest.raises(ValidationError, match="unsupported"):
+        append_submission_decision_correction(
+            original_event=decision,
+            actor=administrator,
+            reason="رکورد نامعتبر",
+            correction={"publication_result": {"actor_id": str(operator.id)}},
+        )
+    for invalid_correction in (
+        {"publication_result": {"published_at": 123}},
+        {"normalized_corrections": {"property": {"area_sqm": "invalid"}}},
+    ):
+        with pytest.raises(ValidationError, match="unsupported"):
+            append_submission_decision_correction(
+                original_event=decision,
+                actor=administrator,
+                reason="مقدار نامعتبر",
+                correction=invalid_correction,
+            )
+    correction = append_submission_decision_correction(
+        original_event=decision,
+        actor=administrator,
+        reason="یادداشت داخلی نادرست بود.",
+        correction={"internal_note": "مدارک منبع بررسی شد."},
+    )
+
+    decision.refresh_from_db()
+    assert {
+        "actor_id": decision.actor_id,
+        "reason": decision.reason,
+        "revision": decision.revision,
+        "prior_state": decision.prior_state,
+        "new_state": decision.new_state,
+    } == original
+    assert correction.submission == submission
+    assert correction.event_type == "decision_correction"
+    assert correction.corrects == decision
+    assert correction.actor == administrator
+    assert correction.revision == decision.revision
+    assert correction.prior_state == decision.prior_state
+    assert correction.new_state == decision.new_state
+    assert correction.reason == "یادداشت داخلی نادرست بود."
+    assert correction.correction == {"internal_note": "مدارک منبع بررسی شد."}
+    assert SubmissionEvent.objects.filter(submission=submission).count() == 3
+    api_client.force_authenticate(operator)
+    history = api_client.get(f"/api/v1/operator/submissions/{submission.id}/").data["history"]
+    assert history[-1]["event_type"] == "decision_correction"
+    assert history[-1]["corrects_id"] == str(decision.id)
+    assert history[-1]["correction"] == {"internal_note": "مدارک منبع بررسی شد."}
+
+
+@pytest.mark.django_db
+def test_submission_decision_history_rejects_updates_and_deletion():
+    submission = make_complete_submission()
+    submit_for_review(submission=submission, actor=submission.submitter)
+    operator = make_operator()
+    claim_submission_review(submission=submission, actor=operator)
+    reject_submission(
+        submission=submission,
+        actor=operator,
+        reviewed_revision=submission.revision,
+        reason="رد نهایی",
+    )
+    decision = SubmissionEvent.objects.get(
+        submission=submission,
+        new_state=SubmissionState.REJECTED,
+    )
+
+    decision.reason = "بازنویسی تاریخچه"
+    with pytest.raises(ValidationError, match="immutable"):
+        decision.save()
+    with pytest.raises(ValidationError, match="immutable"):
+        SubmissionEvent.objects.filter(id=decision.id).update(reason="بازنویسی")
+    with pytest.raises(ValidationError, match="immutable"):
+        decision.delete()
+    with pytest.raises(ValidationError, match="immutable"):
+        SubmissionEvent.objects.filter(id=decision.id).delete()
+    conflicting_copy = SubmissionEvent(
+        id=decision.id,
+        submission=decision.submission,
+        actor=decision.actor,
+        revision=decision.revision,
+        prior_state=decision.prior_state,
+        new_state=decision.new_state,
+        reason="بازنویسی با bulk_create",
+    )
+    with pytest.raises(ValidationError, match="immutable"):
+        SubmissionEvent.objects.bulk_create(
+            [conflicting_copy],
+            update_conflicts=True,
+            update_fields=("reason",),
+            unique_fields=("id",),
+        )
+    with pytest.raises(ProtectedError):
+        submission.delete()
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("decision", [request_submission_changes, reject_submission])
+def test_reasoned_decisions_reject_a_blank_reason_at_the_domain_boundary(decision: object):
+    submission = make_complete_submission()
+    submit_for_review(submission=submission, actor=submission.submitter)
+    operator = make_operator()
+    claim_submission_review(submission=submission, actor=operator)
+
+    with pytest.raises(ValidationError, match="reason"):
+        decision(
+            submission=submission,
+            actor=operator,
+            reviewed_revision=submission.revision,
+            reason="   ",
+        )
+
+    submission.refresh_from_db()
+    assert submission.state == SubmissionState.PENDING
+    assert SubmissionEvent.objects.filter(submission=submission).count() == 1
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    "substantive_change",
+    [
+        {"rental_terms": {"deposit_rial": 1}},
+        {"authorization_declared": False},
+        {"images": []},
+        {"normalized_property": {"deposit_rial": 1}},
+        {"source_metadata": {"ownership_assertion": "تأییدشده"}},
+        {"formatting": {"description": "توضیحات متفاوت و ماهوی"}},
+    ],
+)
+def test_approval_rejects_substantive_changes_for_the_request_changes_path(
+    api_client: APIClient,
+    substantive_change: dict[str, object],
+):
+    submission = make_complete_submission()
+    submit_for_review(submission=submission, actor=submission.submitter)
+    operator = make_operator()
+    api_client.force_authenticate(operator)
+    assert (
+        api_client.post(
+            f"/api/v1/operator/submissions/{submission.id}/claim/", {}, format="json"
+        ).status_code
+        == 201
+    )
+
+    response = api_client.post(
+        f"/api/v1/operator/submissions/{submission.id}/approve/",
+        {"reviewed_revision": submission.revision, **substantive_change},
+        format="json",
+    )
+
+    assert response.status_code == 400
+    submission.refresh_from_db()
+    assert submission.state == SubmissionState.PENDING
+    assert submission.listing_id is None
+
+
+@pytest.mark.django_db
 def test_approval_can_group_with_existing_property_and_new_revision_stays_private(
     api_client: APIClient,
 ):
@@ -330,7 +582,7 @@ def test_approval_can_group_with_existing_property_and_new_revision_stays_privat
     )
     approved = api_client.post(
         f"/api/v1/operator/submissions/{submission.id}/approve/",
-        {"property_id": str(existing.id)},
+        {"property_id": str(existing.id), "reviewed_revision": submission.revision},
         format="json",
     )
     listing = Listing.objects.get(id=approved.data["listing_id"])
@@ -437,7 +689,7 @@ def test_resubmission_starts_a_new_pending_period_and_keeps_history(api_client: 
     assert (
         api_client.post(
             f"/api/v1/operator/submissions/{submission.id}/request-changes/",
-            {"reason": "اصلاح شود"},
+            {"reason": "اصلاح شود", "reviewed_revision": submission.revision},
             format="json",
         ).status_code
         == 200
@@ -514,14 +766,49 @@ def test_claim_is_explicit_exclusive_renewable_and_releasable(api_client: APICli
 
 
 @pytest.mark.django_db
-def test_decision_requires_current_claim_and_exact_revision(api_client: APIClient):
+def test_decision_requires_the_reviewed_revision_and_rejects_a_stale_revision(
+    api_client: APIClient,
+):
     submission = make_complete_submission()
     submit_for_review(submission=submission, actor=submission.submitter)
     operator = make_operator()
     api_client.force_authenticate(operator)
     decision_url = f"/api/v1/operator/submissions/{submission.id}/reject/"
 
-    unclaimed = api_client.post(decision_url, {"reason": "رد"}, format="json")
+    assert (
+        api_client.post(
+            f"/api/v1/operator/submissions/{submission.id}/claim/", {}, format="json"
+        ).status_code
+        == 201
+    )
+    missing_revision = api_client.post(decision_url, {"reason": "رد"}, format="json")
+    stale_revision = api_client.post(
+        decision_url,
+        {"reason": "رد", "reviewed_revision": submission.revision + 1},
+        format="json",
+    )
+
+    assert missing_revision.status_code == 400
+    assert "reviewed_revision" in missing_revision.data["errors"]
+    assert stale_revision.status_code == 409
+    assert stale_revision.data["code"] == "review_revision_conflict"
+    submission.refresh_from_db()
+    assert submission.state == SubmissionState.PENDING
+
+
+@pytest.mark.django_db
+def test_decision_requires_a_current_claim(api_client: APIClient):
+    submission = make_complete_submission()
+    submit_for_review(submission=submission, actor=submission.submitter)
+    operator = make_operator()
+    api_client.force_authenticate(operator)
+    decision_url = f"/api/v1/operator/submissions/{submission.id}/reject/"
+
+    unclaimed = api_client.post(
+        decision_url,
+        {"reason": "رد", "reviewed_revision": submission.revision},
+        format="json",
+    )
     assert (
         api_client.post(
             f"/api/v1/operator/submissions/{submission.id}/claim/", {}, format="json"
@@ -529,12 +816,119 @@ def test_decision_requires_current_claim_and_exact_revision(api_client: APIClien
         == 201
     )
     Submission.objects.filter(id=submission.id).update(revision=2)
-    stale = api_client.post(decision_url, {"reason": "رد"}, format="json")
+    stale = api_client.post(
+        decision_url,
+        {"reason": "رد", "reviewed_revision": 1},
+        format="json",
+    )
 
     assert unclaimed.status_code == 409
     assert unclaimed.data["code"] == "review_claim_required"
     assert stale.status_code == 409
     assert stale.data["code"] == "review_revision_conflict"
+
+
+@pytest.mark.django_db
+def test_expired_claim_returns_an_explicit_decision_conflict(api_client: APIClient):
+    submission = make_complete_submission()
+    submit_for_review(submission=submission, actor=submission.submitter)
+    operator = make_operator()
+    api_client.force_authenticate(operator)
+    claim_url = f"/api/v1/operator/submissions/{submission.id}/claim/"
+    assert api_client.post(claim_url, {}, format="json").status_code == 201
+    ReviewClaim.objects.update(expires_at=timezone.now() - timezone.timedelta(seconds=1))
+    release_unavailable_review_claims()
+
+    response = api_client.post(
+        f"/api/v1/operator/submissions/{submission.id}/reject/",
+        {"reason": "رد", "reviewed_revision": submission.revision},
+        format="json",
+    )
+
+    assert response.status_code == 409
+    assert response.data["code"] == "review_claim_expired"
+
+
+@pytest.mark.django_db
+def test_latest_released_claim_determines_the_decision_conflict(api_client: APIClient):
+    submission = make_complete_submission()
+    submit_for_review(submission=submission, actor=submission.submitter)
+    operator = make_operator()
+    claim_submission_review(submission=submission, actor=operator)
+    ReviewClaim.objects.update(expires_at=timezone.now() - timezone.timedelta(seconds=1))
+    release_unavailable_review_claims()
+    claim_submission_review(submission=submission, actor=operator)
+    release_submission_review_claim(submission=submission, actor=operator)
+    api_client.force_authenticate(operator)
+
+    response = api_client.post(
+        f"/api/v1/operator/submissions/{submission.id}/reject/",
+        {"reason": "رد", "reviewed_revision": submission.revision},
+        format="json",
+    )
+
+    assert response.status_code == 409
+    assert response.data["code"] == "review_claim_required"
+
+
+@pytest.mark.django_db
+def test_replaced_claim_returns_an_explicit_decision_conflict(api_client: APIClient):
+    submission = make_complete_submission()
+    submit_for_review(submission=submission, actor=submission.submitter)
+    original = make_operator(email="original@example.com")
+    replacement = make_operator(email="replacement@example.com")
+    lead = make_operator(email="lead-replacement@example.com")
+    lead.user_permissions.add(
+        Permission.objects.get(content_type__app_label="accounts", codename="manage_operator_queue")
+    )
+    claim_url = f"/api/v1/operator/submissions/{submission.id}/claim/"
+    api_client.force_authenticate(original)
+    assert api_client.post(claim_url, {}, format="json").status_code == 201
+    api_client.force_authenticate(lead)
+    assert (
+        api_client.post(
+            f"{claim_url}force-release/",
+            {"reason": "انتقال مسئولیت"},
+            format="json",
+        ).status_code
+        == 204
+    )
+    api_client.force_authenticate(replacement)
+    assert api_client.post(claim_url, {}, format="json").status_code == 201
+
+    api_client.force_authenticate(original)
+    response = api_client.post(
+        f"/api/v1/operator/submissions/{submission.id}/request-changes/",
+        {"reason": "اصلاح", "reviewed_revision": submission.revision},
+        format="json",
+    )
+
+    assert response.status_code == 409
+    assert response.data["code"] == "review_claim_replaced"
+
+
+@pytest.mark.django_db
+def test_repeated_decision_returns_an_explicit_concurrent_decision_conflict(
+    api_client: APIClient,
+):
+    submission = make_complete_submission()
+    submit_for_review(submission=submission, actor=submission.submitter)
+    operator = make_operator()
+    api_client.force_authenticate(operator)
+    assert (
+        api_client.post(
+            f"/api/v1/operator/submissions/{submission.id}/claim/", {}, format="json"
+        ).status_code
+        == 201
+    )
+    body = {"reason": "رد", "reviewed_revision": submission.revision}
+    decision_url = f"/api/v1/operator/submissions/{submission.id}/reject/"
+    assert api_client.post(decision_url, body, format="json").status_code == 200
+
+    repeated = api_client.post(decision_url, body, format="json")
+
+    assert repeated.status_code == 409
+    assert repeated.data["code"] == "review_decision_conflict"
 
 
 @pytest.mark.django_db
@@ -680,7 +1074,7 @@ def test_operator_cannot_see_or_decide_their_own_submission(api_client: APIClien
     queue = api_client.get("/api/v1/operator/submissions/")
     decision = api_client.post(
         f"/api/v1/operator/submissions/{submission.id}/reject/",
-        {"reason": "self review"},
+        {"reason": "self review", "reviewed_revision": submission.revision},
         format="json",
     )
 
@@ -692,6 +1086,7 @@ def test_operator_cannot_see_or_decide_their_own_submission(api_client: APIClien
         reject_submission(
             submission=submission,
             actor=submission.submitter,
+            reviewed_revision=submission.revision,
             reason="self review",
         )
 
@@ -750,12 +1145,14 @@ def test_competing_operator_decisions_have_one_winner():
                 request_submission_changes(
                     submission=locked_submission,
                     actor=operator,
+                    reviewed_revision=locked_submission.revision,
                     reason="نیازمند اصلاح",
                 )
             else:
                 reject_submission(
                     submission=locked_submission,
                     actor=operator,
+                    reviewed_revision=locked_submission.revision,
                     reason="رد نهایی",
                 )
         except ValidationError, ReviewWorkflowConflict:
@@ -791,6 +1188,7 @@ def test_competing_approvals_publish_one_listing():
             approve_submission(
                 submission=Submission.objects.get(id=submission.id),
                 actor=User.objects.get(id=operators[index].id),
+                reviewed_revision=submission.revision,
             )
         except ValidationError, ReviewWorkflowConflict:
             return "lost"

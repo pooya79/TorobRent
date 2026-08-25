@@ -1,5 +1,6 @@
+from collections.abc import Mapping
 from datetime import timedelta
-from typing import Any
+from typing import Any, cast
 
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.core.files.uploadedfile import UploadedFile
@@ -18,6 +19,11 @@ from apps.catalog.models import (
 from apps.catalog.money import rial_to_toman
 from apps.catalog.serializers import LocalizedIntegerField, TomanRialField
 
+from .audit_serializers import (
+    DecisionCorrectionAuditSerializer,
+    NormalizedCorrectionsAuditSerializer,
+    PublicationResultAuditSerializer,
+)
 from .models import (
     ReviewClaim,
     Submission,
@@ -331,16 +337,29 @@ class SubmissionStepUpdateSerializer(serializers.Serializer[Any]):
 
 class SubmissionEventSerializer(serializers.ModelSerializer[SubmissionEvent]):
     actor_email = serializers.EmailField(source="actor.email", read_only=True)
+    reviewed_revision = serializers.IntegerField(source="revision", read_only=True)
+    review_claim_id = serializers.UUIDField(read_only=True, allow_null=True)
+    corrects_id = serializers.UUIDField(read_only=True, allow_null=True)
+    normalized_corrections = NormalizedCorrectionsAuditSerializer(read_only=True)
+    publication_result = PublicationResultAuditSerializer(read_only=True)
+    correction = DecisionCorrectionAuditSerializer(read_only=True)
 
     class Meta:
         model = SubmissionEvent
         fields = (
             "id",
+            "event_type",
             "actor_email",
             "revision",
+            "reviewed_revision",
+            "review_claim_id",
             "prior_state",
             "new_state",
             "reason",
+            "normalized_corrections",
+            "publication_result",
+            "corrects_id",
+            "correction",
             "created_at",
         )
 
@@ -553,14 +572,27 @@ class SubmissionSerializer(ClaimStatusMixin, serializers.ModelSerializer[Submiss
         }
 
 
-class ReviewReasonSerializer(serializers.Serializer[Any]):
+class StrictSerializer(serializers.Serializer[Any]):
+    def to_internal_value(self, data: Any) -> dict[str, Any]:
+        if isinstance(data, Mapping):
+            unknown = set(data) - set(self.fields)
+            if unknown:
+                raise serializers.ValidationError({
+                    field: "این فیلد در تصمیم Submission قابل تغییر نیست."
+                    for field in sorted(unknown)
+                })
+        return cast(dict[str, Any], super().to_internal_value(data))
+
+
+class ReviewReasonSerializer(StrictSerializer):
+    reviewed_revision = serializers.IntegerField(min_value=1)
     reason = serializers.CharField(
         trim_whitespace=True,
         error_messages={"required": REQUIRED_ERROR, "blank": "دلیل تصمیم الزامی است."},
     )
 
 
-class NormalizedPropertySerializer(serializers.Serializer[Any]):
+class NormalizedPropertySerializer(StrictSerializer):
     city_id = serializers.UUIDField(required=False)
     district_id = serializers.UUIDField(required=False)
     neighborhood_id = serializers.UUIDField(required=False)
@@ -595,17 +627,18 @@ class NormalizedPropertySerializer(serializers.Serializer[Any]):
         return attrs
 
 
-class SourceMetadataSerializer(serializers.Serializer[Any]):
+class SourceMetadataSerializer(StrictSerializer):
     source_reference = serializers.CharField(max_length=255, allow_blank=True, required=False)
     source_claims = serializers.JSONField(required=False)
     provenance_note = serializers.CharField(allow_blank=True, required=False)
 
 
-class FormattingSerializer(serializers.Serializer[Any]):
+class FormattingSerializer(StrictSerializer):
     description = serializers.CharField(max_length=5000, allow_blank=True, required=False)
 
 
-class SubmissionApprovalSerializer(serializers.Serializer[Any]):
+class SubmissionApprovalSerializer(StrictSerializer):
+    reviewed_revision = serializers.IntegerField(min_value=1)
     property_id = serializers.UUIDField(required=False, allow_null=True)
     normalized_property = NormalizedPropertySerializer(required=False)
     source_metadata = SourceMetadataSerializer(required=False)

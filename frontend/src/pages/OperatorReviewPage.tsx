@@ -42,7 +42,7 @@ import {
   type SubmissionApproval,
 } from "@/features/submissions/queries";
 import { submissionStateLabels } from "@/features/submissions/steps";
-import { errorMessage } from "@/lib/api/errors";
+import { ApiError, errorMessage } from "@/lib/api/errors";
 
 type NormalizedProperty = NonNullable<
   SubmissionApproval["normalized_property"]
@@ -101,6 +101,31 @@ function currentNumericValue(
   return value == null ? "" : String(value);
 }
 
+const reviewConflictMessages: Record<string, string> = {
+  review_revision_conflict: "نسخه Submission از زمان بررسی شما تغییر کرده است.",
+  review_claim_expired: "مهلت Review Claim شما تمام شده است.",
+  review_claim_replaced: "Review Claim اکنون در اختیار اپراتور دیگری است.",
+  review_decision_conflict:
+    "اپراتور دیگری پیش از شما برای این Submission تصمیم گرفته است.",
+  review_claim_required: "Review Claim فعلی دیگر به شما تعلق ندارد.",
+};
+
+function isReviewConflict(error: unknown): error is ApiError {
+  return (
+    error instanceof ApiError &&
+    error.status === 409 &&
+    Boolean(error.code && reviewConflictMessages[error.code])
+  );
+}
+
+function hasAuditData(value: unknown) {
+  return Boolean(
+    value &&
+    typeof value === "object" &&
+    Object.keys(value as Record<string, unknown>).length,
+  );
+}
+
 export function OperatorReviewPage() {
   const queryClient = useQueryClient();
   const [filters, setFilters] = useState<OperatorQueueFilters>({
@@ -116,13 +141,14 @@ export function OperatorReviewPage() {
   const [sourceReference, setSourceReference] = useState("");
   const [sourceClaims, setSourceClaims] = useState("");
   const [provenanceNote, setProvenanceNote] = useState("");
+  const [internalNote, setInternalNote] = useState("");
+  const [reviewConflict, setReviewConflict] = useState<ApiError>();
   const queueItems = queue.data?.results ?? [];
   const activeId = selectedId ?? queueItems[0]?.id ?? "";
   const detail = useQuery(operatorSubmissionQueryOptions(activeId));
   const selected = detail.data;
 
-  const finishDecision = async () => {
-    await queryClient.invalidateQueries({ queryKey: ["operator-submissions"] });
+  const resetDecisionDraft = () => {
     setReason("");
     setPropertyId("");
     setCorrections({});
@@ -130,6 +156,12 @@ export function OperatorReviewPage() {
     setSourceReference("");
     setSourceClaims("");
     setProvenanceNote("");
+    setInternalNote("");
+  };
+  const finishDecision = async () => {
+    await queryClient.invalidateQueries({ queryKey: ["operator-submissions"] });
+    resetDecisionDraft();
+    setReviewConflict(undefined);
   };
   const refreshSelected = async () => {
     await Promise.all([
@@ -141,19 +173,31 @@ export function OperatorReviewPage() {
   };
   const claimMutation = useMutation({
     mutationFn: () => claimSubmission(activeId),
-    onSuccess: refreshSelected,
+    onSuccess: async () => {
+      await refreshSelected();
+      setReviewConflict(undefined);
+    },
   });
   const releaseMutation = useMutation({
     mutationFn: () => releaseSubmissionClaim(activeId),
     onSuccess: refreshSelected,
   });
+  const handleDecisionError = (error: unknown) => {
+    if (!isReviewConflict(error)) return;
+    if (selected) setSelectedId(selected.id);
+    setReviewConflict(error);
+  };
   const changesMutation = useMutation({
-    mutationFn: () => requestSubmissionChanges(selected!.id, reason),
+    mutationFn: () =>
+      requestSubmissionChanges(selected!.id, selected!.revision, reason),
     onSuccess: finishDecision,
+    onError: handleDecisionError,
   });
   const rejectMutation = useMutation({
-    mutationFn: () => rejectSubmission(selected!.id, reason),
+    mutationFn: () =>
+      rejectSubmission(selected!.id, selected!.revision, reason),
     onSuccess: finishDecision,
+    onError: handleDecisionError,
   });
   const approveMutation = useMutation({
     mutationFn: () => {
@@ -169,6 +213,7 @@ export function OperatorReviewPage() {
         });
       }
       return approveSubmission(selected!.id, {
+        reviewed_revision: selected!.revision,
         ...(propertyId ? { property_id: propertyId } : {}),
         normalized_property: normalizedProperty,
         source_metadata: {
@@ -177,9 +222,11 @@ export function OperatorReviewPage() {
           ...(provenanceNote ? { provenance_note: provenanceNote } : {}),
         },
         ...(description ? { formatting: { description } } : {}),
+        ...(internalNote ? { internal_note: internalNote } : {}),
       });
     },
     onSuccess: finishDecision,
+    onError: handleDecisionError,
   });
   const mutationError =
     claimMutation.error ??
@@ -395,7 +442,26 @@ export function OperatorReviewPage() {
         </CardContent>
       </Card>
 
-      {mutationError && (
+      {reviewConflict && reviewConflict.code && (
+        <Alert className="mb-5" variant="destructive">
+          <AlertDescription className="space-y-3">
+            <p>{reviewConflictMessages[reviewConflict.code]}</p>
+            <p>
+              یادداشت‌ها و اصلاحات شما در این مرورگر حفظ شده‌اند. ابتدا
+              Submission را به‌روز کنید و سپس Review Claim جدیدی بگیرید.
+            </p>
+            <Button
+              variant="outline"
+              onClick={() => {
+                void refreshSelected().then(() => setReviewConflict(undefined));
+              }}
+            >
+              به‌روزرسانی Submission
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
+      {Boolean(mutationError) && !isReviewConflict(mutationError) && (
         <Alert className="mb-5" variant="destructive">
           <AlertDescription>
             {errorMessage(mutationError, "ثبت تصمیم ناموفق بود.")}
@@ -410,11 +476,8 @@ export function OperatorReviewPage() {
               key={submission.id}
               onClick={() => {
                 setSelectedId(submission.id);
-                setCorrections({});
-                setDescription("");
-                setSourceReference("");
-                setSourceClaims("");
-                setProvenanceNote("");
+                resetDecisionDraft();
+                setReviewConflict(undefined);
               }}
               type="button"
             >
@@ -523,7 +586,8 @@ export function OperatorReviewPage() {
                   </Alert>
                 )}
               {selected.state === "pending" &&
-                selected.claim_status === "claimed_by_me" && (
+                selected.claim_status === "claimed_by_me" &&
+                !reviewConflict && (
                   <div className="flex flex-wrap justify-end gap-3">
                     <Button
                       variant="ghost"
@@ -694,6 +758,15 @@ export function OperatorReviewPage() {
                             />
                           </Label>
                           <Label>
+                            یادداشت داخلی (اختیاری)
+                            <Input
+                              value={internalNote}
+                              onChange={(event) =>
+                                setInternalNote(event.target.value)
+                              }
+                            />
+                          </Label>
+                          <Label>
                             قالب‌بندی توضیحات
                             <Input
                               value={description || selected.description || ""}
@@ -732,14 +805,38 @@ export function OperatorReviewPage() {
             {selected?.history.map((event) => (
               <li key={event.id}>
                 <p className="font-semibold">
-                  {submissionStateLabels[event.prior_state]} ←{" "}
-                  {submissionStateLabels[event.new_state]}
+                  {event.event_type === "decision_correction"
+                    ? "اصلاح ثبت تصمیم"
+                    : `${submissionStateLabels[event.prior_state]} ← ${submissionStateLabels[event.new_state]}`}
                 </p>
                 <p className="text-muted-foreground mt-1">
                   {event.actor_email} ·{" "}
                   {new Date(event.created_at).toLocaleString("fa-IR")}
                 </p>
+                <p className="text-muted-foreground mt-1">
+                  نسخه بررسی‌شده:{" "}
+                  {(event.reviewed_revision ?? event.revision).toLocaleString(
+                    "fa-IR",
+                  )}
+                </p>
                 {event.reason && <p className="mt-1">{event.reason}</p>}
+                {hasAuditData(event.normalized_corrections) && (
+                  <pre className="mt-2 overflow-x-auto text-xs whitespace-pre-wrap">
+                    اصلاحات نرمال‌شده:{" "}
+                    {JSON.stringify(event.normalized_corrections, null, 2)}
+                  </pre>
+                )}
+                {hasAuditData(event.publication_result) && (
+                  <pre className="mt-2 overflow-x-auto text-xs whitespace-pre-wrap">
+                    نتیجه انتشار:{" "}
+                    {JSON.stringify(event.publication_result, null, 2)}
+                  </pre>
+                )}
+                {hasAuditData(event.correction) && (
+                  <pre className="mt-2 overflow-x-auto text-xs whitespace-pre-wrap">
+                    رکورد اصلاحی: {JSON.stringify(event.correction, null, 2)}
+                  </pre>
+                )}
               </li>
             ))}
           </ol>

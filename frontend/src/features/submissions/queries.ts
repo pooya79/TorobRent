@@ -191,25 +191,30 @@ export async function releaseSubmissionClaim(submissionId: string) {
 
 export async function requestSubmissionChanges(
   submissionId: string,
+  reviewedRevision: number,
   reason: string,
 ) {
   const { data, error } = await api.POST(
     "/api/v1/operator/submissions/{submission_id}/request-changes/",
     {
       params: { path: { submission_id: submissionId } },
-      body: { reason },
+      body: { reason, reviewed_revision: reviewedRevision },
     },
   );
   if (error || !data) throw apiError(error);
   return data;
 }
 
-export async function rejectSubmission(submissionId: string, reason: string) {
+export async function rejectSubmission(
+  submissionId: string,
+  reviewedRevision: number,
+  reason: string,
+) {
   const { data, error } = await api.POST(
     "/api/v1/operator/submissions/{submission_id}/reject/",
     {
       params: { path: { submission_id: submissionId } },
-      body: { reason },
+      body: { reason, reviewed_revision: reviewedRevision },
     },
   );
   if (error || !data) throw apiError(error);

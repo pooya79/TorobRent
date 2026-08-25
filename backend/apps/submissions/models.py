@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import uuid
+from collections.abc import Collection, Iterable
+from typing import Any, ClassVar
 
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.db import models
 
 from apps.catalog.models import FeatureState, PropertyType
@@ -30,6 +33,11 @@ class SubmissionStep(models.TextChoices):
     IMAGES = "images", "تصاویر"
     CONTACT = "contact", "اطلاعات تماس"
     REVIEW = "review", "بازبینی"
+
+
+class SubmissionEventType(models.TextChoices):
+    TRANSITION = "transition", "تغییر وضعیت"
+    DECISION_CORRECTION = "decision_correction", "اصلاح تصمیم"
 
 
 class SubmissionImageStatus(models.TextChoices):
@@ -124,11 +132,52 @@ class Submission(models.Model):
         return f"{self.get_role_display()}: {self.id}"
 
 
+class ImmutableSubmissionEventQuerySet(models.QuerySet["SubmissionEvent"]):
+    def update(self, **kwargs: Any) -> int:
+        raise ValidationError("Submission decision history is immutable.")
+
+    def delete(self) -> tuple[int, dict[str, int]]:
+        raise ValidationError("Submission decision history is immutable.")
+
+    def bulk_update(
+        self,
+        objs: Iterable[SubmissionEvent],
+        fields: Iterable[str],
+        batch_size: int | None = None,
+    ) -> int:
+        raise ValidationError("Submission decision history is immutable.")
+
+    def bulk_create(
+        self,
+        objs: Iterable[SubmissionEvent],
+        batch_size: int | None = None,
+        ignore_conflicts: bool = False,
+        update_conflicts: bool = False,
+        update_fields: Collection[str] | None = None,
+        unique_fields: Collection[str] | None = None,
+    ) -> list[SubmissionEvent]:
+        if update_conflicts:
+            raise ValidationError("Submission decision history is immutable.")
+        return super().bulk_create(
+            objs,
+            batch_size=batch_size,
+            ignore_conflicts=ignore_conflicts,
+            update_conflicts=update_conflicts,
+            update_fields=update_fields,
+            unique_fields=unique_fields,
+        )
+
+
+class SubmissionEventManager(models.Manager["SubmissionEvent"]):
+    def get_queryset(self) -> ImmutableSubmissionEventQuerySet:
+        return ImmutableSubmissionEventQuerySet(self.model, using=self._db)
+
+
 class SubmissionEvent(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     submission = models.ForeignKey(
         Submission,
-        on_delete=models.CASCADE,
+        on_delete=models.PROTECT,
         related_name="events",
     )
     actor = models.ForeignKey(
@@ -136,11 +185,35 @@ class SubmissionEvent(models.Model):
         on_delete=models.PROTECT,
         related_name="submission_events",
     )
+    event_type = models.CharField(
+        max_length=24,
+        choices=SubmissionEventType,
+        default=SubmissionEventType.TRANSITION,
+    )
+    review_claim = models.ForeignKey(
+        "ReviewClaim",
+        on_delete=models.PROTECT,
+        related_name="decision_events",
+        null=True,
+        blank=True,
+    )
     revision = models.PositiveIntegerField()
     prior_state = models.CharField(max_length=20, choices=SubmissionState)
     new_state = models.CharField(max_length=20, choices=SubmissionState)
     reason = models.TextField(blank=True)
+    normalized_corrections = models.JSONField(default=dict, blank=True)
+    publication_result = models.JSONField(default=dict, blank=True)
+    corrects = models.ForeignKey(
+        "self",
+        on_delete=models.PROTECT,
+        related_name="corrections",
+        null=True,
+        blank=True,
+    )
+    correction = models.JSONField(default=dict, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
+
+    objects: ClassVar[SubmissionEventManager] = SubmissionEventManager()
 
     class Meta:
         ordering = ("created_at", "id")
@@ -154,6 +227,14 @@ class SubmissionEvent(models.Model):
 
     def __str__(self) -> str:
         return f"{self.submission_id}: {self.prior_state} → {self.new_state}"
+
+    def save(self, *args: Any, **kwargs: Any) -> None:
+        if not self._state.adding:
+            raise ValidationError("Submission decision history is immutable.")
+        super().save(*args, **kwargs)
+
+    def delete(self, *args: Any, **kwargs: Any) -> tuple[int, dict[str, int]]:
+        raise ValidationError("Submission decision history is immutable.")
 
 
 class ReviewClaim(models.Model):

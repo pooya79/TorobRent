@@ -730,6 +730,7 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/SubmissionApproval'
+        required: true
       security:
       - cookieAuth: []
       responses:
@@ -739,6 +740,13 @@ paths:
               schema:
                 $ref: '#/components/schemas/Submission'
           description: ''
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: The Review Claim, reviewed revision, or decision state is no
+            longer current.
   /api/v1/operator/submissions/{submission_id}/claim/:
     post:
       operationId: v1_operator_submissions_claim_create
@@ -852,6 +860,13 @@ paths:
               schema:
                 $ref: '#/components/schemas/Submission'
           description: ''
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: The Review Claim, reviewed revision, or decision state is no
+            longer current.
   /api/v1/operator/submissions/{submission_id}/request-changes/:
     post:
       operationId: v1_operator_submissions_request_changes_create
@@ -880,6 +895,13 @@ paths:
               schema:
                 $ref: '#/components/schemas/Submission'
           description: ''
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: The Review Claim, reviewed revision, or decision state is no
+            longer current.
   /api/v1/submissions/:
     get:
       operationId: v1_submissions_list
@@ -1266,6 +1288,65 @@ paths:
           description: Authentication is required
 components:
   schemas:
+    AuditedFormatting:
+      type: object
+      properties:
+        description:
+          type: string
+    AuditedNormalizedProperty:
+      type: object
+      properties:
+        city_id:
+          type: string
+          format: uuid
+        district_id:
+          type: string
+          format: uuid
+        neighborhood_id:
+          type: string
+          format: uuid
+        property_type:
+          $ref: '#/components/schemas/PropertyTypeEnum'
+        area_sqm:
+          type: integer
+        room_count:
+          type: integer
+        construction_year:
+          type:
+          - integer
+          - 'null'
+        floor:
+          type:
+          - integer
+          - 'null'
+        total_floors:
+          type:
+          - integer
+          - 'null'
+        units_per_floor:
+          type:
+          - integer
+          - 'null'
+        parking:
+          $ref: '#/components/schemas/FeatureStateEnum'
+        elevator:
+          $ref: '#/components/schemas/FeatureStateEnum'
+        storage:
+          $ref: '#/components/schemas/FeatureStateEnum'
+        balcony:
+          $ref: '#/components/schemas/FeatureStateEnum'
+        furnished:
+          $ref: '#/components/schemas/FeatureStateEnum'
+        operator_location_notes:
+          type: string
+    AuditedSourceMetadata:
+      type: object
+      properties:
+        source_reference:
+          type: string
+        source_claims: {}
+        provenance_note:
+          type: string
     AvailabilityOutput:
       type: object
       properties:
@@ -1447,6 +1528,15 @@ components:
       - id
       - last_name
       - operator_capabilities
+    DecisionCorrectionAudit:
+      type: object
+      properties:
+        internal_note:
+          type: string
+        normalized_corrections:
+          $ref: '#/components/schemas/NormalizedCorrectionsAudit'
+        publication_result:
+          $ref: '#/components/schemas/PublicationResultAudit'
     Detail:
       type: object
       properties:
@@ -1454,6 +1544,14 @@ components:
           type: string
       required:
       - detail
+    EventTypeEnum:
+      enum:
+      - transition
+      - decision_correction
+      type: string
+      description: |-
+        * `transition` - تغییر وضعیت
+        * `decision_correction` - اصلاح تصمیم
     ExternalContinuation:
       type: object
       properties:
@@ -1692,6 +1790,15 @@ components:
       required:
       - email
       - password
+    NormalizedCorrectionsAudit:
+      type: object
+      properties:
+        property:
+          $ref: '#/components/schemas/AuditedNormalizedProperty'
+        source_metadata:
+          $ref: '#/components/schemas/AuditedSourceMetadata'
+        formatting:
+          $ref: '#/components/schemas/AuditedFormatting'
     NormalizedProperty:
       type: object
       properties:
@@ -2122,6 +2229,45 @@ components:
         * `apartment` - آپارتمان
         * `house` - خانه
         * `villa` - ویلا
+    PublicationResultAudit:
+      type: object
+      properties:
+        listing_id:
+          type: string
+          format: uuid
+        property_id:
+          type: string
+          format: uuid
+        state:
+          $ref: '#/components/schemas/PublicationResultAuditStateEnum'
+        published_at:
+          type:
+          - string
+          - 'null'
+          format: date-time
+        available_until:
+          type:
+          - string
+          - 'null'
+          format: date-time
+    PublicationResultAuditStateEnum:
+      enum:
+      - draft
+      - pending
+      - published
+      - expired
+      - rejected
+      - unavailable
+      - archived
+      type: string
+      description: |-
+        * `draft` - پیش‌نویس
+        * `pending` - در انتظار بررسی
+        * `published` - منتشرشده
+        * `expired` - منقضی‌شده
+        * `rejected` - ردشده
+        * `unavailable` - ناموجود
+        * `archived` - بایگانی‌شده
     Registration:
       type: object
       properties:
@@ -2243,10 +2389,14 @@ components:
     ReviewReason:
       type: object
       properties:
+        reviewed_revision:
+          type: integer
+          minimum: 1
         reason:
           type: string
       required:
       - reason
+      - reviewed_revision
     RoleEnum:
       enum:
       - owner
@@ -2435,6 +2585,9 @@ components:
     SubmissionApproval:
       type: object
       properties:
+        reviewed_revision:
+          type: integer
+          minimum: 1
         property_id:
           type:
           - string
@@ -2448,6 +2601,8 @@ components:
           $ref: '#/components/schemas/Formatting'
         internal_note:
           type: string
+      required:
+      - reviewed_revision
     SubmissionCreate:
       type: object
       properties:
@@ -2462,6 +2617,8 @@ components:
           type: string
           format: uuid
           readOnly: true
+        event_type:
+          $ref: '#/components/schemas/EventTypeEnum'
         actor_email:
           type: string
           format: email
@@ -2471,22 +2628,55 @@ components:
           maximum: 9223372036854775807
           minimum: 0
           format: int64
+        reviewed_revision:
+          type: integer
+          readOnly: true
+        review_claim_id:
+          type:
+          - string
+          - 'null'
+          format: uuid
+          readOnly: true
         prior_state:
           $ref: '#/components/schemas/SubmissionStateEnum'
         new_state:
           $ref: '#/components/schemas/SubmissionStateEnum'
         reason:
           type: string
+        normalized_corrections:
+          allOf:
+          - $ref: '#/components/schemas/NormalizedCorrectionsAudit'
+          readOnly: true
+        publication_result:
+          allOf:
+          - $ref: '#/components/schemas/PublicationResultAudit'
+          readOnly: true
+        corrects_id:
+          type:
+          - string
+          - 'null'
+          format: uuid
+          readOnly: true
+        correction:
+          allOf:
+          - $ref: '#/components/schemas/DecisionCorrectionAudit'
+          readOnly: true
         created_at:
           type: string
           format: date-time
           readOnly: true
       required:
       - actor_email
+      - correction
+      - corrects_id
       - created_at
       - id
       - new_state
+      - normalized_corrections
       - prior_state
+      - publication_result
+      - review_claim_id
+      - reviewed_revision
       - revision
     SubmissionImage:
       type: object

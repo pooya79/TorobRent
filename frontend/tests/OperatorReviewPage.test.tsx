@@ -252,3 +252,106 @@ test("opening is read-only until the reviewer explicitly claims the Submission",
 
   await waitFor(() => expect(claimed).toBe(true));
 });
+
+test("preserves decision drafts and requires refresh and reclaim after a stale conflict", async () => {
+  const user = userEvent.setup();
+  let currentSubmission: Record<string, unknown> = claimedSubmission;
+  const nextSubmission = {
+    ...pendingSubmission,
+    id: "90000000-0000-4000-8000-000000000009",
+    location: {
+      ...pendingSubmission.location,
+      neighborhood: "اکباتان",
+      address: "فاز دو",
+    },
+  };
+  let queueResults: Record<string, unknown>[] = [currentSubmission];
+  let approvalAttempts = 0;
+  serveSubmission(currentSubmission);
+  server.use(
+    http.get("*/api/v1/operator/submissions/", () =>
+      HttpResponse.json({
+        count: queueResults.length,
+        next: null,
+        previous: null,
+        results: queueResults,
+      }),
+    ),
+    http.get("*/api/v1/operator/submissions/:id/", ({ params }) =>
+      HttpResponse.json(
+        params.id === pendingSubmission.id ? currentSubmission : nextSubmission,
+      ),
+    ),
+    http.post(
+      "*/api/v1/operator/submissions/:id/approve/",
+      async ({ request }) => {
+        approvalAttempts += 1;
+        const body = (await request.json()) as { reviewed_revision?: number };
+        expect(body.reviewed_revision).toBe(1);
+        currentSubmission = {
+          ...claimedSubmission,
+          revision: 2,
+          claim_status: "unclaimed",
+          claim: null,
+        };
+        queueResults = [nextSubmission];
+        return HttpResponse.json(
+          {
+            type: "https://example.com/problems/review_revision_conflict",
+            title: "Request failed",
+            status: 409,
+            detail: "translated server wording must not control this branch",
+            code: "review_revision_conflict",
+          },
+          { status: 409 },
+        );
+      },
+    ),
+    http.post("*/api/v1/operator/submissions/:id/claim/", ({ params }) => {
+      expect(params.id).toBe(pendingSubmission.id);
+      currentSubmission = {
+        ...currentSubmission,
+        claim_status: "claimed_by_me",
+        claim: { ...claimedSubmission.claim, revision: 2 },
+      };
+      return HttpResponse.json(currentSubmission, { status: 201 });
+    }),
+  );
+  renderPage();
+
+  await user.click(
+    await screen.findByRole("button", { name: "تأیید و انتشار" }),
+  );
+  await user.type(screen.getByLabelText("متراژ نرمال‌شده"), "112");
+  await user.type(
+    screen.getByLabelText("یادداشت داخلی (اختیاری)"),
+    "مدارک بررسی شد.",
+  );
+  await user.click(
+    screen.getByRole("button", { name: "تأیید نهایی و انتشار" }),
+  );
+
+  expect(
+    await screen.findByText(
+      "نسخه Submission از زمان بررسی شما تغییر کرده است.",
+    ),
+  ).toBeVisible();
+  expect(approvalAttempts).toBe(1);
+  await user.click(
+    screen.getByRole("button", { name: "به‌روزرسانی Submission" }),
+  );
+  expect(await screen.findAllByText("اکباتان")).toHaveLength(1);
+  expect(await screen.findByText("بلوار دریا")).toBeVisible();
+  await user.click(
+    await screen.findByRole("button", { name: "پذیرفتن مسئولیت بررسی" }),
+  );
+  await user.click(
+    await screen.findByRole("button", { name: "تأیید و انتشار" }),
+  );
+
+  expect(screen.getByLabelText("متراژ نرمال‌شده")).toHaveValue("112");
+  expect(screen.getByLabelText("یادداشت داخلی (اختیاری)")).toHaveValue(
+    "مدارک بررسی شد.",
+  );
+  expect(approvalAttempts).toBe(1);
+});

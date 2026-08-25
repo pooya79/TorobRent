@@ -32,10 +32,26 @@ function problemDetail(value: unknown, fields: Record<string, string>) {
   return undefined;
 }
 
+function problemStatus(value: unknown) {
+  if (value && typeof value === "object" && "status" in value) {
+    return typeof value.status === "number" ? value.status : undefined;
+  }
+  return undefined;
+}
+
+function problemCode(value: unknown) {
+  if (value && typeof value === "object" && "code" in value) {
+    return typeof value.code === "string" ? value.code : undefined;
+  }
+  return undefined;
+}
+
 export class ApiError extends Error {
   constructor(
     message: string,
     readonly fields: Record<string, string>,
+    readonly status?: number,
+    readonly code?: string,
   ) {
     super(message);
   }
@@ -47,6 +63,8 @@ export function apiError(value: unknown): ApiError {
     problemDetail(value, fields) ??
       "در انجام درخواست مشکلی پیش آمد. دوباره تلاش کنید.",
     fields,
+    problemStatus(value),
+    problemCode(value),
   );
 }
 

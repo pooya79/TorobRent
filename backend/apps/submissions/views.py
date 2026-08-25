@@ -10,7 +10,7 @@ from django.http import StreamingHttpResponse
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 from drf_spectacular.types import OpenApiTypes
-from drf_spectacular.utils import OpenApiParameter, extend_schema
+from drf_spectacular.utils import OpenApiParameter, OpenApiResponse, extend_schema
 from rest_framework import status
 from rest_framework.exceptions import APIException, PermissionDenied, ValidationError
 from rest_framework.generics import ListAPIView, get_object_or_404
@@ -29,6 +29,7 @@ from apps.catalog.services import (
     mark_listing_unavailable,
 )
 from apps.common.pagination import StandardPageNumberPagination
+from apps.common.serializers import ProblemSerializer
 
 from .models import ReviewClaim, Submission, SubmissionImage, SubmissionImageVariant, SubmissionStep
 from .selectors import submissions_reviewable_by
@@ -90,6 +91,12 @@ class ReviewConflict(APIException):
     def __init__(self, conflict: ReviewWorkflowConflict) -> None:
         self.default_code = conflict.code
         super().__init__(str(conflict), code=conflict.code)
+
+
+REVIEW_CONFLICT_RESPONSE = OpenApiResponse(
+    response=ProblemSerializer,
+    description="The Review Claim, reviewed revision, or decision state is no longer current.",
+)
 
 
 def validation_response(exc: DjangoValidationError) -> ValidationError:
@@ -474,6 +481,7 @@ def review_reason_response(
                 id=submission_id,
             ),
             actor=operator,
+            reviewed_revision=serializer.validated_data["reviewed_revision"],
             reason=serializer.validated_data["reason"],
         )
     except DjangoValidationError as exc:
@@ -489,7 +497,7 @@ class OperatorRequestChangesView(APIView):
     @extend_schema(
         summary="Request changes to a pending Submission",
         request=ReviewReasonSerializer,
-        responses=SubmissionSerializer,
+        responses={200: SubmissionSerializer, 409: REVIEW_CONFLICT_RESPONSE},
     )
     def post(self, request: Request, submission_id: str) -> Response:
         return review_reason_response(
@@ -505,7 +513,7 @@ class OperatorRejectView(APIView):
     @extend_schema(
         summary="Terminally reject a pending Submission",
         request=ReviewReasonSerializer,
-        responses=SubmissionSerializer,
+        responses={200: SubmissionSerializer, 409: REVIEW_CONFLICT_RESPONSE},
     )
     def post(self, request: Request, submission_id: str) -> Response:
         return review_reason_response(
@@ -521,7 +529,7 @@ class OperatorApproveView(APIView):
     @extend_schema(
         summary="Approve, group, and publish a pending Submission",
         request=SubmissionApprovalSerializer,
-        responses=SubmissionSerializer,
+        responses={200: SubmissionSerializer, 409: REVIEW_CONFLICT_RESPONSE},
     )
     def post(self, request: Request, submission_id: str) -> Response:
         operator = cast(User, request.user)
