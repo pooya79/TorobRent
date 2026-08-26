@@ -79,6 +79,21 @@ export function catalogStatisticsQueryOptions() {
   });
 }
 
+export function favoritesQueryOptions() {
+  return queryOptions({
+    queryKey: ["catalog", "favorites"] as const,
+    queryFn: async () => {
+      const baseUrl =
+        typeof window === "undefined" ? "" : window.location.origin;
+      const { data, response } = await createApiClient(baseUrl).GET(
+        "/api/v1/catalog/favorites/",
+      );
+      if (!data) throw new CatalogSearchError(response.status);
+      return data;
+    },
+  });
+}
+
 export function propertySearchQueryOptions(searchParams: URLSearchParams) {
   const requestSearchParams = searchParams.toString();
   const propertyCategory = selectedPropertyCategory(searchParams);

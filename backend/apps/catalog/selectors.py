@@ -231,6 +231,25 @@ def catalog_statistics() -> CatalogStatistics:
     return CatalogStatistics(**counts)
 
 
+def _primary_property_image_variant() -> QuerySet[PropertyImageVariant]:
+    return (
+        PropertyImageVariant.objects
+        .filter(
+            image__property_id=OuterRef("pk"),
+            image__is_primary=True,
+        )
+        .annotate(
+            card_priority=Case(
+                When(kind="medium", then=0),
+                When(kind="large", then=1),
+                default=2,
+                output_field=IntegerField(),
+            )
+        )
+        .order_by("card_priority", "id")
+    )
+
+
 def search_properties(
     filters: PropertySearchFilters | None = None,
     *,
@@ -258,22 +277,7 @@ def search_properties(
         .annotate(total=Count("id"))
         .values("total")
     )
-    primary_image_variant = (
-        PropertyImageVariant.objects
-        .filter(
-            image__property_id=OuterRef("pk"),
-            image__is_primary=True,
-        )
-        .annotate(
-            card_priority=Case(
-                When(kind="medium", then=0),
-                When(kind="large", then=1),
-                default=2,
-                output_field=IntegerField(),
-            )
-        )
-        .order_by("card_priority", "id")
-    )
+    primary_image_variant = _primary_property_image_variant()
     properties = (
         Property.objects
         .filter(city_id=TEHRAN_CITY_ID)
@@ -363,6 +367,45 @@ def search_properties(
             )
 
     return properties.order_by(*ordering_spec.property)
+
+
+def favorite_properties(
+    account_id: uuid.UUID,
+) -> tuple[QuerySet[Property], QuerySet[Property]]:
+    favorite = Favorite.objects.filter(account_id=account_id, property_id=OuterRef("pk"))
+    active_listings = Listing.objects.active().filter(property_id=OuterRef("pk"))
+    selected_listing = active_listings.order_by("-availability_confirmed_at", "id")
+    primary_image_variant = _primary_property_image_variant()
+    active_listing_counts = (
+        active_listings.order_by().values("property_id").annotate(total=Count("id")).values("total")
+    )
+    favorites = (
+        Property.objects
+        .filter(favorites__account_id=account_id)
+        .select_related("city", "district", "neighborhood")
+        .annotate(
+            favorite_saved_at=Subquery(favorite.values("saved_at")[:1]),
+            has_active_listing=Exists(active_listings),
+        )
+    )
+    active = favorites.filter(has_active_listing=True).annotate(
+        listing_count=Subquery(active_listing_counts),
+        selected_availability_confirmed_at=Subquery(
+            selected_listing.values("availability_confirmed_at")[:1]
+        ),
+        selected_deposit_rial=Subquery(selected_listing.values("terms__deposit_rial")[:1]),
+        selected_monthly_rent_rial=Subquery(
+            selected_listing.values("terms__monthly_rent_rial")[:1]
+        ),
+        selected_currency=Subquery(selected_listing.values("terms__currency")[:1]),
+        primary_image_file=Subquery(primary_image_variant.values("asset__file")[:1]),
+        primary_image_width=Subquery(primary_image_variant.values("asset__width")[:1]),
+        primary_image_height=Subquery(primary_image_variant.values("asset__height")[:1]),
+        is_favorite=Value(True),
+    )
+    unavailable = favorites.filter(has_active_listing=False)
+    ordering = ("-favorite_saved_at", "id")
+    return active.order_by(*ordering), unavailable.order_by(*ordering)
 
 
 type FacetFeature = Literal["parking", "elevator", "storage", "furnished"]

@@ -38,9 +38,11 @@ import {
   propertySearchQueryOptions,
 } from "@/features/catalog/queries";
 import {
-  roomCountLabels,
-  type PropertyType,
-} from "@/features/catalog/property-taxonomy";
+  formatNumber,
+  propertyAreaAndRoomFacts,
+  rentalTermsCardData,
+} from "@/features/catalog/property-card-data";
+import { type PropertyType } from "@/features/catalog/property-taxonomy";
 import {
   selectedPropertyTypes,
   summarizePropertyTypes,
@@ -57,10 +59,6 @@ import { SearchMapPanel, tehranViewport } from "@/features/map/SearchMapPanel";
 import type { components } from "@/lib/api/schema";
 
 type PropertySummary = components["schemas"]["PropertySummary"];
-
-function formatNumber(value: number) {
-  return new Intl.NumberFormat("fa-IR").format(value);
-}
 
 const commercialResultsHeadings = {
   office: "دفترهای اداری اجاره‌ای",
@@ -121,10 +119,7 @@ function toCardData(
 ): PropertyCardData {
   const facts = [
     property.property_type_label,
-    `${formatNumber(property.area_sqm)} متر`,
-    property.room_count === null || property.room_count === undefined
-      ? null
-      : `${formatNumber(property.room_count)} ${roomCountLabels[property.property_category].fact}`,
+    ...propertyAreaAndRoomFacts(property),
   ].filter((fact): fact is string => fact !== null);
   return {
     id: property.id,
@@ -139,13 +134,13 @@ function toCardData(
       property.listing_count > 1
         ? `${formatNumber(property.listing_count - 1)} پیشنهاد دیگر`
         : undefined,
-    rentalTerms: {
-      depositLabel: `${formatNumber(property.rental_terms.deposit_toman)} تومان`,
-      monthlyRentLabel: `${formatNumber(property.rental_terms.monthly_rent_toman)} تومان`,
+    rentalTerms: rentalTermsCardData(property.rental_terms),
+    navigation: {
+      kind: "property-detail",
+      href: `/properties/${property.id}?${new URLSearchParams({
+        returnTo: `/search?${searchParams.toString()}`,
+      }).toString()}`,
     },
-    detailHref: `/properties/${property.id}?${new URLSearchParams({
-      returnTo: `/search?${searchParams.toString()}`,
-    }).toString()}`,
   };
 }
 
@@ -170,7 +165,10 @@ function toMapMarker(
     preview: {
       title: property.title,
       locationLabel: card.location,
-      detailHref: card.detailHref ?? `/properties/${property.id}`,
+      detailHref:
+        card.navigation.kind === "property-detail"
+          ? card.navigation.href
+          : `/properties/${property.id}`,
     },
   };
 }
