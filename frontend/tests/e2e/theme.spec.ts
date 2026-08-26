@@ -38,7 +38,9 @@ test("@milestone restores explicit dark styling before hydration", async ({
     )
     .toBe("rgb(18, 18, 20)");
   await expect(
-    page.getByRole("heading", { name: "خانه‌ای برای اجاره پیدا کنید" }),
+    page.getByRole("heading", {
+      name: "اجارهٔ ملک مسکونی و تجاری در تهران",
+    }),
   ).toBeVisible();
 });
 

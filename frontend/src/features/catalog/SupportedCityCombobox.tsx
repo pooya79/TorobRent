@@ -1,0 +1,146 @@
+import { useQuery } from "@tanstack/react-query";
+import { useId, useState } from "react";
+
+import { Input } from "@/components/ui/input";
+import { supportedCitiesQueryOptions } from "./queries";
+
+export type SelectedSupportedCity = {
+  id: string;
+  name: string;
+};
+
+function matchesCity(cityName: string, query: string) {
+  return cityName
+    .replaceAll("‌", "")
+    .includes(query.trim().replaceAll("‌", ""));
+}
+
+export function SupportedCityCombobox({
+  onSelectionChange,
+}: {
+  onSelectionChange: (city: SelectedSupportedCity | null) => void;
+}) {
+  const listboxId = useId();
+  const [query, setQuery] = useState("");
+  const [open, setOpen] = useState(false);
+  const [activeIndex, setActiveIndex] = useState<number | null>(null);
+  const cities = useQuery(supportedCitiesQueryOptions());
+  const matchingCities = (cities.data ?? []).filter((city) =>
+    matchesCity(city.name, query),
+  );
+  const activeCity =
+    activeIndex === null ? undefined : matchingCities[activeIndex];
+
+  const selectCity = (city: SelectedSupportedCity) => {
+    setQuery(city.name);
+    setOpen(false);
+    setActiveIndex(null);
+    onSelectionChange(city);
+  };
+
+  return (
+    <>
+      <Input
+        className="h-auto border-0 bg-transparent p-0 text-sm shadow-none focus-visible:ring-0"
+        type="search"
+        role="combobox"
+        aria-autocomplete="list"
+        aria-controls={listboxId}
+        aria-activedescendant={
+          activeCity ? `${listboxId}-option-${activeIndex}` : undefined
+        }
+        aria-expanded={open}
+        aria-label="شهر"
+        placeholder="تهران"
+        value={query}
+        onInput={(event) => {
+          setQuery(event.currentTarget.value);
+          setOpen(true);
+          setActiveIndex(null);
+          onSelectionChange(null);
+        }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setOpen(false)}
+        onKeyDown={(event) => {
+          if (event.key === "Escape") {
+            setOpen(false);
+            setActiveIndex(null);
+            return;
+          }
+          if (event.key === "ArrowDown" && matchingCities.length > 0) {
+            event.preventDefault();
+            setOpen(true);
+            setActiveIndex((current) =>
+              current === null ? 0 : (current + 1) % matchingCities.length,
+            );
+            return;
+          }
+          if (event.key === "ArrowUp" && matchingCities.length > 0) {
+            event.preventDefault();
+            setOpen(true);
+            setActiveIndex((current) =>
+              current === null
+                ? matchingCities.length - 1
+                : (current - 1 + matchingCities.length) % matchingCities.length,
+            );
+            return;
+          }
+          if (event.key === "Enter" && activeCity) {
+            event.preventDefault();
+            selectCity(activeCity);
+          }
+        }}
+      />
+      {open && (
+        <div className="border-border bg-popover absolute top-full right-0 left-0 z-20 mt-2 overflow-hidden rounded-xl border p-1 shadow-md">
+          {cities.isPending && (
+            <p
+              className="text-muted-foreground px-3 py-2 text-sm"
+              role="status"
+              aria-label="در حال دریافت شهرها"
+            >
+              در حال دریافت شهرها…
+            </p>
+          )}
+          {cities.isError && (
+            <p
+              className="text-destructive px-3 py-2 text-sm"
+              role="alert"
+              aria-label="دریافت شهرها ممکن نشد. دوباره تلاش کنید."
+            >
+              دریافت شهرها ممکن نشد. دوباره تلاش کنید.
+            </p>
+          )}
+          {cities.isSuccess && matchingCities.length === 0 && (
+            <p
+              className="text-muted-foreground px-3 py-2 text-sm"
+              role="status"
+              aria-label="شهری پیدا نشد"
+            >
+              شهری پیدا نشد.
+            </p>
+          )}
+          {cities.isSuccess && matchingCities.length > 0 && (
+            <ul id={listboxId} role="listbox" aria-label="شهرهای قابل جست‌وجو">
+              {matchingCities.map((city, index) => (
+                <li key={city.id} role="none">
+                  <button
+                    id={`${listboxId}-option-${index}`}
+                    className="hover:bg-accent focus-visible:bg-accent min-h-11 w-full rounded-lg px-3 text-start text-sm"
+                    type="button"
+                    role="option"
+                    aria-selected={city.name === query}
+                    onMouseDown={(event) => event.preventDefault()}
+                    onClick={() => selectCity(city)}
+                  >
+                    {city.label}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+    </>
+  );
+}

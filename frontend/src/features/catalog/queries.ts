@@ -39,6 +39,22 @@ export function locationAutocompleteQueryOptions(query: string) {
   });
 }
 
+export function supportedCitiesQueryOptions() {
+  return queryOptions({
+    queryKey: ["catalog", "supported-cities"] as const,
+    staleTime: 5 * 60_000,
+    queryFn: async () => {
+      const baseUrl =
+        typeof window === "undefined" ? "" : window.location.origin;
+      const { data, response } = await createApiClient(baseUrl).GET(
+        "/api/v1/catalog/supported-cities/",
+      );
+      if (!data) throw new CatalogSearchError(response.status);
+      return data;
+    },
+  });
+}
+
 export function propertySearchQueryOptions(searchParams: URLSearchParams) {
   const integerParameter = (name: string) => {
     const rawValue = searchParams.get(name);

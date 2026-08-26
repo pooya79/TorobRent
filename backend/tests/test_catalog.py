@@ -408,6 +408,32 @@ def test_anonymous_renter_autocompletes_tehran_locations_with_tolerant_persian_i
 
 
 @pytest.mark.django_db
+def test_anonymous_renter_discovers_only_supported_cities_without_a_query(
+    api_client: APIClient,
+):
+    call_command("loaddata", "catalog_seed", verbosity=0)
+    City.objects.create(
+        name_fa="کرج",
+        source_code="unsupported-city",
+        source_year=1403,
+        provenance_url="https://example.com/locations",
+        imported_at=timezone.localdate(),
+        reviewed=True,
+    )
+
+    response = api_client.get("/api/v1/catalog/supported-cities/")
+
+    assert response.status_code == 200
+    assert response.data == [
+        {
+            "id": "11111111-1111-4111-8111-111111111111",
+            "name": "تهران",
+            "label": "تهران",
+        }
+    ]
+
+
+@pytest.mark.django_db
 def test_property_search_groups_active_listings_and_uses_the_freshest_terms(
     api_client: APIClient,
 ):

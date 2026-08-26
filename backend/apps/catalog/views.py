@@ -21,7 +21,7 @@ from apps.common.pagination import StandardPageNumberPagination
 from apps.common.serializers import ProblemSerializer
 
 from .models import Listing, OutboundPolicy, ProductEventType, Property
-from .selectors import autocomplete_locations, search_properties
+from .selectors import autocomplete_locations, search_properties, supported_cities
 from .serializers import (
     EventSessionSerializer,
     ExternalContinuationSerializer,
@@ -30,6 +30,7 @@ from .serializers import (
     PropertyDetailSerializer,
     PropertySearchQuerySerializer,
     PropertySummarySerializer,
+    SupportedCitySerializer,
     property_detail_data,
 )
 from .services import record_product_event
@@ -69,6 +70,17 @@ class LocationAutocompleteView(APIView):
     def get(self, request: Request) -> Response:
         suggestions = autocomplete_locations(request.query_params.get("q", ""))
         return Response(LocationSuggestionSerializer(suggestions, many=True).data)
+
+
+class SupportedCityListView(APIView):
+    permission_classes = [AllowAny]
+
+    @extend_schema(
+        summary="List cities supported by public catalog search",
+        responses={200: SupportedCitySerializer(many=True)},
+    )
+    def get(self, request: Request) -> Response:
+        return Response(SupportedCitySerializer(supported_cities(), many=True).data)
 
 
 class CatalogSearchPagination(StandardPageNumberPagination):

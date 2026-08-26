@@ -18,6 +18,15 @@ export const server = setupServer(
       },
     ]),
   ),
+  http.get("*/api/v1/catalog/supported-cities/", () =>
+    HttpResponse.json([
+      {
+        id: "11111111-1111-4111-8111-111111111111",
+        name: "تهران",
+        label: "تهران",
+      },
+    ]),
+  ),
   http.get("*/api/v1/catalog/properties/", () =>
     HttpResponse.json(propertySearchPage),
   ),

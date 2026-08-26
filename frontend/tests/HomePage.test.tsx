@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { http, HttpResponse } from "msw";
+import { delay, http, HttpResponse } from "msw";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router";
 import { expect, test } from "vitest";
 
@@ -50,9 +50,11 @@ test("presents the anonymous public navbar and real advertisement introduction",
   renderHomeShell(queryClient);
 
   expect(
-    screen.getByRole("heading", { name: "ملکی برای اجاره پیدا کنید" }),
+    screen.getByRole("heading", {
+      name: "اجارهٔ ملک مسکونی و تجاری در تهران",
+    }),
   ).toBeVisible();
-  expect(screen.getByRole("combobox", { name: "شهر یا محله" })).toBeVisible();
+  expect(screen.getByRole("combobox", { name: "شهر" })).toBeVisible();
 
   const navbar = screen.getByRole("banner", { name: "راهبری عمومی" });
   const navigation = within(navbar).getByRole("navigation", {
@@ -312,8 +314,15 @@ test("lets an authenticated Submitter log out from primary navigation", async ()
   ).toBeVisible();
 });
 
-test("selects a Persian autocomplete result and navigates to a shareable Results URL", async () => {
+test("discovers Tehran on empty focus and waits for deliberate search submission", async () => {
   const user = userEvent.setup();
+  let preciseLocationRequests = 0;
+  server.use(
+    http.get("*/api/v1/catalog/locations/", () => {
+      preciseLocationRequests += 1;
+      return HttpResponse.json([]);
+    }),
+  );
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
@@ -321,30 +330,90 @@ test("selects a Persian autocomplete result and navigates to a shareable Results
     <QueryClientProvider client={queryClient}>
       <MemoryRouter initialEntries={["/"]}>
         <Routes>
-          <Route path="/" element={<HomePage />} />
+          <Route
+            path="/"
+            element={
+              <>
+                <HomePage />
+                <ShellLocationProbe />
+              </>
+            }
+          />
           <Route path="/search" element={<SearchLocationProbe />} />
         </Routes>
       </MemoryRouter>
     </QueryClientProvider>,
   );
 
-  await user.type(
-    screen.getByRole("combobox", { name: "شهر یا محله" }),
-    "سعادت اباد",
+  const city = screen.getByRole("combobox", { name: "شهر" });
+  await user.click(city);
+  await user.click(await screen.findByRole("option", { name: "تهران" }));
+
+  expect(city).toHaveValue("تهران");
+  expect(screen.getByRole("status", { name: "مسیر جاری" })).toHaveTextContent(
+    "/",
   );
-  await user.click(
-    await screen.findByRole("option", {
-      name: "سعادت‌آباد، منطقه ۲، تهران",
-    }),
-  );
+  expect(preciseLocationRequests).toBe(0);
+
   await user.click(screen.getByRole("button", { name: "همه ملک‌ها" }));
   await user.click(screen.getByRole("checkbox", { name: "دفتر اداری" }));
   await user.click(screen.getByRole("button", { name: "جست‌وجوی ملک" }));
 
   expect(
     screen.getByText(
-      "/search|30000000-0000-4000-8000-000000000043|سعادت‌آباد|office",
+      "/search|11111111-1111-4111-8111-111111111111|تهران|office",
     ),
+  ).toBeVisible();
+});
+
+test("selects Tehran with the keyboard from the city-only listbox", async () => {
+  const user = userEvent.setup();
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  renderHomeShell(queryClient);
+
+  const city = screen.getByRole("combobox", { name: "شهر" });
+  await user.click(city);
+  await screen.findByRole("option", { name: "تهران" });
+  await user.keyboard("{ArrowDown}{Enter}");
+
+  expect(city).toHaveValue("تهران");
+  expect(city).toHaveAttribute("aria-expanded", "false");
+});
+
+test("explains supported-city loading, empty, and failure states accessibly", async () => {
+  const user = userEvent.setup();
+  let response: "loading" | "empty" | "failure" = "loading";
+  server.use(
+    http.get("*/api/v1/catalog/supported-cities/", async () => {
+      if (response === "loading") await delay(100);
+      if (response === "failure") {
+        return HttpResponse.json({ detail: "unavailable" }, { status: 503 });
+      }
+      return HttpResponse.json([]);
+    }),
+  );
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  renderHomeShell(queryClient);
+
+  const city = screen.getByRole("combobox", { name: "شهر" });
+  await user.click(city);
+  expect(
+    screen.getByRole("status", { name: "در حال دریافت شهرها" }),
+  ).toHaveTextContent("در حال دریافت شهرها");
+  expect(await screen.findByText("شهری پیدا نشد.")).toBeVisible();
+
+  response = "failure";
+  await queryClient.invalidateQueries({
+    queryKey: ["catalog", "supported-cities"],
+  });
+  expect(
+    await screen.findByRole("alert", {
+      name: "دریافت شهرها ممکن نشد. دوباره تلاش کنید.",
+    }),
   ).toBeVisible();
 });
 

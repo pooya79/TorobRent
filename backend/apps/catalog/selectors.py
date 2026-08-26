@@ -26,6 +26,13 @@ class LocationSuggestion:
     label: str
 
 
+@dataclass(frozen=True)
+class SupportedCity:
+    id: uuid.UUID
+    name: str
+    label: str
+
+
 type SearchOrdering = Literal["freshness", "monthly_rent", "deposit", "area"]
 
 
@@ -115,6 +122,13 @@ def autocomplete_locations(query: str, *, limit: int = 10) -> list[LocationSugge
         for neighborhood in neighborhoods.order_by("name_fa")[:limit]
     )
     return suggestions[:limit]
+
+
+def supported_cities() -> list[SupportedCity]:
+    return [
+        SupportedCity(city.id, city.name_fa, city.name_fa)
+        for city in City.objects.filter(id=TEHRAN_CITY_ID, reviewed=True).order_by("name_fa")
+    ]
 
 
 def search_properties(filters: PropertySearchFilters | None = None) -> QuerySet[Property]:

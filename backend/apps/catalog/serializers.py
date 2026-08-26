@@ -29,6 +29,12 @@ class LocationSuggestionSerializer(serializers.Serializer[Any]):
     label = serializers.CharField()  # type: ignore[assignment]
 
 
+class SupportedCitySerializer(serializers.Serializer[Any]):
+    id = serializers.UUIDField()
+    name = serializers.CharField()
+    label = serializers.CharField()  # type: ignore[assignment]
+
+
 class FeaturesSerializer(serializers.Serializer[Any]):
     parking = serializers.ChoiceField(choices=FeatureState.choices)
     elevator = serializers.ChoiceField(choices=FeatureState.choices)

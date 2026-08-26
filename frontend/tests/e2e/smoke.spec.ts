@@ -8,8 +8,8 @@ test("@milestone @cross-browser serves a meaningful Persian document before hydr
 
   expect(response.ok()).toBe(true);
   expect(html).toContain('<html lang="fa" dir="rtl"');
-  expect(html).toContain("خانه‌ای برای اجاره پیدا کنید");
-  expect(html).toContain("شهر یا محله");
+  expect(html).toContain("اجارهٔ ملک مسکونی و تجاری در تهران");
+  expect(html).toContain("شهر");
 });
 
 test("@milestone @cross-browser hydrates the application shell and reports API health", async ({
@@ -31,7 +31,9 @@ test("@milestone @cross-browser hydrates the application shell and reports API h
 
   await page.goto("/");
   await expect(
-    page.getByRole("heading", { name: "خانه‌ای برای اجاره پیدا کنید" }),
+    page.getByRole("heading", {
+      name: "اجارهٔ ملک مسکونی و تجاری در تهران",
+    }),
   ).toBeVisible();
   await expect(page.getByText("سامانه در دسترس است")).toBeVisible({
     timeout: 10_000,
@@ -59,21 +61,25 @@ test("@milestone @cross-browser keeps navigation usable on a mobile viewport", a
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/");
+  await expect(page.getByText("سامانه در دسترس است")).toBeVisible({
+    timeout: 10_000,
+  });
 
   const documentWidth = await page.evaluate(
     () => document.documentElement.scrollWidth,
   );
   expect(documentWidth).toBeLessThanOrEqual(390);
-  await page.getByRole("combobox", { name: "شهر یا محله" }).focus();
-  await expect(
-    page.getByRole("combobox", { name: "شهر یا محله" }),
-  ).toBeFocused();
+  const city = page.getByRole("combobox", { name: "شهر" });
+  await city.focus();
+  await expect(page.getByRole("option", { name: "تهران" })).toBeVisible();
+  await city.press("ArrowDown");
+  await city.press("Enter");
+  await expect(city).toHaveValue("تهران");
 
   const menuTrigger = page.getByRole("button", {
     name: "باز کردن فهرست راهبری",
   });
-  await menuTrigger.focus();
-  await page.keyboard.press("Enter");
+  await menuTrigger.press("Enter");
   await expect(
     page.getByRole("dialog", { name: "راهبری ترب‌رنت" }),
   ).toBeVisible();
@@ -104,8 +110,8 @@ test("@milestone @cross-browser exposes the public fixture-backed prototype rout
   page,
 }) => {
   const routes = [
-    ["/", "خانه‌ای برای اجاره پیدا کنید"],
-    ["/search", "خانه‌های اجاره‌ای در تهران"],
+    ["/", "اجارهٔ ملک مسکونی و تجاری در تهران"],
+    ["/search", "ملک‌های اجاره‌ای در تهران"],
     ["/advertise", "ثبت آگهی در ترب‌رنت"],
   ] as const;
 

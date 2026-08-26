@@ -225,6 +225,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/v1/catalog/supported-cities/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List cities supported by public catalog search */
+    get: operations["v1_catalog_supported_cities_list"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/v1/contact/messages/": {
     parameters: {
       query?: never;
@@ -1934,6 +1951,12 @@ export interface components {
       aging_count: number;
       aging_after_hours: number;
     };
+    SupportedCity: {
+      /** Format: uuid */
+      id: string;
+      name: string;
+      label: string;
+    };
     Token: {
       token: string;
     };
@@ -2505,6 +2528,25 @@ export interface operations {
           [name: string]: unknown;
         };
         content?: never;
+      };
+    };
+  };
+  v1_catalog_supported_cities_list: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SupportedCity"][];
+        };
       };
     };
   };

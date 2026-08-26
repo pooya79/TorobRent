@@ -62,15 +62,32 @@ test("@milestone Operator publishes a curated Property that a Renter opens throu
 
   await page.goto("/");
   await expect(page.getByText("سامانه در دسترس است")).toBeVisible();
-  const locationInput = page.getByRole("combobox", { name: "شهر یا محله" });
-  await locationInput.pressSequentially("سعادت اباد");
-  await page
-    .getByRole("option", { name: "سعادت‌آباد، منطقه ۲، تهران" })
-    .click();
+  const cityInput = page.getByRole("combobox", { name: "شهر" });
+  await cityInput.focus();
+  await expect(page.getByRole("option", { name: "تهران" })).toBeVisible();
+  await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("Enter");
+  await expect(cityInput).toHaveValue("تهران");
+  await expect(page).toHaveURL(/\/$/);
   await page.getByRole("button", { name: "همه ملک‌ها" }).click();
   await page.getByRole("checkbox", { name: "دفتر اداری" }).click();
   await page.getByRole("button", { name: "جست‌وجوی ملک" }).click();
-  await expect(page).toHaveURL(/\/search\?location=.*property_type=office/);
+  await expect
+    .poll(() => {
+      const url = new URL(page.url());
+      return {
+        pathname: url.pathname,
+        location: url.searchParams.get("location"),
+        locationLabel: url.searchParams.get("location_label"),
+        propertyTypes: url.searchParams.getAll("property_type"),
+      };
+    })
+    .toEqual({
+      pathname: "/search",
+      location: "11111111-1111-4111-8111-111111111111",
+      locationLabel: "تهران",
+      propertyTypes: ["office"],
+    });
   await expect(
     page.getByRole("heading", { name: "دفتر اداری در سعادت‌آباد" }),
   ).toBeVisible();

@@ -576,6 +576,24 @@ paths:
       responses:
         '204':
           description: No response body
+  /api/v1/catalog/supported-cities/:
+    get:
+      operationId: v1_catalog_supported_cities_list
+      summary: List cities supported by public catalog search
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SupportedCity'
+          description: ''
   /api/v1/contact/messages/:
     post:
       operationId: v1_contact_messages_create
@@ -4216,6 +4234,20 @@ components:
       - assigned_to_me_count
       - unclaimed_count
       - urgent_count
+    SupportedCity:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        label:
+          type: string
+      required:
+      - id
+      - label
+      - name
     Token:
       type: object
       properties:

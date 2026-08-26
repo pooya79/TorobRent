@@ -7,12 +7,14 @@ from .views import (
     PropertyDetailView,
     PropertySearchView,
     PropertyViewEventView,
+    SupportedCityListView,
 )
 
 app_name = "catalog"
 
 urlpatterns = [
     path("locations/", LocationAutocompleteView.as_view(), name="location-autocomplete"),
+    path("supported-cities/", SupportedCityListView.as_view(), name="supported-city-list"),
     path("properties/", PropertySearchView.as_view(), name="property-search"),
     path("properties/<uuid:property_id>/", PropertyDetailView.as_view(), name="property-detail"),
     path(
