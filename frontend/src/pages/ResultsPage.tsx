@@ -46,7 +46,7 @@ import {
   summarizePropertyTypes,
 } from "@/features/catalog/property-type-selection";
 import { SearchToolbar } from "@/features/catalog/SearchToolbar";
-import type { MapAdapter } from "@/features/map/adapter";
+import type { MapAdapter, MapMarker } from "@/features/map/adapter";
 import { configuredMapAdapter } from "@/features/map/configured-adapter";
 import { SearchMapPanel } from "@/features/map/SearchMapPanel";
 import type { components } from "@/lib/api/schema";
@@ -150,6 +150,32 @@ function toCardData(
   };
 }
 
+function toMapMarker(
+  property: PropertySummary,
+  searchParams: URLSearchParams,
+): MapMarker | null {
+  const location = property.approximate_location;
+  if (!location) return null;
+  const card = toCardData(property, searchParams);
+  return {
+    propertyId: property.id,
+    label: `موقعیت تقریبی ${property.title}`,
+    approximateLocation: {
+      center: {
+        latitude: location.latitude,
+        longitude: location.longitude,
+      },
+      radiusMeters: location.radius_meters,
+      precision: location.precision,
+    },
+    preview: {
+      title: property.title,
+      locationLabel: card.location,
+      detailHref: card.detailHref ?? `/properties/${property.id}`,
+    },
+  };
+}
+
 function ResultsLoading() {
   return (
     <section
@@ -187,6 +213,10 @@ export function ResultsPage({ mapAdapter }: { mapAdapter?: MapAdapter }) {
   };
   const count = search.data?.count ?? 0;
   const pageCount = Math.ceil(count / 25);
+  const mapMarkers =
+    search.data?.results
+      .map((property) => toMapMarker(property, searchParams))
+      .filter((marker): marker is MapMarker => marker !== null) ?? [];
   const activeFilters = Object.entries(filterLabels).filter(([name]) =>
     searchParams.has(name),
   ) as [FilterName, string][];
@@ -302,7 +332,7 @@ export function ResultsPage({ mapAdapter }: { mapAdapter?: MapAdapter }) {
             >
               <SearchMapPanel
                 adapter={MapAdapterComponent}
-                markers={[]}
+                markers={mapMarkers}
                 clusters={[]}
                 onAvailabilityChange={setMapAvailable}
               />

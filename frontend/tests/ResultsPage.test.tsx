@@ -219,6 +219,23 @@ test("presents each Property with normalized facts and freshest complete Rental 
   expect(screen.getByText("اجاره ماهانه ۲۵٬۰۰۰٬۰۰۰ تومان")).toBeVisible();
 });
 
+test("renders public approximate markers and uncertainty circles through the map adapter", async () => {
+  server.use(
+    http.get("*/api/v1/catalog/properties/", () =>
+      HttpResponse.json(propertySearchPage),
+    ),
+  );
+
+  renderResults("/search", createFakeMapAdapter());
+
+  expect(
+    await screen.findByRole("button", {
+      name: "موقعیت تقریبی آپارتمان در سعادت‌آباد",
+    }),
+  ).toBeVisible();
+  expect(screen.getByText("محدوده تقریبی ۵۰۰ متر")).toBeVisible();
+});
+
 test.each([
   ["office", "دفتر اداری", "دفترهای اداری اجاره‌ای"],
   ["shop", "مغازه", "مغازه‌های اجاره‌ای"],

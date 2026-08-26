@@ -329,6 +329,52 @@ def test_approval_creates_and_publishes_a_normalized_direct_listing(api_client: 
 
 
 @pytest.mark.django_db
+def test_operator_can_adjust_exact_location_and_publication_persists_a_stable_approximation(
+    api_client: APIClient,
+):
+    submission = make_complete_submission()
+    submission.exact_latitude = "35.770001"
+    submission.exact_longitude = "51.379999"
+    submission.save(update_fields=("exact_latitude", "exact_longitude"))
+    submit_for_review(submission=submission, actor=submission.submitter)
+    operator = make_operator()
+    api_client.force_authenticate(operator)
+    api_client.post(f"/api/v1/operator/submissions/{submission.id}/claim/", {}, format="json")
+
+    approved = api_client.post(
+        f"/api/v1/operator/submissions/{submission.id}/approve/",
+        {
+            "reviewed_revision": submission.revision,
+            "normalized_property": {
+                "exact_location": {"latitude": 35.771111, "longitude": 51.381111}
+            },
+        },
+        format="json",
+    )
+
+    assert approved.status_code == 200, approved.data
+    property_ = Property.objects.get(id=approved.data["property_id"])
+    assert str(property_.latitude) == "35.771111"
+    assert str(property_.longitude) == "51.381111"
+    assert property_.approximate_latitude is not None
+    assert property_.approximate_longitude is not None
+    assert (property_.approximate_latitude, property_.approximate_longitude) != (
+        property_.latitude,
+        property_.longitude,
+    )
+    original_approximation = (
+        property_.approximate_latitude,
+        property_.approximate_longitude,
+    )
+
+    property_.listings.get().refresh_from_db()
+    property_.refresh_from_db()
+    assert (property_.approximate_latitude, property_.approximate_longitude) == (
+        original_approximation
+    )
+
+
+@pytest.mark.django_db
 @pytest.mark.parametrize(
     ("property_type", "property_type_label"),
     [

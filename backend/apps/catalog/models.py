@@ -102,6 +102,8 @@ class District(ProvenancedLocation):
 
 class Neighborhood(ProvenancedLocation):
     district = models.ForeignKey(District, on_delete=models.PROTECT, related_name="neighborhoods")
+    center_latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    center_longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
 
     class Meta:
         ordering = ("name_fa",)
@@ -163,6 +165,19 @@ class Property(models.Model):
     operator_location_notes = models.TextField(blank=True)
     latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
     longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    approximate_latitude = models.DecimalField(
+        max_digits=9, decimal_places=6, null=True, blank=True, editable=False
+    )
+    approximate_longitude = models.DecimalField(
+        max_digits=9, decimal_places=6, null=True, blank=True, editable=False
+    )
+    location_precision = models.CharField(
+        max_length=16,
+        choices=(("approximate", "Approximate"), ("neighborhood", "Neighborhood")),
+        blank=True,
+        editable=False,
+    )
+    location_radius_meters = models.PositiveIntegerField(null=True, blank=True, editable=False)
     provenance_note = models.TextField(blank=True)
     normalized_at = models.DateTimeField(null=True, blank=True)
     merged_into = models.ForeignKey(

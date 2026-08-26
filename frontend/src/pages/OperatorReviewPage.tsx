@@ -10,6 +10,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router";
 
 import { PageMain } from "@/components/layout/PageMain";
+import { ExactLocationPicker } from "@/features/map/ExactLocationPicker";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   AlertDialog,
@@ -214,6 +215,9 @@ export function OperatorReviewPage() {
       const normalizedProperty: NormalizedProperty = {};
       for (const [field, value] of Object.entries(corrections)) {
         if (!value) continue;
+        if (field === "exact_latitude" || field === "exact_longitude") {
+          continue;
+        }
         Object.assign(normalizedProperty, {
           [field]: (numericCorrectionFields as readonly string[]).includes(
             field,
@@ -221,6 +225,12 @@ export function OperatorReviewPage() {
             ? Number(value)
             : value,
         });
+      }
+      if (corrections.exact_latitude && corrections.exact_longitude) {
+        normalizedProperty.exact_location = {
+          latitude: corrections.exact_latitude,
+          longitude: corrections.exact_longitude,
+        };
       }
       return approveSubmission(selected!.id, {
         reviewed_revision: selected!.revision,
@@ -722,6 +732,28 @@ export function OperatorReviewPage() {
                               />
                             </Label>
                           ))}
+                          <ExactLocationPicker
+                            value={{
+                              latitude: Number(
+                                corrections.exact_latitude ??
+                                  selected.location?.exact_location?.latitude ??
+                                  35.7219,
+                              ),
+                              longitude: Number(
+                                corrections.exact_longitude ??
+                                  selected.location?.exact_location
+                                    ?.longitude ??
+                                  51.3347,
+                              ),
+                            }}
+                            onChange={(coordinates) =>
+                              setCorrections({
+                                ...corrections,
+                                exact_latitude: String(coordinates.latitude),
+                                exact_longitude: String(coordinates.longitude),
+                              })
+                            }
+                          />
                           <Label>
                             نوع ملک نرمال‌شده
                             <select

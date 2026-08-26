@@ -1834,6 +1834,25 @@ paths:
           description: Authentication is required
 components:
   schemas:
+    ApproximateLocation:
+      type: object
+      properties:
+        latitude:
+          type: number
+          format: double
+        longitude:
+          type: number
+          format: double
+        precision:
+          $ref: '#/components/schemas/PrecisionEnum'
+        radius_meters:
+          type: integer
+          minimum: 1
+      required:
+      - latitude
+      - longitude
+      - precision
+      - radius_meters
     AuditedFormatting:
       type: object
       properties:
@@ -2103,6 +2122,20 @@ components:
           type: string
       required:
       - detail
+    ExactLocation:
+      type: object
+      properties:
+        latitude:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,6})?$
+        longitude:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,6})?$
+      required:
+      - latitude
+      - longitude
     ExternalContactChannelEnum:
       enum:
       - email
@@ -2298,6 +2331,8 @@ components:
         address:
           type: string
           maxLength: 1000
+        exact_location:
+          $ref: '#/components/schemas/ExactLocation'
       required:
       - address
       - neighborhood_id
@@ -2321,12 +2356,17 @@ components:
           type: string
         address:
           type: string
+        exact_location:
+          oneOf:
+          - $ref: '#/components/schemas/ExactLocation'
+          - type: 'null'
       required:
       - address
       - city
       - city_id
       - district
       - district_id
+      - exact_location
       - neighborhood
       - neighborhood_id
     LocationSuggestion:
@@ -2428,6 +2468,8 @@ components:
           $ref: '#/components/schemas/FeatureStateEnum'
         operator_location_notes:
           type: string
+        exact_location:
+          $ref: '#/components/schemas/ExactLocation'
     NullEnum:
       type: 'null'
     OperatorCapabilitiesEnum:
@@ -2656,6 +2698,14 @@ components:
           type: string
       required:
       - phone
+    PrecisionEnum:
+      enum:
+      - approximate
+      - neighborhood
+      type: string
+      description: |-
+        * `approximate` - approximate
+        * `neighborhood` - neighborhood
     PrivacyActionTypeEnum:
       enum:
       - defensive_contact_removal
@@ -2726,6 +2776,10 @@ components:
           type: string
         location:
           $ref: '#/components/schemas/Location'
+        approximate_location:
+          oneOf:
+          - $ref: '#/components/schemas/ApproximateLocation'
+          - type: 'null'
         property_category:
           $ref: '#/components/schemas/PropertyCategoryEnum'
         property_category_label:
@@ -2765,6 +2819,7 @@ components:
           items:
             $ref: '#/components/schemas/ListingPublic'
       required:
+      - approximate_location
       - area_sqm
       - canonical_slug
       - construction_year
@@ -2881,6 +2936,11 @@ components:
           allOf:
           - $ref: '#/components/schemas/Location'
           readOnly: true
+        approximate_location:
+          oneOf:
+          - $ref: '#/components/schemas/ApproximateLocation'
+          - type: 'null'
+          readOnly: true
         property_category:
           $ref: '#/components/schemas/PropertyCategoryEnum'
         property_category_label:
@@ -2907,6 +2967,7 @@ components:
           type: string
           format: date-time
       required:
+      - approximate_location
       - area_sqm
       - availability_confirmed_at
       - canonical_slug

@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { locationAutocompleteQueryOptions } from "@/features/catalog/queries";
+import { ExactLocationPicker } from "@/features/map/ExactLocationPicker";
 import { normalizeNumericEntry } from "@/features/catalog/numeric-entry";
 import {
   propertyCategoryForType,
@@ -159,6 +160,14 @@ function LocationFields({
   const [selectedId, setSelectedId] = useState(
     submission.location?.neighborhood_id ?? "",
   );
+  const [exactLocation, setExactLocation] = useState(
+    submission.location?.exact_location
+      ? {
+          latitude: Number(submission.location.exact_location.latitude),
+          longitude: Number(submission.location.exact_location.longitude),
+        }
+      : null,
+  );
   const suggestions = useQuery(locationAutocompleteQueryOptions(query));
   const neighborhoodError = fieldMessage(
     validation,
@@ -222,6 +231,20 @@ function LocationFields({
         />
         <FieldError id="address-error" message={addressError} />
       </div>
+      <ExactLocationPicker
+        value={exactLocation ?? { latitude: 35.7219, longitude: 51.3347 }}
+        onChange={setExactLocation}
+      />
+      <input
+        name="exact_latitude"
+        type="hidden"
+        value={exactLocation?.latitude ?? ""}
+      />
+      <input
+        name="exact_longitude"
+        type="hidden"
+        value={exactLocation?.longitude ?? ""}
+      />
     </div>
   );
 }
@@ -633,11 +656,21 @@ function stepPayload(
 ): SubmissionStepUpdate | null {
   if (step === "images") return { completed_step: "images" };
   if (step === "location") {
+    const latitude = numericValue(form, "exact_latitude");
+    const longitude = numericValue(form, "exact_longitude");
     return {
       completed_step: step,
       location: {
         neighborhood_id: formValue(form, "neighborhood_id"),
         address: formValue(form, "address"),
+        ...(!Number.isNaN(latitude) && !Number.isNaN(longitude)
+          ? {
+              exact_location: {
+                latitude: String(latitude),
+                longitude: String(longitude),
+              },
+            }
+          : {}),
       },
     };
   }
