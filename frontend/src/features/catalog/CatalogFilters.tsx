@@ -110,9 +110,13 @@ function ChoiceField({
         className={selectClassName}
         id={`${prefix}-${name}`}
         name={name}
-        defaultValue={searchParams.get(name) ?? ""}
+        defaultValue={
+          searchParams.get(name) ?? (name === "ordering" ? "newest" : "")
+        }
       >
-        <option value="">همه</option>
+        <option value={name === "ordering" ? "newest" : ""}>
+          {name === "ordering" ? "جدیدترین" : "همه"}
+        </option>
         {options.map(([value, optionLabel]) => (
           <option key={value} value={value}>
             {optionLabel}
@@ -239,10 +243,10 @@ export function CatalogFilters({
         searchParams={searchParams}
         name="ordering"
         options={[
-          ["freshness", "تازه‌ترین"],
           ["monthly_rent", "کمترین اجاره ماهانه"],
           ["deposit", "کمترین ودیعه"],
-          ["area", "کمترین متراژ"],
+          ["area_desc", "بیشترین متراژ"],
+          ["area_asc", "کمترین متراژ"],
         ]}
       />
       <Button className="w-full" type="submit">
