@@ -1,5 +1,6 @@
 import uuid
 from datetime import timedelta
+from pathlib import Path
 
 import pytest
 from django.contrib import admin
@@ -14,6 +15,7 @@ from rest_framework.test import APIClient
 from apps.accounts.models import User
 from apps.catalog.admin import RentalTermsAdminForm
 from apps.catalog.models import (
+    PROPERTY_TYPES_BY_CATEGORY,
     City,
     District,
     FeatureState,
@@ -21,6 +23,7 @@ from apps.catalog.models import (
     ListingState,
     Neighborhood,
     Property,
+    PropertyCategory,
     PropertyType,
     RentalTerms,
     Source,
@@ -32,6 +35,18 @@ from apps.catalog.services import (
     regroup_listing,
     split_listing,
 )
+from apps.catalog.taxonomy_codegen import render_property_taxonomy_module
+
+
+def test_frontend_property_taxonomy_is_generated_from_the_catalog_mapping(tmp_path: Path):
+    output = tmp_path / "property-taxonomy.ts"
+
+    call_command("generate_property_taxonomy", output=output)
+
+    generated = output.read_text(encoding="utf-8")
+    assert generated == render_property_taxonomy_module()
+    assert '"types": [\n      "apartment",\n      "house",\n      "villa"' in generated
+    assert '"types": [\n      "office"' in generated
 
 
 @pytest.mark.django_db
@@ -68,7 +83,15 @@ def test_catalog_uses_uuid_identity_and_preserves_unknown_feature_states():
     assert property_.storage == FeatureState.UNKNOWN
     assert property_.balcony == FeatureState.UNKNOWN
     assert property_.furnished == FeatureState.UNKNOWN
-    assert set(PropertyType.values) == {"apartment", "house", "villa"}
+    assert set(PropertyType.values) == {"apartment", "house", "villa", "office"}
+    assert PROPERTY_TYPES_BY_CATEGORY == {
+        PropertyCategory.RESIDENTIAL: (
+            PropertyType.APARTMENT,
+            PropertyType.HOUSE,
+            PropertyType.VILLA,
+        ),
+        PropertyCategory.COMMERCIAL: (PropertyType.OFFICE,),
+    }
 
 
 @pytest.mark.django_db
@@ -232,6 +255,71 @@ def test_anonymous_renter_retrieves_property_only_through_an_active_listing(
 
 
 @pytest.mark.django_db
+def test_renter_can_find_and_open_a_published_office_without_a_room_count(
+    api_client: APIClient,
+):
+    call_command("loaddata", "catalog_seed", verbosity=0)
+    neighborhood = Neighborhood.objects.get(name_fa="سعادت‌آباد")
+    office = Property.objects.create(
+        city=neighborhood.district.city,
+        district=neighborhood.district,
+        neighborhood=neighborhood,
+        property_type="office",
+        area_sqm=95,
+    )
+    listing = Listing.objects.create(
+        property=office,
+        source=Source.objects.get(is_builtin=True),
+        terms=RentalTerms.objects.create(
+            deposit_rial=8_000_000_000,
+            monthly_rent_rial=300_000_000,
+        ),
+        direct_phone="۰۹۱۲۱۲۳۴۵۶۷",
+        description="دفتر اداری مناسب شرکت",
+    )
+
+    publish_listing(listing)
+    search = api_client.get("/api/v1/catalog/properties/", {"property_type": "office"})
+    detail = api_client.get(f"/api/v1/catalog/properties/{office.id}/")
+
+    assert search.status_code == 200
+    assert search.data["count"] == 1
+    assert search.data["results"][0] == {
+        "id": str(office.id),
+        "title": "دفتر اداری در سعادت‌آباد",
+        "canonical_slug": "دفتر-اداری-در-سعادتآباد",
+        "location": {
+            "city": "تهران",
+            "district": "منطقه ۲",
+            "district_number": 2,
+            "neighborhood": "سعادت‌آباد",
+        },
+        "property_category": "commercial",
+        "property_category_label": "تجاری",
+        "property_type": "office",
+        "property_type_label": "دفتر اداری",
+        "area_sqm": 95,
+        "construction_year": None,
+        "listing_count": 1,
+        "rental_terms": {
+            "deposit_rial": 8_000_000_000,
+            "monthly_rent_rial": 300_000_000,
+            "currency": "IRR",
+            "deposit_toman": 800_000_000,
+            "monthly_rent_toman": 30_000_000,
+        },
+        "availability_confirmed_at": search.data["results"][0]["availability_confirmed_at"],
+    }
+    assert detail.status_code == 200
+    assert detail.data["property_category"] == "commercial"
+    assert detail.data["property_category_label"] == "تجاری"
+    assert detail.data["property_type"] == "office"
+    assert detail.data["property_type_label"] == "دفتر اداری"
+    assert "room_count" not in search.data["results"][0]
+    assert "room_count" not in detail.data
+
+
+@pytest.mark.django_db
 def test_anonymous_renter_autocompletes_tehran_locations_with_tolerant_persian_input(
     api_client: APIClient,
 ):
@@ -348,6 +436,8 @@ def test_property_search_groups_active_listings_and_uses_the_freshest_terms(
                 "district_number": 2,
                 "neighborhood": "سعادت‌آباد",
             },
+            "property_category": "residential",
+            "property_category_label": "مسکونی",
             "property_type": "apartment",
             "property_type_label": "آپارتمان",
             "area_sqm": 110,

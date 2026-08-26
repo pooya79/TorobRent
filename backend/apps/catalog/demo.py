@@ -77,15 +77,16 @@ def _seed_properties() -> list[Property]:
     feature_states = tuple(FeatureState.values)
     property_types = tuple(PropertyType.values)
     for index, neighborhood in enumerate(neighborhoods, start=1):
+        property_type = property_types[(index - 1) % len(property_types)]
         property_, _created = Property.objects.get_or_create(
             id=demo_id(DemoFixtureKind.PROPERTY, index),
             defaults={
                 "city_id": TEHRAN_CITY_ID,
                 "district": neighborhood.district,
                 "neighborhood": neighborhood,
-                "property_type": property_types[(index - 1) % len(property_types)],
+                "property_type": property_type,
                 "area_sqm": 45 + index * 2,
-                "room_count": (index - 1) % 5,
+                "room_count": (None if property_type == PropertyType.OFFICE else (index - 1) % 5),
                 "construction_year": 1380 + index % 25,
                 "floor": index % 8,
                 "total_floors": 8,

@@ -37,6 +37,7 @@ import {
   CatalogSearchError,
   propertySearchQueryOptions,
 } from "@/features/catalog/queries";
+import { roomCountLabels } from "@/features/catalog/property-taxonomy";
 import type { components } from "@/lib/api/schema";
 
 type PropertySummary = components["schemas"]["PropertySummary"];
@@ -51,13 +52,35 @@ function formatFreshness(value: string) {
   }).format(new Date(value));
 }
 
+function resultsPageCopy(propertyType: string | null) {
+  if (propertyType === "office") {
+    return {
+      heading: "دفترهای اداری اجاره‌ای",
+      title: "دفترهای اداری اجاره‌ای در تهران | ترب‌رنت",
+      description: "جست‌وجو، فیلتر و مقایسه دفترهای اداری اجاره‌ای در تهران.",
+    };
+  }
+  if (propertyType) {
+    return {
+      heading: "خانه‌های اجاره‌ای",
+      title: "خانه‌های اجاره‌ای در تهران | ترب‌رنت",
+      description: "جست‌وجو، فیلتر و مقایسه آگهی‌های اجاره خانه در تهران.",
+    };
+  }
+  return {
+    heading: "ملک‌های اجاره‌ای",
+    title: "ملک‌های اجاره‌ای در تهران | ترب‌رنت",
+    description: "جست‌وجو، فیلتر و مقایسه ملک‌های اجاره‌ای در تهران.",
+  };
+}
+
 export function meta({ location }: { location?: { search: string } } = {}) {
+  const copy = resultsPageCopy(
+    new URLSearchParams(location?.search).get("property_type"),
+  );
   return [
-    { title: "خانه‌های اجاره‌ای در تهران | ترب‌رنت" },
-    {
-      name: "description",
-      content: "جست‌وجو، فیلتر و مقایسه آگهی‌های اجاره خانه در تهران.",
-    },
+    { title: copy.title },
+    { name: "description", content: copy.description },
     ...(location?.search
       ? [{ name: "robots", content: "noindex, follow" }]
       : []),
@@ -70,7 +93,9 @@ function toCardData(
 ): PropertyCardData {
   const facts = [
     `${formatNumber(property.area_sqm)} متر`,
-    `${formatNumber(property.room_count)} خواب`,
+    property.room_count === null || property.room_count === undefined
+      ? null
+      : `${formatNumber(property.room_count)} ${roomCountLabels[property.property_category].fact}`,
     property.construction_year === null
       ? null
       : `ساخت ${formatNumber(property.construction_year)}`,
@@ -123,6 +148,7 @@ export function ResultsPage() {
     searchParams.get("location_label") ||
     searchParams.get("location") ||
     "تهران";
+  const resultsCopy = resultsPageCopy(searchParams.get("property_type"));
   const hrefForPage = (page: number) => {
     const next = new URLSearchParams(searchParams);
     next.set("page", String(page));
@@ -158,7 +184,7 @@ export function ResultsPage() {
               : "جست‌وجوی ملک‌ها"}
           </p>
           <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-            خانه‌های اجاره‌ای در {location}
+            {resultsCopy.heading} در {location}
           </h1>
         </div>
         <Sheet open={filtersOpen} onOpenChange={setFiltersOpen}>

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { ArrowRight, Building2, Clock3, MapPin } from "lucide-react";
 
 import { PageMain } from "@/components/layout/PageMain";
+import { roomCountLabels } from "@/features/catalog/property-taxonomy";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -155,7 +156,9 @@ export function PropertyDetailPage({
   ].join("، ");
   const facts = [
     `${formatNumber(property.area_sqm)} متر`,
-    `${formatNumber(property.room_count)} خواب`,
+    property.room_count === null || property.room_count === undefined
+      ? null
+      : `${formatNumber(property.room_count)} ${roomCountLabels[property.property_category].fact}`,
     property.floor === null ? null : `طبقه ${formatNumber(property.floor)}`,
     property.construction_year === null
       ? null

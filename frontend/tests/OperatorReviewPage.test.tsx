@@ -31,7 +31,10 @@ const pendingSubmission = {
     address: "بلوار دریا",
   },
   property_facts: {
+    property_category: "residential",
+    property_category_label: "مسکونی",
     property_type: "apartment",
+    property_type_label: "آپارتمان",
     area_sqm: 110,
     room_count: 2,
     construction_year: 1400,
@@ -160,6 +163,26 @@ test("loads the real Operator queue and requires a reason for changes", async ()
   await user.click(screen.getByRole("button", { name: "ارسال درخواست اصلاح" }));
 
   await waitFor(() => expect(reason).toBe("شماره تماس را اصلاح کنید."));
+});
+
+test("displays an Office with its derived category and optional room count", async () => {
+  serveSubmission({
+    ...pendingSubmission,
+    property_facts: {
+      ...pendingSubmission.property_facts,
+      property_category: "commercial",
+      property_category_label: "تجاری",
+      property_type: "office",
+      property_type_label: "دفتر اداری",
+      room_count: null,
+    },
+  });
+
+  renderPage();
+
+  expect(await screen.findByText("دفتر اداری")).toBeVisible();
+  expect(screen.getByText("تجاری")).toBeVisible();
+  expect(screen.queryByText(/خواب/)).not.toBeInTheDocument();
 });
 
 test("shows the permission state when the review API denies access", async () => {

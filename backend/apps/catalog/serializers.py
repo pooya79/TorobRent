@@ -3,7 +3,14 @@ from typing import Any, cast
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
-from .models import FeatureState, Listing, OutboundPolicy, Property, PropertyType
+from .models import (
+    FeatureState,
+    Listing,
+    OutboundPolicy,
+    Property,
+    PropertyCategory,
+    PropertyType,
+)
 from .money import parse_localized_integer, rial_to_toman, toman_to_rial
 from .selectors import PropertySearchFilters, SearchOrdering
 
@@ -38,6 +45,14 @@ class LocalizedIntegerField(serializers.IntegerField):
             except ValueError:
                 self.fail("invalid")
         return super().to_internal_value(data)
+
+
+class OmitNullIntegerField(serializers.IntegerField):
+    def get_attribute(self, instance: Any) -> Any:
+        value = super().get_attribute(instance)
+        if value is None:
+            raise serializers.SkipField
+        return value
 
 
 class TomanRialField(LocalizedIntegerField):
@@ -127,10 +142,12 @@ class PropertySummarySerializer(serializers.Serializer[Any]):
     title = serializers.CharField()
     canonical_slug = serializers.CharField()
     location = serializers.SerializerMethodField()
+    property_category = serializers.ChoiceField(choices=PropertyCategory.choices)
+    property_category_label = serializers.CharField()
     property_type = serializers.ChoiceField(choices=PropertyType.choices)
     property_type_label = serializers.CharField(source="get_property_type_display")
     area_sqm = serializers.IntegerField()
-    room_count = serializers.IntegerField()
+    room_count = OmitNullIntegerField(required=False)
     construction_year = serializers.IntegerField(allow_null=True)
     listing_count = serializers.IntegerField()
     rental_terms = serializers.SerializerMethodField()
@@ -186,10 +203,12 @@ class PropertyDetailSerializer(serializers.Serializer[Any]):
     title = serializers.CharField()
     canonical_slug = serializers.CharField()
     location = LocationSerializer()
+    property_category = serializers.ChoiceField(choices=PropertyCategory.choices)
+    property_category_label = serializers.CharField()
     property_type = serializers.ChoiceField(choices=PropertyType.choices)
     property_type_label = serializers.CharField()
     area_sqm = serializers.IntegerField()
-    room_count = serializers.IntegerField()
+    room_count = OmitNullIntegerField(required=False)
     construction_year = serializers.IntegerField(allow_null=True)
     floor = serializers.IntegerField(allow_null=True)
     total_floors = serializers.IntegerField(allow_null=True)
@@ -265,6 +284,8 @@ def property_detail_data(property_: Property, listings: list[Listing]) -> dict[s
             "district_number": district.number,
             "neighborhood": neighborhood.name_fa,
         },
+        "property_category": property_.property_category,
+        "property_category_label": property_.property_category_label,
         "property_type": property_.property_type,
         "property_type_label": property_.get_property_type_display(),
         "area_sqm": property_.area_sqm,

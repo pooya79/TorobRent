@@ -14,10 +14,38 @@ from .money import rial_to_toman
 TEHRAN_CITY_ID = uuid.UUID("11111111-1111-4111-8111-111111111111")
 
 
+class PropertyCategory(models.TextChoices):
+    RESIDENTIAL = "residential", "مسکونی"
+    COMMERCIAL = "commercial", "تجاری"
+
+
 class PropertyType(models.TextChoices):
     APARTMENT = "apartment", "آپارتمان"
     HOUSE = "house", "خانه"
     VILLA = "villa", "ویلا"
+    OFFICE = "office", "دفتر اداری"
+
+
+PROPERTY_TYPES_BY_CATEGORY: dict[PropertyCategory, tuple[PropertyType, ...]] = {
+    PropertyCategory.RESIDENTIAL: (
+        PropertyType.APARTMENT,
+        PropertyType.HOUSE,
+        PropertyType.VILLA,
+    ),
+    PropertyCategory.COMMERCIAL: (PropertyType.OFFICE,),
+}
+
+
+def property_category_for_type(property_type: str | PropertyType) -> PropertyCategory:
+    normalized_type = PropertyType(property_type)
+    for category, property_types in PROPERTY_TYPES_BY_CATEGORY.items():
+        if normalized_type in property_types:
+            return category
+    raise ValueError(f"Property Type {normalized_type!r} has no Property Category")
+
+
+def property_type_requires_room_count(property_type: str | PropertyType) -> bool:
+    return property_category_for_type(property_type) == PropertyCategory.RESIDENTIAL
 
 
 class FeatureState(models.TextChoices):
@@ -159,7 +187,11 @@ class Property(models.Model):
                 errors[field] = "این مقدار برای انتشار الزامی است."
         if self.area_sqm is not None and self.area_sqm == 0:
             errors["area_sqm"] = "متراژ باید بیشتر از صفر باشد."
-        if self.room_count is None:
+        if (
+            self.room_count is None
+            and self.property_type in PropertyType.values
+            and property_type_requires_room_count(self.property_type)
+        ):
             errors["room_count"] = "این مقدار برای انتشار الزامی است."
         district = self.district
         neighborhood = self.neighborhood
@@ -186,6 +218,14 @@ class Property(models.Model):
         if neighborhood is None:
             return str(property_type)
         return f"{property_type} در {neighborhood.name_fa}"
+
+    @property
+    def property_category(self) -> PropertyCategory:
+        return property_category_for_type(self.property_type)
+
+    @property
+    def property_category_label(self) -> str:
+        return self.property_category.label
 
     @property
     def canonical_slug(self) -> str:

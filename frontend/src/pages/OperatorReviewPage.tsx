@@ -48,6 +48,11 @@ import {
   notificationStatusLabel,
 } from "@/features/submissions/notification";
 import { ApiError, errorMessage } from "@/lib/api/errors";
+import {
+  propertyTypeGroups,
+  propertyTypeLabels,
+  roomCountLabels,
+} from "@/features/catalog/property-taxonomy";
 
 type NormalizedProperty = NonNullable<
   SubmissionApproval["normalized_property"]
@@ -557,12 +562,37 @@ export function OperatorReviewPage() {
             <CardContent className="space-y-6">
               <dl className="grid gap-4 text-sm sm:grid-cols-2">
                 <div className="bg-muted rounded-lg p-4">
+                  <dt>نوع و دسته ملک</dt>
+                  <dd className="font-semibold">
+                    {selected.property_facts?.property_type_label}
+                  </dd>
+                  <dd className="text-muted-foreground mt-1">
+                    {selected.property_facts?.property_category_label}
+                  </dd>
+                </div>
+                <div className="bg-muted rounded-lg p-4">
                   <dt>متراژ</dt>
                   <dd className="font-semibold">
                     {selected.property_facts?.area_sqm.toLocaleString("fa-IR")}{" "}
                     متر
                   </dd>
                 </div>
+                {selected.property_facts?.room_count != null && (
+                  <div className="bg-muted rounded-lg p-4">
+                    <dt>
+                      {
+                        roomCountLabels[
+                          selected.property_facts.property_category
+                        ].field
+                      }
+                    </dt>
+                    <dd className="font-semibold">
+                      {selected.property_facts.room_count.toLocaleString(
+                        "fa-IR",
+                      )}
+                    </dd>
+                  </div>
+                )}
                 <div className="bg-muted rounded-lg p-4">
                   <dt>شرایط اجاره</dt>
                   <dd className="font-semibold">
@@ -705,9 +735,18 @@ export function OperatorReviewPage() {
                               }
                             >
                               <option value="">بدون تغییر</option>
-                              <option value="apartment">آپارتمان</option>
-                              <option value="house">خانه</option>
-                              <option value="villa">ویلا</option>
+                              {propertyTypeGroups.map((group) => (
+                                <optgroup
+                                  key={group.category}
+                                  label={group.label}
+                                >
+                                  {group.types.map((type) => (
+                                    <option key={type} value={type}>
+                                      {propertyTypeLabels[type]}
+                                    </option>
+                                  ))}
+                                </optgroup>
+                              ))}
                             </select>
                           </Label>
                           {numericCorrectionFields.map((field) => (

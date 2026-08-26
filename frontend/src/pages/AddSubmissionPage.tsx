@@ -14,6 +14,13 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { locationAutocompleteQueryOptions } from "@/features/catalog/queries";
 import { normalizeNumericEntry } from "@/features/catalog/numeric-entry";
 import {
+  propertyCategoryForType,
+  propertyTypeGroups,
+  propertyTypeLabels,
+  roomCountLabels,
+  type PropertyType,
+} from "@/features/catalog/property-taxonomy";
+import {
   SubmissionImagesFields,
   submissionImagePreview,
 } from "@/features/submissions/SubmissionImagesFields";
@@ -227,6 +234,13 @@ function PropertyFactsFields({
   validation?: ValidationState;
 }) {
   const facts = submission.property_facts;
+  const [propertyType, setPropertyType] = useState<PropertyType>(
+    facts?.property_type ?? "apartment",
+  );
+  const propertyCategory = propertyCategoryForType(propertyType);
+  const roomCountLabel = `${roomCountLabels[propertyCategory].field}${
+    propertyCategory === "commercial" ? " (اختیاری)" : ""
+  }`;
   const typeError = fieldMessage(validation, "property_facts.property_type");
   const areaError = fieldMessage(validation, "property_facts.area_sqm");
   const roomsError = fieldMessage(validation, "property_facts.room_count");
@@ -244,13 +258,22 @@ function PropertyFactsFields({
         <select
           className="border-input bg-background min-h-11 w-full rounded-md border px-3"
           name="property_type"
-          defaultValue={facts?.property_type ?? "apartment"}
+          value={propertyType}
+          onChange={(event) =>
+            setPropertyType(event.target.value as PropertyType)
+          }
           aria-invalid={Boolean(typeError)}
           aria-describedby={typeError ? "property-type-error" : undefined}
         >
-          <option value="apartment">آپارتمان</option>
-          <option value="house">خانه</option>
-          <option value="villa">ویلا</option>
+          {propertyTypeGroups.map((group) => (
+            <optgroup key={group.category} label={group.label}>
+              {group.types.map((type) => (
+                <option key={type} value={type}>
+                  {propertyTypeLabels[type]}
+                </option>
+              ))}
+            </optgroup>
+          ))}
         </select>
         <FieldError id="property-type-error" message={typeError} />
       </Label>
@@ -267,12 +290,12 @@ function PropertyFactsFields({
         <FieldError id="area-error" message={areaError} />
       </div>
       <Label className="space-y-2">
-        <span>تعداد اتاق خواب</span>
+        <span>{roomCountLabel}</span>
         <Input
           name="room_count"
-          aria-label="تعداد اتاق خواب"
+          aria-label={roomCountLabel}
           inputMode="numeric"
-          defaultValue={facts?.room_count}
+          defaultValue={facts?.room_count ?? ""}
           aria-invalid={Boolean(roomsError)}
           aria-describedby={roomsError ? "rooms-error" : undefined}
         />
@@ -626,9 +649,9 @@ function stepPayload(
     return {
       completed_step: step,
       property_facts: {
-        property_type: formValue(form, "property_type") as "apartment",
+        property_type: formValue(form, "property_type") as PropertyType,
         area_sqm: numericValue(form, "area_sqm"),
-        room_count: numericValue(form, "room_count"),
+        room_count: optionalNumber("room_count"),
         construction_year: optionalNumber("construction_year"),
         floor: optionalNumber("floor"),
         total_floors: optionalNumber("total_floors"),

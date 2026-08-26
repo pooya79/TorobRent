@@ -88,6 +88,56 @@ def test_verified_submitter_can_create_an_owner_draft(api_client: APIClient):
 
 
 @pytest.mark.django_db
+def test_submission_validation_accepts_office_without_rooms_and_preserves_residential_rule(
+    api_client: APIClient,
+):
+    submitter = User.objects.create_user(
+        email="office-owner@example.com",
+        password="correct-horse-battery",
+        email_verified_at=timezone.now(),
+    )
+    submission_id = create_draft(api_client, submitter)
+    detail_url = f"/api/v1/submissions/{submission_id}/"
+
+    office = api_client.patch(
+        detail_url,
+        {
+            "completed_step": "property_facts",
+            "property_facts": {
+                "property_type": "office",
+                "area_sqm": 95,
+                "room_count": None,
+            },
+        },
+        format="json",
+    )
+    apartment = api_client.patch(
+        detail_url,
+        {
+            "completed_step": "property_facts",
+            "property_facts": {"property_type": "apartment", "area_sqm": 95},
+        },
+        format="json",
+    )
+
+    assert office.status_code == 200, office.data
+    assert office.data["property_facts"] == {
+        "property_category": "commercial",
+        "property_category_label": "تجاری",
+        "property_type": "office",
+        "property_type_label": "دفتر اداری",
+        "area_sqm": 95,
+        "room_count": None,
+        "construction_year": None,
+        "floor": None,
+        "total_floors": None,
+        "units_per_floor": None,
+    }
+    assert apartment.status_code == 400
+    assert "property_facts.room_count" in apartment.data["errors"]
+
+
+@pytest.mark.django_db
 def test_submitter_can_save_and_resume_the_complete_draft_flow(
     api_client: APIClient, django_capture_on_commit_callbacks
 ):

@@ -69,11 +69,13 @@ api-schema:
 	cd backend && uv run python manage.py spectacular --settings=config.settings.test --file ../contracts/openapi.yaml --validate
 
 api-client: api-schema
+	cd backend && uv run python manage.py generate_property_taxonomy --output ../frontend/src/features/catalog/property-taxonomy.ts
+	cd frontend && pnpm exec prettier --write src/features/catalog/property-taxonomy.ts
 	cd frontend && pnpm api:generate
 
 api-check: api-client
 	cd frontend && pnpm api:lint
-	git diff --exit-code -- contracts/openapi.yaml frontend/src/lib/api/schema.d.ts
+	git diff --exit-code -- contracts/openapi.yaml frontend/src/lib/api/schema.d.ts frontend/src/features/catalog/property-taxonomy.ts
 
 test-backend:
 	cd backend && uv run pytest --cov --cov-report=term-missing

@@ -94,6 +94,49 @@ test("attaches localized validation to the relevant field and preserves valid in
   expect(screen.getByLabelText("تعداد اتاق خواب")).toHaveValue("۲");
 });
 
+test("accepts an Office without room count and uses commercial wording", async () => {
+  const user = userEvent.setup();
+  let savedBody: unknown;
+  server.use(
+    http.get("*/api/v1/submissions/:id/", () =>
+      HttpResponse.json({ ...draft, current_step: "property_facts" }),
+    ),
+    http.patch("*/api/v1/submissions/:id/", async ({ request }) => {
+      savedBody = await request.json();
+      return HttpResponse.json({
+        ...draft,
+        current_step: "rental_terms",
+        property_facts: {
+          property_category: "commercial",
+          property_category_label: "تجاری",
+          property_type: "office",
+          area_sqm: 95,
+          room_count: null,
+        },
+      });
+    }),
+  );
+  renderPage(`/add-submission?submission=${draft.id}&step=property_facts`);
+
+  await user.selectOptions(await screen.findByLabelText("نوع ملک"), "office");
+  expect(
+    screen.getByLabelText("تعداد اتاق یا پارتیشن (اختیاری)"),
+  ).toBeVisible();
+  await user.type(screen.getByLabelText("متراژ"), "۹۵");
+  await user.click(screen.getByRole("button", { name: "ذخیره و ادامه" }));
+
+  await waitFor(() =>
+    expect(savedBody).toMatchObject({
+      completed_step: "property_facts",
+      property_facts: {
+        property_type: "office",
+        area_sqm: 95,
+        room_count: null,
+      },
+    }),
+  );
+});
+
 test("normalizes Persian Toman input before saving and resumes at the next step", async () => {
   const user = userEvent.setup();
   let savedBody: unknown;
@@ -141,12 +184,12 @@ test("attaches server validation to the field that failed", async () => {
     http.patch("*/api/v1/submissions/:id/", () =>
       HttpResponse.json(
         {
-          detail: "تعداد اتاق خواب نامعتبر است.",
+          detail: "تعداد اتاق نامعتبر است.",
           errors: {
             "property_facts.room_count": [
               {
                 code: "min_value",
-                message: "تعداد اتاق خواب نمی‌تواند منفی باشد.",
+                message: "تعداد اتاق نمی‌تواند منفی باشد.",
               },
             ],
           },
@@ -162,7 +205,7 @@ test("attaches server validation to the field that failed", async () => {
   await user.click(screen.getByRole("button", { name: "ذخیره و ادامه" }));
 
   expect(
-    (await screen.findAllByText("تعداد اتاق خواب نمی‌تواند منفی باشد."))[0],
+    (await screen.findAllByText("تعداد اتاق نمی‌تواند منفی باشد."))[0],
   ).toBeVisible();
   expect(screen.getByLabelText("تعداد اتاق خواب")).toHaveAttribute(
     "aria-invalid",
