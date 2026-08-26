@@ -499,16 +499,24 @@ paths:
         name: ordering
         schema:
           enum:
-          - freshness
+          - newest
           - monthly_rent
           - deposit
+          - area_desc
+          - area_asc
+          - freshness
           - area
           type: string
           minLength: 1
         description: |-
-          * `freshness` - freshness
+          Use the five canonical sort modes. `freshness` and `area` remain supported as deprecated aliases for `newest` and `area_asc`.
+
+          * `newest` - newest
           * `monthly_rent` - monthly_rent
           * `deposit` - deposit
+          * `area_desc` - area_desc
+          * `area_asc` - area_asc
+          * `freshness` - freshness
           * `area` - area
       - in: query
         name: page
@@ -3008,6 +3016,21 @@ components:
       - property_type
       - property_type_label
       - room_count
+    PropertyImageSummary:
+      type: object
+      properties:
+        url:
+          type: string
+        width:
+          type: integer
+          minimum: 1
+        height:
+          type: integer
+          minimum: 1
+      required:
+      - height
+      - url
+      - width
     PropertySearchPage:
       type: object
       properties:
@@ -3071,6 +3094,11 @@ components:
           type:
           - integer
           - 'null'
+        primary_image:
+          oneOf:
+          - $ref: '#/components/schemas/PropertyImageSummary'
+          - type: 'null'
+          readOnly: true
         listing_count:
           type: integer
         is_favorite:
@@ -3091,6 +3119,7 @@ components:
       - id
       - listing_count
       - location
+      - primary_image
       - property_category
       - property_category_label
       - property_type

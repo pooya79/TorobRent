@@ -57,12 +57,6 @@ function formatNumber(value: number) {
   return new Intl.NumberFormat("fa-IR").format(value);
 }
 
-function formatFreshness(value: string) {
-  return new Intl.DateTimeFormat("fa-IR-u-ca-persian", {
-    dateStyle: "medium",
-  }).format(new Date(value));
-}
-
 const commercialResultsHeadings = {
   office: "دفترهای اداری اجاره‌ای",
   shop: "مغازه‌های اجاره‌ای",
@@ -121,30 +115,29 @@ function toCardData(
   searchParams: URLSearchParams,
 ): PropertyCardData {
   const facts = [
+    property.property_type_label,
     `${formatNumber(property.area_sqm)} متر`,
     property.room_count === null || property.room_count === undefined
       ? null
       : `${formatNumber(property.room_count)} ${roomCountLabels[property.property_category].fact}`,
-    property.construction_year === null
-      ? null
-      : `ساخت ${formatNumber(property.construction_year)}`,
   ].filter((fact): fact is string => fact !== null);
   return {
     id: property.id,
     title: property.title,
-    location: [
-      property.location.neighborhood,
-      property.location.district,
-      property.location.city,
-    ].join("، "),
+    location: property.location.neighborhood,
+    propertyTypeLabel: property.property_type_label,
     facts,
+    image: property.primary_image ?? undefined,
     isFavorite: property.is_favorite ?? false,
     listingCountLabel: `${formatNumber(property.listing_count)} آگهی فعال`,
+    otherOffersLabel:
+      property.listing_count > 1
+        ? `${formatNumber(property.listing_count - 1)} پیشنهاد دیگر`
+        : undefined,
     rentalTerms: {
       depositLabel: `${formatNumber(property.rental_terms.deposit_toman)} تومان`,
       monthlyRentLabel: `${formatNumber(property.rental_terms.monthly_rent_toman)} تومان`,
     },
-    freshnessLabel: `آخرین تأیید موجودی: ${formatFreshness(property.availability_confirmed_at)}`,
     detailHref: `/properties/${property.id}?${new URLSearchParams({
       returnTo: `/search?${searchParams.toString()}`,
     }).toString()}`,
@@ -407,8 +400,8 @@ export function ResultsPage({ mapAdapter }: { mapAdapter?: MapAdapter }) {
                 <section
                   className={
                     mapAvailable
-                      ? "grid gap-x-5 gap-y-10 sm:grid-cols-2"
-                      : "grid gap-x-5 gap-y-10 sm:grid-cols-2 xl:grid-cols-3"
+                      ? "grid gap-x-4 gap-y-7 sm:grid-cols-[repeat(auto-fit,minmax(min(100%,16rem),1fr))]"
+                      : "grid gap-x-4 gap-y-7 sm:grid-cols-2 xl:grid-cols-3"
                   }
                   aria-label="ملک‌های پیدا شده"
                 >

@@ -4,7 +4,19 @@ from dataclasses import dataclass, replace
 from enum import StrEnum
 from typing import Any, Literal, cast
 
-from django.db.models import CharField, Count, Exists, OuterRef, Q, QuerySet, Subquery, Value
+from django.db.models import (
+    Case,
+    CharField,
+    Count,
+    Exists,
+    IntegerField,
+    OuterRef,
+    Q,
+    QuerySet,
+    Subquery,
+    Value,
+    When,
+)
 from django.db.models.functions import Replace
 
 from .models import (
@@ -17,6 +29,7 @@ from .models import (
     Neighborhood,
     Property,
     PropertyCategory,
+    PropertyImageVariant,
     PropertyType,
 )
 
@@ -52,7 +65,42 @@ class CatalogStatistics:
     covered_neighborhood_count: int
 
 
-type SearchOrdering = Literal["freshness", "monthly_rent", "deposit", "area"]
+class SearchOrdering(StrEnum):
+    NEWEST = "newest"
+    MONTHLY_RENT = "monthly_rent"
+    DEPOSIT = "deposit"
+    AREA_DESC = "area_desc"
+    AREA_ASC = "area_asc"
+
+
+@dataclass(frozen=True)
+class SearchOrderingSpec:
+    listing: tuple[str, ...]
+    property: tuple[str, ...]
+
+
+SEARCH_ORDERING_SPECS = {
+    SearchOrdering.NEWEST: SearchOrderingSpec(
+        listing=("-availability_confirmed_at", "id"),
+        property=("-selected_availability_confirmed_at", "id"),
+    ),
+    SearchOrdering.MONTHLY_RENT: SearchOrderingSpec(
+        listing=("terms__monthly_rent_rial", "id"),
+        property=("selected_monthly_rent_rial", "id"),
+    ),
+    SearchOrdering.DEPOSIT: SearchOrderingSpec(
+        listing=("terms__deposit_rial", "id"),
+        property=("selected_deposit_rial", "id"),
+    ),
+    SearchOrdering.AREA_DESC: SearchOrderingSpec(
+        listing=("-availability_confirmed_at", "id"),
+        property=("-area_sqm", "id"),
+    ),
+    SearchOrdering.AREA_ASC: SearchOrderingSpec(
+        listing=("-availability_confirmed_at", "id"),
+        property=("area_sqm", "id"),
+    ),
+}
 
 
 class BedroomCountRange(StrEnum):
@@ -79,7 +127,7 @@ class PropertySearchFilters:
     storage: str | None = None
     balcony: str | None = None
     furnished: str | None = None
-    ordering: SearchOrdering = "freshness"
+    ordering: SearchOrdering = SearchOrdering.NEWEST
 
 
 def normalize_persian_search(value: str) -> str:
@@ -189,13 +237,8 @@ def search_properties(
         lookup: value for lookup, value in listing_ranges.items() if value is not None
     })
 
-    listing_ordering = {
-        "freshness": ("-availability_confirmed_at", "id"),
-        "monthly_rent": ("terms__monthly_rent_rial", "id"),
-        "deposit": ("terms__deposit_rial", "id"),
-        "area": ("-availability_confirmed_at", "id"),
-    }[filters.ordering]
-    selected_listing = active_listings.order_by(*listing_ordering)
+    ordering_spec = SEARCH_ORDERING_SPECS[filters.ordering]
+    selected_listing = active_listings.order_by(*ordering_spec.listing)
     all_active_listings = Listing.objects.active().filter(property_id=OuterRef("pk"))
     active_listing_counts = (
         all_active_listings
@@ -203,6 +246,22 @@ def search_properties(
         .values("property_id")
         .annotate(total=Count("id"))
         .values("total")
+    )
+    primary_image_variant = (
+        PropertyImageVariant.objects
+        .filter(
+            image__property_id=OuterRef("pk"),
+            image__is_primary=True,
+        )
+        .annotate(
+            card_priority=Case(
+                When(kind="medium", then=0),
+                When(kind="large", then=1),
+                default=2,
+                output_field=IntegerField(),
+            )
+        )
+        .order_by("card_priority", "id")
     )
     properties = (
         Property.objects
@@ -219,6 +278,9 @@ def search_properties(
                 selected_listing.values("terms__monthly_rent_rial")[:1]
             ),
             selected_currency=Subquery(selected_listing.values("terms__currency")[:1]),
+            primary_image_file=Subquery(primary_image_variant.values("asset__file")[:1]),
+            primary_image_width=Subquery(primary_image_variant.values("asset__width")[:1]),
+            primary_image_height=Subquery(primary_image_variant.values("asset__height")[:1]),
         )
     )
     properties = properties.filter(selected_listing_id__isnull=False)
@@ -280,13 +342,7 @@ def search_properties(
                 Q(city_id=location_id) | Q(district_id=location_id) | Q(neighborhood_id=location_id)
             )
 
-    property_ordering = {
-        "freshness": ("-selected_availability_confirmed_at", "id"),
-        "monthly_rent": ("selected_monthly_rent_rial", "id"),
-        "deposit": ("selected_deposit_rial", "id"),
-        "area": ("area_sqm", "id"),
-    }[filters.ordering]
-    return properties.order_by(*property_ordering)
+    return properties.order_by(*ordering_spec.property)
 
 
 type FacetFeature = Literal["parking", "elevator", "storage", "furnished"]

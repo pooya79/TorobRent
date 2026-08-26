@@ -1,5 +1,6 @@
-from typing import Any, cast
+from typing import Any
 
+from django.core.files.storage import default_storage
 from drf_spectacular.utils import extend_schema_field, extend_schema_serializer
 from rest_framework import serializers
 
@@ -122,6 +123,23 @@ class BedroomCountQueryField(serializers.Field[Any, Any, Any, Any]):
         return value
 
 
+class SearchOrderingQueryField(serializers.ChoiceField):
+    legacy_aliases = {"freshness": SearchOrdering.NEWEST, "area": SearchOrdering.AREA_ASC}
+
+    def __init__(self, **kwargs: Any) -> None:
+        super().__init__(
+            choices=(*tuple(SearchOrdering), *self.legacy_aliases),
+            help_text=(
+                "Use the five canonical sort modes. `freshness` and `area` remain supported "
+                "as deprecated aliases for `newest` and `area_asc`."
+            ),
+            **kwargs,
+        )
+
+    def to_internal_value(self, data: Any) -> str:
+        return super().to_internal_value(self.legacy_aliases.get(data, data))
+
+
 class PropertySearchQuerySerializer(serializers.Serializer[Any]):
     location = serializers.CharField(required=False, allow_blank=True)
     property_category = serializers.ChoiceField(
@@ -151,9 +169,7 @@ class PropertySearchQuerySerializer(serializers.Serializer[Any]):
     storage = serializers.ChoiceField(required=False, choices=("present", "absent"))
     balcony = serializers.ChoiceField(required=False, choices=("present", "absent"))
     furnished = serializers.ChoiceField(required=False, choices=("present", "absent"))
-    ordering = serializers.ChoiceField(
-        required=False, choices=("freshness", "monthly_rent", "deposit", "area")
-    )
+    ordering = SearchOrderingQueryField(required=False)
     page = LocalizedIntegerField(required=False, min_value=1)
 
     def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
@@ -217,7 +233,7 @@ class PropertySearchQuerySerializer(serializers.Serializer[Any]):
             storage=data.get("storage"),
             balcony=data.get("balcony"),
             furnished=data.get("furnished"),
-            ordering=cast(SearchOrdering, data.get("ordering", "freshness")),
+            ordering=SearchOrdering(data.get("ordering", SearchOrdering.NEWEST)),
         )
 
 
@@ -234,6 +250,12 @@ class RentalTermsPublicSerializer(serializers.Serializer[Any]):
     currency = serializers.ChoiceField(choices=("IRR",))
     deposit_toman = serializers.IntegerField()
     monthly_rent_toman = serializers.IntegerField()
+
+
+class PropertyImageSummarySerializer(serializers.Serializer[Any]):
+    url = serializers.CharField()
+    width = serializers.IntegerField(min_value=1)
+    height = serializers.IntegerField(min_value=1)
 
 
 class SourceDisagreementSerializer(serializers.Serializer[Any]):
@@ -255,6 +277,7 @@ class PropertySummarySerializer(serializers.Serializer[Any]):
     area_sqm = serializers.IntegerField()
     room_count = OmitNullIntegerField(required=False)
     construction_year = serializers.IntegerField(allow_null=True)
+    primary_image = serializers.SerializerMethodField()
     listing_count = serializers.IntegerField()
     is_favorite = serializers.BooleanField(required=False)
     rental_terms = serializers.SerializerMethodField()
@@ -279,6 +302,17 @@ class PropertySummarySerializer(serializers.Serializer[Any]):
     @extend_schema_field(ApproximateLocationSerializer(allow_null=True))
     def get_approximate_location(self, property_: Property) -> dict[str, Any] | None:
         return approximate_location_data(property_)
+
+    @extend_schema_field(PropertyImageSummarySerializer(allow_null=True))
+    def get_primary_image(self, property_: Property) -> dict[str, Any] | None:
+        file_name = property_.primary_image_file  # type: ignore[attr-defined]
+        if not file_name:
+            return None
+        return {
+            "url": default_storage.url(str(file_name)),
+            "width": property_.primary_image_width,  # type: ignore[attr-defined]
+            "height": property_.primary_image_height,  # type: ignore[attr-defined]
+        }
 
     @extend_schema_field(RentalTermsPublicSerializer)
     def get_rental_terms(self, property_: Property) -> dict[str, Any]:

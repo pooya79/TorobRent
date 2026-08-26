@@ -640,7 +640,7 @@ test("presents each Property with normalized facts and freshest complete Rental 
     }),
   );
 
-  renderResults("/search?location=سعادت‌آباد");
+  renderResults("/search?location=سعادت‌آباد", createFakeMapAdapter());
 
   expect(
     await screen.findByRole("heading", { name: "آپارتمان در سعادت‌آباد" }),
@@ -653,9 +653,73 @@ test("presents each Property with normalized facts and freshest complete Rental 
   ).toBeVisible();
   expect(requestedLocation).toBe("سعادت‌آباد");
   expect(screen.getByText("۲ آگهی فعال")).toBeVisible();
-  expect(screen.getByText("۱۱۰ متر · ۲ خواب · ساخت ۱٬۴۰۰")).toBeVisible();
+  expect(screen.getByText("آپارتمان · ۱۱۰ متر · ۲ خواب")).toBeVisible();
+  expect(screen.getByText("۱ پیشنهاد دیگر")).toBeVisible();
   expect(screen.getByText("ودیعه ۱٬۰۰۰٬۰۰۰٬۰۰۰ تومان")).toBeVisible();
   expect(screen.getByText("اجاره ماهانه ۲۵٬۰۰۰٬۰۰۰ تومان")).toBeVisible();
+  expect(document.querySelector("img")).toHaveAttribute(
+    "src",
+    "/media/reviewed-media/property-primary.webp",
+  );
+  expect(
+    screen.getByRole("link", { name: "آپارتمان در سعادت‌آباد" }),
+  ).toHaveAttribute("href", expect.stringContaining("/properties/"));
+  expect(
+    screen.getByRole("button", {
+      name: "ذخیره آپارتمان در سعادت‌آباد در علاقه‌مندی‌ها",
+    }),
+  ).toBeVisible();
+  expect(screen.getByRole("region", { name: "ملک‌های پیدا شده" })).toHaveClass(
+    "sm:grid-cols-[repeat(auto-fit,minmax(min(100%,16rem),1fr))]",
+  );
+  const image = document.querySelector("img");
+  const heading = screen.getByRole("heading", {
+    name: "آپارتمان در سعادت‌آباد",
+  });
+  expect(image?.compareDocumentPosition(heading)).toBe(
+    Node.DOCUMENT_POSITION_FOLLOWING,
+  );
+});
+
+test("uses a Property Type placeholder and keeps a single Active Listing badge visible", async () => {
+  server.use(
+    http.get("*/api/v1/catalog/properties/", () =>
+      HttpResponse.json({
+        ...propertySearchPage,
+        results: propertySearchPage.results.map((property) => ({
+          ...property,
+          primary_image: null,
+          listing_count: 1,
+        })),
+      }),
+    ),
+  );
+
+  renderResults();
+
+  expect(await screen.findByText("تصویر آپارتمان موجود نیست")).toBeVisible();
+  expect(screen.getByText("۱ آگهی فعال")).toBeVisible();
+  expect(screen.queryByText(/پیشنهاد دیگر/)).not.toBeInTheDocument();
+});
+
+test("offers the five specified sort choices with Newest selected by default", async () => {
+  renderResults();
+
+  const sorting = within(
+    await screen.findByRole("complementary", { name: "فیلترهای جست‌وجو" }),
+  ).getByLabelText("مرتب‌سازی");
+  expect(sorting).toHaveValue("newest");
+  expect(
+    within(sorting)
+      .getAllByRole("option")
+      .map((option) => option.textContent),
+  ).toEqual([
+    "جدیدترین",
+    "کمترین اجاره ماهانه",
+    "کمترین ودیعه",
+    "بیشترین متراژ",
+    "کمترین متراژ",
+  ]);
 });
 
 test("renders public approximate markers and uncertainty circles through the map adapter", async () => {
@@ -711,7 +775,7 @@ test.each([
         level: 1,
       }),
     ).toBeVisible();
-    expect(screen.getByText("۱۱۰ متر · ساخت ۱٬۴۰۰")).toBeVisible();
+    expect(screen.getByText(`${propertyTypeLabel} · ۱۱۰ متر`)).toBeVisible();
     expect(screen.queryByText(/خواب/)).not.toBeInTheDocument();
   },
 );
