@@ -3,7 +3,11 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
 import { afterEach, expect, test, vi } from "vitest";
 
-import { createFakeMapAdapter, type MapMarker } from "@/features/map/adapter";
+import {
+  createFakeMapAdapter,
+  type MapCluster,
+  type MapMarker,
+} from "@/features/map/adapter";
 import { SearchMapPanel } from "@/features/map/SearchMapPanel";
 
 afterEach(() => vi.useRealTimers());
@@ -72,6 +76,32 @@ test("offers a keyboard-operable textual fallback for mapped Properties", async 
   expect(
     screen.getByRole("link", { name: "آپارتمان در سعادت‌آباد" }),
   ).toHaveAttribute("href", "/properties/property-1");
+});
+
+test("offers keyboard-operable cluster selection in the textual fallback", async () => {
+  const user = userEvent.setup();
+  const onSelectCluster = vi.fn();
+  const FakeMapAdapter = createFakeMapAdapter();
+  const cluster: MapCluster = {
+    id: "cluster-1",
+    center: { latitude: 35.7665, longitude: 51.4749 },
+    propertyCount: 3,
+    propertyIds: ["property-1", "property-2", "property-3"],
+  };
+
+  render(
+    <SearchMapPanel
+      adapter={FakeMapAdapter}
+      markers={[]}
+      clusters={[cluster]}
+      onSelectCluster={onSelectCluster}
+    />,
+  );
+
+  await user.click(screen.getByText("فهرست دسترس‌پذیر نقشه"));
+  await user.click(screen.getByRole("button", { name: "نمایش خوشه ۳ ملک" }));
+
+  expect(onSelectCluster).toHaveBeenCalledWith("cluster-1");
 });
 
 test("automatically retries without requiring Renter action", () => {

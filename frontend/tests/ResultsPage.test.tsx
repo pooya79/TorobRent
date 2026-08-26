@@ -37,9 +37,9 @@ test("keeps Property discovery working when the map provider fails", async () =>
     await screen.findByRole("heading", { name: "آپارتمان در سعادت‌آباد" }),
   ).toBeVisible();
   expect(screen.getByText("نقشه موقتاً در دسترس نیست")).toBeVisible();
-  expect(
-    screen.getByRole("region", { name: "ملک‌های پیدا شده" }),
-  ).toBeVisible();
+  expect(screen.getByRole("region", { name: "ملک‌های پیدا شده" })).toHaveClass(
+    "xl:grid-cols-3",
+  );
 });
 
 test("presents each Property with normalized facts and freshest complete Rental Terms", async () => {

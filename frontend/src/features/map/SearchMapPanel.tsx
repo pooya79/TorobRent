@@ -25,6 +25,7 @@ type SearchMapPanelProps = {
   clusters: readonly MapCluster[];
   initialViewport?: MapViewport;
   onViewportChange?: (viewport: MapViewport) => void;
+  onSelectCluster?: (clusterId: string) => void;
   onAvailabilityChange?: (available: boolean) => void;
 };
 
@@ -34,6 +35,7 @@ export function SearchMapPanel({
   clusters,
   initialViewport = tehranViewport,
   onViewportChange,
+  onSelectCluster,
   onAvailabilityChange,
 }: SearchMapPanelProps) {
   const [status, setStatus] = useState<"loading" | "ready" | "error">(
@@ -80,9 +82,13 @@ export function SearchMapPanel({
     (propertyId: string) => setPreviewPropertyId(propertyId),
     [],
   );
-  const handleSelectCluster = useCallback(() => {
-    setPreviewPropertyId(null);
-  }, []);
+  const handleSelectCluster = useCallback(
+    (clusterId: string) => {
+      setPreviewPropertyId(null);
+      onSelectCluster?.(clusterId);
+    },
+    [onSelectCluster],
+  );
   const handleViewportChange = useCallback(
     (viewport: MapViewport) => onViewportChange?.(viewport),
     [onViewportChange],
@@ -163,11 +169,17 @@ export function SearchMapPanel({
                 </Button>
               ))}
               {clusters.map((cluster) => (
-                <p key={cluster.id}>
-                  خوشه{" "}
+                <Button
+                  key={cluster.id}
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => handleSelectCluster(cluster.id)}
+                >
+                  نمایش خوشه{" "}
                   {new Intl.NumberFormat("fa-IR").format(cluster.propertyCount)}{" "}
                   ملک
-                </p>
+                </Button>
               ))}
             </>
           )}
