@@ -1,7 +1,14 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 
+import {
+  canonicalSurfaces,
+  initializeTheme,
+  loginDemoOperator,
+} from "./helpers/theme";
+
 const publicRoutes = ["/", "/search", "/guide", "/contact"] as const;
+const demoSeedAvailable = Boolean(process.env.E2E_SEED_DEMO);
 
 for (const viewport of [
   { name: "mobile", width: 390, height: 844 },
@@ -34,6 +41,41 @@ for (const viewport of [
       expect(results.violations, `${route} on ${viewport.name}`).toEqual([]);
     }
   });
+}
+
+for (const theme of ["light", "dark"] as const) {
+  for (const viewport of [
+    { name: "mobile", width: 390, height: 844 },
+    { name: "desktop", width: 1440, height: 1000 },
+  ] as const) {
+    test(`@a11y canonical surfaces pass WCAG 2.2 AA checks in ${theme} mode on ${viewport.name}`, async ({
+      page,
+    }) => {
+      test.skip(
+        !demoSeedAvailable,
+        "canonical theme matrix requires the demo catalog",
+      );
+      test.setTimeout(90_000);
+      await page.setViewportSize(viewport);
+      await initializeTheme(page, theme);
+      await loginDemoOperator(page);
+
+      for (const surface of canonicalSurfaces) {
+        await page.goto(surface.path);
+        await expect(page.locator("#main-content")).toBeVisible();
+        await expect(page.locator("main h1")).toBeVisible();
+        await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
+        const results = await new AxeBuilder({ page })
+          .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
+          .analyze();
+
+        expect(
+          results.violations,
+          `${surface.path} in ${theme} mode on ${viewport.name}`,
+        ).toEqual([]);
+      }
+    });
+  }
 }
 
 test("@milestone @cross-browser @a11y reduced-motion users do not receive smooth scrolling or long transitions", async ({

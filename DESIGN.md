@@ -26,19 +26,35 @@ the milestone issues and the domain language in `CONTEXT.md`.
 
 ### Color tokens
 
-| Token | Value | Use |
-| --- | --- | --- |
-| `background` / `card` | `#ffffff` | Page and component surfaces |
-| `foreground` | `#222222` | Primary text and icons |
-| `muted` | `#f7f7f7` | Quiet sections, placeholders, hover surfaces |
-| `muted-foreground` | `#6a6a6a` | Metadata and helper text |
-| `border` | `#ebebeb` | Hairlines and control boundaries |
-| `input` | `#dddddd` | Stronger control boundaries |
-| `primary` | `#e00b41` | The single primary action and active state |
-| `destructive` | `#b42318` | Errors and destructive actions only |
+| Token              | Light     | Dark      | Use                                        |
+| ------------------ | --------- | --------- | ------------------------------------------ |
+| `background`       | `#ffffff` | `#121214` | Page canvas                                |
+| `card`             | `#ffffff` | `#1a1a1d` | Component surfaces                         |
+| `popover`          | `#ffffff` | `#202024` | Menus, dialogs and sheets                  |
+| `foreground`       | `#222222` | `#f5f5f6` | Primary text and icons                     |
+| `muted`            | `#f7f7f7` | `#242429` | Quiet sections and placeholders            |
+| `muted-foreground` | `#6a6a6a` | `#b3b3bd` | Metadata and helper text                   |
+| `accent`           | `#f7f7f7` | `#2d2d33` | Hover and selected surfaces                |
+| `border`           | `#ebebeb` | `#3a3a42` | Hairlines and component boundaries         |
+| `input`            | `#dddddd` | `#666670` | Stronger control boundaries                |
+| `primary`          | `#e00b41` | `#ff6b8e` | The single primary action and active state |
+| `destructive`      | `#b42318` | `#f06a6a` | Errors and destructive actions only        |
 
 The brighter reference coral `#ff385c` may appear in approved brand artwork, but interactive text
 and controls use `#e00b41` to retain contrast on white.
+
+### Theme preference
+
+The display control exposes System, Light and Dark in both product and Operator navigation. System is
+the default and follows operating-system changes live. An explicit preference is local to the current
+browser profile, synchronizes across its open tabs and is restored before first paint without a
+server cookie. If JavaScript or browser storage is unavailable, semantic colors continue to follow
+`prefers-color-scheme`.
+
+The dark palette is a restrained counterpart rather than a color inversion. Property photography
+and demo listing imagery remain untreated inside neutral media frames; only first-party interface or
+brand artwork may receive a theme-specific variant. Native controls and browser chrome follow the
+resolved theme through `color-scheme` and theme-color metadata.
 
 ### Typography
 
@@ -136,14 +152,16 @@ validation, and permission denial.
 
 Every representative surface must demonstrate correct RTL reading order, logical CSS positioning,
 keyboard order, visible focus, Sheet/dialog focus management, 44px targets, WCAG 2.2 AA contrast,
-reduced-motion behavior, and no page-level horizontal overflow. Text or icons accompany status
-color. Public content remains meaningful in server-rendered HTML before hydration.
+reduced-motion behavior, and no page-level horizontal overflow in both Light and Dark. Text or
+icons accompany status color. Public content remains meaningful in server-rendered HTML before
+hydration, and an explicit device-local theme is applied before first paint.
 
 ## Visual records
 
-Run `cd frontend && pnpm capture:design` to regenerate mobile and desktop screenshots for all six
-prototype surfaces under `docs/design/screenshots/`. These are durable review artifacts; default CI
-continues to assert behavior and accessibility without treating every pixel as a release gate.
+Run `cd frontend && pnpm capture:design` to regenerate Light and Dark mobile and desktop screenshots
+for all six prototype surfaces under `docs/design/screenshots/`. These are durable review artifacts;
+default CI continues to assert behavior and accessibility without treating every pixel as a release
+gate.
 
 ## Explicit exclusions
 
@@ -151,5 +169,4 @@ continues to assert behavior and accessibility without treating every pixel as a
   architecture
 - Favorites, wishlists, “guest favorite,” recommendations, best/cheapest claims, or urgency copy
 - Hotlinked or copied source imagery
-- Dark mode during the first milestone
 - Component-specific CSS selectors or a mixed legacy/new styling layer

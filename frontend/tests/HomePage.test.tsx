@@ -6,6 +6,7 @@ import { MemoryRouter, Route, Routes, useLocation } from "react-router";
 import { expect, test } from "vitest";
 
 import { ProductShell } from "@/app/ProductShell";
+import { ThemeProvider } from "@/app/ThemeProvider";
 import { HomePage } from "@/pages/HomePage";
 import { server } from "./server";
 
@@ -20,19 +21,25 @@ function SearchLocationProbe() {
   );
 }
 
+function renderHomeShell(queryClient: QueryClient) {
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider>
+        <MemoryRouter>
+          <ProductShell>
+            <HomePage />
+          </ProductShell>
+        </MemoryRouter>
+      </ThemeProvider>
+    </QueryClientProvider>,
+  );
+}
+
 test("presents Persian search and primary destinations", async () => {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
-  render(
-    <QueryClientProvider client={queryClient}>
-      <MemoryRouter>
-        <ProductShell>
-          <HomePage />
-        </ProductShell>
-      </MemoryRouter>
-    </QueryClientProvider>,
-  );
+  renderHomeShell(queryClient);
 
   expect(
     screen.getByRole("heading", { name: "خانه‌ای برای اجاره پیدا کنید" }),
@@ -61,15 +68,7 @@ test("recovers when the readiness check fails during startup", async () => {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: 1, retryDelay: 0 } },
   });
-  render(
-    <QueryClientProvider client={queryClient}>
-      <MemoryRouter>
-        <ProductShell>
-          <HomePage />
-        </ProductShell>
-      </MemoryRouter>
-    </QueryClientProvider>,
-  );
+  renderHomeShell(queryClient);
 
   expect(
     await screen.findByText("سامانه در دسترس است", undefined, {
@@ -94,15 +93,7 @@ test("lets an authenticated Submitter log out from primary navigation", async ()
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
-  render(
-    <QueryClientProvider client={queryClient}>
-      <MemoryRouter>
-        <ProductShell>
-          <HomePage />
-        </ProductShell>
-      </MemoryRouter>
-    </QueryClientProvider>,
-  );
+  renderHomeShell(queryClient);
 
   await user.click(await screen.findByRole("button", { name: "خروج" }));
 

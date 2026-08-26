@@ -32,7 +32,7 @@ test("Submitter completes the media step and sees processed images in final revi
   await page
     .getByLabel("افزودن تصاویر")
     .setInputFiles(
-      path.resolve("../docs/design/screenshots/add-listing-mobile.png"),
+      path.resolve("../docs/design/screenshots/add-listing-light-mobile.png"),
     );
   await expect(
     page.getByRole("img", { name: "پیش‌نمایش تصویر" }),

@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { Navigate, NavLink, Outlet, useLocation } from "react-router";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { ThemeSwitcher } from "@/components/ThemeSwitcher";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -89,6 +90,9 @@ function WorkspaceNavigation({
           <span key={to}>{link}</span>
         );
       })}
+      <div className="border-border mt-4 border-t pt-4">
+        <ThemeSwitcher />
+      </div>
     </nav>
   );
 }

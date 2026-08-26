@@ -69,7 +69,7 @@ test("@milestone registers, verifies through Mailpit, logs in, and enters protec
   await page
     .getByLabel("افزودن تصاویر")
     .setInputFiles(
-      path.resolve("../docs/design/screenshots/add-listing-mobile.png"),
+      path.resolve("../docs/design/screenshots/add-listing-light-mobile.png"),
     );
   await expect(
     page.getByRole("img", { name: "پیش‌نمایش تصویر" }),

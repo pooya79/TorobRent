@@ -12,6 +12,10 @@ class TestResizeObserver implements ResizeObserver {
 }
 
 globalThis.ResizeObserver = TestResizeObserver;
+HTMLElement.prototype.hasPointerCapture = () => false;
+HTMLElement.prototype.setPointerCapture = () => undefined;
+HTMLElement.prototype.releasePointerCapture = () => undefined;
+HTMLElement.prototype.scrollIntoView = () => undefined;
 
 server.listen({ onUnhandledRequest: "error" });
 afterEach(() => {

@@ -10,6 +10,7 @@ import {
 import { AppProviders } from "@/app/AppProviders";
 import { ProductShell } from "@/app/ProductShell";
 import { RouteFocus } from "@/app/RouteFocus";
+import { THEME_BOOTSTRAP_SCRIPT, THEME_COLORS } from "@/app/ThemeProvider";
 import type { Route } from "./+types/root";
 import "./styles.css";
 
@@ -42,11 +43,21 @@ export const meta: Route.MetaFunction = ({ error }) => {
 
 export function Layout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="fa" dir="rtl">
+    <html lang="fa" dir="rtl" suppressHydrationWarning>
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <meta name="theme-color" content="#ffffff" />
+        <meta
+          name="theme-color"
+          content={THEME_COLORS.light}
+          media="(prefers-color-scheme: light)"
+        />
+        <meta
+          name="theme-color"
+          content={THEME_COLORS.dark}
+          media="(prefers-color-scheme: dark)"
+        />
+        <script dangerouslySetInnerHTML={{ __html: THEME_BOOTSTRAP_SCRIPT }} />
         <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
         <Meta />
         <Links />

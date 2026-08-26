@@ -8,6 +8,7 @@ import {
   OperatorCapabilityRoute,
   OperatorWorkspace,
 } from "@/features/operator/OperatorWorkspace";
+import { ThemeProvider } from "@/app/ThemeProvider";
 import { loader as compatibilityRedirect } from "@/routes/operator-review-redirect";
 import { server } from "./server";
 
@@ -48,31 +49,33 @@ function renderWorkspace(
   });
   return render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={[entry]}>
-        <Routes>
-          <Route element={<OperatorWorkspace />}>
-            <Route index element={<h1>نمای کلی</h1>} />
-            <Route
-              path="operator/submissions"
-              element={
-                <OperatorCapabilityRoute capability="review_submissions">
-                  <h1>بررسی Submissionها</h1>
-                </OperatorCapabilityRoute>
-              }
-            />
-            <Route
-              path="operator/support"
-              element={
-                <OperatorCapabilityRoute capability="handle_support">
-                  <h1>درخواست‌های پشتیبانی</h1>
-                </OperatorCapabilityRoute>
-              }
-            />
-            <Route path="operator/links" element={<Outlet />} />
-          </Route>
-          <Route path="login" element={<LoginDestination />} />
-        </Routes>
-      </MemoryRouter>
+      <ThemeProvider>
+        <MemoryRouter initialEntries={[entry]}>
+          <Routes>
+            <Route element={<OperatorWorkspace />}>
+              <Route index element={<h1>نمای کلی</h1>} />
+              <Route
+                path="operator/submissions"
+                element={
+                  <OperatorCapabilityRoute capability="review_submissions">
+                    <h1>بررسی Submissionها</h1>
+                  </OperatorCapabilityRoute>
+                }
+              />
+              <Route
+                path="operator/support"
+                element={
+                  <OperatorCapabilityRoute capability="handle_support">
+                    <h1>درخواست‌های پشتیبانی</h1>
+                  </OperatorCapabilityRoute>
+                }
+              />
+              <Route path="operator/links" element={<Outlet />} />
+            </Route>
+            <Route path="login" element={<LoginDestination />} />
+          </Routes>
+        </MemoryRouter>
+      </ThemeProvider>
     </QueryClientProvider>,
   );
 }

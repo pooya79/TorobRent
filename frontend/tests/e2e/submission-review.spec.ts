@@ -90,7 +90,9 @@ async function seedCompleteDraft(
         name: "home.png",
         mimeType: "image/png",
         buffer: await readFile(
-          path.resolve("../docs/design/screenshots/add-listing-mobile.png"),
+          path.resolve(
+            "../docs/design/screenshots/add-listing-light-mobile.png",
+          ),
         ),
       },
     },

@@ -16,6 +16,7 @@ import type { ReactNode } from "react";
 import { NavLink } from "react-router";
 
 import { Button } from "@/components/ui/button";
+import { ThemeSwitcher } from "@/components/ThemeSwitcher";
 import {
   Sheet,
   SheetClose,
@@ -120,6 +121,9 @@ function PrimaryNavigation({
           <LayoutDashboard aria-hidden="true" /> آگهی‌های من
         </NavLink>
       </Button>
+      <div className="border-border mt-4 border-t pt-4">
+        <ThemeSwitcher />
+      </div>
     </nav>
   );
 }
