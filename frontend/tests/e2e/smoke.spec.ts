@@ -156,13 +156,15 @@ test("@milestone @cross-browser keeps focus inside the mobile filter Sheet and r
     timeout: 10_000,
   });
 
-  const trigger = page.getByRole("button", { name: "فیلترها" });
+  const trigger = page.getByRole("button", { name: "فیلترهای پیشرفته" });
   const restingIndicator = await trigger.evaluate((element) => {
     const style = getComputedStyle(element);
     return `${style.outlineStyle}|${style.outlineWidth}|${style.boxShadow}`;
   });
   await trigger.click();
-  await expect(page.getByRole("dialog", { name: "فیلتر نتایج" })).toBeVisible();
+  await expect(
+    page.getByRole("dialog", { name: "فیلترهای پیشرفته" }),
+  ).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(trigger).toBeFocused();
   const focusedIndicator = await trigger.evaluate((element) => {

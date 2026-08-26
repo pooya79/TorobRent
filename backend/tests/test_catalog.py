@@ -71,8 +71,8 @@ def test_public_catalog_query_count_is_bounded_for_representative_demo_fixture(
 
     assert search_response.status_code == 200
     assert detail_response.status_code == 200
-    # Page count, page data, Property Type/Bedroom facets, and four self-excluding features.
-    assert len(search_queries) <= 8
+    # Page count, page data, Property Type/Bedroom facets, and five self-excluding features.
+    assert len(search_queries) <= 9
     assert len(detail_queries) <= 2
 
 
@@ -1239,6 +1239,60 @@ def test_property_search_filters_normalized_facts_and_explicit_feature_states(
     assert present.data["results"][0]["area_sqm"] == 90
     assert absent.status_code == 200
     assert absent.data["count"] == 1
+
+
+@pytest.mark.django_db
+def test_property_search_filters_multiple_areas_and_a_construction_year_range(
+    api_client: APIClient,
+):
+    call_command("loaddata", "catalog_seed", verbosity=0)
+    neighborhoods = list(
+        Neighborhood.objects.filter(name_fa__in=("سعادت‌آباد", "تهران‌پارس غربی")).select_related(
+            "district__city"
+        )
+    )
+    source = Source.objects.get(is_builtin=True)
+    now = timezone.now()
+    properties = []
+    for index, (neighborhood, construction_year) in enumerate(
+        zip(neighborhoods, (1390, 1400), strict=True), start=1
+    ):
+        property_ = Property.objects.create(
+            city=neighborhood.district.city,
+            district=neighborhood.district,
+            neighborhood=neighborhood,
+            property_type=PropertyType.APARTMENT,
+            area_sqm=80 + index,
+            room_count=2,
+            construction_year=construction_year,
+        )
+        properties.append(property_)
+        Listing.objects.create(
+            property=property_,
+            source=source,
+            terms=RentalTerms.objects.create(
+                deposit_rial=5_000_000_000,
+                monthly_rent_rial=200_000_000,
+            ),
+            state=ListingState.PUBLISHED,
+            direct_phone="۰۹۱۲۱۲۳۴۵۶۷",
+            availability_confirmed_at=now,
+            available_until=now + timedelta(days=1),
+        )
+
+    response = api_client.get(
+        "/api/v1/catalog/properties/",
+        {
+            "district": [str(neighborhood.district_id) for neighborhood in neighborhoods],
+            "neighborhood": [str(neighborhoods[1].id)],
+            "construction_year_min": "۱۳۹۵",
+            "construction_year_max": "۱۴۰۵",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.data["count"] == 1
+    assert response.data["results"][0]["id"] == str(properties[1].id)
 
 
 @pytest.mark.django_db

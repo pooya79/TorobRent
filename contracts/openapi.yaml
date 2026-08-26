@@ -465,6 +465,18 @@ paths:
             enum:
             - 3_plus
       - in: query
+        name: construction_year_max
+        schema:
+          type: integer
+          maximum: 1500
+          minimum: 1200
+      - in: query
+        name: construction_year_min
+        schema:
+          type: integer
+          maximum: 1500
+          minimum: 1200
+      - in: query
         name: deposit_max_toman
         schema:
           type: integer
@@ -474,6 +486,13 @@ paths:
         schema:
           type: integer
           minimum: 0
+      - in: query
+        name: district
+        schema:
+          type: array
+          items:
+            type: string
+            format: uuid
       - in: query
         name: elevator
         schema:
@@ -510,6 +529,13 @@ paths:
         schema:
           type: integer
           minimum: 0
+      - in: query
+        name: neighborhood
+        schema:
+          type: array
+          items:
+            type: string
+            format: uuid
       - in: query
         name: ordering
         schema:
@@ -2404,9 +2430,12 @@ components:
           $ref: '#/components/schemas/FeatureStateFacet'
         storage:
           $ref: '#/components/schemas/FeatureStateFacet'
+        balcony:
+          $ref: '#/components/schemas/FeatureStateFacet'
         furnished:
           $ref: '#/components/schemas/FeatureStateFacet'
       required:
+      - balcony
       - elevator
       - furnished
       - parking

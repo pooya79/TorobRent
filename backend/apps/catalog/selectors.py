@@ -123,6 +123,8 @@ class MapViewportBounds:
 @dataclass(frozen=True)
 class PropertySearchFilters:
     location: str = ""
+    district_ids: tuple[uuid.UUID, ...] = ()
+    neighborhood_ids: tuple[uuid.UUID, ...] = ()
     property_category: PropertyCategory | None = None
     deposit_min_rial: int | None = None
     deposit_max_rial: int | None = None
@@ -130,6 +132,8 @@ class PropertySearchFilters:
     monthly_rent_max_rial: int | None = None
     area_min: int | None = None
     area_max: int | None = None
+    construction_year_min: int | None = None
+    construction_year_max: int | None = None
     bedroom_count: BedroomCountFilter | None = None
     property_types: tuple[PropertyType, ...] = ()
     parking: str | None = None
@@ -312,6 +316,8 @@ def search_properties(
     property_filters = {
         "area_sqm__gte": filters.area_min,
         "area_sqm__lte": filters.area_max,
+        "construction_year__gte": filters.construction_year_min,
+        "construction_year__lte": filters.construction_year_max,
         "parking": filters.parking,
         "elevator": filters.elevator,
         "storage": filters.storage,
@@ -321,6 +327,10 @@ def search_properties(
     properties = properties.filter(**{
         lookup: value for lookup, value in property_filters.items() if value is not None
     })
+    if filters.district_ids:
+        properties = properties.filter(district_id__in=filters.district_ids)
+    if filters.neighborhood_ids:
+        properties = properties.filter(neighborhood_id__in=filters.neighborhood_ids)
     if filters.bedroom_count == BedroomCountRange.THREE_OR_MORE:
         properties = properties.filter(room_count__gte=3)
     elif filters.bedroom_count is not None:
@@ -408,8 +418,14 @@ def favorite_properties(
     return active.order_by(*ordering), unavailable.order_by(*ordering)
 
 
-type FacetFeature = Literal["parking", "elevator", "storage", "furnished"]
-FACET_FEATURES: tuple[FacetFeature, ...] = ("parking", "elevator", "storage", "furnished")
+type FacetFeature = Literal["parking", "elevator", "storage", "balcony", "furnished"]
+FACET_FEATURES: tuple[FacetFeature, ...] = (
+    "parking",
+    "elevator",
+    "storage",
+    "balcony",
+    "furnished",
+)
 
 
 def _without_feature_filter(
@@ -421,6 +437,8 @@ def _without_feature_filter(
         return replace(filters, elevator=None)
     if feature == "storage":
         return replace(filters, storage=None)
+    if feature == "balcony":
+        return replace(filters, balcony=None)
     return replace(filters, furnished=None)
 
 

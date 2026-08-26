@@ -528,6 +528,199 @@ test("shows Commercial Quick Filters without Bedroom Count choices", async () =>
   expect(
     within(toolbar).getByRole("checkbox", { name: "مغازه" }),
   ).toBeDisabled();
+
+  await user.click(screen.getByRole("button", { name: "فیلترهای پیشرفته" }));
+  const panel = await screen.findByRole("dialog", {
+    name: "فیلترهای پیشرفته",
+  });
+  expect(
+    within(panel).queryByRole("group", { name: "تعداد اتاق خواب" }),
+  ).toBeNull();
+  expect(within(panel).getByRole("group", { name: "انباری" })).toBeVisible();
+});
+
+test("stages Advanced Filters, previews the count, and commits or discards as one query", async () => {
+  const user = userEvent.setup();
+  const requests: URLSearchParams[] = [];
+  server.use(
+    http.get("*/api/v1/catalog/properties/", ({ request }) => {
+      const params = new URL(request.url).searchParams;
+      requests.push(params);
+      return HttpResponse.json({
+        ...propertySearchPage,
+        count: params.get("area_min") === "90" ? 7 : 1,
+      });
+    }),
+  );
+  renderResults(
+    "/search?location=tehran-id&location_label=تهران&balcony=absent&ordering=deposit",
+  );
+  await screen.findByText("۱ ملک پیدا شد");
+
+  const trigger = screen.getByRole("button", { name: "فیلترهای پیشرفته" });
+  await user.click(trigger);
+  let panel = await screen.findByRole("dialog", { name: "فیلترهای پیشرفته" });
+  expect(within(panel).getByLabelText("مرتب‌سازی")).toHaveValue("deposit");
+  expect(
+    within(within(panel).getByRole("group", { name: "بالکن" })).getByRole(
+      "radio",
+      { name: "نباشد" },
+    ),
+  ).toBeChecked();
+  await user.type(within(panel).getByLabelText("حداقل متراژ"), "۹۰");
+
+  expect(screen.getByLabelText("وضعیت جست‌وجو")).not.toHaveTextContent(
+    "area_min",
+  );
+  expect(
+    await within(panel).findByRole("button", { name: "نمایش ۷ ملک" }),
+  ).toBeVisible();
+  expect(requests.some((params) => params.get("area_min") === "90")).toBe(true);
+
+  await user.click(within(panel).getByRole("button", { name: "انصراف" }));
+  expect(panel).not.toBeVisible();
+  expect(trigger).toHaveFocus();
+  expect(screen.getByLabelText("وضعیت جست‌وجو")).not.toHaveTextContent(
+    "area_min",
+  );
+
+  await user.click(trigger);
+  panel = await screen.findByRole("dialog", { name: "فیلترهای پیشرفته" });
+  expect(within(panel).getByLabelText("حداقل متراژ")).toHaveValue("");
+  await user.type(within(panel).getByLabelText("حداقل متراژ"), "90");
+  await user.click(
+    await within(panel).findByRole("button", { name: "نمایش ۷ ملک" }),
+  );
+  expect(screen.getByLabelText("وضعیت جست‌وجو")).toHaveTextContent(
+    "area_min=90",
+  );
+  expect(screen.getByLabelText("وضعیت جست‌وجو")).toHaveTextContent(
+    "balcony=absent",
+  );
+  expect(screen.getByLabelText("وضعیت جست‌وجو")).toHaveTextContent(
+    "ordering=deposit",
+  );
+
+  await user.click(trigger);
+  panel = await screen.findByRole("dialog", { name: "فیلترهای پیشرفته" });
+  await user.click(within(panel).getByRole("button", { name: "پاک کردن همه" }));
+  expect(within(panel).getByLabelText("حداقل متراژ")).toHaveValue("");
+  expect(screen.getByLabelText("وضعیت جست‌وجو")).toHaveTextContent(
+    "location=tehran-id",
+  );
+  expect(screen.getByLabelText("وضعیت جست‌وجو")).toHaveTextContent(
+    "area_min=90",
+  );
+  await user.click(
+    await within(panel).findByRole("button", { name: "نمایش ۱ ملک" }),
+  );
+  expect(screen.getByLabelText("وضعیت جست‌وجو")).not.toHaveTextContent(
+    "area_min",
+  );
+});
+
+test("selects several districts and neighborhoods independently of the city", async () => {
+  const user = userEvent.setup();
+  let requestedParams = new URLSearchParams();
+  server.use(
+    http.get("*/api/v1/catalog/locations/", ({ request }) => {
+      const query = new URL(request.url).searchParams.get("q") ?? "";
+      return HttpResponse.json(
+        query.includes("منطقه")
+          ? [
+              {
+                id: "20000000-0000-4000-8000-000000000002",
+                kind: "district",
+                name: "منطقه ۲",
+                label: "منطقه ۲، تهران",
+              },
+            ]
+          : [
+              {
+                id: "30000000-0000-4000-8000-000000000043",
+                kind: "neighborhood",
+                name: "سعادت‌آباد",
+                label: "سعادت‌آباد، منطقه ۲، تهران",
+              },
+            ],
+      );
+    }),
+    http.get("*/api/v1/catalog/properties/", ({ request }) => {
+      requestedParams = new URL(request.url).searchParams;
+      return HttpResponse.json(propertySearchPage);
+    }),
+  );
+  renderResults("/search?location=tehran-id&location_label=تهران");
+  await screen.findByText("۱ ملک پیدا شد");
+  await user.click(screen.getByRole("button", { name: "فیلترهای پیشرفته" }));
+  const panel = await screen.findByRole("dialog", {
+    name: "فیلترهای پیشرفته",
+  });
+
+  const district = within(panel).getByRole("combobox", { name: "منطقه" });
+  await user.type(district, "منطقه");
+  const districtOption = await within(panel).findByRole("option", {
+    name: "منطقه ۲، تهران",
+  });
+  await user.keyboard("{ArrowDown}");
+  expect(districtOption).toHaveClass("bg-accent");
+  await user.keyboard("{Enter}");
+  await user.type(
+    within(panel).getByRole("combobox", { name: "محله" }),
+    "سعادت",
+  );
+  await user.click(
+    await within(panel).findByRole("option", {
+      name: "سعادت‌آباد، منطقه ۲، تهران",
+    }),
+  );
+
+  expect(screen.getByLabelText("وضعیت جست‌وجو")).not.toHaveTextContent(
+    "district",
+  );
+  await waitFor(() => {
+    expect(requestedParams.getAll("district")).toEqual([
+      "20000000-0000-4000-8000-000000000002",
+    ]);
+    expect(requestedParams.getAll("neighborhood")).toEqual([
+      "30000000-0000-4000-8000-000000000043",
+    ]);
+  });
+  await user.click(
+    await within(panel).findByRole("button", { name: "نمایش ۱ ملک" }),
+  );
+  expect(screen.getByLabelText("وضعیت جست‌وجو")).toHaveTextContent(
+    "location=tehran-id",
+  );
+  expect(screen.getByLabelText("وضعیت جست‌وجو")).toHaveTextContent("district=");
+  expect(screen.getByLabelText("وضعیت جست‌وجو")).toHaveTextContent(
+    "neighborhood=",
+  );
+});
+
+test("announces an Advanced Filters preview failure and prevents a stale apply", async () => {
+  const user = userEvent.setup();
+  server.use(
+    http.get("*/api/v1/catalog/properties/", ({ request }) =>
+      new URL(request.url).searchParams.has("area_min")
+        ? HttpResponse.json({ detail: "unavailable" }, { status: 503 })
+        : HttpResponse.json(propertySearchPage),
+    ),
+  );
+  renderResults();
+  await screen.findByText("۱ ملک پیدا شد");
+  await user.click(screen.getByRole("button", { name: "فیلترهای پیشرفته" }));
+  const panel = await screen.findByRole("dialog", {
+    name: "فیلترهای پیشرفته",
+  });
+  await user.type(within(panel).getByLabelText("حداقل متراژ"), "90");
+
+  expect(
+    await within(panel).findByText("به‌روزرسانی تعداد ملک‌ها ممکن نشد"),
+  ).toHaveAttribute("role", "alert");
+  expect(
+    within(panel).getByRole("button", { name: "شمارش ملک‌ها ممکن نشد" }),
+  ).toBeDisabled();
 });
 
 test("keeps legacy Bedroom Count URLs working during the API migration", async () => {
@@ -703,12 +896,15 @@ test("uses a Property Type placeholder and keeps a single Active Listing badge v
 });
 
 test("offers the five specified sort choices with Newest selected by default", async () => {
+  const user = userEvent.setup();
   renderResults();
 
-  const sorting = within(
-    await screen.findByRole("complementary", { name: "فیلترهای جست‌وجو" }),
-  ).getByLabelText("مرتب‌سازی");
-  expect(sorting).toHaveValue("newest");
+  await user.click(screen.getByRole("button", { name: "فیلترهای پیشرفته" }));
+  const filters = await screen.findByRole("dialog", {
+    name: "فیلترهای پیشرفته",
+  });
+  const sorting = within(filters).getByLabelText("مرتب‌سازی");
+  expect(sorting).toHaveValue("");
   expect(
     within(sorting)
       .getAllByRole("option")
@@ -1121,7 +1317,7 @@ test("keeps location and page navigation shareable in the URL", async () => {
   );
 });
 
-test("applies every filter with tolerant numeric entry and exposes removable chips", async () => {
+test("applies Advanced Filters with tolerant numeric entry and exposes removable chips", async () => {
   const user = userEvent.setup();
   let requestedParams = new URLSearchParams();
   server.use(
@@ -1132,19 +1328,27 @@ test("applies every filter with tolerant numeric entry and exposes removable chi
   );
   renderResults("/search?location=تهران&page=3");
 
-  const filters = await screen.findByRole("complementary", {
-    name: "فیلترهای جست‌وجو",
+  const toolbar = screen.getByRole("search", { name: "نوار جست‌وجوی ملک" });
+  await user.click(within(toolbar).getByRole("button", { name: "همه نوع‌ها" }));
+  await user.click(within(toolbar).getByRole("checkbox", { name: "آپارتمان" }));
+  await user.click(screen.getByRole("button", { name: "فیلترهای پیشرفته" }));
+  const filters = await screen.findByRole("dialog", {
+    name: "فیلترهای پیشرفته",
   });
   await user.type(within(filters).getByLabelText("حداقل ودیعه"), "۵۰۰٬۰۰۰٬۰۰۰");
-  await user.type(within(filters).getByLabelText("تعداد اتاق خواب"), "۲");
-  await user.click(within(filters).getByRole("button", { name: "همه نوع‌ها" }));
-  await user.click(within(filters).getByRole("checkbox", { name: "آپارتمان" }));
-  await user.selectOptions(
-    within(filters).getByLabelText("پارکینگ"),
-    "present",
+  await user.click(
+    within(
+      within(filters).getByRole("group", { name: "تعداد اتاق خواب" }),
+    ).getByRole("radio", { name: "دو خوابه" }),
   );
   await user.click(
-    within(filters).getByRole("button", { name: "نمایش ۱ ملک" }),
+    within(within(filters).getByRole("group", { name: "پارکینگ" })).getByRole(
+      "radio",
+      { name: "ضروری" },
+    ),
+  );
+  await user.click(
+    await within(filters).findByRole("button", { name: "نمایش ۱ ملک" }),
   );
 
   expect(requestedParams.get("deposit_min_toman")).toBe("500000000");
@@ -1157,26 +1361,25 @@ test("applies every filter with tolerant numeric entry and exposes removable chi
   });
   expect(parkingChip).toBeVisible();
   await user.click(parkingChip);
-  expect(requestedParams.has("parking")).toBe(false);
-  expect(
-    within(
-      screen.getByRole("complementary", { name: "فیلترهای جست‌وجو" }),
-    ).getByLabelText("پارکینگ"),
-  ).toHaveValue("");
+  expect(screen.getByLabelText("وضعیت جست‌وجو")).not.toHaveTextContent(
+    "parking",
+  );
 });
 
 test("offers the same filter form in an accessible mobile drawer", async () => {
   const user = userEvent.setup();
   renderResults();
 
-  await user.click(screen.getByRole("button", { name: "فیلترها" }));
-  const drawer = await screen.findByRole("dialog");
+  await user.click(screen.getByRole("button", { name: "فیلترهای پیشرفته" }));
+  const drawer = await screen.findByRole("dialog", {
+    name: "فیلترهای پیشرفته",
+  });
 
   expect(
-    within(drawer).getByRole("heading", { name: "فیلتر نتایج" }),
+    within(drawer).getByRole("heading", { name: "فیلترهای پیشرفته" }),
   ).toBeVisible();
   expect(within(drawer).getByLabelText("حداقل اجاره ماهانه")).toBeVisible();
-  expect(within(drawer).getByLabelText("مبله")).toBeVisible();
+  expect(within(drawer).getByRole("group", { name: "مبله" })).toBeVisible();
 });
 
 test("preserves compatible Property Types through requests, filters, pagination, chips, and return navigation", async () => {
@@ -1192,20 +1395,23 @@ test("preserves compatible Property Types through requests, filters, pagination,
     "/search?property_category=residential&property_type=apartment&property_type=house&parking=present",
   );
 
-  const filters = await screen.findByRole("complementary", {
-    name: "فیلترهای جست‌وجو",
-  });
+  await screen.findByText("۲۶ ملک پیدا شد");
+  const toolbar = screen.getByRole("search", { name: "نوار جست‌وجوی ملک" });
   expect(requestedParams.getAll("property_type")).toEqual([
     "apartment",
     "house",
   ]);
   expect(
-    within(filters).getByRole("button", { name: "آپارتمان، خانه" }),
+    within(toolbar).getByRole("button", { name: "آپارتمان، خانه" }),
   ).toBeVisible();
 
+  await user.click(screen.getByRole("button", { name: "فیلترهای پیشرفته" }));
+  const filters = await screen.findByRole("dialog", {
+    name: "فیلترهای پیشرفته",
+  });
   await user.type(within(filters).getByLabelText("حداکثر متراژ"), "۱۲۰");
   await user.click(
-    within(filters).getByRole("button", { name: "نمایش ۲۶ ملک" }),
+    await within(filters).findByRole("button", { name: "نمایش ۲۶ ملک" }),
   );
   expect(requestedParams.getAll("property_type")).toEqual([
     "apartment",
@@ -1260,8 +1466,11 @@ test("honors Persian digits in a shared filter URL and keeps controls synchroniz
 
   renderResults("/search?area_max=۱۰۰");
 
-  const filters = await screen.findByRole("complementary", {
-    name: "فیلترهای جست‌وجو",
+  await userEvent
+    .setup()
+    .click(screen.getByRole("button", { name: "فیلترهای پیشرفته" }));
+  const filters = await screen.findByRole("dialog", {
+    name: "فیلترهای پیشرفته",
   });
   expect(requestedArea).toBe("100");
   expect(within(filters).getByLabelText("حداکثر متراژ")).toHaveValue("۱۰۰");
