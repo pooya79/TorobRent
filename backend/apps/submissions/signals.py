@@ -1,7 +1,7 @@
 from django.db.models.signals import post_delete
 from django.dispatch import receiver
 
-from apps.catalog.models import ListingImageVariant
+from apps.catalog.models import ListingImageVariant, PropertyImageVariant
 
 from .models import (
     MediaAsset,
@@ -22,9 +22,10 @@ def delete_submission_image_source(
 
 @receiver(post_delete, sender=SubmissionImageVariant)
 @receiver(post_delete, sender=ListingImageVariant)
+@receiver(post_delete, sender=PropertyImageVariant)
 def delete_image_variant_asset(
-    sender: type[SubmissionImageVariant] | type[ListingImageVariant],
-    instance: SubmissionImageVariant | ListingImageVariant,
+    sender: type[SubmissionImageVariant] | type[ListingImageVariant] | type[PropertyImageVariant],
+    instance: SubmissionImageVariant | ListingImageVariant | PropertyImageVariant,
     **_kwargs: object,
 ) -> None:
     del sender

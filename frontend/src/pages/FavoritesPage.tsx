@@ -25,11 +25,16 @@ function activeCard(property: ActiveFavorite): PropertyCardData {
     id: property.id,
     title: property.title,
     location: propertyLocationLabel(property),
+    propertyTypeLabel: property.property_type_label,
     facts: normalizedFacts(property),
+    image: property.primary_image ?? undefined,
     isFavorite: true,
     listingCountLabel: `${formatNumber(property.listing_count)} آگهی فعال`,
+    otherOffersLabel:
+      property.listing_count > 1
+        ? `${formatNumber(property.listing_count - 1)} پیشنهاد دیگر`
+        : undefined,
     rentalTerms: rentalTermsCardData(property.rental_terms),
-    freshnessLabel: "دارای آگهی فعال",
     navigation: {
       kind: "property-detail",
       href: `/properties/${property.id}`,
@@ -42,9 +47,9 @@ function unavailableCard(property: UnavailableFavorite): PropertyCardData {
     id: property.id,
     title: property.title,
     location: propertyLocationLabel(property),
+    propertyTypeLabel: property.property_type_label,
     facts: normalizedFacts(property),
     isFavorite: true,
-    freshnessLabel: "در انتظار آگهی فعال جدید",
     navigation: { kind: "temporarily-unavailable" },
   };
 }

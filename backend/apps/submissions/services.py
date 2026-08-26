@@ -29,10 +29,11 @@ from apps.catalog.models import (
 )
 from apps.catalog.services import (
     DirectListingSpec,
-    ListingImageSpec,
     ListingImageVariantSpec,
+    ReviewedImageSpec,
     materialize_direct_listing,
     replace_listing_images,
+    replace_property_images,
 )
 
 from .audit_serializers import validate_decision_correction
@@ -718,6 +719,8 @@ def approve_submission(
             "تغییر محتوای توضیحات باید از مسیر درخواست اصلاح به ثبت‌کننده بازگردد."
         )
     source = submission.source or Source.objects.get(is_builtin=True)
+    image_specs = _submission_image_specs(submission)
+    creates_property = property_id is None and submission.listing_id is None
     listing = materialize_direct_listing(
         spec=DirectListingSpec(
             source=source,
@@ -738,9 +741,15 @@ def approve_submission(
                 ),
                 **metadata,
             },
-            image_specs=_submission_image_specs(submission),
+            image_specs=image_specs,
         )
     )
+    if creates_property:
+        replace_property_images(
+            property_=listing.property,
+            image_specs=image_specs,
+            reviewer_id=actor.id,
+        )
     submission.listing = listing
     submission.save(update_fields=("listing", "updated_at"))
     normalized_corrections: dict[str, object] = {
@@ -955,8 +964,8 @@ def retain_submission_media_for_listing(
     return replace_listing_images(listing=listing, image_specs=_submission_image_specs(submission))
 
 
-def _submission_image_specs(submission: Submission) -> list[ListingImageSpec]:
-    specs: list[ListingImageSpec] = []
+def _submission_image_specs(submission: Submission) -> list[ReviewedImageSpec]:
+    specs: list[ReviewedImageSpec] = []
     for image in submission.images.prefetch_related("variants__asset").order_by("position"):
         variants: list[ListingImageVariantSpec] = []
         for variant in image.variants.all():
@@ -974,7 +983,7 @@ def _submission_image_specs(submission: Submission) -> list[ListingImageSpec]:
                 variant.save(update_fields=("asset",))
             variants.append(ListingImageVariantSpec(kind=variant.kind, asset_id=asset.id))
         specs.append(
-            ListingImageSpec(
+            ReviewedImageSpec(
                 position=image.position,
                 is_primary=image.is_primary,
                 variants=tuple(variants),
