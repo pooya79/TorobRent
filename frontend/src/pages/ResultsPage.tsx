@@ -242,15 +242,28 @@ export function ResultsPage({ mapAdapter }: { mapAdapter?: MapAdapter }) {
   const [mapAvailable, setMapAvailable] = useState(true);
   const viewportTimer = useRef<number | undefined>(undefined);
   const search = useQuery(propertySearchQueryOptions(searchParams));
+  const latestSearchParamsRef = useRef(searchParams);
+  useEffect(() => {
+    latestSearchParamsRef.current = searchParams;
+  }, [searchParams]);
+  const resultSearchParams = useMemo(
+    () =>
+      new URLSearchParams(
+        search.data?.requestSearchParams ?? searchParams.toString(),
+      ),
+    [search.data?.requestSearchParams, searchParams],
+  );
   const MapAdapterComponent = mapAdapter ?? configuredMapAdapter;
-  const currentPage = Number(searchParams.get("page") ?? "1");
+  const currentPage = Number(resultSearchParams.get("page") ?? "1");
   const location =
-    searchParams.get("location_label") ||
-    searchParams.get("location") ||
+    resultSearchParams.get("location_label") ||
+    resultSearchParams.get("location") ||
     "تهران";
-  const resultsCopy = resultsPageCopy(selectedPropertyTypes(searchParams));
+  const resultsCopy = resultsPageCopy(
+    selectedPropertyTypes(resultSearchParams),
+  );
   const hrefForPage = (page: number) => {
-    const next = new URLSearchParams(searchParams);
+    const next = new URLSearchParams(resultSearchParams);
     next.set("page", String(page));
     return `/search?${next.toString()}`;
   };
@@ -262,7 +275,7 @@ export function ResultsPage({ mapAdapter }: { mapAdapter?: MapAdapter }) {
   );
   const mapMarkers =
     search.data?.map.markers
-      .map((property) => toMapMarker(property, searchParams))
+      .map((property) => toMapMarker(property, resultSearchParams))
       .filter((marker): marker is MapMarker => marker !== null) ?? [];
   const mapClusters: MapCluster[] =
     search.data?.map.clusters.map((cluster) => ({
@@ -278,7 +291,7 @@ export function ResultsPage({ mapAdapter }: { mapAdapter?: MapAdapter }) {
     (viewport: MapViewport) => {
       window.clearTimeout(viewportTimer.current);
       viewportTimer.current = window.setTimeout(() => {
-        const next = new URLSearchParams(searchParams);
+        const next = new URLSearchParams(latestSearchParamsRef.current);
         next.set("viewport_north", viewportValue(viewport.north));
         next.set("viewport_east", viewportValue(viewport.east));
         next.set("viewport_south", viewportValue(viewport.south));
@@ -288,17 +301,17 @@ export function ResultsPage({ mapAdapter }: { mapAdapter?: MapAdapter }) {
         setSearchParams(next, { replace: true });
       }, 500);
     },
-    [searchParams, setSearchParams],
+    [setSearchParams],
   );
   useEffect(() => () => window.clearTimeout(viewportTimer.current), []);
   const activeFilters = Object.entries(filterLabels).filter(([name]) =>
-    searchParams.has(name),
+    resultSearchParams.has(name),
   ) as [FilterName, string][];
   const displayFilterValue = (name: FilterName) => {
     if (name === "property_type") {
-      return summarizePropertyTypes(selectedPropertyTypes(searchParams));
+      return summarizePropertyTypes(selectedPropertyTypes(resultSearchParams));
     }
-    const value = searchParams.get(name) ?? "";
+    const value = resultSearchParams.get(name) ?? "";
     if (value in filterChoiceLabels) {
       return filterChoiceLabels[value as keyof typeof filterChoiceLabels];
     }
@@ -318,7 +331,7 @@ export function ResultsPage({ mapAdapter }: { mapAdapter?: MapAdapter }) {
         <SearchToolbar
           searchParams={searchParams}
           setSearchParams={setSearchParams}
-          facets={search.data?.facets}
+          facets={search.isPlaceholderData ? undefined : search.data?.facets}
         />
         <h1 className="sr-only">
           {resultsCopy.heading} در {location}
@@ -346,8 +359,12 @@ export function ResultsPage({ mapAdapter }: { mapAdapter?: MapAdapter }) {
                 key={`mobile-${searchParams.toString()}`}
                 prefix="mobile"
                 searchParams={searchParams}
-                facets={search.data?.facets}
-                resultCount={search.data?.count}
+                facets={
+                  search.isPlaceholderData ? undefined : search.data?.facets
+                }
+                resultCount={
+                  search.isPlaceholderData ? undefined : search.data?.count
+                }
                 setSearchParams={(next) => {
                   setSearchParams(next);
                   setFiltersOpen(false);
@@ -407,8 +424,12 @@ export function ResultsPage({ mapAdapter }: { mapAdapter?: MapAdapter }) {
               key={`desktop-${searchParams.toString()}`}
               prefix="desktop"
               searchParams={searchParams}
-              facets={search.data?.facets}
-              resultCount={search.data?.count}
+              facets={
+                search.isPlaceholderData ? undefined : search.data?.facets
+              }
+              resultCount={
+                search.isPlaceholderData ? undefined : search.data?.count
+              }
               setSearchParams={setSearchParams}
             />
           </div>
@@ -416,7 +437,7 @@ export function ResultsPage({ mapAdapter }: { mapAdapter?: MapAdapter }) {
         <div>
           <p className="text-muted-foreground mb-5 text-sm" aria-live="polite">
             {search.data ? (
-              searchParams.has("viewport_north") ? (
+              resultSearchParams.has("viewport_north") ? (
                 `${formatNumber(count)} ملک در این محدوده پیدا شد`
               ) : (
                 <>
@@ -446,6 +467,9 @@ export function ResultsPage({ mapAdapter }: { mapAdapter?: MapAdapter }) {
               className={mapAvailable ? "xl:sticky xl:top-6 xl:self-start" : ""}
             >
               <SearchMapPanel
+                key={
+                  searchParams.has("viewport_north") ? "viewport" : "citywide"
+                }
                 adapter={MapAdapterComponent}
                 markers={mapMarkers}
                 clusters={mapClusters}
@@ -513,6 +537,7 @@ export function ResultsPage({ mapAdapter }: { mapAdapter?: MapAdapter }) {
                     <Button
                       type="button"
                       onClick={() => {
+                        window.clearTimeout(viewportTimer.current);
                         const next = new URLSearchParams(searchParams);
                         for (const name of viewportParameterNames) {
                           next.delete(name);
@@ -537,7 +562,7 @@ export function ResultsPage({ mapAdapter }: { mapAdapter?: MapAdapter }) {
                   {search.data.results.map((property) => (
                     <PropertyCard
                       key={property.id}
-                      property={toCardData(property, searchParams)}
+                      property={toCardData(property, resultSearchParams)}
                     />
                   ))}
                 </section>

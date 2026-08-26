@@ -90,7 +90,9 @@ export function SearchMapPanel({
     [onSelectCluster],
   );
   const handleViewportChange = useCallback(
-    (viewport: MapViewport) => onViewportChange?.(viewport),
+    (viewport: MapViewport, origin: "user" | "programmatic") => {
+      if (origin === "user") onViewportChange?.(viewport);
+    },
     [onViewportChange],
   );
 

@@ -968,7 +968,7 @@ export interface components {
       features: components["schemas"]["FeatureFacets"];
     };
     CatalogMap: {
-      property_count: number;
+      total_property_count: number;
       mappable_property_count: number;
       clusters: components["schemas"]["MapCluster"][];
       markers: components["schemas"]["PropertySummary"][];

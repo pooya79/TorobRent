@@ -395,7 +395,7 @@ class MapClusterSerializer(serializers.Serializer[Any]):
 
 
 class CatalogMapSerializer(serializers.Serializer[Any]):
-    property_count = serializers.IntegerField(min_value=0)
+    total_property_count = serializers.IntegerField(min_value=0)
     mappable_property_count = serializers.IntegerField(min_value=0)
     clusters = MapClusterSerializer(many=True)
     markers = PropertySummarySerializer(many=True)

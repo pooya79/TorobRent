@@ -80,6 +80,7 @@ export function catalogStatisticsQueryOptions() {
 }
 
 export function propertySearchQueryOptions(searchParams: URLSearchParams) {
+  const requestSearchParams = searchParams.toString();
   const propertyCategory = selectedPropertyCategory(searchParams);
   const integerParameter = (name: string) => {
     const rawValue = searchParams.get(name);
@@ -147,7 +148,7 @@ export function propertySearchQueryOptions(searchParams: URLSearchParams) {
         { params: { query }, signal },
       );
       if (!data) throw new CatalogSearchError(response.status);
-      return data;
+      return { ...data, requestSearchParams };
     },
   });
 }

@@ -643,7 +643,7 @@ def test_catalog_viewport_filters_properties_facets_and_map_counts(api_client: A
     )
 
     assert citywide.status_code == 200
-    assert citywide.data["map"]["property_count"] == 3
+    assert citywide.data["map"]["total_property_count"] == 3
     assert citywide.data["map"]["mappable_property_count"] == 2
     assert citywide.data["map"]["markers"] == []
     assert len(citywide.data["map"]["clusters"]) == 1
@@ -656,7 +656,7 @@ def test_catalog_viewport_filters_properties_facets_and_map_counts(api_client: A
         "absent": 0,
         "unknown": 0,
     }
-    assert response.data["map"]["property_count"] == 1
+    assert response.data["map"]["total_property_count"] == 1
     assert response.data["map"]["mappable_property_count"] == 1
     assert response.data["map"]["clusters"] == []
     assert [marker["id"] for marker in response.data["map"]["markers"]] == [str(inside.id)]

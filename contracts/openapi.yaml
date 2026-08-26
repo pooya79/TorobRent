@@ -2038,7 +2038,7 @@ components:
     CatalogMap:
       type: object
       properties:
-        property_count:
+        total_property_count:
           type: integer
           minimum: 0
         mappable_property_count:
@@ -2056,7 +2056,7 @@ components:
       - clusters
       - mappable_property_count
       - markers
-      - property_count
+      - total_property_count
     CatalogStatistics:
       type: object
       properties:

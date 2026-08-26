@@ -56,7 +56,10 @@ export type MapAdapterProps = {
   retryToken: number;
   onReady: () => void;
   onError: (error: MapProviderError) => void;
-  onViewportChange: (viewport: MapViewport) => void;
+  onViewportChange: (
+    viewport: MapViewport,
+    origin: "user" | "programmatic",
+  ) => void;
   onSelectProperty: (propertyId: string) => void;
   onPreviewProperty: (propertyId: string) => void;
   onSelectCluster: (clusterId: string) => void;
@@ -108,10 +111,13 @@ export function createFakeMapAdapter({
           type="button"
           className="sr-only"
           onClick={() =>
-            onViewportChange({
-              ...initialViewport,
-              zoom: initialViewport.zoom + 1,
-            })
+            onViewportChange(
+              {
+                ...initialViewport,
+                zoom: initialViewport.zoom + 1,
+              },
+              "user",
+            )
           }
         >
           تغییر محدوده آزمایشی
@@ -124,6 +130,7 @@ export function createFakeMapAdapter({
               onClick={() => {
                 onSelectProperty(marker.propertyId);
                 onPreviewProperty(marker.propertyId);
+                onViewportChange(initialViewport, "programmatic");
               }}
             >
               {marker.label}
@@ -141,10 +148,13 @@ export function createFakeMapAdapter({
             type="button"
             onClick={() => {
               onSelectCluster(cluster.id);
-              onViewportChange({
-                ...initialViewport,
-                zoom: initialViewport.zoom + 2,
-              });
+              onViewportChange(
+                {
+                  ...initialViewport,
+                  zoom: initialViewport.zoom + 2,
+                },
+                "user",
+              );
             }}
           >
             خوشه {formatNumber(cluster.propertyCount)} ملک

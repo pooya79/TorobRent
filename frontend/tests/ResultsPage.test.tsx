@@ -713,6 +713,29 @@ test("settles user map movement into a shareable replacement viewport query", as
   );
 });
 
+test("preserves a newer filter when a pending viewport debounce settles", async () => {
+  const user = userEvent.setup();
+  renderResults("/search", createFakeMapAdapter());
+
+  await screen.findByRole("heading", { name: "آپارتمان در سعادت‌آباد" });
+  await user.click(
+    screen.getByRole("button", { name: "تغییر محدوده آزمایشی" }),
+  );
+  const toolbar = screen.getByRole("search", { name: "نوار جست‌وجوی ملک" });
+  await user.click(
+    within(toolbar).getByRole("button", { name: /سه خواب و بیشتر/ }),
+  );
+
+  await waitFor(
+    () => {
+      const state = screen.getByLabelText("وضعیت جست‌وجو");
+      expect(state).toHaveTextContent("bedroom_count=3_plus");
+      expect(state).toHaveTextContent("viewport_north=35.82");
+    },
+    { timeout: 1_000 },
+  );
+});
+
 test("shows server Property clusters and discloses city-wide map coverage", async () => {
   server.use(
     http.get("*/api/v1/catalog/properties/", () =>
@@ -720,7 +743,7 @@ test("shows server Property clusters and discloses city-wide map coverage", asyn
         ...propertySearchPage,
         count: 9,
         map: {
-          property_count: 9,
+          total_property_count: 9,
           mappable_property_count: 7,
           markers: [],
           clusters: [
@@ -788,6 +811,8 @@ test("keeps the previous map and results subdued until a viewport response swaps
   expect(
     screen.getByRole("heading", { name: "آپارتمان در سعادت‌آباد" }),
   ).toBeVisible();
+  expect(screen.getByText("۱ ملک پیدا شد")).toBeVisible();
+  expect(screen.queryByText(/ملک در این محدوده پیدا شد/)).toBeNull();
   expect(screen.getByRole("region", { name: "نتایج و نقشه جاری" })).toHaveClass(
     "opacity-60",
   );
@@ -795,6 +820,7 @@ test("keeps the previous map and results subdued until a viewport response swaps
   expect(
     await screen.findByRole("heading", { name: "آپارتمان در ونک" }),
   ).toBeVisible();
+  expect(screen.getByText("۱ ملک در این محدوده پیدا شد")).toBeVisible();
   expect(
     screen.getByRole("region", { name: "نتایج و نقشه جاری" }),
   ).toHaveAttribute("aria-busy", "false");
@@ -888,7 +914,7 @@ test("keeps an empty viewport and offers clear filters and Reset to Tehran", asy
         count: 0,
         results: [],
         map: {
-          property_count: 0,
+          total_property_count: 0,
           mappable_property_count: 0,
           clusters: [],
           markers: [],

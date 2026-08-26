@@ -57,9 +57,9 @@ EVENT_SESSION_PARAMETER = OpenApiParameter(
 
 
 def catalog_map_payload(
-    properties: list[Property], *, property_count: int, zoom: int
+    mappable_properties: list[Property], *, total_property_count: int, zoom: int
 ) -> dict[str, object]:
-    markers = properties
+    markers = mappable_properties
     clusters: list[dict[str, object]] = []
     if zoom <= 13:
         cell_sizes = {
@@ -70,7 +70,7 @@ def catalog_map_payload(
         }
         cell_size = cell_sizes.get(zoom, Decimal("0.4"))
         cells: dict[tuple[int, int], list[Property]] = defaultdict(list)
-        for property_ in properties:
+        for property_ in mappable_properties:
             latitude = property_.approximate_latitude
             longitude = property_.approximate_longitude
             if latitude is None or longitude is None:
@@ -103,10 +103,12 @@ def catalog_map_payload(
                 "property_count": len(cell_properties),
                 "property_ids": property_ids,
             })
-        markers = [property_ for property_ in properties if property_.id not in clustered_ids]
+        markers = [
+            property_ for property_ in mappable_properties if property_.id not in clustered_ids
+        ]
     return {
-        "property_count": property_count,
-        "mappable_property_count": len(properties),
+        "total_property_count": total_property_count,
+        "mappable_property_count": len(mappable_properties),
         "clusters": clusters,
         "markers": markers,
     }
@@ -201,7 +203,7 @@ class PropertySearchView(ListAPIView[Property]):
         response.data["map"] = CatalogMapSerializer(
             catalog_map_payload(
                 mappable_properties,
-                property_count=response.data["count"],
+                total_property_count=response.data["count"],
                 zoom=zoom,
             )
         ).data
