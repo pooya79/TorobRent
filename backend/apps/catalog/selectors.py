@@ -33,6 +33,13 @@ class SupportedCity:
     label: str
 
 
+@dataclass(frozen=True)
+class CatalogStatistics:
+    searchable_property_count: int
+    active_listing_count: int
+    covered_neighborhood_count: int
+
+
 type SearchOrdering = Literal["freshness", "monthly_rent", "deposit", "area"]
 
 
@@ -129,6 +136,20 @@ def supported_cities() -> list[SupportedCity]:
         SupportedCity(city.id, city.name_fa, city.name_fa)
         for city in City.objects.filter(id=TEHRAN_CITY_ID, reviewed=True).order_by("name_fa")
     ]
+
+
+def catalog_statistics() -> CatalogStatistics:
+    counts = (
+        Listing.objects
+        .active()
+        .filter(property__city_id=TEHRAN_CITY_ID)
+        .aggregate(
+            searchable_property_count=Count("property_id", distinct=True),
+            active_listing_count=Count("id"),
+            covered_neighborhood_count=Count("property__neighborhood_id", distinct=True),
+        )
+    )
+    return CatalogStatistics(**counts)
 
 
 def search_properties(filters: PropertySearchFilters | None = None) -> QuerySet[Property]:

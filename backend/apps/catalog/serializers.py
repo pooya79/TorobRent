@@ -35,6 +35,12 @@ class SupportedCitySerializer(serializers.Serializer[Any]):
     label = serializers.CharField()  # type: ignore[assignment]
 
 
+class CatalogStatisticsSerializer(serializers.Serializer[Any]):
+    searchable_property_count = serializers.IntegerField(min_value=0)
+    active_listing_count = serializers.IntegerField(min_value=0)
+    covered_neighborhood_count = serializers.IntegerField(min_value=0)
+
+
 class FeaturesSerializer(serializers.Serializer[Any]):
     parking = serializers.ChoiceField(choices=FeatureState.choices)
     elevator = serializers.ChoiceField(choices=FeatureState.choices)

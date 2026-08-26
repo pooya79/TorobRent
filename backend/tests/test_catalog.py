@@ -75,6 +75,61 @@ def test_public_catalog_query_count_is_bounded_for_representative_demo_fixture(
 
 
 @pytest.mark.django_db
+def test_public_catalog_statistics_count_only_searchable_tehran_inventory(
+    api_client: APIClient,
+):
+    call_command("loaddata", "catalog_seed", verbosity=0)
+    neighborhoods = list(Neighborhood.objects.order_by("name_fa")[:3])
+    source = Source.objects.get(is_builtin=True)
+    now = timezone.now()
+
+    def create_listing(
+        neighborhood: Neighborhood,
+        *,
+        state: ListingState = ListingState.PUBLISHED,
+        available_until=now + timedelta(days=1),
+        property_: Property | None = None,
+    ) -> Listing:
+        property_ = property_ or Property.objects.create(
+            city=neighborhood.district.city,
+            district=neighborhood.district,
+            neighborhood=neighborhood,
+            property_type=PropertyType.APARTMENT,
+            area_sqm=90,
+            room_count=2,
+        )
+        return Listing.objects.create(
+            property=property_,
+            source=source,
+            terms=RentalTerms.objects.create(
+                deposit_rial=5_000_000_000,
+                monthly_rent_rial=200_000_000,
+            ),
+            state=state,
+            direct_phone="۰۹۱۲۱۲۳۴۵۶۷",
+            availability_confirmed_at=now,
+            available_until=available_until,
+        )
+
+    first_listing = create_listing(neighborhoods[0])
+    create_listing(neighborhoods[0], property_=first_listing.property)
+    create_listing(neighborhoods[1])
+    create_listing(neighborhoods[2], available_until=now - timedelta(seconds=1))
+    create_listing(neighborhoods[2], state=ListingState.UNAVAILABLE)
+
+    with CaptureQueriesContext(connection) as queries:
+        response = api_client.get("/api/v1/catalog/statistics/")
+
+    assert response.status_code == 200
+    assert response.data == {
+        "searchable_property_count": 2,
+        "active_listing_count": 3,
+        "covered_neighborhood_count": 2,
+    }
+    assert len(queries) == 1
+
+
+@pytest.mark.django_db
 def test_public_catalog_filters_by_repeated_property_types(api_client: APIClient):
     call_command("seed_demo", verbosity=0)
 

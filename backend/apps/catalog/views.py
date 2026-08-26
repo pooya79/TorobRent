@@ -21,8 +21,14 @@ from apps.common.pagination import StandardPageNumberPagination
 from apps.common.serializers import ProblemSerializer
 
 from .models import Listing, OutboundPolicy, ProductEventType, Property
-from .selectors import autocomplete_locations, search_properties, supported_cities
+from .selectors import (
+    autocomplete_locations,
+    catalog_statistics,
+    search_properties,
+    supported_cities,
+)
 from .serializers import (
+    CatalogStatisticsSerializer,
     EventSessionSerializer,
     ExternalContinuationSerializer,
     LocationSuggestionSerializer,
@@ -81,6 +87,17 @@ class SupportedCityListView(APIView):
     )
     def get(self, request: Request) -> Response:
         return Response(SupportedCitySerializer(supported_cities(), many=True).data)
+
+
+class CatalogStatisticsView(APIView):
+    permission_classes = [AllowAny]
+
+    @extend_schema(
+        summary="Get live public catalog statistics",
+        responses={200: CatalogStatisticsSerializer},
+    )
+    def get(self, request: Request) -> Response:
+        return Response(CatalogStatisticsSerializer(catalog_statistics()).data)
 
 
 class CatalogSearchPagination(StandardPageNumberPagination):

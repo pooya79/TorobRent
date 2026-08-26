@@ -576,6 +576,22 @@ paths:
       responses:
         '204':
           description: No response body
+  /api/v1/catalog/statistics/:
+    get:
+      operationId: v1_catalog_statistics_retrieve
+      summary: Get live public catalog statistics
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CatalogStatistics'
+          description: ''
   /api/v1/catalog/supported-cities/:
     get:
       operationId: v1_catalog_supported_cities_list
@@ -1845,6 +1861,22 @@ components:
     BlankEnum:
       enum:
       - ''
+    CatalogStatistics:
+      type: object
+      properties:
+        searchable_property_count:
+          type: integer
+          minimum: 0
+        active_listing_count:
+          type: integer
+          minimum: 0
+        covered_neighborhood_count:
+          type: integer
+          minimum: 0
+      required:
+      - active_listing_count
+      - covered_neighborhood_count
+      - searchable_property_count
     ClaimStatusEnum:
       enum:
       - unclaimed

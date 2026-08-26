@@ -225,6 +225,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/v1/catalog/statistics/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get live public catalog statistics */
+    get: operations["v1_catalog_statistics_retrieve"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/v1/catalog/supported-cities/": {
     parameters: {
       query?: never;
@@ -902,6 +919,11 @@ export interface components {
     };
     /** @enum {unknown} */
     BlankEnum: "";
+    CatalogStatistics: {
+      searchable_property_count: number;
+      active_listing_count: number;
+      covered_neighborhood_count: number;
+    };
     /**
      * @description * `unclaimed` - unclaimed
      *     * `claimed_by_me` - claimed_by_me
@@ -2528,6 +2550,25 @@ export interface operations {
           [name: string]: unknown;
         };
         content?: never;
+      };
+    };
+  };
+  v1_catalog_statistics_retrieve: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["CatalogStatistics"];
+        };
       };
     };
   };
