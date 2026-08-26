@@ -46,6 +46,9 @@ import {
   summarizePropertyTypes,
 } from "@/features/catalog/property-type-selection";
 import { SearchToolbar } from "@/features/catalog/SearchToolbar";
+import type { MapAdapter } from "@/features/map/adapter";
+import { configuredMapAdapter } from "@/features/map/configured-adapter";
+import { SearchMapPanel } from "@/features/map/SearchMapPanel";
 import type { components } from "@/lib/api/schema";
 
 type PropertySummary = components["schemas"]["PropertySummary"];
@@ -165,10 +168,12 @@ function ResultsLoading() {
   );
 }
 
-export function ResultsPage() {
+export function ResultsPage({ mapAdapter }: { mapAdapter?: MapAdapter }) {
   const [searchParams, setSearchParams] = useSearchParams();
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [mapAvailable, setMapAvailable] = useState(true);
   const search = useQuery(propertySearchQueryOptions(searchParams));
+  const MapAdapterComponent = mapAdapter ?? configuredMapAdapter;
   const currentPage = Number(searchParams.get("page") ?? "1");
   const location =
     searchParams.get("location_label") ||
@@ -285,93 +290,120 @@ export function ResultsPage() {
               ? `${formatNumber(count)} ملک پیدا شد`
               : "جست‌وجوی ملک‌ها"}
           </p>
-          {search.isPending ? (
-            <ResultsLoading />
-          ) : search.isError ? (
-            search.error instanceof CatalogSearchError &&
-            search.error.status === 503 ? (
-              <Alert variant="destructive">
-                <AlertTitle>نتایج فعلاً در دسترس نیست</AlertTitle>
-                <AlertDescription>
-                  اطلاعات ملک‌ها موقتاً بارگذاری نمی‌شود. چند دقیقه دیگر دوباره
-                  تلاش کنید.
-                </AlertDescription>
-              </Alert>
-            ) : (
-              <Alert>
-                <AlertTitle>بارگذاری نتایج کامل نشد</AlertTitle>
-                <AlertDescription className="mt-3">
-                  اتصال خود را بررسی کنید.
-                  <Button
-                    className="ms-3"
-                    size="sm"
-                    variant="outline"
-                    type="button"
-                    onClick={() => void search.refetch()}
-                  >
-                    تلاش دوباره
-                  </Button>
-                </AlertDescription>
-              </Alert>
-            )
-          ) : search.data.results.length === 0 ? (
-            <section className="bg-muted flex min-h-80 flex-col items-center justify-center rounded-xl p-8 text-center">
-              <h2 className="text-xl font-semibold">
-                ملکی در این محدوده پیدا نشد
-              </h2>
-              <p className="text-muted-foreground mt-3 max-w-md text-sm leading-7">
-                نام شهر، منطقه یا محله دیگری را جست‌وجو کنید.
-              </p>
-              <Button asChild className="mt-5" variant="outline">
-                <Link to="/">جست‌وجوی دوباره</Link>
-              </Button>
-            </section>
-          ) : (
-            <section
-              className="grid gap-x-5 gap-y-10 sm:grid-cols-2 xl:grid-cols-3"
-              aria-label="ملک‌های پیدا شده"
+          <div
+            className={
+              mapAvailable
+                ? "grid gap-8 xl:grid-cols-[minmax(20rem,0.85fr)_minmax(0,1.4fr)]"
+                : "space-y-5"
+            }
+          >
+            <div
+              className={mapAvailable ? "xl:sticky xl:top-6 xl:self-start" : ""}
             >
-              {search.data.results.map((property) => (
-                <PropertyCard
-                  key={property.id}
-                  property={toCardData(property, searchParams)}
-                />
-              ))}
-            </section>
-          )}
-
-          {search.data && pageCount > 1 && (
-            <Pagination
-              className="mt-12"
-              dir="ltr"
-              aria-label="صفحه‌بندی نتایج"
-            >
-              <PaginationContent>
-                {currentPage > 1 && (
-                  <PaginationItem>
-                    <PaginationPrevious href={hrefForPage(currentPage - 1)} />
-                  </PaginationItem>
-                )}
-                {Array.from({ length: pageCount }, (_, index) => index + 1).map(
-                  (page) => (
-                    <PaginationItem key={page}>
-                      <PaginationLink
-                        href={hrefForPage(page)}
-                        isActive={currentPage === page}
+              <SearchMapPanel
+                adapter={MapAdapterComponent}
+                markers={[]}
+                clusters={[]}
+                onAvailabilityChange={setMapAvailable}
+              />
+            </div>
+            <div>
+              {search.isPending ? (
+                <ResultsLoading />
+              ) : search.isError ? (
+                search.error instanceof CatalogSearchError &&
+                search.error.status === 503 ? (
+                  <Alert variant="destructive">
+                    <AlertTitle>نتایج فعلاً در دسترس نیست</AlertTitle>
+                    <AlertDescription>
+                      اطلاعات ملک‌ها موقتاً بارگذاری نمی‌شود. چند دقیقه دیگر
+                      دوباره تلاش کنید.
+                    </AlertDescription>
+                  </Alert>
+                ) : (
+                  <Alert>
+                    <AlertTitle>بارگذاری نتایج کامل نشد</AlertTitle>
+                    <AlertDescription className="mt-3">
+                      اتصال خود را بررسی کنید.
+                      <Button
+                        className="ms-3"
+                        size="sm"
+                        variant="outline"
+                        type="button"
+                        onClick={() => void search.refetch()}
                       >
-                        {formatNumber(page)}
-                      </PaginationLink>
-                    </PaginationItem>
-                  ),
-                )}
-                {currentPage < pageCount && (
-                  <PaginationItem>
-                    <PaginationNext href={hrefForPage(currentPage + 1)} />
-                  </PaginationItem>
-                )}
-              </PaginationContent>
-            </Pagination>
-          )}
+                        تلاش دوباره
+                      </Button>
+                    </AlertDescription>
+                  </Alert>
+                )
+              ) : search.data.results.length === 0 ? (
+                <section className="bg-muted flex min-h-80 flex-col items-center justify-center rounded-xl p-8 text-center">
+                  <h2 className="text-xl font-semibold">
+                    ملکی در این محدوده پیدا نشد
+                  </h2>
+                  <p className="text-muted-foreground mt-3 max-w-md text-sm leading-7">
+                    نام شهر، منطقه یا محله دیگری را جست‌وجو کنید.
+                  </p>
+                  <Button asChild className="mt-5" variant="outline">
+                    <Link to="/">جست‌وجوی دوباره</Link>
+                  </Button>
+                </section>
+              ) : (
+                <section
+                  className={
+                    mapAvailable
+                      ? "grid gap-x-5 gap-y-10 sm:grid-cols-2"
+                      : "grid gap-x-5 gap-y-10 sm:grid-cols-2 xl:grid-cols-3"
+                  }
+                  aria-label="ملک‌های پیدا شده"
+                >
+                  {search.data.results.map((property) => (
+                    <PropertyCard
+                      key={property.id}
+                      property={toCardData(property, searchParams)}
+                    />
+                  ))}
+                </section>
+              )}
+
+              {search.data && pageCount > 1 && (
+                <Pagination
+                  className="mt-12"
+                  dir="ltr"
+                  aria-label="صفحه‌بندی نتایج"
+                >
+                  <PaginationContent>
+                    {currentPage > 1 && (
+                      <PaginationItem>
+                        <PaginationPrevious
+                          href={hrefForPage(currentPage - 1)}
+                        />
+                      </PaginationItem>
+                    )}
+                    {Array.from(
+                      { length: pageCount },
+                      (_, index) => index + 1,
+                    ).map((page) => (
+                      <PaginationItem key={page}>
+                        <PaginationLink
+                          href={hrefForPage(page)}
+                          isActive={currentPage === page}
+                        >
+                          {formatNumber(page)}
+                        </PaginationLink>
+                      </PaginationItem>
+                    ))}
+                    {currentPage < pageCount && (
+                      <PaginationItem>
+                        <PaginationNext href={hrefForPage(currentPage + 1)} />
+                      </PaginationItem>
+                    )}
+                  </PaginationContent>
+                </Pagination>
+              )}
+            </div>
+          </div>
         </div>
       </div>
     </PageMain>

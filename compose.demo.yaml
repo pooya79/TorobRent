@@ -181,6 +181,8 @@ services:
       context: .
       dockerfile: frontend/Dockerfile
       target: production
+      args:
+        VITE_MAP_ADAPTER: fake
     restart: unless-stopped
     expose:
       - "3000"

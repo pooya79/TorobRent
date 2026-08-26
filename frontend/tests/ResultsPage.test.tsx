@@ -6,13 +6,17 @@ import { MemoryRouter, useLocation, useNavigate } from "react-router";
 import { expect, test } from "vitest";
 
 import { meta, ResultsPage } from "@/pages/ResultsPage";
+import { createFakeMapAdapter, type MapAdapter } from "@/features/map/adapter";
 import {
   officePropertySearchPage,
   propertySearchPage,
 } from "./fixtures/catalog";
 import { server } from "./server";
 
-function renderResults(entry: string | string[] = "/search") {
+function renderResults(
+  entry: string | string[] = "/search",
+  mapAdapter?: MapAdapter,
+) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
@@ -22,7 +26,7 @@ function renderResults(entry: string | string[] = "/search") {
         initialEntries={Array.isArray(entry) ? entry : [entry]}
         initialIndex={Array.isArray(entry) ? entry.length - 1 : 0}
       >
-        <ResultsPage />
+        <ResultsPage mapAdapter={mapAdapter} />
         <SearchStateProbe />
       </MemoryRouter>
     </QueryClientProvider>,
@@ -170,6 +174,22 @@ test("restores category, Property Types, and city context from browser history",
   expect(
     within(toolbar).getByRole("button", { name: "آپارتمان" }),
   ).toBeVisible();
+});
+
+test("keeps Property discovery working when the map provider fails", async () => {
+  const UnavailableMapAdapter = createFakeMapAdapter({
+    failAttempts: Number.POSITIVE_INFINITY,
+  });
+
+  renderResults("/search", UnavailableMapAdapter);
+
+  expect(
+    await screen.findByRole("heading", { name: "آپارتمان در سعادت‌آباد" }),
+  ).toBeVisible();
+  expect(screen.getByText("نقشه موقتاً در دسترس نیست")).toBeVisible();
+  expect(screen.getByRole("region", { name: "ملک‌های پیدا شده" })).toHaveClass(
+    "xl:grid-cols-3",
+  );
 });
 
 test("presents each Property with normalized facts and freshest complete Rental Terms", async () => {

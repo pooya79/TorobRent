@@ -48,7 +48,7 @@ export default defineConfig({
           reuseExistingServer: !process.env.CI,
         },
         {
-          command: `VITE_PROXY_TARGET=${backendUrl} pnpm dev --port ${frontendPort}`,
+          command: `VITE_MAP_ADAPTER=fake VITE_PROXY_TARGET=${backendUrl} pnpm dev --port ${frontendPort}`,
           url: baseURL,
           reuseExistingServer: !process.env.CI,
         },

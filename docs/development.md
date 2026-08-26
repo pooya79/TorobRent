@@ -50,6 +50,13 @@ If PostgreSQL or Redis already occupies the default host port, change `POSTGRES_
 `REDIS_PORT` in `.env` and update the corresponding host-based connection URL. Containerized
 backend services continue to use the internal ports.
 
+The production search map reads `VITE_NESHAN_MAP_KEY` at frontend build time. Use a
+domain-restricted map key from the Neshan panel; never commit a real key. With no key, search stays
+available in its degraded full-width layout. Automated browser tests and the deterministic demo set
+`VITE_MAP_ADAPTER=fake`, so they never contact Neshan. For the minimal non-CI provider check, set a
+valid key, run the frontend, open `/search`, verify Persian/RTL map labels and visible Neshan
+attribution, pan once with the mouse, and confirm that the map remains keyboard-focusable.
+
 The default test suite uses SQLite for fast unit tests. CI sets `TEST_DATABASE_URL` to run the same
 suite against PostgreSQL. Any query, constraint, locking, JSON, or transaction behavior should have
 a PostgreSQL-backed test.

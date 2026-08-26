@@ -108,6 +108,8 @@ services:
       context: .
       dockerfile: frontend/Dockerfile
       target: production
+      args:
+        VITE_NESHAN_MAP_KEY: ${VITE_NESHAN_MAP_KEY}
     restart: unless-stopped
     expose:
       - "3000"

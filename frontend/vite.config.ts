@@ -3,6 +3,26 @@ import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vitest/config";
 
+const neshanMapPackages = [
+  "@neshan-maps-platform",
+  "@petamoriken/float16",
+  "earcut",
+  "geotiff",
+  "ieee754",
+  "lerc",
+  "pako",
+  "parse-headers",
+  "pbf",
+  "protocol-buffers-schema",
+  "quick-lru",
+  "quickselect",
+  "rbush",
+  "resolve-protobuf-schema",
+  "web-worker",
+  "xml-utils",
+  "zstddec",
+];
+
 export default defineConfig({
   plugins: [tailwindcss(), process.env.VITEST ? react() : reactRouter()],
   build: {
@@ -10,6 +30,11 @@ export default defineConfig({
       output: {
         manualChunks(id) {
           // Avoid dozens of tiny module preloads delaying first paint on shared CI runners.
+          if (
+            neshanMapPackages.some((packageName) => id.includes(packageName))
+          ) {
+            return "neshan-map";
+          }
           if (id.includes("node_modules")) return "vendor";
         },
       },
