@@ -109,6 +109,8 @@ class Submission(models.Model):
         "catalog.Neighborhood", on_delete=models.PROTECT, null=True, blank=True
     )
     address = models.TextField(blank=True)
+    exact_latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    exact_longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
     property_type = models.CharField(max_length=16, choices=PropertyType, blank=True)
     area_sqm = models.PositiveIntegerField(null=True, blank=True)
     room_count = models.PositiveSmallIntegerField(null=True, blank=True)
