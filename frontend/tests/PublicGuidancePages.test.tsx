@@ -6,9 +6,15 @@ import { MemoryRouter } from "react-router";
 import { expect, test } from "vitest";
 
 import { ContactPage } from "@/pages/ContactPage";
-import { GuidePage, PrivacyPage, TermsPage } from "@/pages/PublicGuidancePages";
+import {
+  AdvertisePage,
+  GuidePage,
+  PrivacyPage,
+  TermsPage,
+} from "@/pages/PublicGuidancePages";
 import { server } from "./server";
 import routerConfig from "../react-router.config";
+import { meta as advertiseMeta } from "@/routes/advertise";
 import { meta as contactMeta } from "@/routes/contact";
 import { meta as guideMeta } from "@/routes/guide";
 import { meta as privacyMeta } from "@/routes/privacy";
@@ -50,6 +56,25 @@ test("publishes Persian Guide, Privacy, Terms, and honest alpha guidance", () =>
     expect(screen.getByText(new RegExp(item.copy))).toBeVisible();
     view.unmount();
   }
+});
+
+test("introduces future Owner and Agent phone enrollment without entering Submission", () => {
+  renderPage(<AdvertisePage />);
+
+  expect(
+    screen.getByRole("heading", { name: "ثبت آگهی در ترب‌رنت" }),
+  ).toBeVisible();
+  expect(
+    screen.getByText(
+      /ثبت‌نام تلفنی مالکان و نمایندگان مجاز مالک هنوز فعال نشده است/,
+    ),
+  ).toBeVisible();
+  expect(screen.getByText(/به‌زودی/)).toBeVisible();
+  expect(screen.getByRole("link", { name: "جست‌وجوی ملک" })).toHaveAttribute(
+    "href",
+    "/search",
+  );
+  expect(screen.queryByRole("link", { name: /ثبت آگهی/ })).toBeNull();
 });
 
 test("submits an accessible Persian Contact form and reports success", async () => {
@@ -153,12 +178,14 @@ test("pre-renders public guidance with Persian metadata", () => {
   expect(routerConfig.prerender).toEqual([
     "/guide",
     "/contact",
+    "/advertise",
     "/privacy",
     "/terms",
   ]);
   const routeMetadata = [
     [guideMeta(), "راهنمای فارسی جست‌وجو"],
     [contactMeta(), "ارسال پیام فارسی"],
+    [advertiseMeta(), "ثبت‌نام تلفنی مالک و نمایندهٔ مجاز"],
     [privacyMeta(), "سیاست حریم خصوصی فارسی"],
     [termsMeta(), "شرایط استفاده فارسی"],
   ] as const;

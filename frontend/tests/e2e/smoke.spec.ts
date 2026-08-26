@@ -39,9 +39,19 @@ test("@milestone @cross-browser hydrates the application shell and reports API h
   expect(readinessAttempts).toBe(3);
 
   const navigation = page.getByRole("navigation", { name: "راهبری اصلی" });
-  for (const name of ["خانه", "راهنما", "تماس", "ورود", "ثبت آگهی"]) {
+  for (const name of [
+    "خانه",
+    "راهنما",
+    "تماس",
+    "ورود",
+    "ثبت‌نام",
+    "می‌خواهم آگهی ثبت کنم",
+  ]) {
     await expect(navigation.getByRole("link", { name })).toBeVisible();
   }
+  await expect(
+    page.getByRole("banner", { name: "راهبری عمومی" }),
+  ).toBeVisible();
 });
 
 test("@milestone @cross-browser keeps navigation usable on a mobile viewport", async ({
@@ -59,11 +69,29 @@ test("@milestone @cross-browser keeps navigation usable on a mobile viewport", a
     page.getByRole("combobox", { name: "شهر یا محله" }),
   ).toBeFocused();
 
-  await page.getByRole("button", { name: "باز کردن فهرست راهبری" }).click();
+  const menuTrigger = page.getByRole("button", {
+    name: "باز کردن فهرست راهبری",
+  });
+  await menuTrigger.focus();
+  await page.keyboard.press("Enter");
+  await expect(
+    page.getByRole("dialog", { name: "راهبری ترب‌رنت" }),
+  ).toBeVisible();
   const navigation = page.getByRole("navigation", { name: "راهبری اصلی" });
-  for (const name of ["خانه", "راهنما", "تماس", "ورود", "ثبت آگهی"]) {
+  for (const name of [
+    "خانه",
+    "راهنما",
+    "تماس",
+    "ورود",
+    "ثبت‌نام",
+    "می‌خواهم آگهی ثبت کنم",
+  ]) {
     await expect(navigation.getByRole("link", { name })).toBeVisible();
   }
+
+  await page.keyboard.press("Escape");
+  await expect(menuTrigger).toBeFocused();
+  await menuTrigger.click();
 
   await navigation.getByRole("link", { name: "راهنما" }).click();
   await expect(page.getByRole("main")).toBeFocused();
@@ -78,6 +106,7 @@ test("@milestone @cross-browser exposes the public fixture-backed prototype rout
   const routes = [
     ["/", "خانه‌ای برای اجاره پیدا کنید"],
     ["/search", "خانه‌های اجاره‌ای در تهران"],
+    ["/advertise", "ثبت آگهی در ترب‌رنت"],
   ] as const;
 
   for (const [path, heading] of routes) {
