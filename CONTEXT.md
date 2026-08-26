@@ -7,7 +7,8 @@ staff control which rental information is published.
 
 **Renter**:
 A person or organization searching for a residential or commercial Property to rent. A Renter does
-not need an account to search or inspect published rental information.
+not need an account to search or inspect published rental information, but may use one to retain
+Favorites.
 _Avoid_: Customer, searcher
 
 **Submitter**:
@@ -49,6 +50,15 @@ _Avoid_: Business type
 The physical kind of Property within a Property Category: Apartment, House, Villa, Office, Shop,
 Warehouse, or Workshop.
 _Avoid_: Property Category, subtype
+
+**Floor Area**:
+The usable size of a Property's floor space, measured in square meters.
+_Avoid_: Area, geographic area, Map Viewport
+
+**Property Image**:
+A stored, Operator-reviewed image representing a Property independently of the Listing currently
+selected for its Rental Terms.
+_Avoid_: Listing image, advertisement image
 
 **Listing**:
 One source's advertisement of a Property, including source-specific rental terms and a route to
@@ -98,6 +108,26 @@ _Avoid_: Price, property price
 An explicit assertion that a Property feature is present or absent, or an acknowledgement that the
 feature is unknown. Missing source information is not treated as absence.
 _Avoid_: Boolean feature
+
+**Bedroom Count**:
+The number of rooms in a residential Property intended specifically for sleeping.
+_Avoid_: Room count, rooms
+
+**Approximate Location**:
+The deliberately imprecise public area in which a Property is located, preserving its usefulness
+for geographic discovery without revealing its exact position.
+_Avoid_: Property address
+
+**Exact Location**:
+The restricted position of a Property, when known, from which its Approximate Location may be
+derived. It is not published to Renters.
+_Avoid_: Public location, map marker
+
+**Favorite**:
+An authenticated Renter's saved interest in a Property, independent of any particular Listing. It
+persists while the Property is unavailable and follows a merge, but ceases when the Property is
+permanently removed.
+_Avoid_: Saved Listing, bookmark, like
 
 ## Support
 
