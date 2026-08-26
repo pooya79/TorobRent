@@ -1,11 +1,13 @@
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from decimal import Decimal
 
 from django.conf import settings
 from django.core.management import call_command
 
 from apps.common.demo import DemoFixtureKind, demo_id
 
+from .locations import derive_public_location
 from .models import (
     TEHRAN_CITY_ID,
     City,
@@ -80,6 +82,8 @@ def _seed_properties() -> list[Property]:
     for index, neighborhood in enumerate(neighborhoods, start=1):
         property_type = property_types[(index - 1) % len(property_types)]
         room_count = (index - 1) % 5 if property_type_requires_room_count(property_type) else None
+        latitude = Decimal("35.700000") + Decimal(index % 10) * Decimal("0.005")
+        longitude = Decimal("51.300000") + Decimal(index % 12) * Decimal("0.010")
         property_, created = Property.objects.get_or_create(
             id=demo_id(DemoFixtureKind.PROPERTY, index),
             defaults={
@@ -100,6 +104,8 @@ def _seed_properties() -> list[Property]:
                 "furnished": feature_states[(index + 3) % len(feature_states)],
                 "heating": "پکیج",
                 "cooling": "کولر آبی",
+                "latitude": latitude,
+                "longitude": longitude,
                 "provenance_note": "داده ساختگی و محلی برای نمایش TorobRent",
                 "normalized_at": PUBLISHED_AT,
             },
@@ -110,6 +116,20 @@ def _seed_properties() -> list[Property]:
             property_.property_type = property_type
             property_.room_count = room_count
             property_.save(update_fields=("property_type", "room_count"))
+        if property_.approximate_latitude is None or property_.approximate_longitude is None:
+            property_.latitude = property_.latitude or latitude
+            property_.longitude = property_.longitude or longitude
+            derive_public_location(property_)
+            property_.save(
+                update_fields=(
+                    "latitude",
+                    "longitude",
+                    "approximate_latitude",
+                    "approximate_longitude",
+                    "location_precision",
+                    "location_radius_meters",
+                )
+            )
         properties.append(property_)
     return properties
 
