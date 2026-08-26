@@ -1,13 +1,13 @@
 # TorobRent
 
-TorobRent helps people discover rental homes and lets platform staff control which rental
-information is published.
+TorobRent helps people discover residential and commercial Properties for rent and lets platform
+staff control which rental information is published.
 
 ## People
 
 **Renter**:
-A person searching for a home to rent. A renter does not need an account to search or inspect
-published rental information.
+A person or organization searching for a residential or commercial Property to rent. A Renter does
+not need an account to search or inspect published rental information.
 _Avoid_: Customer, searcher
 
 **Submitter**:
@@ -37,9 +37,18 @@ _Avoid_: Operator type, Django staff status
 ## Rental catalog
 
 **Property**:
-A real-world home offered for rent whose normalized facts can be presented independently of any
-one advertisement.
+A real-world residential or commercial space offered for rent whose normalized facts can be
+presented independently of any one advertisement.
 _Avoid_: Listing, advertisement
+
+**Property Category**:
+The broad intended-use grouping of a Property: Residential or Commercial.
+_Avoid_: Business type
+
+**Property Type**:
+The physical kind of Property within a Property Category: Apartment, House, Villa, Office, Shop,
+Warehouse, or Workshop.
+_Avoid_: Property Category, subtype
 
 **Listing**:
 One source's advertisement of a Property, including source-specific rental terms and a route to
