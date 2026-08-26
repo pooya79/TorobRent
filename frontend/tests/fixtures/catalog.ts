@@ -132,6 +132,12 @@ export const propertyDetail: components["schemas"]["PropertyDetail"] = {
   ],
 };
 
+const reviewedPrimaryImage = {
+  url: "/media/reviewed-media/property-primary.webp",
+  width: 960,
+  height: 720,
+};
+
 function searchSummary(
   detail: components["schemas"]["PropertyDetail"],
 ): components["schemas"]["PropertySummary"] {
@@ -148,6 +154,7 @@ function searchSummary(
     area_sqm: detail.area_sqm,
     room_count: detail.room_count,
     construction_year: detail.construction_year,
+    primary_image: reviewedPrimaryImage,
     listing_count: 2,
     is_favorite: false,
     rental_terms: detail.listings[0]!.rental_terms,

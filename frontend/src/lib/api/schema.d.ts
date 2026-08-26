@@ -1433,6 +1433,11 @@ export interface components {
       readonly property_category_label: string;
       readonly property_type_label: string;
     };
+    PropertyImageSummary: {
+      url: string;
+      width: number;
+      height: number;
+    };
     PropertySearchPage: {
       count: number;
       /** Format: uri */
@@ -1458,6 +1463,8 @@ export interface components {
       area_sqm: number;
       room_count?: number;
       construction_year: number | null;
+      readonly primary_image:
+        components["schemas"]["PropertyImageSummary"] | null;
       listing_count: number;
       is_favorite?: boolean;
       readonly rental_terms: components["schemas"]["RentalTermsPublic"];
@@ -2610,12 +2617,24 @@ export interface operations {
         monthly_rent_max_toman?: number;
         monthly_rent_min_toman?: number;
         /**
-         * @description * `freshness` - freshness
+         * @description Use the five canonical sort modes. `freshness` and `area` remain supported as deprecated aliases for `newest` and `area_asc`.
+         *
+         *     * `newest` - newest
          *     * `monthly_rent` - monthly_rent
          *     * `deposit` - deposit
+         *     * `area_desc` - area_desc
+         *     * `area_asc` - area_asc
+         *     * `freshness` - freshness
          *     * `area` - area
          */
-        ordering?: "freshness" | "monthly_rent" | "deposit" | "area";
+        ordering?:
+          | "newest"
+          | "monthly_rent"
+          | "deposit"
+          | "area_desc"
+          | "area_asc"
+          | "freshness"
+          | "area";
         page?: number;
         /**
          * @description * `present` - present
