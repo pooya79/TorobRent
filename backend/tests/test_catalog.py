@@ -1,3 +1,4 @@
+import math
 import uuid
 from datetime import timedelta
 from pathlib import Path
@@ -465,6 +466,8 @@ def test_anonymous_renter_retrieves_property_only_through_an_active_listing(
         area_sqm=110,
         room_count=2,
         parking=FeatureState.PRESENT,
+        latitude="35.770001",
+        longitude="51.379999",
     )
     terms = RentalTerms.objects.create(
         deposit_rial=10_000_000_000,
@@ -493,6 +496,29 @@ def test_anonymous_renter_retrieves_property_only_through_an_active_listing(
     }
     assert response.data["features"]["parking"] == FeatureState.PRESENT
     assert response.data["features"]["elevator"] == FeatureState.UNKNOWN
+    assert response.data["approximate_location"]["precision"] == "approximate"
+    assert response.data["approximate_location"]["radius_meters"] == 500
+    assert response.data["approximate_location"]["latitude"] != "35.770001"
+    assert response.data["approximate_location"]["longitude"] != "51.379999"
+    serialized = response.json()
+    assert "35.770001" not in str(serialized)
+    assert "51.379999" not in str(serialized)
+    public_latitude = math.radians(float(response.data["approximate_location"]["latitude"]))
+    exact_latitude = math.radians(35.770001)
+    latitude_delta = public_latitude - exact_latitude
+    longitude_delta = math.radians(
+        float(response.data["approximate_location"]["longitude"]) - 51.379999
+    )
+    haversine = (
+        math.sin(latitude_delta / 2) ** 2
+        + math.cos(exact_latitude) * math.cos(public_latitude) * math.sin(longitude_delta / 2) ** 2
+    )
+    distance_meters = 6_371_000 * 2 * math.asin(math.sqrt(haversine))
+    assert 0 < distance_meters < response.data["approximate_location"]["radius_meters"]
+    search = api_client.get("/api/v1/catalog/properties/", {"location": "تهران"})
+    assert search.status_code == 200
+    assert "35.770001" not in str(search.json())
+    assert "51.379999" not in str(search.json())
     assert response.data["listings"][0]["rental_terms"] == {
         "deposit_rial": 10_000_000_000,
         "monthly_rent_rial": 250_000_000,
@@ -505,6 +531,62 @@ def test_anonymous_renter_retrieves_property_only_through_an_active_listing(
     listing.available_until = timezone.now() - timedelta(seconds=1)
     listing.save(update_fields=["available_until"])
     assert api_client.get(f"/api/v1/catalog/properties/{property_.id}/").status_code == 404
+
+
+@pytest.mark.django_db
+def test_public_location_uses_lower_precision_fallback_and_keeps_unmapped_properties_searchable(
+    api_client: APIClient,
+):
+    call_command("loaddata", "catalog_seed", verbosity=0)
+    neighborhood = Neighborhood.objects.get(name_fa="سعادت‌آباد")
+    neighborhood.center_latitude = "35.778000"
+    neighborhood.center_longitude = "51.380000"
+    neighborhood.save(update_fields=("center_latitude", "center_longitude"))
+    source = Source.objects.get(is_builtin=True)
+
+    fallback_property = Property.objects.create(
+        city=neighborhood.district.city,
+        district=neighborhood.district,
+        neighborhood=neighborhood,
+        property_type=PropertyType.APARTMENT,
+        area_sqm=90,
+        room_count=1,
+    )
+    unmapped_property = Property.objects.create(
+        city=neighborhood.district.city,
+        district=neighborhood.district,
+        neighborhood=neighborhood,
+        property_type=PropertyType.HOUSE,
+        area_sqm=130,
+        room_count=2,
+    )
+    for property_ in (fallback_property, unmapped_property):
+        listing = Listing.objects.create(
+            property=property_,
+            source=source,
+            terms=RentalTerms.objects.create(
+                deposit_rial=5_000_000_000,
+                monthly_rent_rial=100_000_000,
+            ),
+            direct_phone="۰۹۱۲۱۲۳۴۵۶۷",
+        )
+        if property_ == unmapped_property:
+            neighborhood.center_latitude = None
+            neighborhood.center_longitude = None
+            neighborhood.save(update_fields=("center_latitude", "center_longitude"))
+        publish_listing(listing)
+
+    response = api_client.get("/api/v1/catalog/properties/", {"location": "تهران"})
+
+    assert response.status_code == 200
+    by_id = {item["id"]: item for item in response.data["results"]}
+    assert by_id[str(fallback_property.id)]["approximate_location"] == {
+        "latitude": "35.778000",
+        "longitude": "51.380000",
+        "precision": "neighborhood",
+        "radius_meters": 1500,
+    }
+    assert by_id[str(unmapped_property.id)]["approximate_location"] is None
 
 
 @pytest.mark.django_db
@@ -559,6 +641,7 @@ def test_renter_can_find_and_open_each_published_commercial_type_without_a_room_
             "district_number": 2,
             "neighborhood": "سعادت‌آباد",
         },
+        "approximate_location": None,
         "property_category": "commercial",
         "property_category_label": "تجاری",
         "property_type": property_type,
@@ -734,6 +817,7 @@ def test_property_search_groups_active_listings_and_uses_the_freshest_terms(
                 "district_number": 2,
                 "neighborhood": "سعادت‌آباد",
             },
+            "approximate_location": None,
             "property_category": "residential",
             "property_category_label": "مسکونی",
             "property_type": "apartment",

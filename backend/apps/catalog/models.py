@@ -1,6 +1,7 @@
 import uuid
 from typing import ClassVar
 
+from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models import Q
@@ -68,6 +69,11 @@ class OutboundPolicy(models.TextChoices):
     DISABLED = "disabled", "غیرفعال"
 
 
+class LocationPrecision(models.TextChoices):
+    APPROXIMATE = "approximate", "Approximate"
+    NEIGHBORHOOD = "neighborhood", "Neighborhood"
+
+
 class ProvenancedLocation(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name_fa = models.CharField(max_length=120)
@@ -102,6 +108,8 @@ class District(ProvenancedLocation):
 
 class Neighborhood(ProvenancedLocation):
     district = models.ForeignKey(District, on_delete=models.PROTECT, related_name="neighborhoods")
+    center_latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    center_longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
 
     class Meta:
         ordering = ("name_fa",)
@@ -163,6 +171,19 @@ class Property(models.Model):
     operator_location_notes = models.TextField(blank=True)
     latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
     longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    approximate_latitude = models.DecimalField(
+        max_digits=9, decimal_places=6, null=True, blank=True, editable=False
+    )
+    approximate_longitude = models.DecimalField(
+        max_digits=9, decimal_places=6, null=True, blank=True, editable=False
+    )
+    location_precision = models.CharField(
+        max_length=16,
+        choices=LocationPrecision,
+        blank=True,
+        editable=False,
+    )
+    location_radius_meters = models.PositiveIntegerField(null=True, blank=True, editable=False)
     provenance_note = models.TextField(blank=True)
     normalized_at = models.DateTimeField(null=True, blank=True)
     merged_into = models.ForeignKey(
@@ -238,6 +259,33 @@ class Property(models.Model):
     @property
     def canonical_slug(self) -> str:
         return slugify(self.title, allow_unicode=True)
+
+
+class Favorite(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    account = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="favorites",
+    )
+    property = models.ForeignKey(
+        Property,
+        on_delete=models.CASCADE,
+        related_name="favorites",
+    )
+    saved_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ("-saved_at", "id")
+        constraints = [
+            models.UniqueConstraint(
+                fields=("account", "property"),
+                name="catalog_unique_favorite_per_account_property",
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.account_id}: {self.property_id}"
 
 
 class RentalTerms(models.Model):

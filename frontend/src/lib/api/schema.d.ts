@@ -225,6 +225,24 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/v1/catalog/properties/{property_id}/favorite/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /** Save an active Property as a Favorite */
+    put: operations["v1_catalog_properties_favorite_update"];
+    post?: never;
+    /** Remove an active Property from Favorites */
+    delete: operations["v1_catalog_properties_favorite_destroy"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/v1/catalog/properties/{property_id}/view/": {
     parameters: {
       query?: never;
@@ -897,6 +915,14 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
   schemas: {
+    ApproximateLocation: {
+      /** Format: decimal */
+      latitude: string;
+      /** Format: decimal */
+      longitude: string;
+      precision: components["schemas"]["PrecisionEnum"];
+      radius_meters: number;
+    };
     AuditedFormatting: {
       description?: string;
     };
@@ -1037,6 +1063,12 @@ export interface components {
     Detail: {
       detail: string;
     };
+    ExactLocation: {
+      /** Format: decimal */
+      latitude: string;
+      /** Format: decimal */
+      longitude: string;
+    };
     /**
      * @description * `email` - ایمیل
      *     * `phone` - تلفن
@@ -1146,6 +1178,7 @@ export interface components {
       /** Format: uuid */
       neighborhood_id: string;
       address: string;
+      exact_location?: components["schemas"]["ExactLocation"];
     };
     LocationOutput: {
       /** Format: uuid */
@@ -1158,6 +1191,7 @@ export interface components {
       neighborhood_id: string;
       neighborhood: string;
       address: string;
+      exact_location: components["schemas"]["ExactLocation"] | null;
     };
     LocationSuggestion: {
       /** Format: uuid */
@@ -1203,6 +1237,7 @@ export interface components {
       balcony?: components["schemas"]["FeatureStateEnum"];
       furnished?: components["schemas"]["FeatureStateEnum"];
       operator_location_notes?: string;
+      exact_location?: components["schemas"]["ExactLocation"];
     };
     NullEnum: null;
     /**
@@ -1305,6 +1340,12 @@ export interface components {
       phone: string;
     };
     /**
+     * @description * `approximate` - Approximate
+     *     * `neighborhood` - Neighborhood
+     * @enum {string}
+     */
+    PrecisionEnum: "approximate" | "neighborhood";
+    /**
      * @description * `defensive_contact_removal` - حذف دفاعی اطلاعات تماس عمومی
      *     * `permanent_account_action` - اقدام دائمی حساب
      * @enum {string}
@@ -1340,6 +1381,7 @@ export interface components {
       title: string;
       canonical_slug: string;
       location: components["schemas"]["Location"];
+      approximate_location: components["schemas"]["ApproximateLocation"] | null;
       property_category: components["schemas"]["PropertyCategoryEnum"];
       property_category_label: string;
       property_type: components["schemas"]["PropertyTypeEnum"];
@@ -1391,6 +1433,8 @@ export interface components {
       title: string;
       canonical_slug: string;
       readonly location: components["schemas"]["Location"];
+      readonly approximate_location:
+        components["schemas"]["ApproximateLocation"] | null;
       property_category: components["schemas"]["PropertyCategoryEnum"];
       property_category_label: string;
       property_type: components["schemas"]["PropertyTypeEnum"];
@@ -1399,6 +1443,7 @@ export interface components {
       room_count?: number;
       construction_year: number | null;
       listing_count: number;
+      is_favorite?: boolean;
       readonly rental_terms: components["schemas"]["RentalTermsPublic"];
       /** Format: date-time */
       availability_confirmed_at: string;
@@ -2626,6 +2671,46 @@ export interface operations {
         content: {
           "application/problem+json": components["schemas"]["Problem"];
         };
+      };
+    };
+  };
+  v1_catalog_properties_favorite_update: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        property_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description No response body */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  v1_catalog_properties_favorite_destroy: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        property_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description No response body */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
       };
     };
   };

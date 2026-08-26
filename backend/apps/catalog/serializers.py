@@ -6,6 +6,7 @@ from rest_framework import serializers
 from .models import (
     FeatureState,
     Listing,
+    LocationPrecision,
     OutboundPolicy,
     Property,
     PropertyCategory,
@@ -21,6 +22,29 @@ class LocationSerializer(serializers.Serializer[Any]):
     district = serializers.CharField()
     district_number = serializers.IntegerField()
     neighborhood = serializers.CharField()
+
+
+class ApproximateLocationSerializer(serializers.Serializer[Any]):
+    latitude = serializers.DecimalField(max_digits=9, decimal_places=6, coerce_to_string=True)
+    longitude = serializers.DecimalField(max_digits=9, decimal_places=6, coerce_to_string=True)
+    precision = serializers.ChoiceField(choices=LocationPrecision.choices)
+    radius_meters = serializers.IntegerField(min_value=1)
+
+
+def approximate_location_data(property_: Property) -> dict[str, Any] | None:
+    if (
+        property_.approximate_latitude is None
+        or property_.approximate_longitude is None
+        or not property_.location_precision
+        or property_.location_radius_meters is None
+    ):
+        return None
+    return {
+        "latitude": str(property_.approximate_latitude),
+        "longitude": str(property_.approximate_longitude),
+        "precision": property_.location_precision,
+        "radius_meters": property_.location_radius_meters,
+    }
 
 
 class LocationSuggestionSerializer(serializers.Serializer[Any]):
@@ -223,6 +247,7 @@ class PropertySummarySerializer(serializers.Serializer[Any]):
     title = serializers.CharField()
     canonical_slug = serializers.CharField()
     location = serializers.SerializerMethodField()
+    approximate_location = serializers.SerializerMethodField()
     property_category = serializers.ChoiceField(choices=PropertyCategory.choices)
     property_category_label = serializers.CharField()
     property_type = serializers.ChoiceField(choices=PropertyType.choices)
@@ -231,6 +256,7 @@ class PropertySummarySerializer(serializers.Serializer[Any]):
     room_count = OmitNullIntegerField(required=False)
     construction_year = serializers.IntegerField(allow_null=True)
     listing_count = serializers.IntegerField()
+    is_favorite = serializers.BooleanField(required=False)
     rental_terms = serializers.SerializerMethodField()
     availability_confirmed_at = serializers.DateTimeField(
         source="selected_availability_confirmed_at"
@@ -249,6 +275,10 @@ class PropertySummarySerializer(serializers.Serializer[Any]):
             "district_number": district.number,
             "neighborhood": neighborhood.name_fa,
         }
+
+    @extend_schema_field(ApproximateLocationSerializer(allow_null=True))
+    def get_approximate_location(self, property_: Property) -> dict[str, Any] | None:
+        return approximate_location_data(property_)
 
     @extend_schema_field(RentalTermsPublicSerializer)
     def get_rental_terms(self, property_: Property) -> dict[str, Any]:
@@ -317,6 +347,7 @@ class PropertyDetailSerializer(serializers.Serializer[Any]):
     title = serializers.CharField()
     canonical_slug = serializers.CharField()
     location = LocationSerializer()
+    approximate_location = ApproximateLocationSerializer(allow_null=True)
     property_category = serializers.ChoiceField(choices=PropertyCategory.choices)
     property_category_label = serializers.CharField()
     property_type = serializers.ChoiceField(choices=PropertyType.choices)
@@ -398,6 +429,7 @@ def property_detail_data(property_: Property, listings: list[Listing]) -> dict[s
             "district_number": district.number,
             "neighborhood": neighborhood.name_fa,
         },
+        "approximate_location": approximate_location_data(property_),
         "property_category": property_.property_category,
         "property_category_label": property_.property_category_label,
         "property_type": property_.property_type,

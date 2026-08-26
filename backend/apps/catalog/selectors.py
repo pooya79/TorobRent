@@ -4,7 +4,7 @@ from dataclasses import dataclass, replace
 from enum import StrEnum
 from typing import Any, Literal, cast
 
-from django.db.models import CharField, Count, OuterRef, Q, QuerySet, Subquery, Value
+from django.db.models import CharField, Count, Exists, OuterRef, Q, QuerySet, Subquery, Value
 from django.db.models.functions import Replace
 
 from .models import (
@@ -12,6 +12,7 @@ from .models import (
     TEHRAN_CITY_ID,
     City,
     District,
+    Favorite,
     Listing,
     Neighborhood,
     Property,
@@ -171,7 +172,11 @@ def catalog_statistics() -> CatalogStatistics:
     return CatalogStatistics(**counts)
 
 
-def search_properties(filters: PropertySearchFilters | None = None) -> QuerySet[Property]:
+def search_properties(
+    filters: PropertySearchFilters | None = None,
+    *,
+    favorite_account_id: uuid.UUID | None = None,
+) -> QuerySet[Property]:
     filters = filters or PropertySearchFilters()
     active_listings = Listing.objects.active().filter(property_id=OuterRef("pk"))
     listing_ranges = {
@@ -217,6 +222,15 @@ def search_properties(filters: PropertySearchFilters | None = None) -> QuerySet[
         )
     )
     properties = properties.filter(selected_listing_id__isnull=False)
+    if favorite_account_id is not None:
+        properties = properties.annotate(
+            is_favorite=Exists(
+                Favorite.objects.filter(
+                    account_id=favorite_account_id,
+                    property_id=OuterRef("pk"),
+                )
+            )
+        )
 
     property_filters = {
         "area_sqm__gte": filters.area_min,

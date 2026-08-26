@@ -1,6 +1,7 @@
 import logging
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from decimal import Decimal
 from functools import partial
 from io import BytesIO
 from typing import Any
@@ -95,6 +96,11 @@ PROPERTY_FIELDS = (
     "furnished",
 )
 OPERATOR_PROPERTY_FIELDS = frozenset({*PROPERTY_FIELDS, "operator_location_notes"})
+OPERATOR_PROPERTY_FIELDS = frozenset({
+    *OPERATOR_PROPERTY_FIELDS,
+    "latitude",
+    "longitude",
+})
 
 
 @dataclass(frozen=True)
@@ -108,7 +114,14 @@ STEP_DEFINITIONS = {
     SubmissionStep.LOCATION: StepDefinition(
         "location",
         SubmissionStep.PROPERTY_FACTS,
-        ("city", "district", "neighborhood", "address"),
+        (
+            "city",
+            "district",
+            "neighborhood",
+            "address",
+            "exact_latitude",
+            "exact_longitude",
+        ),
     ),
     SubmissionStep.PROPERTY_FACTS: StepDefinition(
         "property_facts",
@@ -639,6 +652,7 @@ def _property_values(submission: Submission, corrections: dict[str, object]) -> 
     if unknown:
         raise ValidationError(f"اصلاح مشخصات مجاز نیست: {', '.join(sorted(unknown))}")
     values = {field: getattr(submission, field) for field in PROPERTY_FIELDS}
+    values.update(latitude=submission.exact_latitude, longitude=submission.exact_longitude)
     values.update(corrections)
     return values
 
@@ -658,7 +672,12 @@ def _audit_property_corrections(corrections: dict[str, object]) -> dict[str, obj
     audited: dict[str, object] = {}
     for field, value in corrections.items():
         output_field = relation_names.get(field, field)
-        audited[output_field] = str(value.pk) if isinstance(value, models.Model) else value
+        if isinstance(value, models.Model):
+            audited[output_field] = str(value.pk)
+        elif isinstance(value, Decimal):
+            audited[output_field] = str(value)
+        else:
+            audited[output_field] = value
     return audited
 
 

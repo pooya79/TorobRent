@@ -12,6 +12,7 @@ from django.db import transaction
 from django.utils import timezone
 from rest_framework.exceptions import Throttled
 
+from .locations import derive_public_location
 from .models import (
     Listing,
     ListingGroupingAction,
@@ -102,8 +103,17 @@ def publish_listing(listing: Listing) -> Listing:
     listing.terms.full_clean()
     listing.full_clean()
     now = timezone.now()
+    derive_public_location(listing.property)
     listing.property.normalized_at = now
-    listing.property.save(update_fields=["normalized_at"])
+    listing.property.save(
+        update_fields=[
+            "approximate_latitude",
+            "approximate_longitude",
+            "location_precision",
+            "location_radius_meters",
+            "normalized_at",
+        ]
+    )
     if listing.published_at is None:
         listing.published_at = now
     listing.availability_confirmed_at = now

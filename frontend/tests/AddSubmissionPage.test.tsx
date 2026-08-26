@@ -73,6 +73,39 @@ test("creates an Owner draft and presents the seven server-backed steps", async 
   }
 });
 
+test("places an Exact Location with a draggable map pin and saves coordinates without geocoding", async () => {
+  const user = userEvent.setup();
+  let savedBody: unknown;
+  server.use(
+    http.get("*/api/v1/submissions/:id/", () => HttpResponse.json(draft)),
+    http.patch("*/api/v1/submissions/:id/", async ({ request }) => {
+      savedBody = await request.json();
+      return HttpResponse.json({ ...draft, current_step: "property_facts" });
+    }),
+  );
+  renderPage(`/add-submission?submission=${draft.id}&step=location`);
+
+  await user.type(await screen.findByLabelText("محله"), "سعادت");
+  await user.click(
+    await screen.findByRole("option", { name: "سعادت‌آباد، منطقه ۲، تهران" }),
+  );
+  await user.type(screen.getByLabelText("نشانی دقیق"), "بلوار دریا");
+  const pin = screen.getByRole("button", { name: "پین مکان دقیق" });
+  expect(pin).toHaveAttribute("draggable", "true");
+  await user.type(pin, "{ArrowUp}");
+  await user.click(screen.getByRole("button", { name: "ذخیره و ادامه" }));
+
+  await waitFor(() =>
+    expect(savedBody).toMatchObject({
+      completed_step: "location",
+      location: {
+        address: "بلوار دریا",
+        exact_location: { latitude: "35.722", longitude: "51.3347" },
+      },
+    }),
+  );
+});
+
 test("attaches localized validation to the relevant field and preserves valid input", async () => {
   const user = userEvent.setup();
   server.use(
