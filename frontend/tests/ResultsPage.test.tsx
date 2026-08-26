@@ -1,12 +1,15 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { http, HttpResponse } from "msw";
+import { delay, http, HttpResponse } from "msw";
 import { MemoryRouter, useLocation, useNavigate } from "react-router";
 import { expect, test } from "vitest";
 
 import { meta, ResultsPage } from "@/pages/ResultsPage";
+import { ProductShell } from "@/app/ProductShell";
+import { ThemeProvider } from "@/app/ThemeProvider";
 import { createFakeMapAdapter, type MapAdapter } from "@/features/map/adapter";
+import { RenterAccessProvider } from "@/features/session/RenterAccessDialog";
 import {
   officePropertySearchPage,
   propertySearchPage,
@@ -26,12 +29,310 @@ function renderResults(
         initialEntries={Array.isArray(entry) ? entry : [entry]}
         initialIndex={Array.isArray(entry) ? entry.length - 1 : 0}
       >
-        <ResultsPage mapAdapter={mapAdapter} />
-        <SearchStateProbe />
+        <RenterAccessProvider>
+          <ResultsPage mapAdapter={mapAdapter} />
+          <SearchStateProbe />
+        </RenterAccessProvider>
       </MemoryRouter>
     </QueryClientProvider>,
   );
 }
+
+test("operates an authenticated Favorite independently and optimistically", async () => {
+  const user = userEvent.setup();
+  let saveRequests = 0;
+  server.use(
+    http.get("*/api/v1/auth/session/", () =>
+      HttpResponse.json({ authenticated: true, csrf_token: "favorite-token" }),
+    ),
+    http.put("*/api/v1/catalog/properties/:propertyId/favorite/", async () => {
+      saveRequests += 1;
+      await delay(100);
+      return new HttpResponse(null, { status: 204 });
+    }),
+  );
+  renderResults();
+
+  const propertyLink = await screen.findByRole("link", {
+    name: "آپارتمان در سعادت‌آباد",
+  });
+  const favorite = screen.getByRole("button", {
+    name: "ذخیره آپارتمان در سعادت‌آباد در علاقه‌مندی‌ها",
+  });
+  expect(favorite).toHaveAttribute("aria-pressed", "false");
+  expect(propertyLink).not.toContainElement(favorite);
+
+  await user.click(favorite);
+
+  expect(favorite).toHaveAttribute("aria-pressed", "true");
+  expect(favorite).toHaveAccessibleName(
+    "حذف آپارتمان در سعادت‌آباد از علاقه‌مندی‌ها",
+  );
+  await waitFor(() => expect(saveRequests).toBe(1));
+  expect(screen.queryByRole("status")).not.toHaveTextContent(/ذخیره شد/);
+});
+
+test("keeps another successful optimistic Favorite when one mutation fails", async () => {
+  const user = userEvent.setup();
+  const firstProperty = propertySearchPage.results[0]!;
+  const secondProperty = {
+    ...firstProperty,
+    id: "20000000-0000-4000-8000-000000000059",
+    title: "خانه در سعادت‌آباد",
+    canonical_slug: "خانه-در-سعادتآباد",
+  };
+  server.use(
+    http.get("*/api/v1/auth/session/", () =>
+      HttpResponse.json({ authenticated: true, csrf_token: "favorite-token" }),
+    ),
+    http.get("*/api/v1/catalog/properties/", () =>
+      HttpResponse.json({
+        ...propertySearchPage,
+        count: 2,
+        results: [firstProperty, secondProperty],
+      }),
+    ),
+    http.put(
+      "*/api/v1/catalog/properties/:propertyId/favorite/",
+      async ({ params }) => {
+        if (params.propertyId === firstProperty.id) {
+          await delay(100);
+          return HttpResponse.json({}, { status: 503 });
+        }
+        await delay(20);
+        return new HttpResponse(null, { status: 204 });
+      },
+    ),
+  );
+  renderResults();
+
+  const firstFavorite = await screen.findByRole("button", {
+    name: "ذخیره آپارتمان در سعادت‌آباد در علاقه‌مندی‌ها",
+  });
+  const secondFavorite = screen.getByRole("button", {
+    name: "ذخیره خانه در سعادت‌آباد در علاقه‌مندی‌ها",
+  });
+  await user.click(firstFavorite);
+  await user.click(secondFavorite);
+
+  expect(
+    await screen.findByRole("alert", {
+      name: "ذخیره علاقه‌مندی انجام نشد. دوباره تلاش کنید.",
+    }),
+  ).toBeVisible();
+  expect(firstFavorite).toHaveAttribute("aria-pressed", "false");
+  expect(secondFavorite).toHaveAttribute("aria-pressed", "true");
+});
+
+test("waits for the session before deciding whether Renter access is needed", async () => {
+  const user = userEvent.setup();
+  let saveRequests = 0;
+  server.use(
+    http.get("*/api/v1/auth/session/", async () => {
+      await delay(100);
+      return HttpResponse.json({
+        authenticated: true,
+        csrf_token: "favorite-token",
+      });
+    }),
+    http.put("*/api/v1/catalog/properties/:propertyId/favorite/", () => {
+      saveRequests += 1;
+      return new HttpResponse(null, { status: 204 });
+    }),
+  );
+  renderResults();
+
+  const favorite = await screen.findByRole("button", {
+    name: "ذخیره آپارتمان در سعادت‌آباد در علاقه‌مندی‌ها",
+  });
+  expect(favorite).toBeDisabled();
+  await user.click(favorite);
+  expect(screen.queryByRole("dialog")).toBeNull();
+
+  await waitFor(() => expect(favorite).toBeEnabled());
+  await user.click(favorite);
+  await waitFor(() => expect(saveRequests).toBe(1));
+  expect(screen.queryByRole("dialog")).toBeNull();
+});
+
+test("resumes an anonymous Favorite intent after embedded login", async () => {
+  const user = userEvent.setup();
+  let authenticated = false;
+  let saveRequests = 0;
+  const existingFavorite = {
+    ...propertySearchPage.results[0]!,
+    id: "30000000-0000-4000-8000-000000000059",
+    title: "خانه در سعادت‌آباد",
+    canonical_slug: "خانه-در-سعادتآباد",
+  };
+  server.use(
+    http.get("*/api/v1/auth/session/", () =>
+      HttpResponse.json({
+        authenticated,
+        csrf_token: authenticated ? "authenticated-token" : "anonymous-token",
+      }),
+    ),
+    http.post("*/api/v1/auth/login/", () => {
+      authenticated = true;
+      return HttpResponse.json({
+        id: "10000000-0000-4000-8000-000000000059",
+        email: "renter@example.com",
+        first_name: "",
+        last_name: "",
+        email_verified: true,
+        is_submitter: false,
+      });
+    }),
+    http.put("*/api/v1/catalog/properties/:propertyId/favorite/", () => {
+      saveRequests += 1;
+      return new HttpResponse(null, { status: 204 });
+    }),
+    http.get("*/api/v1/catalog/properties/", () =>
+      HttpResponse.json({
+        ...propertySearchPage,
+        count: 2,
+        results: [
+          propertySearchPage.results[0]!,
+          { ...existingFavorite, is_favorite: authenticated },
+        ],
+      }),
+    ),
+  );
+  renderResults("/search?parking=present");
+
+  await user.click(
+    await screen.findByRole("button", {
+      name: "ذخیره آپارتمان در سعادت‌آباد در علاقه‌مندی‌ها",
+    }),
+  );
+  expect(screen.getByRole("dialog", { name: "ورود به ترب‌رنت" })).toBeVisible();
+  expect(screen.getByLabelText("وضعیت جست‌وجو")).toHaveTextContent(
+    "?parking=present",
+  );
+
+  await user.type(screen.getByLabelText("ایمیل"), "renter@example.com");
+  await user.type(screen.getByLabelText("گذرواژه"), "correct-horse-battery");
+  await user.click(screen.getByRole("button", { name: "ورود و ادامه" }));
+
+  await waitFor(() => expect(saveRequests).toBe(1));
+  expect(screen.queryByRole("dialog")).toBeNull();
+  expect(
+    screen.getByRole("button", {
+      name: "حذف آپارتمان در سعادت‌آباد از علاقه‌مندی‌ها",
+    }),
+  ).toHaveAttribute("aria-pressed", "true");
+  expect(screen.getByLabelText("وضعیت جست‌وجو")).toHaveTextContent(
+    "?parking=present",
+  );
+  expect(
+    screen.getByRole("button", {
+      name: "حذف خانه در سعادت‌آباد از علاقه‌مندی‌ها",
+    }),
+  ).toHaveAttribute("aria-pressed", "true");
+});
+
+test("restores Favorite state and announces a failed mutation", async () => {
+  const user = userEvent.setup();
+  server.use(
+    http.get("*/api/v1/auth/session/", () =>
+      HttpResponse.json({ authenticated: true, csrf_token: "favorite-token" }),
+    ),
+    http.put("*/api/v1/catalog/properties/:propertyId/favorite/", async () => {
+      await delay(50);
+      return HttpResponse.json({}, { status: 503 });
+    }),
+  );
+  renderResults();
+  const favorite = await screen.findByRole("button", {
+    name: "ذخیره آپارتمان در سعادت‌آباد در علاقه‌مندی‌ها",
+  });
+
+  await user.click(favorite);
+  expect(favorite).toHaveAttribute("aria-pressed", "true");
+
+  expect(
+    await screen.findByRole("alert", {
+      name: "ذخیره علاقه‌مندی انجام نشد. دوباره تلاش کنید.",
+    }),
+  ).toBeVisible();
+  expect(favorite).toHaveAttribute("aria-pressed", "false");
+});
+
+test("disables Favorite animation when reduced motion is preferred", async () => {
+  renderResults();
+
+  const favorite = await screen.findByRole("button", {
+    name: "ذخیره آپارتمان در سعادت‌آباد در علاقه‌مندی‌ها",
+  });
+
+  expect(favorite.querySelector("svg")).toHaveClass(
+    "motion-reduce:transition-none",
+  );
+});
+
+test("scrubs mounted Favorite state when the Renter logs out", async () => {
+  const user = userEvent.setup();
+  let authenticated = true;
+  server.use(
+    http.get("*/api/v1/auth/session/", () =>
+      HttpResponse.json({ authenticated, csrf_token: "favorite-token" }),
+    ),
+    http.get("*/api/v1/users/me/", () =>
+      HttpResponse.json({
+        id: "10000000-0000-4000-8000-000000000059",
+        email: "renter@example.com",
+        first_name: "",
+        last_name: "",
+        email_verified: true,
+        is_submitter: false,
+        operator_capabilities: [],
+      }),
+    ),
+    http.get("*/api/v1/catalog/properties/", () =>
+      HttpResponse.json({
+        ...propertySearchPage,
+        results: propertySearchPage.results.map((property) => ({
+          ...property,
+          ...(authenticated ? { is_favorite: true } : {}),
+        })),
+      }),
+    ),
+    http.post("*/api/v1/auth/logout/", () => {
+      authenticated = false;
+      return HttpResponse.json({ detail: "با موفقیت خارج شدید." });
+    }),
+  );
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  render(
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider>
+        <MemoryRouter initialEntries={["/search"]}>
+          <RenterAccessProvider>
+            <ProductShell>
+              <ResultsPage />
+            </ProductShell>
+          </RenterAccessProvider>
+        </MemoryRouter>
+      </ThemeProvider>
+    </QueryClientProvider>,
+  );
+
+  expect(
+    await screen.findByRole("button", {
+      name: "حذف آپارتمان در سعادت‌آباد از علاقه‌مندی‌ها",
+    }),
+  ).toHaveAttribute("aria-pressed", "true");
+  await user.click(screen.getByRole("button", { name: "حساب کاربری" }));
+  await user.click(screen.getByRole("menuitem", { name: "خروج" }));
+
+  expect(
+    await screen.findByRole("button", {
+      name: "ذخیره آپارتمان در سعادت‌آباد در علاقه‌مندی‌ها",
+    }),
+  ).toHaveAttribute("aria-pressed", "false");
+});
 
 function SearchStateProbe() {
   const location = useLocation();

@@ -115,6 +115,7 @@ export const propertySearchPage: components["schemas"]["PaginatedPropertySummary
         room_count: propertyDetail.room_count,
         construction_year: propertyDetail.construction_year,
         listing_count: 2,
+        is_favorite: false,
         rental_terms: propertyDetail.listings[0]!.rental_terms,
         availability_confirmed_at:
           propertyDetail.listings[0]!.availability_confirmed_at,
@@ -157,6 +158,7 @@ export const officePropertySearchPage: components["schemas"]["PaginatedPropertyS
         room_count: officePropertyDetail.room_count,
         construction_year: officePropertyDetail.construction_year,
         listing_count: 2,
+        is_favorite: false,
         rental_terms: officePropertyDetail.listings[0]!.rental_terms,
         availability_confirmed_at:
           officePropertyDetail.listings[0]!.availability_confirmed_at,

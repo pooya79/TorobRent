@@ -12,7 +12,7 @@ from drf_spectacular.utils import (
 )
 from rest_framework.exceptions import NotFound
 from rest_framework.generics import ListAPIView
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -20,7 +20,7 @@ from rest_framework.views import APIView
 from apps.common.pagination import StandardPageNumberPagination
 from apps.common.serializers import ProblemSerializer
 
-from .models import Listing, OutboundPolicy, ProductEventType, Property
+from .models import Favorite, Listing, OutboundPolicy, ProductEventType, Property
 from .selectors import (
     autocomplete_locations,
     catalog_statistics,
@@ -120,7 +120,49 @@ class PropertySearchView(ListAPIView[Property]):
     def get_queryset(self) -> QuerySet[Property]:
         query = PropertySearchQuerySerializer(data=self.request.query_params)
         query.is_valid(raise_exception=True)
-        return search_properties(query.validated_filters())
+        account_id = self.request.user.pk if self.request.user.is_authenticated else None
+        return search_properties(
+            query.validated_filters(),
+            favorite_account_id=account_id,
+        )
+
+
+class PropertyFavoriteView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def _active_property(self, property_id: uuid.UUID) -> Property:
+        try:
+            return (
+                Property.objects
+                .filter(
+                    id=property_id,
+                    listings__in=Listing.objects.active(),
+                )
+                .distinct()
+                .get()
+            )
+        except Property.DoesNotExist as exc:
+            raise NotFound("این ملک در دسترس نیست.") from exc
+
+    @extend_schema(
+        summary="Save an active Property as a Favorite",
+        request=None,
+        responses={204: None},
+    )
+    def put(self, request: Request, property_id: uuid.UUID) -> Response:
+        property_ = self._active_property(property_id)
+        Favorite.objects.get_or_create(account_id=request.user.pk, property=property_)
+        return Response(status=204)
+
+    @extend_schema(
+        summary="Remove an active Property from Favorites",
+        request=None,
+        responses={204: None},
+    )
+    def delete(self, request: Request, property_id: uuid.UUID) -> Response:
+        property_ = self._active_property(property_id)
+        Favorite.objects.filter(account_id=request.user.pk, property=property_).delete()
+        return Response(status=204)
 
 
 class PropertyDetailView(APIView):

@@ -2,6 +2,7 @@ import { Building2, MapPin } from "lucide-react";
 import { Link } from "react-router";
 
 import { Badge } from "@/components/ui/badge";
+import { FavoriteButton } from "@/features/catalog/FavoriteButton";
 import {
   Card,
   CardContent,
@@ -15,6 +16,7 @@ export type PropertyCardData = {
   facts: readonly string[];
   imageUrl?: string;
   listingCountLabel: string;
+  isFavorite: boolean;
   rentalTerms: {
     depositLabel: string;
     monthlyRentLabel: string;
@@ -27,6 +29,11 @@ export function PropertyCard({ property }: { property: PropertyCardData }) {
   return (
     <Card className="group relative gap-0 overflow-hidden border-0 py-0 shadow-none">
       <div className="bg-muted relative aspect-[4/3] overflow-hidden rounded-xl">
+        <FavoriteButton
+          propertyId={property.id}
+          propertyTitle={property.title}
+          isFavorite={property.isFavorite}
+        />
         {property.imageUrl ? (
           <img
             className="size-full object-cover transition-transform duration-300 group-hover:scale-[1.02] motion-reduce:transition-none"
@@ -39,7 +46,7 @@ export function PropertyCard({ property }: { property: PropertyCardData }) {
             <span className="text-sm">تصویر این ملک هنوز منتشر نشده است</span>
           </div>
         )}
-        <Badge className="bg-card text-foreground hover:bg-card absolute start-3 top-3 shadow-sm">
+        <Badge className="bg-card text-foreground hover:bg-card absolute top-3 left-3 shadow-sm">
           {property.listingCountLabel}
         </Badge>
       </div>
