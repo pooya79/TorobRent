@@ -55,5 +55,22 @@ export function ProtectedSubmitterRoute({ children }: { children: ReactNode }) {
     );
   }
 
+  if (!currentUser.data.is_submitter) {
+    return (
+      <main
+        id="main-content"
+        className="mx-auto w-full max-w-360 px-4 py-12"
+        tabIndex={-1}
+      >
+        <Alert>
+          <AlertTitle>حساب ارسال‌کننده لازم است</AlertTitle>
+          <AlertDescription>
+            برای ثبت آگهی باید ابتدا مسیر ارسال‌کننده را آغاز کنید.
+          </AlertDescription>
+        </Alert>
+      </main>
+    );
+  }
+
   return children;
 }

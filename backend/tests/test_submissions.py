@@ -55,6 +55,8 @@ def image_upload(
 
 
 def create_draft(api_client: APIClient, submitter: User) -> str:
+    submitter.is_submitter = True
+    submitter.save(update_fields=("is_submitter",))
     api_client.force_authenticate(submitter)
     response = api_client.post("/api/v1/submissions/", {"role": "owner"}, format="json")
     assert response.status_code == 201
@@ -71,6 +73,7 @@ def test_verified_submitter_can_create_an_owner_draft(api_client: APIClient):
         email="owner@example.com",
         password="correct-horse-battery",
         email_verified_at=timezone.now(),
+        is_submitter=True,
     )
     api_client.force_authenticate(submitter)
 
@@ -85,6 +88,26 @@ def test_verified_submitter_can_create_an_owner_draft(api_client: APIClient):
     assert response.data["state"] == "draft"
     assert response.data["current_step"] == "location"
     assert response.data["media_complete"] is False
+
+
+@pytest.mark.django_db
+def test_verified_renter_cannot_create_a_submission(api_client: APIClient):
+    renter = User.objects.create_user(
+        email="renter@example.com",
+        password="correct-horse-battery",
+        email_verified_at=timezone.now(),
+        is_submitter=False,
+    )
+    api_client.force_authenticate(renter)
+
+    response = api_client.post(
+        "/api/v1/submissions/",
+        {"role": "owner"},
+        format="json",
+    )
+
+    assert response.status_code == 403
+    assert response.data["code"] == "permission_denied"
 
 
 @pytest.mark.django_db
@@ -179,6 +202,7 @@ def test_submitter_can_save_and_resume_the_complete_draft_flow(
         email="agent@example.com",
         password="correct-horse-battery",
         email_verified_at=timezone.now(),
+        is_submitter=True,
     )
     city = City.objects.create(
         name_fa="تهران",
@@ -320,7 +344,9 @@ def test_submitter_can_save_and_resume_the_complete_draft_flow(
 @pytest.mark.django_db
 def test_unverified_or_different_submitter_cannot_mutate_a_draft(api_client: APIClient):
     unverified = User.objects.create_user(
-        email="unverified@example.com", password="correct-horse-battery"
+        email="unverified@example.com",
+        password="correct-horse-battery",
+        is_submitter=True,
     )
     api_client.force_authenticate(unverified)
     denied = api_client.post("/api/v1/submissions/", {"role": "owner"}, format="json")
@@ -330,6 +356,7 @@ def test_unverified_or_different_submitter_cannot_mutate_a_draft(api_client: API
         email="draft-owner@example.com",
         password="correct-horse-battery",
         email_verified_at=timezone.now(),
+        is_submitter=True,
     )
     api_client.force_authenticate(owner)
     created = api_client.post("/api/v1/submissions/", {"role": "owner"}, format="json")
@@ -366,6 +393,7 @@ def test_invalid_rental_terms_preserve_the_last_valid_toman_values(api_client: A
         email="terms@example.com",
         password="correct-horse-battery",
         email_verified_at=timezone.now(),
+        is_submitter=True,
     )
     api_client.force_authenticate(submitter)
     created = api_client.post("/api/v1/submissions/", {"role": "owner"}, format="json")

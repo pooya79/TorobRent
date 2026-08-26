@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { delay, http, HttpResponse } from "msw";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router";
@@ -7,6 +7,7 @@ import { expect, test } from "vitest";
 
 import { ProductShell } from "@/app/ProductShell";
 import { ThemeProvider } from "@/app/ThemeProvider";
+import { RenterAccessProvider } from "@/features/session/RenterAccessDialog";
 import { HomePage } from "@/pages/HomePage";
 import { server } from "./server";
 
@@ -31,12 +32,14 @@ function renderHomeShell(queryClient: QueryClient) {
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
         <MemoryRouter>
-          <ProductShell>
-            <>
-              <HomePage />
-              <ShellLocationProbe />
-            </>
-          </ProductShell>
+          <RenterAccessProvider>
+            <ProductShell>
+              <>
+                <HomePage />
+                <ShellLocationProbe />
+              </>
+            </ProductShell>
+          </RenterAccessProvider>
         </MemoryRouter>
       </ThemeProvider>
     </QueryClientProvider>,
@@ -67,6 +70,9 @@ test("presents the anonymous public navbar and real advertisement introduction",
     within(navigation).getByRole("link", { name: "ثبت‌نام" }),
   ).toHaveAttribute("href", "/register");
   expect(
+    within(navigation).getByRole("button", { name: "علاقه‌مندی‌ها" }),
+  ).toBeVisible();
+  expect(
     within(navigation).getByRole("link", {
       name: "می‌خواهم آگهی ثبت کنم",
     }),
@@ -76,6 +82,64 @@ test("presents the anonymous public navbar and real advertisement introduction",
   ).toBeVisible();
   expect(within(navbar).queryByText("آگهی‌های من")).not.toBeInTheDocument();
   expect(await screen.findByText("سامانه در دسترس است")).toBeVisible();
+});
+
+test("resumes anonymous Favorites navigation after login and closes mobile navigation", async () => {
+  const user = userEvent.setup();
+  let authenticated = false;
+  server.use(
+    http.get("*/api/v1/auth/session/", () =>
+      HttpResponse.json({
+        authenticated,
+        csrf_token: authenticated ? "rotated-token" : "test-token",
+      }),
+    ),
+    http.post("*/api/v1/auth/login/", () => {
+      authenticated = true;
+      return HttpResponse.json({
+        id: "10000000-0000-4000-8000-000000000056",
+        email: "renter@example.com",
+        first_name: "",
+        last_name: "",
+        email_verified: true,
+        is_submitter: false,
+      });
+    }),
+    http.get("*/api/v1/users/me/", () =>
+      HttpResponse.json({
+        id: "10000000-0000-4000-8000-000000000056",
+        email: "renter@example.com",
+        first_name: "",
+        last_name: "",
+        email_verified: true,
+        is_submitter: false,
+        operator_capabilities: [],
+      }),
+    ),
+  );
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  renderHomeShell(queryClient);
+
+  await user.click(
+    screen.getByRole("button", { name: "باز کردن فهرست راهبری" }),
+  );
+  const mobileNavigation = screen.getByRole("dialog", {
+    name: "راهبری ترب‌رنت",
+  });
+  await user.click(
+    within(mobileNavigation).getByRole("button", { name: "علاقه‌مندی‌ها" }),
+  );
+  await user.type(screen.getByLabelText("ایمیل"), "renter@example.com");
+  await user.type(screen.getByLabelText("گذرواژه"), "correct-horse-battery");
+  await user.click(screen.getByRole("button", { name: "ورود و ادامه" }));
+
+  await waitFor(() =>
+    expect(screen.getByLabelText("مسیر جاری")).toHaveTextContent("/favorites"),
+  );
+  expect(screen.queryByRole("dialog", { name: "راهبری ترب‌رنت" })).toBeNull();
+  expect(screen.queryByRole("dialog", { name: "ورود به ترب‌رنت" })).toBeNull();
 });
 
 test("publishes complete footer navigation and honest social placeholders", async () => {
@@ -267,10 +331,8 @@ test("shows Renter controls and honest placeholders in the authenticated account
     }),
   ).toHaveAttribute("aria-disabled", "true");
   expect(
-    within(navbar).getByRole("button", {
-      name: "علاقه‌مندی‌ها — به‌زودی",
-    }),
-  ).toHaveAttribute("aria-disabled", "true");
+    within(navbar).getByRole("link", { name: "علاقه‌مندی‌ها" }),
+  ).toHaveAttribute("href", "/favorites");
   expect(within(navbar).queryByRole("link", { name: "ورود" })).toBeNull();
   expect(within(navbar).queryByRole("link", { name: "ثبت‌نام" })).toBeNull();
 
@@ -278,11 +340,7 @@ test("shows Renter controls and honest placeholders in the authenticated account
   const account = screen.getByRole("menu", { name: "حساب کاربری" });
   expect(within(account).getByText("پویا اجاره‌جو")).toBeVisible();
   expect(within(account).getByText("renter@example.com")).toBeVisible();
-  for (const name of [
-    "نمایه — به‌زودی",
-    "پیام‌ها — به‌زودی",
-    "علاقه‌مندی‌ها — به‌زودی",
-  ]) {
+  for (const name of ["نمایه — به‌زودی", "پیام‌ها — به‌زودی"]) {
     expect(within(account).getByRole("menuitem", { name })).toHaveAttribute(
       "aria-disabled",
       "true",
@@ -378,10 +436,8 @@ test("keeps authenticated navigation and repeated account placeholders in the mo
     }),
   ).toHaveLength(2);
   expect(
-    within(mobileMenu).getAllByRole("button", {
-      name: "علاقه‌مندی‌ها — به‌زودی",
-    }),
-  ).toHaveLength(2);
+    within(mobileMenu).getByRole("link", { name: "علاقه‌مندی‌ها" }),
+  ).toHaveAttribute("href", "/favorites");
   expect(
     within(mobileMenu).getByRole("region", { name: "فهرست حساب کاربری" }),
   ).toBeVisible();

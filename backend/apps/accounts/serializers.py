@@ -18,7 +18,14 @@ class UserSerializer(serializers.ModelSerializer[User]):
 
     class Meta:
         model = User
-        fields: tuple[str, ...] = ("id", "email", "first_name", "last_name", "email_verified")
+        fields: tuple[str, ...] = (
+            "id",
+            "email",
+            "first_name",
+            "last_name",
+            "email_verified",
+            "is_submitter",
+        )
         read_only_fields: tuple[str, ...] = fields
 
 

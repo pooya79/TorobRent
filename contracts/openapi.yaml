@@ -222,6 +222,52 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: Request was throttled
+  /api/v1/auth/renter-register/:
+    post:
+      operationId: v1_auth_renter_register_create
+      summary: Register and sign in a Renter
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Registration'
+        required: true
+      security:
+      - cookieAuth: []
+      - {}
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+          description: ''
+        '400':
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Request validation failed
+        '403':
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Authentication or CSRF verification failed
+        '415':
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Only JSON request bodies are supported
+        '429':
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Request was throttled
   /api/v1/auth/session/:
     get:
       operationId: v1_auth_session_retrieve
@@ -2025,6 +2071,9 @@ components:
         email_verified:
           type: boolean
           readOnly: true
+        is_submitter:
+          type: boolean
+          readOnly: true
         operator_capabilities:
           type: array
           items:
@@ -2035,6 +2084,7 @@ components:
       - email_verified
       - first_name
       - id
+      - is_submitter
       - last_name
       - operator_capabilities
     DecisionCorrectionAudit:
@@ -4318,11 +4368,15 @@ components:
         email_verified:
           type: boolean
           readOnly: true
+        is_submitter:
+          type: boolean
+          readOnly: true
       required:
       - email
       - email_verified
       - first_name
       - id
+      - is_submitter
       - last_name
   securitySchemes:
     cookieAuth:

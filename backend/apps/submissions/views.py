@@ -49,9 +49,11 @@ from .serializers import (
 )
 from .services import (
     ReviewWorkflowConflict,
+    SubmissionAccessDenied,
     add_submission_image_for_actor,
     approve_submission,
     claim_submission_review,
+    create_submission_draft,
     force_release_submission_review_claim,
     reject_submission,
     release_submission_review_claim,
@@ -126,11 +128,15 @@ class SubmissionListCreateView(APIView):
     )
     def post(self, request: Request) -> Response:
         user = cast(User, request.user)
-        if not user.email_verified:
-            raise PermissionDenied("برای ثبت پیش‌نویس ابتدا ایمیل خود را تأیید کنید.")
         serializer = SubmissionCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        submission = serializer.save(submitter=user)
+        try:
+            submission = create_submission_draft(
+                submitter=user,
+                role=serializer.validated_data["role"],
+            )
+        except SubmissionAccessDenied as exc:
+            raise PermissionDenied(str(exc)) from None
         return Response(SubmissionSerializer(submission).data, status=status.HTTP_201_CREATED)
 
 

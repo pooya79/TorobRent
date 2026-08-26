@@ -112,8 +112,12 @@ def can_delete_operator_group(*, actor: User, group: Group) -> bool:
     )
 
 
-def register_submitter(*, email: str, password: str) -> User:
-    user = User.objects.create_user(email=email, password=password)
+def _register_account(*, email: str, password: str, is_submitter: bool) -> User:
+    user = User.objects.create_user(
+        email=email,
+        password=password,
+        is_submitter=is_submitter,
+    )
     token = make_email_verification_token(user)
     verification_url = f"{settings.FRONTEND_ORIGIN}/verify-email?token={token}"
     send_mail(
@@ -122,6 +126,16 @@ def register_submitter(*, email: str, password: str) -> User:
         settings.DEFAULT_FROM_EMAIL,
         [user.email],
     )
+    return user
+
+
+def register_submitter(*, email: str, password: str) -> User:
+    return _register_account(email=email, password=password, is_submitter=True)
+
+
+def register_renter(request: HttpRequest, *, email: str, password: str) -> User:
+    user = _register_account(email=email, password=password, is_submitter=False)
+    login(request, user, backend="django.contrib.auth.backends.ModelBackend")
     return user
 
 

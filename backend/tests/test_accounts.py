@@ -24,6 +24,7 @@ def test_user_manager_normalizes_email_and_hashes_password():
     assert user.email == "person@example.com"
     assert user.check_password("secret-password")
     assert user.username is None
+    assert user.is_submitter is False
 
 
 @pytest.mark.django_db
@@ -73,6 +74,7 @@ def test_submitter_registers_and_verifies_email(api_client: APIClient):
         "detail": "حساب ساخته شد. برای تأیید ایمیل، پیام ارسال‌شده را بررسی کنید."
     }
     user = User.objects.get(email="new@example.com")
+    assert user.is_submitter is True
     assert user.email_verified_at is None
     assert len(mail.outbox) == 1
     token = mail.outbox[0].body.rsplit("/verify-email?token=", 1)[1].strip()
@@ -87,6 +89,26 @@ def test_submitter_registers_and_verifies_email(api_client: APIClient):
     reused_response = api_client.post("/api/v1/auth/verify-email/", {"token": token}, format="json")
     assert reused_response.status_code == 400
     assert "نامعتبر" in reused_response.data["errors"]["token"][0]["message"]
+
+
+@pytest.mark.django_db
+def test_renter_registers_without_submitter_status_and_starts_session(api_client: APIClient):
+    client = csrf_client(api_client)
+
+    response = client.post(
+        "/api/v1/auth/renter-register/",
+        {"email": "RENTER@example.com", "password": "correct-horse-battery"},
+        format="json",
+    )
+
+    assert response.status_code == 201
+    assert response.data["email"] == "renter@example.com"
+    assert response.data["email_verified"] is False
+    assert response.data["is_submitter"] is False
+    renter = User.objects.get(email="renter@example.com")
+    assert renter.is_submitter is False
+    assert client.get("/api/v1/auth/session/").data["authenticated"] is True
+    assert client.get("/api/v1/users/me/").data["is_submitter"] is False
 
 
 @pytest.mark.django_db

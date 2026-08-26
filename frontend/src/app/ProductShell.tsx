@@ -18,7 +18,7 @@ import {
   UserRound,
 } from "lucide-react";
 import { useState, type ReactNode } from "react";
-import { NavLink } from "react-router";
+import { NavLink, useNavigate } from "react-router";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -41,6 +41,7 @@ import {
 import { api } from "@/lib/api/client";
 import { apiError } from "@/lib/api/errors";
 import { currentUserQuery, sessionQuery } from "@/features/session/queries";
+import { useRenterAccess } from "@/features/session/RenterAccessDialog";
 import { cn } from "@/lib/utils";
 import type { components } from "@/lib/api/schema";
 
@@ -96,12 +97,14 @@ function PrimaryNavigation({
   authenticated,
   currentUser,
   logout,
+  openFavorites,
   mobile = false,
   onNavigate,
 }: {
   authenticated: boolean;
   currentUser?: CurrentUser;
   logout: () => void;
+  openFavorites: () => void;
   mobile?: boolean;
   onNavigate?: () => void;
 }) {
@@ -122,6 +125,24 @@ function PrimaryNavigation({
         );
         return <span key={item.to}>{link}</span>;
       })}
+      {authenticated ? (
+        <NavLink
+          className={navigationClass}
+          onClick={onNavigate}
+          to="/favorites"
+        >
+          <Heart className="size-5" aria-hidden="true" /> علاقه‌مندی‌ها
+        </NavLink>
+      ) : (
+        <Button
+          className="min-h-11 justify-start px-3"
+          onClick={openFavorites}
+          type="button"
+          variant="ghost"
+        >
+          <Heart aria-hidden="true" /> علاقه‌مندی‌ها
+        </Button>
+      )}
       {authenticated ? (
         currentUser ? (
           <AuthenticatedControls
@@ -236,7 +257,6 @@ function MobileAccountPanel({
       </div>
       <ComingSoonControl label="نمایه" icon={UserRound} />
       <ComingSoonControl label="پیام‌ها" icon={MessageCircle} />
-      <ComingSoonControl label="علاقه‌مندی‌ها" icon={Heart} />
       <Button asChild className="justify-start px-3" variant="ghost">
         <NavLink onClick={onNavigate} to="/guide">
           <CircleHelp aria-hidden="true" /> راهنما
@@ -281,7 +301,6 @@ function AuthenticatedControls({
     return (
       <>
         <ComingSoonControl label="پیام‌ها" icon={MessageCircle} />
-        <ComingSoonControl label="علاقه‌مندی‌ها" icon={Heart} />
         <div className="border-border mt-3 border-t pt-3">
           <p className="px-3 py-2 text-sm font-semibold">حساب کاربری</p>
           <MobileAccountPanel
@@ -297,7 +316,6 @@ function AuthenticatedControls({
   return (
     <>
       <ComingSoonControl compact label="پیام‌ها" icon={MessageCircle} />
-      <ComingSoonControl compact label="علاقه‌مندی‌ها" icon={Heart} />
       <AccountMenu currentUser={currentUser} logout={logout} />
     </>
   );
@@ -335,7 +353,6 @@ function AccountMenu({
         <DropdownMenuSeparator />
         <ComingSoonMenuItem label="نمایه" icon={UserRound} />
         <ComingSoonMenuItem label="پیام‌ها" icon={MessageCircle} />
-        <ComingSoonMenuItem label="علاقه‌مندی‌ها" icon={Heart} />
         <DropdownMenuItem asChild>
           <NavLink to="/guide">
             <CircleHelp aria-hidden="true" /> راهنما
@@ -384,6 +401,8 @@ function ComingSoonMenuItem({
 
 export function ProductShell({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  const { requestRenterAccess } = useRenterAccess();
   const session = useQuery(sessionQuery);
   const authenticated = session.data?.authenticated === true;
   const currentUser = useQuery({
@@ -391,6 +410,13 @@ export function ProductShell({ children }: { children: ReactNode }) {
     enabled: authenticated,
   });
   const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false);
+  const openFavorites = () =>
+    requestRenterAccess(() => void navigate("/favorites"));
+  const openMobileFavorites = () =>
+    requestRenterAccess(() => {
+      setMobileNavigationOpen(false);
+      void navigate("/favorites");
+    });
   const logout = useMutation({
     mutationFn: async () => {
       const { data, error } = await api.POST("/api/v1/auth/logout/");
@@ -431,6 +457,7 @@ export function ProductShell({ children }: { children: ReactNode }) {
                 authenticated={authenticated}
                 currentUser={currentUser.data}
                 logout={() => logout.mutate()}
+                openFavorites={openFavorites}
               />
             </div>
             <ThemeSwitcher />
@@ -460,6 +487,7 @@ export function ProductShell({ children }: { children: ReactNode }) {
                     <PrimaryNavigation
                       authenticated={authenticated}
                       currentUser={currentUser.data}
+                      openFavorites={openMobileFavorites}
                       logout={() => {
                         setMobileNavigationOpen(false);
                         logout.mutate();

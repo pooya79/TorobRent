@@ -16,7 +16,7 @@ class DemoPersonas:
     operator: User
 
 
-def _get_or_create_persona(*, email: str, password: str, operator: bool) -> User:
+def _get_or_create_persona(*, email: str, password: str, operator: bool, submitter: bool) -> User:
     user, created = User.objects.get_or_create(
         email=email,
         defaults={
@@ -24,6 +24,7 @@ def _get_or_create_persona(*, email: str, password: str, operator: bool) -> User
             "is_active": True,
             "is_staff": operator,
             "is_superuser": operator,
+            "is_submitter": submitter,
         },
     )
     if created:
@@ -38,10 +39,12 @@ def seed_demo_personas() -> DemoPersonas:
             email=DEMO_SUBMITTER_EMAIL,
             password=DEMO_SUBMITTER_PASSWORD,
             operator=False,
+            submitter=True,
         ),
         operator=_get_or_create_persona(
             email=DEMO_OPERATOR_EMAIL,
             password=DEMO_OPERATOR_PASSWORD,
             operator=True,
+            submitter=False,
         ),
     )

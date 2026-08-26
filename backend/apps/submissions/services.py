@@ -64,6 +64,19 @@ REVIEW_CLAIM_DURATION = timedelta(minutes=15)
 
 logger = logging.getLogger(__name__)
 
+
+class SubmissionAccessDenied(Exception):
+    pass
+
+
+def create_submission_draft(*, submitter: User, role: str) -> Submission:
+    if not submitter.is_submitter:
+        raise SubmissionAccessDenied("برای ثبت Submission باید حساب ارسال‌کننده داشته باشید.")
+    if not submitter.email_verified:
+        raise SubmissionAccessDenied("برای ثبت پیش‌نویس ابتدا ایمیل خود را تأیید کنید.")
+    return Submission.objects.create(submitter=submitter, role=role)
+
+
 PROPERTY_FIELDS = (
     "city",
     "district",
