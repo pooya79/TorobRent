@@ -28,6 +28,7 @@ from .serializers import (
 )
 from .services import (
     end_session,
+    register_renter,
     register_submitter,
     request_password_reset,
     reset_password,
@@ -105,6 +106,26 @@ class RegistrationView(APIView):
             {"detail": "حساب ساخته شد. برای تأیید ایمیل، پیام ارسال‌شده را بررسی کنید."},
             status=status.HTTP_201_CREATED,
         )
+
+
+@method_decorator(csrf_protect, name="dispatch")
+class RenterRegistrationView(APIView):
+    permission_classes = [AllowAny]
+    throttle_scope = "registration"
+
+    @extend_schema(
+        summary="Register and sign in a Renter",
+        request=RegistrationSerializer,
+        responses={
+            201: UserSerializer,
+            **PUBLIC_MUTATION_ERRORS,
+        },
+    )
+    def post(self, request: Request) -> Response:
+        serializer = RegistrationSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = register_renter(request._request, **serializer.validated_data)
+        return Response(UserSerializer(user).data, status=status.HTTP_201_CREATED)
 
 
 @method_decorator(csrf_protect, name="dispatch")

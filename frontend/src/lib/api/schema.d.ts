@@ -89,6 +89,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/v1/auth/renter-register/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Register and sign in a Renter */
+    post: operations["v1_auth_renter_register_create"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/v1/auth/session/": {
     parameters: {
       query?: never;
@@ -1004,6 +1021,7 @@ export interface components {
       readonly first_name: string;
       readonly last_name: string;
       readonly email_verified: boolean;
+      readonly is_submitter: boolean;
       readonly operator_capabilities: components["schemas"]["OperatorCapabilitiesEnum"][];
     };
     DecisionCorrectionAudit: {
@@ -1990,6 +2008,7 @@ export interface components {
       readonly first_name: string;
       readonly last_name: string;
       readonly email_verified: boolean;
+      readonly is_submitter: boolean;
     };
   };
   responses: never;
@@ -2242,6 +2261,65 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["Detail"];
+        };
+      };
+      /** @description Request validation failed */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+      /** @description Authentication or CSRF verification failed */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+      /** @description Only JSON request bodies are supported */
+      415: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+      /** @description Request was throttled */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  v1_auth_renter_register_create: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["Registration"];
+      };
+    };
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["User"];
         };
       };
       /** @description Request validation failed */

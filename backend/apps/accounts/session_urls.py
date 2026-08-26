@@ -6,6 +6,7 @@ from .views import (
     PasswordResetConfirmView,
     PasswordResetRequestView,
     RegistrationView,
+    RenterRegistrationView,
     SessionView,
     VerifyEmailView,
 )
@@ -13,6 +14,7 @@ from .views import (
 urlpatterns = [
     path("session/", SessionView.as_view(), name="session"),
     path("register/", RegistrationView.as_view(), name="register"),
+    path("renter-register/", RenterRegistrationView.as_view(), name="renter-register"),
     path("verify-email/", VerifyEmailView.as_view(), name="verify-email"),
     path("login/", LoginView.as_view(), name="login"),
     path("logout/", LogoutView.as_view(), name="logout"),

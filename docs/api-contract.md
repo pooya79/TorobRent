@@ -27,13 +27,15 @@ Authentication uses an HTTP-only, `SameSite=Lax` Django session cookie. The appl
 same-origin and CORS is disabled. `GET /api/v1/auth/session/` returns session state and a CSRF token;
 the centralized frontend client attaches it as `X-CSRFToken` to unsafe requests.
 
-Submitters register and authenticate with email and password. Registration, verification, login,
+Renters and Submitters authenticate with email and password. General Renter registration creates a
+non-Submitter account and starts its session in place; the existing Submitter registration continues
+to require email verification before Submission workflows. Registration, verification, login,
 logout, password-reset request and confirmation are explicit `/api/v1/auth/` operations. Recovery
-requests always return the same response whether an account exists. Verification and reset links
-are time-limited and one-time. Sessions and CSRF secrets rotate at authentication boundaries.
+requests always return the same response whether an account exists. Verification and reset links are
+time-limited and one-time. Sessions and CSRF secrets rotate at authentication boundaries.
 
-`GET /api/v1/users/me/` returns the current account, including `email_verified` and the stable
-domain identifiers in `operator_capabilities`. The identifiers are `review_submissions`,
+`GET /api/v1/users/me/` returns the current account, including `email_verified`, `is_submitter`, and
+the stable domain identifiers in `operator_capabilities`. The identifiers are `review_submissions`,
 `handle_support`, `handle_privacy_requests`, and `manage_operator_queues`; raw Django permission
 codenames are not exposed. Submitter write flows must require verification, and the browser also
 blocks entry to Submission and Operator routes until the email has been verified.

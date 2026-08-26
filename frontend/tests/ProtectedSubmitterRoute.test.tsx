@@ -51,6 +51,7 @@ test("prevents an authenticated but unverified account from beginning a Submissi
         first_name: "",
         last_name: "",
         email_verified: false,
+        is_submitter: true,
       }),
     ),
   );
@@ -73,4 +74,43 @@ test("prevents an authenticated but unverified account from beginning a Submissi
   expect(
     screen.queryByRole("heading", { name: "ثبت آگهی" }),
   ).not.toBeInTheDocument();
+});
+
+test("prevents a verified Renter from entering a Submitter route", async () => {
+  server.use(
+    http.get("*/api/v1/auth/session/", () =>
+      HttpResponse.json({ authenticated: true, csrf_token: "test-token" }),
+    ),
+    http.get("*/api/v1/users/me/", () =>
+      HttpResponse.json({
+        id: "1f77778d-c15f-4bd1-9c84-1ffea15ca80f",
+        email: "renter@example.com",
+        first_name: "",
+        last_name: "",
+        email_verified: true,
+        is_submitter: false,
+        operator_capabilities: [],
+      }),
+    ),
+  );
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+
+  render(
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter initialEntries={["/add-submission"]}>
+        <ProtectedSubmitterRoute>
+          <h1>ثبت آگهی</h1>
+        </ProtectedSubmitterRoute>
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+
+  expect(
+    await screen.findByText(
+      "برای ثبت آگهی باید ابتدا مسیر ارسال‌کننده را آغاز کنید.",
+    ),
+  ).toBeVisible();
+  expect(screen.queryByRole("heading", { name: "ثبت آگهی" })).toBeNull();
 });

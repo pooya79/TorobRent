@@ -17,6 +17,7 @@ class User(AbstractUser):
     username = None  # type: ignore[assignment]
     email = models.EmailField(unique=True)
     email_verified_at = models.DateTimeField(null=True, blank=True)
+    is_submitter = models.BooleanField(default=False, db_default=False)
     anonymized_at = models.DateTimeField(null=True, blank=True, editable=False)
 
     USERNAME_FIELD: ClassVar[str] = "email"  # type: ignore[misc]
