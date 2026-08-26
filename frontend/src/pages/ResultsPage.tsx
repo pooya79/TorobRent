@@ -1,5 +1,5 @@
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
-import { SlidersHorizontal, X } from "lucide-react";
+import { Map as MapIcon, SlidersHorizontal, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 
@@ -144,9 +144,10 @@ function toMapMarker(
   const location = property.approximate_location;
   if (!location) return null;
   const card = toCardData(property, searchParams);
+  if (!card.rentalTerms) return null;
   return {
     propertyId: property.id,
-    label: `موقعیت تقریبی ${property.title}`,
+    label: `ودیعه ${card.rentalTerms.depositLabel}\nاجاره ماهانه ${card.rentalTerms.monthlyRentLabel}`,
     approximateLocation: {
       center: {
         latitude: Number(location.latitude),
@@ -158,6 +159,11 @@ function toMapMarker(
     preview: {
       title: property.title,
       locationLabel: card.location,
+      facts: card.facts,
+      image: card.image,
+      listingCountLabel: card.listingCountLabel ?? "",
+      isFavorite: card.isFavorite,
+      rentalTerms: card.rentalTerms,
       detailHref:
         card.navigation.kind === "property-detail"
           ? card.navigation.href
@@ -299,7 +305,11 @@ function AdvancedFiltersSheet({
 export function ResultsPage({ mapAdapter }: { mapAdapter?: MapAdapter }) {
   const [searchParams, setSearchParams] = useSearchParams();
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [mobileMapOpen, setMobileMapOpen] = useState(false);
   const [mapAvailable, setMapAvailable] = useState(true);
+  const [selectedPropertyId, setSelectedPropertyId] = useState<string | null>(
+    null,
+  );
   const viewportTimer = useRef<number | undefined>(undefined);
   const loadMoreSentinel = useRef<HTMLDivElement>(null);
   const search = useInfiniteQuery(
@@ -449,6 +459,15 @@ export function ResultsPage({ mapAdapter }: { mapAdapter?: MapAdapter }) {
     next.delete("page");
     setSearchParams(next);
   };
+  const mapPanelProps = {
+    adapter: MapAdapterComponent,
+    markers: mapMarkers,
+    clusters: mapClusters,
+    initialViewport,
+    onViewportChange: handleViewportChange,
+    selectedPropertyId,
+    onSelectProperty: setSelectedPropertyId,
+  };
 
   return (
     <PageMain>
@@ -520,30 +539,53 @@ export function ResultsPage({ mapAdapter }: { mapAdapter?: MapAdapter }) {
             "جست‌وجوی ملک‌ها"
           )}
         </p>
+        {mapAvailable && search.data ? (
+          <Sheet open={mobileMapOpen} onOpenChange={setMobileMapOpen}>
+            <SheetTrigger asChild>
+              <Button className="mb-5 w-full xl:hidden" size="lg">
+                <MapIcon aria-hidden="true" /> نمایش نقشه تمام‌صفحه
+              </Button>
+            </SheetTrigger>
+            <SheetContent
+              side="bottom"
+              className="inset-0 h-dvh w-full max-w-none p-0 xl:hidden"
+            >
+              <SheetHeader className="sr-only">
+                <SheetTitle>نقشه تمام‌صفحه ملک‌ها</SheetTitle>
+                <SheetDescription>
+                  انتخاب ملک‌ها از روی موقعیت تقریبی آن‌ها
+                </SheetDescription>
+              </SheetHeader>
+              <div className="h-full pt-16">
+                <SearchMapPanel {...mapPanelProps} />
+              </div>
+            </SheetContent>
+          </Sheet>
+        ) : null}
         <div
           role="region"
           aria-label="نتایج و نقشه جاری"
           aria-busy={isReplacingResults}
           className={`${
             mapAvailable
-              ? "grid gap-8 xl:grid-cols-[minmax(20rem,0.85fr)_minmax(0,1.4fr)]"
+              ? "grid gap-8 xl:grid-cols-[minmax(20rem,0.85fr)_minmax(0,1.4fr)] xl:[direction:ltr]"
               : "space-y-5"
           } ${isReplacingResults ? "opacity-60" : ""}`}
         >
           <div
-            className={mapAvailable ? "xl:sticky xl:top-6 xl:self-start" : ""}
+            className={
+              mapAvailable
+                ? "hidden xl:sticky xl:top-6 xl:block xl:self-start xl:[direction:rtl]"
+                : ""
+            }
           >
             <SearchMapPanel
               key={searchParams.has("viewport_north") ? "viewport" : "citywide"}
-              adapter={MapAdapterComponent}
-              markers={mapMarkers}
-              clusters={mapClusters}
-              initialViewport={initialViewport}
-              onViewportChange={handleViewportChange}
+              {...mapPanelProps}
               onAvailabilityChange={setMapAvailable}
             />
           </div>
-          <div>
+          <div className="xl:[direction:rtl]">
             {search.isPending ? (
               <ResultsLoading />
             ) : search.isError && !searchData ? (
@@ -628,6 +670,7 @@ export function ResultsPage({ mapAdapter }: { mapAdapter?: MapAdapter }) {
                   <PropertyCard
                     key={property.id}
                     property={toCardData(property, resultSearchParams)}
+                    selected={selectedPropertyId === property.id}
                   />
                 ))}
               </section>

@@ -22,6 +22,14 @@ export type ApproximateLocation = {
 export type MapPropertyPreview = {
   title: string;
   locationLabel: string;
+  facts: readonly string[];
+  image?: { url: string; width: number; height: number };
+  listingCountLabel: string;
+  isFavorite: boolean;
+  rentalTerms: {
+    depositLabel: string;
+    monthlyRentLabel: string;
+  };
   detailHref: string;
 };
 
@@ -105,7 +113,7 @@ export function createFakeMapAdapter({
       <div
         role="application"
         aria-label="نقشه تعاملی ملک‌ها"
-        className="bg-muted relative min-h-80 overflow-hidden rounded-xl p-4"
+        className="bg-muted relative h-full min-h-80 overflow-hidden rounded-xl p-4"
       >
         <button
           type="button"
@@ -126,6 +134,8 @@ export function createFakeMapAdapter({
           <div key={marker.propertyId}>
             <button
               type="button"
+              className="whitespace-pre-line"
+              aria-label={`انتخاب ${marker.preview.title}، ${marker.label.replace("\n", "، ")}`}
               aria-pressed={selectedPropertyId === marker.propertyId}
               onClick={() => {
                 onSelectProperty(marker.propertyId);

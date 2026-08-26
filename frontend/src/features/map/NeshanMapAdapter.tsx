@@ -90,13 +90,25 @@ function viewportFromMap(map: ProviderMap): MapViewport | null {
   };
 }
 
-function markerStyle(selected: boolean) {
+function markerStyle(selected: boolean, label: string, showLabel: boolean) {
   return new Style({
     image: new CircleStyle({
       radius: selected ? 10 : 8,
       fill: new Fill({ color: selected ? "#222222" : "#e00b41" }),
       stroke: new Stroke({ color: "#ffffff", width: 3 }),
     }),
+    text: showLabel
+      ? new Text({
+          text: label,
+          offsetY: -38,
+          textAlign: "center",
+          font: "600 12px system-ui",
+          fill: new Fill({ color: "#18181b" }),
+          backgroundFill: new Fill({ color: "rgba(255, 255, 255, 0.96)" }),
+          backgroundStroke: new Stroke({ color: "#e4e4e7", width: 1 }),
+          padding: [5, 7, 5, 7],
+        })
+      : undefined,
   });
 }
 
@@ -276,9 +288,14 @@ export function NeshanMapAdapter({
         if (metadata?.kind === "cluster") {
           return clusterStyle(metadata.propertyCount);
         }
+        const propertyId =
+          metadata?.kind === "marker" ? metadata.propertyId : null;
+        const marker = markers.find((item) => item.propertyId === propertyId);
+        const selected = propertyId === selectedPropertyId;
         return markerStyle(
-          metadata?.kind === "marker" &&
-            metadata.propertyId === selectedPropertyId,
+          selected,
+          marker?.label ?? "",
+          Boolean(marker) && (selected || (map.getView().getZoom() ?? 0) >= 14),
         );
       },
     });
@@ -342,6 +359,33 @@ export function NeshanMapAdapter({
         tabIndex={0}
         className="h-full min-h-80 w-full"
       />
+      {markers.length > 0 ? (
+        <details className="bg-background/95 absolute start-2 top-2 z-10 max-h-[50%] max-w-[calc(100%-1rem)] overflow-auto rounded-lg border p-2 text-sm shadow-md">
+          <summary className="focus-visible:ring-ring cursor-pointer rounded px-2 py-1 font-semibold focus-visible:ring-2 focus-visible:outline-none">
+            انتخاب ملک از فهرست نقشه
+          </summary>
+          <div className="mt-2 grid gap-2">
+            {markers.map((marker) => (
+              <button
+                key={marker.propertyId}
+                type="button"
+                className="bg-card focus-visible:ring-ring rounded-md border px-3 py-2 text-start shadow-sm focus-visible:ring-2 focus-visible:outline-none"
+                aria-pressed={selectedPropertyId === marker.propertyId}
+                aria-label={`انتخاب ${marker.preview.title} با صفحه‌کلید`}
+                onClick={() => {
+                  onSelectProperty(marker.propertyId);
+                  onPreviewProperty(marker.propertyId);
+                }}
+              >
+                <span className="block font-semibold">
+                  {marker.preview.title}
+                </span>
+                <span className="whitespace-pre-line">{marker.label}</span>
+              </button>
+            ))}
+          </div>
+        </details>
+      ) : null}
       <a
         className="bg-background/90 absolute start-2 bottom-2 rounded px-2 py-1 text-xs underline underline-offset-2"
         href="https://neshan.org"

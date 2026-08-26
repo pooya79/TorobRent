@@ -348,6 +348,7 @@ function SearchStateProbe() {
   return (
     <>
       <output aria-label="وضعیت جست‌وجو">{location.search}</output>
+      <div aria-label="مسیر جاری">{location.pathname}</div>
       <button type="button" onClick={() => void navigate(-1)}>
         بازگشت آزمایشی
       </button>
@@ -841,6 +842,234 @@ test("keeps Property discovery working when the map provider fails", async () =>
   );
 });
 
+test("selects a marker, highlights its loaded card, and opens the complete preview without scrolling", async () => {
+  const user = userEvent.setup();
+  const scrollIntoView = vi.spyOn(HTMLElement.prototype, "scrollIntoView");
+
+  renderResults("/search", createFakeMapAdapter());
+
+  const marker = await screen.findByRole("button", {
+    name: /انتخاب آپارتمان در سعادت‌آباد، ودیعه ۱٬۰۰۰٬۰۰۰٬۰۰۰ تومان، اجاره ماهانه ۲۵٬۰۰۰٬۰۰۰ تومان/,
+  });
+  await user.click(marker);
+
+  expect(
+    screen.getByRole("article", { name: "آپارتمان در سعادت‌آباد" }),
+  ).toHaveAttribute("data-selected", "true");
+  expect(scrollIntoView).not.toHaveBeenCalled();
+
+  const preview = screen.getByRole("region", {
+    name: "پیش‌نمایش آپارتمان در سعادت‌آباد",
+  });
+  expect(preview).toHaveFocus();
+  expect(within(preview).getByRole("img")).toHaveAttribute(
+    "src",
+    "/media/reviewed-media/property-primary.webp",
+  );
+  expect(preview).toHaveTextContent("سعادت‌آباد");
+  expect(preview).toHaveTextContent("آپارتمان · ۱۱۰ متر · ۲ خواب");
+  expect(preview).toHaveTextContent("ودیعه ۱٬۰۰۰٬۰۰۰٬۰۰۰ تومان");
+  expect(preview).toHaveTextContent("اجاره ماهانه ۲۵٬۰۰۰٬۰۰۰ تومان");
+  expect(preview).toHaveTextContent("۲ آگهی فعال");
+  expect(
+    within(preview).getByRole("button", {
+      name: "ذخیره آپارتمان در سعادت‌آباد در علاقه‌مندی‌ها",
+    }),
+  ).toBeVisible();
+  expect(
+    within(preview).getByRole("link", {
+      name: "مشاهده آپارتمان در سعادت‌آباد",
+    }),
+  ).toHaveAttribute("href", expect.stringContaining("/properties/"));
+
+  await user.click(
+    within(preview).getByRole("button", { name: "بستن پیش‌نمایش" }),
+  );
+  expect(marker).toHaveFocus();
+});
+
+test("keeps mobile list-first and restores focus after the full-screen map closes", async () => {
+  const user = userEvent.setup();
+  renderResults("/search", createFakeMapAdapter());
+
+  const card = await screen.findByRole("article", {
+    name: "آپارتمان در سعادت‌آباد",
+  });
+  const openMap = screen.getByRole("button", {
+    name: "نمایش نقشه تمام‌صفحه",
+  });
+  expect(openMap.compareDocumentPosition(card)).toBe(
+    Node.DOCUMENT_POSITION_FOLLOWING,
+  );
+  expect(
+    screen.queryByRole("dialog", { name: "نقشه تمام‌صفحه ملک‌ها" }),
+  ).toBeNull();
+
+  await user.click(openMap);
+  const fullScreenMap = screen.getByRole("dialog", {
+    name: "نقشه تمام‌صفحه ملک‌ها",
+  });
+  const mapApplication = within(fullScreenMap).getByRole("application", {
+    name: "نقشه تعاملی ملک‌ها",
+  });
+  expect(mapApplication).toBeVisible();
+  expect(mapApplication).toHaveClass("h-full");
+
+  await user.click(
+    within(fullScreenMap).getByRole("button", {
+      name: /انتخاب آپارتمان در سعادت‌آباد/,
+    }),
+  );
+  expect(
+    within(fullScreenMap).getByRole("region", {
+      name: "پیش‌نمایش آپارتمان در سعادت‌آباد",
+    }),
+  ).toHaveClass("rounded-t-2xl");
+
+  await user.click(within(fullScreenMap).getByRole("button", { name: "بستن" }));
+  expect(openMap).toHaveFocus();
+});
+
+test("keeps a marker preview useful when its result card is not loaded", async () => {
+  const user = userEvent.setup();
+  const loadedProperty = propertySearchPage.results[0]!;
+  const mapOnlyProperty = {
+    ...loadedProperty,
+    id: "40000000-0000-4000-8000-000000000066",
+    title: "خانه روی نقشه",
+    canonical_slug: "خانه-روی-نقشه",
+  };
+  server.use(
+    http.get("*/api/v1/catalog/properties/", () =>
+      HttpResponse.json({
+        ...propertySearchPage,
+        map: {
+          ...propertySearchPage.map,
+          total_property_count: 2,
+          mappable_property_count: 2,
+          markers: [loadedProperty, mapOnlyProperty],
+        },
+      }),
+    ),
+  );
+  renderResults("/search", createFakeMapAdapter());
+
+  await user.click(
+    await screen.findByRole("button", { name: /انتخاب خانه روی نقشه/ }),
+  );
+
+  expect(screen.queryByRole("article", { name: "خانه روی نقشه" })).toBeNull();
+  const preview = screen.getByRole("region", {
+    name: "پیش‌نمایش خانه روی نقشه",
+  });
+  expect(preview).toHaveTextContent("آپارتمان · ۱۱۰ متر · ۲ خواب");
+  expect(
+    within(preview).getByRole("link", { name: "مشاهده خانه روی نقشه" }),
+  ).toHaveAttribute("href", expect.stringContaining(mapOnlyProperty.id));
+  await user.click(
+    within(preview).getByRole("link", { name: "مشاهده خانه روی نقشه" }),
+  );
+  expect(screen.getByLabelText("مسیر جاری")).toHaveTextContent(
+    `/properties/${mapOnlyProperty.id}`,
+  );
+});
+
+test("shares optimistic Favorite state between a marker preview and its loaded card", async () => {
+  const user = userEvent.setup();
+  server.use(
+    http.get("*/api/v1/auth/session/", () =>
+      HttpResponse.json({ authenticated: true, csrf_token: "favorite-token" }),
+    ),
+    http.put("*/api/v1/catalog/properties/:propertyId/favorite/", async () => {
+      await delay(100);
+      return new HttpResponse(null, { status: 204 });
+    }),
+  );
+  renderResults("/search", createFakeMapAdapter());
+
+  await user.click(
+    await screen.findByRole("button", {
+      name: /انتخاب آپارتمان در سعادت‌آباد/,
+    }),
+  );
+  const preview = screen.getByRole("region", {
+    name: "پیش‌نمایش آپارتمان در سعادت‌آباد",
+  });
+  await user.click(
+    within(preview).getByRole("button", {
+      name: "ذخیره آپارتمان در سعادت‌آباد در علاقه‌مندی‌ها",
+    }),
+  );
+
+  const selectedFavorite = within(preview).getByRole("button", {
+    name: "حذف آپارتمان در سعادت‌آباد از علاقه‌مندی‌ها",
+  });
+  expect(selectedFavorite).toHaveAttribute("aria-pressed", "true");
+  expect(selectedFavorite).toHaveFocus();
+  expect(
+    screen.getAllByRole("button", {
+      name: "حذف آپارتمان در سعادت‌آباد از علاقه‌مندی‌ها",
+    }),
+  ).toHaveLength(2);
+});
+
+test("uses preview Favorite authentication and animation semantics", async () => {
+  const user = userEvent.setup();
+  renderResults("/search", createFakeMapAdapter());
+
+  await user.click(
+    await screen.findByRole("button", {
+      name: /انتخاب آپارتمان در سعادت‌آباد/,
+    }),
+  );
+  const preview = screen.getByRole("region", {
+    name: "پیش‌نمایش آپارتمان در سعادت‌آباد",
+  });
+  const anonymousFavorite = within(preview).getByRole("button", {
+    name: "ذخیره آپارتمان در سعادت‌آباد در علاقه‌مندی‌ها",
+  });
+  expect(anonymousFavorite.querySelector("svg")).toHaveClass(
+    "motion-reduce:transition-none",
+  );
+  await user.click(anonymousFavorite);
+  expect(screen.getByRole("dialog", { name: "ورود به ترب‌رنت" })).toBeVisible();
+});
+
+test("rolls back a failed optimistic Favorite from the marker preview", async () => {
+  const user = userEvent.setup();
+
+  server.use(
+    http.get("*/api/v1/auth/session/", () =>
+      HttpResponse.json({ authenticated: true, csrf_token: "favorite-token" }),
+    ),
+    http.put("*/api/v1/catalog/properties/:propertyId/favorite/", async () => {
+      await delay(50);
+      return HttpResponse.json({}, { status: 503 });
+    }),
+  );
+  renderResults("/search", createFakeMapAdapter());
+
+  await user.click(
+    await screen.findByRole("button", {
+      name: /انتخاب آپارتمان در سعادت‌آباد/,
+    }),
+  );
+  const preview = screen.getByRole("region", {
+    name: "پیش‌نمایش آپارتمان در سعادت‌آباد",
+  });
+  const favorite = within(preview).getByRole("button", {
+    name: "ذخیره آپارتمان در سعادت‌آباد در علاقه‌مندی‌ها",
+  });
+  await user.click(favorite);
+  expect(favorite).toHaveAttribute("aria-pressed", "true");
+  expect(
+    await within(preview).findByRole("alert", {
+      name: "ذخیره علاقه‌مندی انجام نشد. دوباره تلاش کنید.",
+    }),
+  ).toBeVisible();
+  expect(favorite).toHaveAttribute("aria-pressed", "false");
+});
+
 test("presents each Property with normalized facts and freshest complete Rental Terms", async () => {
   let requestedLocation: string | null = null;
   server.use(
@@ -946,7 +1175,7 @@ test("renders public approximate markers and uncertainty circles through the map
 
   expect(
     await screen.findByRole("button", {
-      name: "موقعیت تقریبی آپارتمان در سعادت‌آباد",
+      name: /انتخاب آپارتمان در سعادت‌آباد، ودیعه .*، اجاره ماهانه /,
     }),
   ).toBeVisible();
   expect(screen.getByText("محدوده تقریبی ۵۰۰ متر")).toBeVisible();
@@ -1164,7 +1393,7 @@ test("marker selection does not accidentally redefine the viewport", async () =>
 
   await user.click(
     await screen.findByRole("button", {
-      name: "موقعیت تقریبی آپارتمان در سعادت‌آباد",
+      name: /انتخاب آپارتمان در سعادت‌آباد، ودیعه .*، اجاره ماهانه /,
     }),
   );
   await new Promise((resolve) => setTimeout(resolve, 600));

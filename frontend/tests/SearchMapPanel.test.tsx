@@ -1,4 +1,5 @@
 import { act, render, screen } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
 import { afterEach, expect, test, vi } from "vitest";
@@ -9,6 +10,7 @@ import {
   type MapMarker,
 } from "@/features/map/adapter";
 import { SearchMapPanel } from "@/features/map/SearchMapPanel";
+import { RenterAccessProvider } from "@/features/session/RenterAccessDialog";
 
 afterEach(() => vi.useRealTimers());
 
@@ -52,18 +54,29 @@ test("offers a keyboard-operable textual fallback for mapped Properties", async 
     preview: {
       title: "آپارتمان در سعادت‌آباد",
       locationLabel: "سعادت‌آباد، تهران",
+      facts: ["آپارتمان", "۱۱۰ متر", "۲ خواب"],
+      listingCountLabel: "۲ آگهی فعال",
+      isFavorite: false,
+      rentalTerms: {
+        depositLabel: "۱٬۰۰۰٬۰۰۰٬۰۰۰ تومان",
+        monthlyRentLabel: "۲۵٬۰۰۰٬۰۰۰ تومان",
+      },
       detailHref: "/properties/property-1",
     },
   };
 
   render(
-    <MemoryRouter>
-      <SearchMapPanel
-        adapter={FakeMapAdapter}
-        markers={[marker]}
-        clusters={[]}
-      />
-    </MemoryRouter>,
+    <QueryClientProvider client={new QueryClient()}>
+      <MemoryRouter>
+        <RenterAccessProvider>
+          <SearchMapPanel
+            adapter={FakeMapAdapter}
+            markers={[marker]}
+            clusters={[]}
+          />
+        </RenterAccessProvider>
+      </MemoryRouter>
+    </QueryClientProvider>,
   );
 
   await user.click(screen.getByText("فهرست دسترس‌پذیر نقشه"));
@@ -74,7 +87,7 @@ test("offers a keyboard-operable textual fallback for mapped Properties", async 
   );
 
   expect(
-    screen.getByRole("link", { name: "آپارتمان در سعادت‌آباد" }),
+    screen.getByRole("link", { name: "مشاهده آپارتمان در سعادت‌آباد" }),
   ).toHaveAttribute("href", "/properties/property-1");
 });
 
