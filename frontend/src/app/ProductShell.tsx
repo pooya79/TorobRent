@@ -42,11 +42,29 @@ import { api } from "@/lib/api/client";
 import { apiError } from "@/lib/api/errors";
 import { currentUserQuery, sessionQuery } from "@/features/session/queries";
 import { useRenterAccess } from "@/features/session/RenterAccessDialog";
+import {
+  mapPropertySearchPages,
+  type PropertySearchData,
+  type PropertySearchPage,
+} from "@/features/catalog/property-search-cache";
 import { cn } from "@/lib/utils";
 import type { components } from "@/lib/api/schema";
 
 type CurrentUser = components["schemas"]["CurrentUser"];
-type PropertySearchPage = components["schemas"]["PropertySearchPage"];
+
+function withoutFavoriteState(page: PropertySearchPage) {
+  return {
+    ...page,
+    results: page.results.map((property) => ({
+      ...property,
+      is_favorite: false,
+    })),
+  };
+}
+
+function withoutFavorites(data: PropertySearchData | undefined) {
+  return mapPropertySearchPages(data, withoutFavoriteState);
+}
 
 const navigation = [
   { label: "خانه", to: "/", icon: Home },
@@ -426,18 +444,9 @@ export function ProductShell({ children }: { children: ReactNode }) {
     },
     onSuccess: () => {
       queryClient.removeQueries({ queryKey: ["current-user"] });
-      queryClient.setQueriesData<PropertySearchPage>(
+      queryClient.setQueriesData<PropertySearchData>(
         { queryKey: ["catalog", "properties"] },
-        (page) =>
-          page
-            ? {
-                ...page,
-                results: page.results.map((property) => ({
-                  ...property,
-                  is_favorite: false,
-                })),
-              }
-            : page,
+        withoutFavorites,
       );
       queryClient.setQueryData(["session"], (current: typeof session.data) =>
         current ? { ...current, authenticated: false } : current,

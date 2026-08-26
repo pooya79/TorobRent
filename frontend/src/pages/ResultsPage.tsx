@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { SlidersHorizontal, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router";
@@ -10,14 +10,6 @@ import {
 } from "@/components/properties/PropertyCard";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import {
-  Pagination,
-  PaginationContent,
-  PaginationItem,
-  PaginationLink,
-  PaginationNext,
-  PaginationPrevious,
-} from "@/components/ui/pagination";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   CatalogFilters,
@@ -35,6 +27,7 @@ import {
 } from "@/components/ui/sheet";
 import {
   CatalogSearchError,
+  propertySearchInfiniteQueryOptions,
   propertySearchQueryOptions,
 } from "@/features/catalog/queries";
 import {
@@ -308,20 +301,31 @@ export function ResultsPage({ mapAdapter }: { mapAdapter?: MapAdapter }) {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [mapAvailable, setMapAvailable] = useState(true);
   const viewportTimer = useRef<number | undefined>(undefined);
-  const search = useQuery(propertySearchQueryOptions(searchParams));
+  const loadMoreSentinel = useRef<HTMLDivElement>(null);
+  const search = useInfiniteQuery(
+    propertySearchInfiniteQueryOptions(searchParams),
+  );
+  const searchData = search.data?.pages[0];
+  const properties = useMemo(() => {
+    const byId = new Map<string, PropertySummary>();
+    for (const page of search.data?.pages ?? []) {
+      for (const property of page.results) byId.set(property.id, property);
+    }
+    return [...byId.values()];
+  }, [search.data?.pages]);
   const latestSearchParamsRef = useRef(searchParams);
   useEffect(() => {
     latestSearchParamsRef.current = searchParams;
   }, [searchParams]);
-  const resultSearchParams = useMemo(
-    () =>
-      new URLSearchParams(
-        search.data?.requestSearchParams ?? searchParams.toString(),
-      ),
-    [search.data?.requestSearchParams, searchParams],
-  );
+  const resultSearchParams = useMemo(() => {
+    const result = new URLSearchParams(
+      searchData?.requestSearchParams ?? searchParams,
+    );
+    const loadedPage = searchParams.get("page");
+    if (loadedPage) result.set("page", loadedPage);
+    return result;
+  }, [searchData?.requestSearchParams, searchParams]);
   const MapAdapterComponent = mapAdapter ?? configuredMapAdapter;
-  const currentPage = Number(resultSearchParams.get("page") ?? "1");
   const location =
     resultSearchParams.get("location_label") ||
     resultSearchParams.get("location") ||
@@ -329,23 +333,17 @@ export function ResultsPage({ mapAdapter }: { mapAdapter?: MapAdapter }) {
   const resultsCopy = resultsPageCopy(
     selectedPropertyTypes(resultSearchParams),
   );
-  const hrefForPage = (page: number) => {
-    const next = new URLSearchParams(resultSearchParams);
-    next.set("page", String(page));
-    return `/search?${next.toString()}`;
-  };
-  const count = search.data?.count ?? 0;
-  const pageCount = Math.ceil(count / 25);
+  const count = searchData?.count ?? 0;
   const initialViewport = useMemo(
     () => viewportFromSearchParams(searchParams),
     [searchParams],
   );
   const mapMarkers =
-    search.data?.map.markers
+    searchData?.map.markers
       .map((property) => toMapMarker(property, resultSearchParams))
       .filter((marker): marker is MapMarker => marker !== null) ?? [];
   const mapClusters: MapCluster[] =
-    search.data?.map.clusters.map((cluster) => ({
+    searchData?.map.clusters.map((cluster) => ({
       id: cluster.id,
       center: {
         latitude: Number(cluster.latitude),
@@ -354,6 +352,57 @@ export function ResultsPage({ mapAdapter }: { mapAdapter?: MapAdapter }) {
       propertyCount: cluster.property_count,
       propertyIds: cluster.property_ids,
     })) ?? [];
+  const requestedPageCount = Math.max(
+    1,
+    Number(searchParams.get("page") ?? "1") || 1,
+  );
+  const loadMore = useCallback(async () => {
+    if (!search.hasNextPage || search.isFetchingNextPage) return;
+    const result = await search.fetchNextPage({ cancelRefetch: false });
+    if (result.isError || !result.data) return;
+    const loadedPageCount = result.data.pages.length;
+    if (loadedPageCount >= requestedPageCount) {
+      const next = new URLSearchParams(latestSearchParamsRef.current);
+      if (loadedPageCount > 1) next.set("page", String(loadedPageCount));
+      setSearchParams(next, { replace: true });
+    }
+  }, [requestedPageCount, search, setSearchParams]);
+  useEffect(() => {
+    if (
+      search.data &&
+      search.data.pages.length < requestedPageCount &&
+      search.hasNextPage &&
+      !search.isFetchingNextPage
+    ) {
+      void loadMore();
+    }
+  }, [
+    loadMore,
+    requestedPageCount,
+    search.data,
+    search.hasNextPage,
+    search.isFetchingNextPage,
+  ]);
+  useEffect(() => {
+    const sentinel = loadMoreSentinel.current;
+    if (
+      !sentinel ||
+      !search.hasNextPage ||
+      typeof IntersectionObserver === "undefined"
+    ) {
+      return;
+    }
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) void loadMore();
+      },
+      { rootMargin: "400px" },
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [loadMore, search.hasNextPage]);
+  const isReplacingResults =
+    search.isFetching && !search.isPending && !search.isFetchingNextPage;
   const handleViewportChange = useCallback(
     (viewport: MapViewport) => {
       window.clearTimeout(viewportTimer.current);
@@ -407,7 +456,7 @@ export function ResultsPage({ mapAdapter }: { mapAdapter?: MapAdapter }) {
         <SearchToolbar
           searchParams={searchParams}
           setSearchParams={setSearchParams}
-          facets={search.isPlaceholderData ? undefined : search.data?.facets}
+          facets={searchData?.facets}
         />
         <h1 className="sr-only">
           {resultsCopy.heading} در {location}
@@ -454,7 +503,7 @@ export function ResultsPage({ mapAdapter }: { mapAdapter?: MapAdapter }) {
 
       <div>
         <p className="text-muted-foreground mb-5 text-sm" aria-live="polite">
-          {search.data ? (
+          {searchData ? (
             resultSearchParams.has("viewport_north") ? (
               `${formatNumber(count)} ملک در این محدوده پیدا شد`
             ) : (
@@ -462,8 +511,8 @@ export function ResultsPage({ mapAdapter }: { mapAdapter?: MapAdapter }) {
                 <span>{formatNumber(count)} ملک پیدا شد</span>
                 <span className="ms-1">
                   از این تعداد،{" "}
-                  {formatNumber(search.data.map.mappable_property_count)} ملک
-                  روی نقشه است
+                  {formatNumber(searchData.map.mappable_property_count)} ملک روی
+                  نقشه است
                 </span>
               </>
             )
@@ -474,12 +523,12 @@ export function ResultsPage({ mapAdapter }: { mapAdapter?: MapAdapter }) {
         <div
           role="region"
           aria-label="نتایج و نقشه جاری"
-          aria-busy={search.isFetching && !search.isPending}
+          aria-busy={isReplacingResults}
           className={`${
             mapAvailable
               ? "grid gap-8 xl:grid-cols-[minmax(20rem,0.85fr)_minmax(0,1.4fr)]"
               : "space-y-5"
-          } ${search.isFetching && !search.isPending ? "opacity-60" : ""}`}
+          } ${isReplacingResults ? "opacity-60" : ""}`}
         >
           <div
             className={mapAvailable ? "xl:sticky xl:top-6 xl:self-start" : ""}
@@ -497,7 +546,7 @@ export function ResultsPage({ mapAdapter }: { mapAdapter?: MapAdapter }) {
           <div>
             {search.isPending ? (
               <ResultsLoading />
-            ) : search.isError ? (
+            ) : search.isError && !searchData ? (
               search.error instanceof CatalogSearchError &&
               search.error.status === 503 ? (
                 <Alert variant="destructive">
@@ -524,7 +573,7 @@ export function ResultsPage({ mapAdapter }: { mapAdapter?: MapAdapter }) {
                   </AlertDescription>
                 </Alert>
               )
-            ) : search.data.results.length === 0 ? (
+            ) : properties.length === 0 ? (
               <section className="bg-muted flex min-h-80 flex-col items-center justify-center rounded-xl p-8 text-center">
                 <h2 className="text-xl font-semibold">
                   ملکی در این محدوده پیدا نشد
@@ -575,7 +624,7 @@ export function ResultsPage({ mapAdapter }: { mapAdapter?: MapAdapter }) {
                 }
                 aria-label="ملک‌های پیدا شده"
               >
-                {search.data.results.map((property) => (
+                {properties.map((property) => (
                   <PropertyCard
                     key={property.id}
                     property={toCardData(property, resultSearchParams)}
@@ -584,38 +633,51 @@ export function ResultsPage({ mapAdapter }: { mapAdapter?: MapAdapter }) {
               </section>
             )}
 
-            {search.data && pageCount > 1 && (
-              <Pagination
-                className="mt-12"
-                dir="ltr"
-                aria-label="صفحه‌بندی نتایج"
-              >
-                <PaginationContent>
-                  {currentPage > 1 && (
-                    <PaginationItem>
-                      <PaginationPrevious href={hrefForPage(currentPage - 1)} />
-                    </PaginationItem>
-                  )}
-                  {Array.from(
-                    { length: pageCount },
-                    (_, index) => index + 1,
-                  ).map((page) => (
-                    <PaginationItem key={page}>
-                      <PaginationLink
-                        href={hrefForPage(page)}
-                        isActive={currentPage === page}
+            {searchData && properties.length > 0 && (
+              <div className="mt-12 flex flex-col items-center gap-3">
+                <div ref={loadMoreSentinel} aria-hidden="true" />
+                {search.isFetchNextPageError ? (
+                  <Alert>
+                    <AlertTitle>بارگذاری ملک‌های بیشتر کامل نشد</AlertTitle>
+                    <AlertDescription className="mt-3">
+                      اتصال خود را بررسی کنید.
+                      <Button
+                        className="ms-3"
+                        size="sm"
+                        variant="outline"
+                        type="button"
+                        onClick={() => void loadMore()}
                       >
-                        {formatNumber(page)}
-                      </PaginationLink>
-                    </PaginationItem>
-                  ))}
-                  {currentPage < pageCount && (
-                    <PaginationItem>
-                      <PaginationNext href={hrefForPage(currentPage + 1)} />
-                    </PaginationItem>
-                  )}
-                </PaginationContent>
-              </Pagination>
+                        تلاش دوباره
+                      </Button>
+                    </AlertDescription>
+                  </Alert>
+                ) : search.hasNextPage ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={search.isFetchingNextPage}
+                    onClick={() => void loadMore()}
+                  >
+                    {search.isFetchingNextPage
+                      ? "در حال بارگذاری ملک‌های بیشتر…"
+                      : "نمایش ملک‌های بیشتر"}
+                  </Button>
+                ) : (
+                  <p
+                    role="status"
+                    aria-live="polite"
+                    className="text-muted-foreground text-sm"
+                  >
+                    به پایان نتایج رسیدید
+                  </p>
+                )}
+                {search.isFetchingNextPage && (
+                  <p role="status" aria-live="polite" className="sr-only">
+                    در حال بارگذاری ملک‌های بیشتر
+                  </p>
+                )}
+              </div>
             )}
           </div>
         </div>

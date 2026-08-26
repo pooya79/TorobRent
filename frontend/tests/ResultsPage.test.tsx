@@ -1,9 +1,17 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { delay, http, HttpResponse } from "msw";
-import { MemoryRouter, useLocation, useNavigate } from "react-router";
-import { expect, test } from "vitest";
+import {
+  createMemoryRouter,
+  MemoryRouter,
+  Outlet,
+  RouterProvider,
+  ScrollRestoration,
+  useLocation,
+  useNavigate,
+} from "react-router";
+import { expect, test, vi } from "vitest";
 
 import { meta, ResultsPage } from "@/pages/ResultsPage";
 import { ProductShell } from "@/app/ProductShell";
@@ -69,7 +77,7 @@ test("operates an authenticated Favorite independently and optimistically", asyn
     "حذف آپارتمان در سعادت‌آباد از علاقه‌مندی‌ها",
   );
   await waitFor(() => expect(saveRequests).toBe(1));
-  expect(screen.queryByRole("status")).not.toHaveTextContent(/ذخیره شد/);
+  expect(screen.queryByText(/ذخیره شد/)).toBeNull();
 });
 
 test("keeps another successful optimistic Favorite when one mutation fails", async () => {
@@ -344,6 +352,15 @@ function SearchStateProbe() {
         بازگشت آزمایشی
       </button>
     </>
+  );
+}
+
+function PropertyNavigationProbe() {
+  const navigate = useNavigate();
+  return (
+    <button type="button" onClick={() => void navigate(-1)}>
+      بازگشت به نتایج آزمایشی
+    </button>
   );
 }
 
@@ -1031,7 +1048,7 @@ test("shows server Property clusters and discloses city-wide map coverage", asyn
   expect(screen.getByText("از این تعداد، ۷ ملک روی نقشه است")).toBeVisible();
 });
 
-test("keeps the previous map and results subdued until a viewport response swaps together", async () => {
+test("discards the previous map and results while a viewport replacement loads", async () => {
   const user = userEvent.setup();
   const replacement = {
     ...propertySearchPage,
@@ -1064,18 +1081,11 @@ test("keeps the previous map and results subdued until a viewport response swaps
   );
 
   await waitFor(() =>
-    expect(
-      screen.getByRole("region", { name: "نتایج و نقشه جاری" }),
-    ).toHaveAttribute("aria-busy", "true"),
+    expect(screen.getByLabelText("در حال بارگذاری ملک‌ها")).toBeVisible(),
   );
   expect(
-    screen.getByRole("heading", { name: "آپارتمان در سعادت‌آباد" }),
-  ).toBeVisible();
-  expect(screen.getByText("۱ ملک پیدا شد")).toBeVisible();
-  expect(screen.queryByText(/ملک در این محدوده پیدا شد/)).toBeNull();
-  expect(screen.getByRole("region", { name: "نتایج و نقشه جاری" })).toHaveClass(
-    "opacity-60",
-  );
+    screen.queryByRole("heading", { name: "آپارتمان در سعادت‌آباد" }),
+  ).toBeNull();
 
   expect(
     await screen.findByRole("heading", { name: "آپارتمان در ونک" }),
@@ -1297,23 +1307,364 @@ test("offers retry after a failure and distinguishes service unavailability", as
   ).toBeVisible();
 });
 
-test("keeps location and page navigation shareable in the URL", async () => {
+test("accumulates the server-provided next page through an accessible Load More action", async () => {
+  const user = userEvent.setup();
+  const secondProperty = {
+    ...propertySearchPage.results[0]!,
+    id: "20000000-0000-4000-8000-000000000067",
+    title: "خانه در ونک",
+    canonical_slug: "خانه-در-ونک",
+  };
+  const requestedUrls: string[] = [];
   server.use(
-    http.get("*/api/v1/catalog/properties/", () =>
-      HttpResponse.json({
-        ...propertySearchPage,
-        count: 26,
-        next: "http://localhost/api/v1/catalog/properties/?location=تهران&page=2",
-      }),
-    ),
+    http.get("*/api/v1/catalog/properties/", ({ request }) => {
+      requestedUrls.push(request.url);
+      const page = new URL(request.url).searchParams.get("page");
+      return HttpResponse.json(
+        page === "2"
+          ? {
+              ...propertySearchPage,
+              count: 2,
+              previous:
+                "http://localhost/api/v1/catalog/properties/?location=تهران",
+              results: [secondProperty],
+            }
+          : {
+              ...propertySearchPage,
+              count: 2,
+              next: "http://localhost/api/v1/catalog/properties/?location=تهران&page=2",
+            },
+      );
+    }),
   );
 
   renderResults("/search?location=تهران");
 
-  expect(await screen.findByText("۲۶ ملک پیدا شد")).toBeVisible();
-  expect(screen.getByRole("link", { name: "صفحه بعد" })).toHaveAttribute(
+  expect(await screen.findByText("۲ ملک پیدا شد")).toBeVisible();
+  await user.click(screen.getByRole("button", { name: "نمایش ملک‌های بیشتر" }));
+
+  expect(
+    await screen.findByRole("heading", { name: "خانه در ونک" }),
+  ).toBeVisible();
+  expect(
+    screen.getByRole("heading", { name: "آپارتمان در سعادت‌آباد" }),
+  ).toBeVisible();
+  expect(requestedUrls).toContain(
+    "http://localhost/api/v1/catalog/properties/?location=%D8%AA%D9%87%D8%B1%D8%A7%D9%86&page=2",
+  );
+  expect(screen.getByLabelText("وضعیت جست‌وجو")).toHaveTextContent("page=2");
+  expect(screen.getByRole("link", { name: "خانه در ونک" })).toHaveAttribute(
     "href",
-    "/search?location=%D8%AA%D9%87%D8%B1%D8%A7%D9%86&page=2",
+    expect.stringContaining("page%3D2"),
+  );
+});
+
+test("deduplicates concurrent automatic continuation triggers", async () => {
+  let intersectionCallback: IntersectionObserverCallback = () => undefined;
+  class TriggerableIntersectionObserver implements IntersectionObserver {
+    readonly root = null;
+    readonly rootMargin = "0px";
+    readonly scrollMargin = "0px";
+    readonly thresholds = [0];
+    constructor(callback: IntersectionObserverCallback) {
+      intersectionCallback = callback;
+    }
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+    takeRecords() {
+      return [];
+    }
+  }
+  const originalIntersectionObserver = globalThis.IntersectionObserver;
+  globalThis.IntersectionObserver = TriggerableIntersectionObserver;
+  let secondPageRequests = 0;
+  const secondProperty = {
+    ...propertySearchPage.results[0]!,
+    id: "30000000-0000-4000-8000-000000000067",
+    title: "خانه نزدیک پایان نتایج",
+  };
+  server.use(
+    http.get("*/api/v1/catalog/properties/", async ({ request }) => {
+      if (new URL(request.url).searchParams.get("page") === "2") {
+        secondPageRequests += 1;
+        await delay(100);
+        return HttpResponse.json({
+          ...propertySearchPage,
+          count: 2,
+          results: [secondProperty],
+        });
+      }
+      return HttpResponse.json({
+        ...propertySearchPage,
+        count: 2,
+        next: "http://localhost/api/v1/catalog/properties/?page=2",
+      });
+    }),
+  );
+
+  try {
+    renderResults();
+    await screen.findByRole("button", { name: "نمایش ملک‌های بیشتر" });
+    act(() => {
+      const entry = { isIntersecting: true } as IntersectionObserverEntry;
+      intersectionCallback([entry], {} as IntersectionObserver);
+      intersectionCallback([entry], {} as IntersectionObserver);
+    });
+
+    expect(
+      await screen.findByRole("heading", { name: "خانه نزدیک پایان نتایج" }),
+    ).toBeVisible();
+    expect(secondPageRequests).toBe(1);
+  } finally {
+    globalThis.IntersectionObserver = originalIntersectionObserver;
+  }
+});
+
+test("keeps accumulated Properties on continuation error and offers retry before announcing the end", async () => {
+  const user = userEvent.setup();
+  let secondPageAttempts = 0;
+  const secondProperty = {
+    ...propertySearchPage.results[0]!,
+    id: "40000000-0000-4000-8000-000000000067",
+    title: "خانه پس از تلاش دوباره",
+  };
+  server.use(
+    http.get("*/api/v1/catalog/properties/", ({ request }) => {
+      if (new URL(request.url).searchParams.get("page") === "2") {
+        secondPageAttempts += 1;
+        return secondPageAttempts === 1
+          ? HttpResponse.json({ detail: "failed" }, { status: 500 })
+          : HttpResponse.json({
+              ...propertySearchPage,
+              count: 2,
+              results: [secondProperty],
+            });
+      }
+      return HttpResponse.json({
+        ...propertySearchPage,
+        count: 2,
+        next: "http://localhost/api/v1/catalog/properties/?page=2",
+      });
+    }),
+  );
+
+  renderResults();
+  await user.click(
+    await screen.findByRole("button", { name: "نمایش ملک‌های بیشتر" }),
+  );
+
+  expect(
+    await screen.findByRole("heading", {
+      name: "بارگذاری ملک‌های بیشتر کامل نشد",
+    }),
+  ).toBeVisible();
+  expect(
+    screen.getByRole("heading", { name: "آپارتمان در سعادت‌آباد" }),
+  ).toBeVisible();
+  await user.click(screen.getByRole("button", { name: "تلاش دوباره" }));
+
+  expect(
+    await screen.findByRole("heading", { name: "خانه پس از تلاش دوباره" }),
+  ).toBeVisible();
+  expect(screen.getByText("به پایان نتایج رسیدید")).toHaveAttribute(
+    "role",
+    "status",
+  );
+});
+
+test("reloads accumulated pages from the beginning for a shared query URL", async () => {
+  const requestedPages: Array<string | null> = [];
+  const secondProperty = {
+    ...propertySearchPage.results[0]!,
+    id: "50000000-0000-4000-8000-000000000067",
+    title: "خانه بازیابی‌شده",
+  };
+  const thirdProperty = {
+    ...propertySearchPage.results[0]!,
+    id: "51000000-0000-4000-8000-000000000067",
+    title: "خانه بازیابی‌شده سوم",
+  };
+  server.use(
+    http.get("*/api/v1/catalog/properties/", ({ request }) => {
+      const page = new URL(request.url).searchParams.get("page");
+      requestedPages.push(page);
+      return HttpResponse.json(
+        page === "3"
+          ? { ...propertySearchPage, count: 3, results: [thirdProperty] }
+          : page === "2"
+            ? {
+                ...propertySearchPage,
+                count: 3,
+                next: "http://localhost/api/v1/catalog/properties/?parking=present&ordering=deposit&page=3",
+                results: [secondProperty],
+              }
+            : {
+                ...propertySearchPage,
+                count: 3,
+                next: "http://localhost/api/v1/catalog/properties/?parking=present&ordering=deposit&page=2",
+              },
+      );
+    }),
+  );
+
+  renderResults("/search?parking=present&ordering=deposit&page=3");
+
+  expect(
+    await screen.findByRole("heading", { name: "خانه بازیابی‌شده سوم" }),
+  ).toBeVisible();
+  expect(requestedPages).toEqual([null, "2", "3"]);
+  expect(
+    screen.getByRole("heading", { name: "آپارتمان در سعادت‌آباد" }),
+  ).toBeVisible();
+});
+
+test("restores accumulated results, query context, and scroll after Property navigation", async () => {
+  const user = userEvent.setup();
+  const secondProperty = {
+    ...propertySearchPage.results[0]!,
+    id: "55000000-0000-4000-8000-000000000067",
+    title: "خانه برای بازگشت",
+  };
+  let requests = 0;
+  server.use(
+    http.get("*/api/v1/catalog/properties/", ({ request }) => {
+      requests += 1;
+      return HttpResponse.json(
+        new URL(request.url).searchParams.get("page") === "2"
+          ? { ...propertySearchPage, count: 2, results: [secondProperty] }
+          : {
+              ...propertySearchPage,
+              count: 2,
+              next: "http://localhost/api/v1/catalog/properties/?parking=present&ordering=deposit&page=2",
+            },
+      );
+    }),
+  );
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  const router = createMemoryRouter(
+    [
+      {
+        path: "/",
+        element: (
+          <>
+            <ScrollRestoration />
+            <Outlet />
+          </>
+        ),
+        children: [
+          {
+            path: "search",
+            element: (
+              <>
+                <ResultsPage />
+                <SearchStateProbe />
+              </>
+            ),
+          },
+          {
+            path: "properties/:propertyId",
+            element: <PropertyNavigationProbe />,
+          },
+        ],
+      },
+    ],
+    { initialEntries: ["/search?parking=present&ordering=deposit"] },
+  );
+  const scrollDescriptor = Object.getOwnPropertyDescriptor(window, "scrollY");
+  const scrollTo = vi.spyOn(window, "scrollTo").mockImplementation(() => {});
+  render(
+    <QueryClientProvider client={queryClient}>
+      <RenterAccessProvider>
+        <RouterProvider router={router} />
+      </RenterAccessProvider>
+    </QueryClientProvider>,
+  );
+
+  await user.click(
+    await screen.findByRole("button", { name: "نمایش ملک‌های بیشتر" }),
+  );
+  await screen.findByRole("heading", { name: "خانه برای بازگشت" });
+  Object.defineProperty(window, "scrollY", { configurable: true, value: 720 });
+  await user.click(screen.getByRole("link", { name: "خانه برای بازگشت" }));
+  await user.click(
+    await screen.findByRole("button", { name: "بازگشت به نتایج آزمایشی" }),
+  );
+
+  expect(
+    await screen.findByRole("heading", { name: "خانه برای بازگشت" }),
+  ).toBeVisible();
+  expect(screen.getByLabelText("وضعیت جست‌وجو")).toHaveTextContent(
+    "parking=present&ordering=deposit&page=2",
+  );
+  expect(requests).toBe(2);
+  expect(scrollTo).toHaveBeenCalledWith(0, 720);
+  scrollTo.mockRestore();
+  if (scrollDescriptor)
+    Object.defineProperty(window, "scrollY", scrollDescriptor);
+});
+
+test("discards accumulated pages when the query changes", async () => {
+  const user = userEvent.setup();
+  const secondProperty = {
+    ...propertySearchPage.results[0]!,
+    id: "60000000-0000-4000-8000-000000000067",
+    title: "خانه از پرس‌وجوی قبلی",
+  };
+  const filteredProperty = {
+    ...propertySearchPage.results[0]!,
+    id: "70000000-0000-4000-8000-000000000067",
+    title: "خانه سه‌خوابه تازه",
+  };
+  server.use(
+    http.get("*/api/v1/catalog/properties/", async ({ request }) => {
+      const parameters = new URL(request.url).searchParams;
+      if (parameters.get("bedroom_count") === "3_plus") {
+        await delay(100);
+        return HttpResponse.json({
+          ...propertySearchPage,
+          results: [filteredProperty],
+        });
+      }
+      return HttpResponse.json(
+        parameters.get("page") === "2"
+          ? { ...propertySearchPage, count: 2, results: [secondProperty] }
+          : {
+              ...propertySearchPage,
+              count: 2,
+              next: "http://localhost/api/v1/catalog/properties/?page=2",
+            },
+      );
+    }),
+  );
+
+  renderResults();
+  await user.click(
+    await screen.findByRole("button", { name: "نمایش ملک‌های بیشتر" }),
+  );
+  expect(
+    await screen.findByRole("heading", { name: "خانه از پرس‌وجوی قبلی" }),
+  ).toBeVisible();
+
+  const toolbar = screen.getByRole("search", { name: "نوار جست‌وجوی ملک" });
+  await user.click(
+    within(toolbar).getByRole("button", { name: /سه خواب و بیشتر/ }),
+  );
+
+  expect(screen.getByLabelText("در حال بارگذاری ملک‌ها")).toBeVisible();
+  expect(
+    screen.queryByRole("heading", { name: "خانه از پرس‌وجوی قبلی" }),
+  ).toBeNull();
+  expect(
+    await screen.findByRole("heading", { name: "خانه سه‌خوابه تازه" }),
+  ).toBeVisible();
+  expect(
+    screen.queryByRole("heading", { name: "خانه از پرس‌وجوی قبلی" }),
+  ).toBeNull();
+  expect(screen.getByLabelText("وضعیت جست‌وجو")).not.toHaveTextContent(
+    "page=2",
   );
 });
 
@@ -1382,13 +1733,21 @@ test("offers the same filter form in an accessible mobile drawer", async () => {
   expect(within(drawer).getByRole("group", { name: "مبله" })).toBeVisible();
 });
 
-test("preserves compatible Property Types through requests, filters, pagination, chips, and return navigation", async () => {
+test("preserves compatible Property Types through requests, filters, continuation, chips, and return navigation", async () => {
   const user = userEvent.setup();
   let requestedParams = new URLSearchParams();
   server.use(
     http.get("*/api/v1/catalog/properties/", ({ request }) => {
       requestedParams = new URL(request.url).searchParams;
-      return HttpResponse.json({ ...propertySearchPage, count: 26 });
+      const next = new URLSearchParams(requestedParams);
+      next.set("page", "2");
+      return HttpResponse.json({
+        ...propertySearchPage,
+        count: 26,
+        next: requestedParams.has("page")
+          ? null
+          : `http://localhost/api/v1/catalog/properties/?${next.toString()}`,
+      });
     }),
   );
   renderResults(
@@ -1417,13 +1776,12 @@ test("preserves compatible Property Types through requests, filters, pagination,
     "apartment",
     "house",
   ]);
-  const nextPage = screen.getByRole("link", { name: "صفحه بعد" });
-  expect(
-    new URL(
-      nextPage.getAttribute("href")!,
-      "http://example.test",
-    ).searchParams.getAll("property_type"),
-  ).toEqual(["apartment", "house"]);
+  await user.click(screen.getByRole("button", { name: "نمایش ملک‌های بیشتر" }));
+  await waitFor(() => expect(requestedParams.get("page")).toBe("2"));
+  expect(requestedParams.getAll("property_type")).toEqual([
+    "apartment",
+    "house",
+  ]);
   expect(
     screen.getByRole("link", { name: "آپارتمان در سعادت‌آباد" }),
   ).toHaveAttribute("href", expect.stringContaining("property_type%3Dhouse"));
