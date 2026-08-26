@@ -1,5 +1,35 @@
 import type { components } from "@/lib/api/schema";
 
+const residentialFacets: components["schemas"]["CatalogFacets"] = {
+  property_types: [
+    { value: "apartment", count: 1 },
+    { value: "house", count: 1 },
+    { value: "villa", count: 1 },
+  ],
+  bedroom_counts: [
+    { value: "1", count: 1 },
+    { value: "2", count: 1 },
+    { value: "3_plus", count: 1 },
+  ],
+  features: {
+    parking: { present: 1, absent: 1, unknown: 1 },
+    elevator: { present: 1, absent: 1, unknown: 1 },
+    storage: { present: 1, absent: 1, unknown: 1 },
+    furnished: { present: 1, absent: 1, unknown: 1 },
+  },
+};
+
+const commercialFacets: components["schemas"]["CatalogFacets"] = {
+  ...residentialFacets,
+  property_types: [
+    { value: "office", count: 1 },
+    { value: "shop", count: 1 },
+    { value: "warehouse", count: 1 },
+    { value: "workshop", count: 1 },
+  ],
+  bedroom_counts: [],
+};
+
 export const propertyDetail: components["schemas"]["PropertyDetail"] = {
   id: "8b294499-0f8d-45cb-8ec6-90ac3ca1669e",
   title: "آپارتمان در سعادت‌آباد",
@@ -102,33 +132,33 @@ export const propertyDetail: components["schemas"]["PropertyDetail"] = {
   ],
 };
 
-export const propertySearchPage: components["schemas"]["PaginatedPropertySummaryList"] =
-  {
-    count: 1,
-    next: null,
-    previous: null,
-    results: [
-      {
-        id: propertyDetail.id,
-        title: propertyDetail.title,
-        canonical_slug: propertyDetail.canonical_slug,
-        location: propertyDetail.location,
-        approximate_location: propertyDetail.approximate_location,
-        property_category: propertyDetail.property_category,
-        property_category_label: propertyDetail.property_category_label,
-        property_type: propertyDetail.property_type,
-        property_type_label: propertyDetail.property_type_label,
-        area_sqm: propertyDetail.area_sqm,
-        room_count: propertyDetail.room_count,
-        construction_year: propertyDetail.construction_year,
-        listing_count: 2,
-        is_favorite: false,
-        rental_terms: propertyDetail.listings[0]!.rental_terms,
-        availability_confirmed_at:
-          propertyDetail.listings[0]!.availability_confirmed_at,
-      },
-    ],
-  };
+export const propertySearchPage: components["schemas"]["PropertySearchPage"] = {
+  count: 1,
+  next: null,
+  previous: null,
+  facets: residentialFacets,
+  results: [
+    {
+      id: propertyDetail.id,
+      title: propertyDetail.title,
+      canonical_slug: propertyDetail.canonical_slug,
+      location: propertyDetail.location,
+      approximate_location: propertyDetail.approximate_location,
+      property_category: propertyDetail.property_category,
+      property_category_label: propertyDetail.property_category_label,
+      property_type: propertyDetail.property_type,
+      property_type_label: propertyDetail.property_type_label,
+      area_sqm: propertyDetail.area_sqm,
+      room_count: propertyDetail.room_count,
+      construction_year: propertyDetail.construction_year,
+      listing_count: 2,
+      is_favorite: false,
+      rental_terms: propertyDetail.listings[0]!.rental_terms,
+      availability_confirmed_at:
+        propertyDetail.listings[0]!.availability_confirmed_at,
+    },
+  ],
+};
 
 export const officePropertyDetail: components["schemas"]["PropertyDetail"] = {
   ...propertyDetail,
@@ -146,11 +176,12 @@ export const officePropertyDetail: components["schemas"]["PropertyDetail"] = {
   })),
 };
 
-export const officePropertySearchPage: components["schemas"]["PaginatedPropertySummaryList"] =
+export const officePropertySearchPage: components["schemas"]["PropertySearchPage"] =
   {
     count: 1,
     next: null,
     previous: null,
+    facets: commercialFacets,
     results: [
       {
         id: officePropertyDetail.id,

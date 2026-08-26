@@ -3,7 +3,7 @@ import type { SetURLSearchParams } from "react-router";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import type { FilterName } from "./CatalogFilters";
+import { type CatalogFacetData, propertyTypeFacetCounts } from "./facets";
 import { PropertyTypeSelector } from "./PropertyTypeSelector";
 import {
   selectedPropertyCategory,
@@ -11,19 +11,17 @@ import {
 } from "./property-type-selection";
 import { propertyTypeGroups, type PropertyCategory } from "./property-taxonomy";
 import { SupportedCityCombobox } from "./SupportedCityCombobox";
-
-const categorySpecificFilters: Record<PropertyCategory, readonly FilterName[]> =
-  {
-    residential: ["room_count"],
-    commercial: [],
-  };
+import { QuickFilters } from "./QuickFilters";
+import { categorySpecificQuickFilterParameters } from "./quick-filter-options";
 
 export function SearchToolbar({
   searchParams,
   setSearchParams,
+  facets,
 }: {
   searchParams: URLSearchParams;
   setSearchParams: SetURLSearchParams;
+  facets?: CatalogFacetData;
 }) {
   const category = selectedPropertyCategory(searchParams);
   const selectedTypes = selectedPropertyTypesForCategory(
@@ -38,7 +36,9 @@ export function SearchToolbar({
     const next = new URLSearchParams(searchParams);
     next.set("property_category", nextCategory);
     next.delete("property_type");
-    for (const filter of categorySpecificFilters[category]) next.delete(filter);
+    for (const filter of categorySpecificQuickFilterParameters(category)) {
+      next.delete(filter);
+    }
     next.delete("page");
     setSearchParams(next);
   };
@@ -107,6 +107,7 @@ export function SearchToolbar({
               category={category}
               compact
               initialSelectedTypes={selectedTypes}
+              facetCounts={propertyTypeFacetCounts(facets)}
               onSelectionChange={(propertyTypes) => {
                 const next = new URLSearchParams(searchParams);
                 next.set("property_category", category);
@@ -121,6 +122,12 @@ export function SearchToolbar({
           </div>
         </div>
       </div>
+      <QuickFilters
+        category={category}
+        facets={facets}
+        searchParams={searchParams}
+        setSearchParams={setSearchParams}
+      />
     </section>
   );
 }

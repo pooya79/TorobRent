@@ -441,6 +441,15 @@ paths:
           * `present` - present
           * `absent` - absent
       - in: query
+        name: bedroom_count
+        schema:
+          oneOf:
+          - type: integer
+            minimum: 0
+          - type: string
+            enum:
+            - 3_plus
+      - in: query
         name: deposit_max_toman
         schema:
           type: integer
@@ -553,8 +562,13 @@ paths:
       - in: query
         name: room_count
         schema:
-          type: integer
-          minimum: 0
+          oneOf:
+          - type: integer
+            minimum: 0
+          - type: string
+            enum:
+            - 3_plus
+        description: Deprecated alias for bedroom_count
       - in: query
         name: storage
         schema:
@@ -576,7 +590,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PaginatedPropertySummaryList'
+                $ref: '#/components/schemas/PropertySearchPage'
           description: ''
   /api/v1/catalog/properties/{property_id}/:
     get:
@@ -1974,6 +1988,23 @@ components:
     BlankEnum:
       enum:
       - ''
+    CatalogFacets:
+      type: object
+      properties:
+        property_types:
+          type: array
+          items:
+            $ref: '#/components/schemas/FacetCount'
+        bedroom_counts:
+          type: array
+          items:
+            $ref: '#/components/schemas/FacetCount'
+        features:
+          $ref: '#/components/schemas/FeatureFacets'
+      required:
+      - bedroom_counts
+      - features
+      - property_types
     CatalogStatistics:
       type: object
       properties:
@@ -2193,6 +2224,33 @@ components:
           format: uri
       required:
       - url
+    FacetCount:
+      type: object
+      properties:
+        value:
+          type: string
+        count:
+          type: integer
+          minimum: 0
+      required:
+      - count
+      - value
+    FeatureFacets:
+      type: object
+      properties:
+        parking:
+          $ref: '#/components/schemas/FeatureStateFacet'
+        elevator:
+          $ref: '#/components/schemas/FeatureStateFacet'
+        storage:
+          $ref: '#/components/schemas/FeatureStateFacet'
+        furnished:
+          $ref: '#/components/schemas/FeatureStateFacet'
+      required:
+      - elevator
+      - furnished
+      - parking
+      - storage
     FeatureStateEnum:
       enum:
       - unknown
@@ -2203,6 +2261,22 @@ components:
         * `unknown` - نامشخص
         * `present` - دارد
         * `absent` - ندارد
+    FeatureStateFacet:
+      type: object
+      properties:
+        present:
+          type: integer
+          minimum: 0
+        absent:
+          type: integer
+          minimum: 0
+        unknown:
+          type: integer
+          minimum: 0
+      required:
+      - absent
+      - present
+      - unknown
     Features:
       type: object
       properties:
@@ -2605,31 +2679,6 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/OperatorSubmissionQueue'
-    PaginatedPropertySummaryList:
-      type: object
-      required:
-      - count
-      - results
-      properties:
-        count:
-          type: integer
-          example: 123
-        next:
-          type:
-          - string
-          - 'null'
-          format: uri
-          example: http://api.example.org/properties/?page=2
-        previous:
-          type:
-          - string
-          - 'null'
-          format: uri
-          example: http://api.example.org/properties/?page=1
-        results:
-          type: array
-          items:
-            $ref: '#/components/schemas/PropertySummary'
     PaginatedSupportRequestQueueList:
       type: object
       required:
@@ -2959,6 +3008,34 @@ components:
       - property_type
       - property_type_label
       - room_count
+    PropertySearchPage:
+      type: object
+      properties:
+        count:
+          type: integer
+          minimum: 0
+        next:
+          type:
+          - string
+          - 'null'
+          format: uri
+        previous:
+          type:
+          - string
+          - 'null'
+          format: uri
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/PropertySummary'
+        facets:
+          $ref: '#/components/schemas/CatalogFacets'
+      required:
+      - count
+      - facets
+      - next
+      - previous
+      - results
     PropertySummary:
       type: object
       properties:

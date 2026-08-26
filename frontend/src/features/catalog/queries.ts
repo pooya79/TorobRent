@@ -2,6 +2,11 @@ import { queryOptions } from "@tanstack/react-query";
 
 import { createApiClient } from "@/lib/api/client";
 import type { operations } from "@/lib/api/schema";
+import {
+  BEDROOM_COUNT_PARAMETER,
+  LEGACY_BEDROOM_COUNT_PARAMETER,
+  THREE_OR_MORE_BEDROOMS,
+} from "./bedroom-filter";
 import { normalizeNumericEntry } from "./numeric-entry";
 import {
   selectedPropertyCategory,
@@ -82,6 +87,13 @@ export function propertySearchQueryOptions(searchParams: URLSearchParams) {
     const value = Number(normalizeNumericEntry(rawValue));
     return Number.isSafeInteger(value) && value >= 0 ? value : undefined;
   };
+  const bedroomCountParameter = (
+    name:
+      typeof BEDROOM_COUNT_PARAMETER | typeof LEGACY_BEDROOM_COUNT_PARAMETER,
+  ) =>
+    searchParams.get(name) === THREE_OR_MORE_BEDROOMS
+      ? THREE_OR_MORE_BEDROOMS
+      : integerParameter(name);
   const query = {
     location: searchParams.get("location") ?? undefined,
     property_category: propertyCategory,
@@ -92,7 +104,10 @@ export function propertySearchQueryOptions(searchParams: URLSearchParams) {
     monthly_rent_max_toman: integerParameter("monthly_rent_max_toman"),
     area_min: integerParameter("area_min"),
     area_max: integerParameter("area_max"),
-    room_count: integerParameter("room_count"),
+    bedroom_count: bedroomCountParameter(BEDROOM_COUNT_PARAMETER),
+    room_count: searchParams.has(BEDROOM_COUNT_PARAMETER)
+      ? undefined
+      : bedroomCountParameter(LEGACY_BEDROOM_COUNT_PARAMETER),
     property_type: searchParams.has("property_type")
       ? selectedPropertyTypesForCategory(searchParams, propertyCategory)
       : undefined,

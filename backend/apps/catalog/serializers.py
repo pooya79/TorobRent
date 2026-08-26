@@ -1,6 +1,6 @@
 from typing import Any, cast
 
-from drf_spectacular.utils import extend_schema_field
+from drf_spectacular.utils import extend_schema_field, extend_schema_serializer
 from rest_framework import serializers
 
 from .models import (
@@ -14,7 +14,7 @@ from .models import (
     property_category_for_type,
 )
 from .money import parse_localized_integer, rial_to_toman, toman_to_rial
-from .selectors import PropertySearchFilters, SearchOrdering
+from .selectors import BedroomCountRange, PropertySearchFilters, SearchOrdering
 
 
 class LocationSerializer(serializers.Serializer[Any]):
@@ -97,6 +97,31 @@ class TomanRialField(LocalizedIntegerField):
         return toman_to_rial(super().to_internal_value(data))
 
 
+@extend_schema_field({
+    "oneOf": [
+        {"type": "integer", "minimum": 0},
+        {"type": "string", "enum": [BedroomCountRange.THREE_OR_MORE.value]},
+    ]
+})
+class BedroomCountQueryField(serializers.Field[Any, Any, Any, Any]):
+    default_error_messages = {"invalid": "یک عدد صحیح نامنفی یا مقدار سه‌خواب‌و‌بیشتر وارد کنید."}
+
+    def to_internal_value(self, data: Any) -> int | BedroomCountRange:
+        if data == BedroomCountRange.THREE_OR_MORE:
+            return BedroomCountRange.THREE_OR_MORE
+        if isinstance(data, str):
+            try:
+                data = parse_localized_integer(data)
+            except ValueError:
+                self.fail("invalid")
+        if isinstance(data, bool) or not isinstance(data, int) or data < 0:
+            self.fail("invalid")
+        return data
+
+    def to_representation(self, value: Any) -> Any:
+        return value
+
+
 class PropertySearchQuerySerializer(serializers.Serializer[Any]):
     location = serializers.CharField(required=False, allow_blank=True)
     property_category = serializers.ChoiceField(
@@ -113,7 +138,10 @@ class PropertySearchQuerySerializer(serializers.Serializer[Any]):
     )
     area_min = LocalizedIntegerField(required=False, min_value=1)
     area_max = LocalizedIntegerField(required=False, min_value=1)
-    room_count = LocalizedIntegerField(required=False, min_value=0)
+    bedroom_count = BedroomCountQueryField(required=False)
+    room_count = BedroomCountQueryField(
+        required=False, help_text="Deprecated alias for bedroom_count"
+    )
     property_type = serializers.ListField(
         required=False,
         child=serializers.ChoiceField(choices=PropertyType.choices),
@@ -138,7 +166,23 @@ class PropertySearchQuerySerializer(serializers.Serializer[Any]):
             if minimum in attrs and maximum in attrs and attrs[minimum] > attrs[maximum]:
                 raise serializers.ValidationError({maximum: "باید بزرگ‌تر یا مساوی حداقل باشد."})
         category = attrs.get("property_category")
+        if "bedroom_count" in attrs and "room_count" in attrs:
+            raise serializers.ValidationError({
+                "bedroom_count": "فقط یکی از پارامترهای تعداد اتاق خواب را وارد کنید."
+            })
         property_types = attrs.get("property_type", ())
+        inferred_categories = {
+            property_category_for_type(property_type) for property_type in property_types
+        }
+        effective_category = category
+        if effective_category is None and len(inferred_categories) == 1:
+            effective_category = next(iter(inferred_categories))
+        if effective_category == PropertyCategory.COMMERCIAL and (
+            "bedroom_count" in attrs or "room_count" in attrs
+        ):
+            raise serializers.ValidationError({
+                "bedroom_count": "تعداد اتاق خواب فقط برای ملک مسکونی معتبر است."
+            })
         if category is not None:
             incompatible_types = [
                 property_type
@@ -164,7 +208,7 @@ class PropertySearchQuerySerializer(serializers.Serializer[Any]):
             monthly_rent_max_rial=data.get("monthly_rent_max_rial"),
             area_min=data.get("area_min"),
             area_max=data.get("area_max"),
-            room_count=data.get("room_count"),
+            bedroom_count=data.get("bedroom_count", data.get("room_count")),
             property_types=tuple(
                 PropertyType(property_type) for property_type in data.get("property_type", ())
             ),
@@ -247,6 +291,39 @@ class PropertySummarySerializer(serializers.Serializer[Any]):
             "deposit_toman": rial_to_toman(deposit_rial),
             "monthly_rent_toman": rial_to_toman(monthly_rent_rial),
         }
+
+
+class FacetCountSerializer(serializers.Serializer[Any]):
+    value = serializers.CharField()
+    count = serializers.IntegerField(min_value=0)
+
+
+class FeatureStateFacetSerializer(serializers.Serializer[Any]):
+    present = serializers.IntegerField(min_value=0)
+    absent = serializers.IntegerField(min_value=0)
+    unknown = serializers.IntegerField(min_value=0)
+
+
+class FeatureFacetsSerializer(serializers.Serializer[Any]):
+    parking = FeatureStateFacetSerializer()
+    elevator = FeatureStateFacetSerializer()
+    storage = FeatureStateFacetSerializer()
+    furnished = FeatureStateFacetSerializer()
+
+
+class CatalogFacetsSerializer(serializers.Serializer[Any]):
+    property_types = FacetCountSerializer(many=True)
+    bedroom_counts = FacetCountSerializer(many=True)
+    features = FeatureFacetsSerializer()
+
+
+@extend_schema_serializer(many=False)
+class PropertySearchPageSerializer(serializers.Serializer[Any]):
+    count = serializers.IntegerField(min_value=0)
+    next = serializers.URLField(allow_null=True)
+    previous = serializers.URLField(allow_null=True)
+    results = PropertySummarySerializer(many=True)
+    facets = CatalogFacetsSerializer()
 
 
 class ListingPublicSerializer(serializers.Serializer[Any]):

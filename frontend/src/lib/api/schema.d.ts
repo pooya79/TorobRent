@@ -962,6 +962,11 @@ export interface components {
     };
     /** @enum {unknown} */
     BlankEnum: "";
+    CatalogFacets: {
+      property_types: components["schemas"]["FacetCount"][];
+      bedroom_counts: components["schemas"]["FacetCount"][];
+      features: components["schemas"]["FeatureFacets"];
+    };
     CatalogStatistics: {
       searchable_property_count: number;
       active_listing_count: number;
@@ -1076,6 +1081,16 @@ export interface components {
       /** Format: uri */
       url: string;
     };
+    FacetCount: {
+      value: string;
+      count: number;
+    };
+    FeatureFacets: {
+      parking: components["schemas"]["FeatureStateFacet"];
+      elevator: components["schemas"]["FeatureStateFacet"];
+      storage: components["schemas"]["FeatureStateFacet"];
+      furnished: components["schemas"]["FeatureStateFacet"];
+    };
     /**
      * @description * `unknown` - نامشخص
      *     * `present` - دارد
@@ -1083,6 +1098,11 @@ export interface components {
      * @enum {string}
      */
     FeatureStateEnum: "unknown" | "present" | "absent";
+    FeatureStateFacet: {
+      present: number;
+      absent: number;
+      unknown: number;
+    };
     Features: {
       parking: components["schemas"]["FeatureStateEnum"];
       elevator: components["schemas"]["FeatureStateEnum"];
@@ -1268,21 +1288,6 @@ export interface components {
       previous?: string | null;
       results: components["schemas"]["OperatorSubmissionQueue"][];
     };
-    PaginatedPropertySummaryList: {
-      /** @example 123 */
-      count: number;
-      /**
-       * Format: uri
-       * @example http://api.example.org/properties/?page=2
-       */
-      next?: string | null;
-      /**
-       * Format: uri
-       * @example http://api.example.org/properties/?page=1
-       */
-      previous?: string | null;
-      results: components["schemas"]["PropertySummary"][];
-    };
     PaginatedSupportRequestQueueList: {
       /** @example 123 */
       count: number;
@@ -1412,6 +1417,15 @@ export interface components {
       readonly property_category: components["schemas"]["PropertyCategoryEnum"];
       readonly property_category_label: string;
       readonly property_type_label: string;
+    };
+    PropertySearchPage: {
+      count: number;
+      /** Format: uri */
+      next: string | null;
+      /** Format: uri */
+      previous: string | null;
+      results: components["schemas"]["PropertySummary"][];
+      facets: components["schemas"]["CatalogFacets"];
     };
     PropertySummary: {
       /** Format: uuid */
@@ -2563,6 +2577,7 @@ export interface operations {
          *     * `absent` - absent
          */
         balcony?: "present" | "absent";
+        bedroom_count?: number | "3_plus";
         deposit_max_toman?: number;
         deposit_min_toman?: number;
         /**
@@ -2605,7 +2620,8 @@ export interface operations {
           | "warehouse"
           | "workshop"
         )[];
-        room_count?: number;
+        /** @description Deprecated alias for bedroom_count */
+        room_count?: number | "3_plus";
         /**
          * @description * `present` - present
          *     * `absent` - absent
@@ -2623,7 +2639,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["PaginatedPropertySummaryList"];
+          "application/json": components["schemas"]["PropertySearchPage"];
         };
       };
     };

@@ -23,17 +23,20 @@ from apps.common.serializers import ProblemSerializer
 from .models import Favorite, Listing, OutboundPolicy, ProductEventType, Property
 from .selectors import (
     autocomplete_locations,
+    catalog_facets,
     catalog_statistics,
     search_properties,
     supported_cities,
 )
 from .serializers import (
+    CatalogFacetsSerializer,
     CatalogStatisticsSerializer,
     EventSessionSerializer,
     ExternalContinuationSerializer,
     LocationSuggestionSerializer,
     PhoneRevealSerializer,
     PropertyDetailSerializer,
+    PropertySearchPageSerializer,
     PropertySearchQuerySerializer,
     PropertySummarySerializer,
     SupportedCitySerializer,
@@ -110,12 +113,26 @@ class CatalogSearchPagination(StandardPageNumberPagination):
         parameters=[
             PropertySearchQuerySerializer,
         ],
+        responses={200: PropertySearchPageSerializer},
     )
 )
 class PropertySearchView(ListAPIView[Property]):
     permission_classes = [AllowAny]
     serializer_class = PropertySummarySerializer
     pagination_class = CatalogSearchPagination
+
+    def list(self, request: Request, *args: object, **kwargs: object) -> Response:
+        query = PropertySearchQuerySerializer(data=request.query_params)
+        query.is_valid(raise_exception=True)
+        filters = query.validated_filters()
+        account_id = request.user.pk if request.user.is_authenticated else None
+        queryset = search_properties(filters, favorite_account_id=account_id)
+        page = self.paginate_queryset(queryset)
+        if page is None:
+            raise RuntimeError("Catalog search pagination must be configured")
+        response = self.get_paginated_response(self.get_serializer(page, many=True).data)
+        response.data["facets"] = CatalogFacetsSerializer(catalog_facets(filters)).data
+        return response
 
     def get_queryset(self) -> QuerySet[Property]:
         query = PropertySearchQuerySerializer(data=self.request.query_params)

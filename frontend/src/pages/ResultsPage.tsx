@@ -245,6 +245,7 @@ export function ResultsPage({ mapAdapter }: { mapAdapter?: MapAdapter }) {
         <SearchToolbar
           searchParams={searchParams}
           setSearchParams={setSearchParams}
+          facets={search.data?.facets}
         />
         <h1 className="sr-only">
           {resultsCopy.heading} در {location}
@@ -272,6 +273,7 @@ export function ResultsPage({ mapAdapter }: { mapAdapter?: MapAdapter }) {
                 key={`mobile-${searchParams.toString()}`}
                 prefix="mobile"
                 searchParams={searchParams}
+                facets={search.data?.facets}
                 setSearchParams={(next) => {
                   setSearchParams(next);
                   setFiltersOpen(false);
@@ -300,6 +302,26 @@ export function ResultsPage({ mapAdapter }: { mapAdapter?: MapAdapter }) {
               <X aria-hidden="true" />
             </Button>
           ))}
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            aria-label="پاک کردن همه فیلترها"
+            onClick={() => {
+              const next = new URLSearchParams();
+              for (const name of [
+                "location",
+                "location_label",
+                "property_category",
+              ]) {
+                const value = searchParams.get(name);
+                if (value) next.set(name, value);
+              }
+              setSearchParams(next);
+            }}
+          >
+            پاک کردن همه
+          </Button>
         </div>
       )}
 
@@ -311,6 +333,7 @@ export function ResultsPage({ mapAdapter }: { mapAdapter?: MapAdapter }) {
               key={`desktop-${searchParams.toString()}`}
               prefix="desktop"
               searchParams={searchParams}
+              facets={search.data?.facets}
               setSearchParams={setSearchParams}
             />
           </div>

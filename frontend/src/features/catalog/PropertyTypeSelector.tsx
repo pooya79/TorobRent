@@ -15,6 +15,8 @@ import {
 
 function SelectionCheckbox({
   checked,
+  count,
+  disabled = false,
   indeterminate = false,
   label,
   name,
@@ -22,6 +24,8 @@ function SelectionCheckbox({
   onChange,
 }: {
   checked: boolean;
+  count?: number;
+  disabled?: boolean;
   indeterminate?: boolean;
   label: string;
   name?: string;
@@ -33,7 +37,7 @@ function SelectionCheckbox({
     if (ref.current) ref.current.indeterminate = indeterminate;
   }, [indeterminate]);
   return (
-    <label className="hover:bg-accent flex min-h-10 cursor-pointer items-center gap-2 rounded-md px-2 text-sm">
+    <label className="hover:bg-accent flex min-h-10 cursor-pointer items-center gap-2 rounded-md px-2 text-sm has-disabled:cursor-not-allowed has-disabled:opacity-50">
       <input
         ref={ref}
         type="checkbox"
@@ -43,11 +47,17 @@ function SelectionCheckbox({
         data-state={
           indeterminate ? "indeterminate" : checked ? "checked" : "unchecked"
         }
+        disabled={disabled}
         name={name}
         value={value}
         onChange={onChange}
       />
       <span>{label}</span>
+      {count !== undefined && (
+        <span className="text-muted-foreground ms-auto" aria-hidden="true">
+          {count.toLocaleString("fa-IR")}
+        </span>
+      )}
     </label>
   );
 }
@@ -57,11 +67,13 @@ export function PropertyTypeSelector({
   compact = false,
   category,
   onSelectionChange,
+  facetCounts,
 }: {
   initialSelectedTypes?: readonly PropertyType[];
   compact?: boolean;
   category?: PropertyCategory;
   onSelectionChange?: (types: readonly PropertyType[]) => void;
+  facetCounts?: Partial<Record<PropertyType, number>>;
 }) {
   const visibleGroups = category
     ? propertyTypeGroups.filter((group) => group.category === category)
@@ -141,6 +153,8 @@ export function PropertyTypeSelector({
                   <SelectionCheckbox
                     key={type}
                     checked={selected.has(type)}
+                    count={facetCounts?.[type]}
+                    disabled={!selected.has(type) && facetCounts?.[type] === 0}
                     label={propertyTypeLabels[type]}
                     name="property_type"
                     value={type}

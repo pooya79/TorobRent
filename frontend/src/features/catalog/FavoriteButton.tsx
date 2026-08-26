@@ -7,7 +7,7 @@ import { api } from "@/lib/api/client";
 import type { components } from "@/lib/api/schema";
 import { cn } from "@/lib/utils";
 
-type PropertySearchPage = components["schemas"]["PaginatedPropertySummaryList"];
+type PropertySearchPage = components["schemas"]["PropertySearchPage"];
 
 function withFavoriteState(
   page: PropertySearchPage | undefined,

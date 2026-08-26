@@ -46,7 +46,7 @@ import { cn } from "@/lib/utils";
 import type { components } from "@/lib/api/schema";
 
 type CurrentUser = components["schemas"]["CurrentUser"];
-type PropertySearchPage = components["schemas"]["PaginatedPropertySummaryList"];
+type PropertySearchPage = components["schemas"]["PropertySearchPage"];
 
 const navigation = [
   { label: "خانه", to: "/", icon: Home },
