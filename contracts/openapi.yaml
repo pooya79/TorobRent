@@ -479,6 +479,9 @@ paths:
           - house
           - villa
           - office
+          - shop
+          - warehouse
+          - workshop
           type: string
           minLength: 1
         description: |-
@@ -486,6 +489,9 @@ paths:
           * `house` - خانه
           * `villa` - ویلا
           * `office` - دفتر اداری
+          * `shop` - مغازه
+          * `warehouse` - انبار
+          * `workshop` - کارگاه
       - in: query
         name: room_count
         schema:
@@ -2808,12 +2814,18 @@ components:
       - house
       - villa
       - office
+      - shop
+      - warehouse
+      - workshop
       type: string
       description: |-
         * `apartment` - آپارتمان
         * `house` - خانه
         * `villa` - ویلا
         * `office` - دفتر اداری
+        * `shop` - مغازه
+        * `warehouse` - انبار
+        * `workshop` - کارگاه
     PublicationResultAudit:
       type: object
       properties:

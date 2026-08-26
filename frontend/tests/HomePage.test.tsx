@@ -346,3 +346,21 @@ test("selects a Persian autocomplete result and navigates to a shareable Results
     ),
   ).toBeVisible();
 });
+
+test("presents all seven Property Types under Residential and Commercial", () => {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  renderHomeShell(queryClient);
+
+  for (const label of ["آپارتمان", "خانه", "ویلا"]) {
+    expect(
+      screen.getByRole("option", { name: label }).parentElement,
+    ).toHaveAttribute("label", "مسکونی");
+  }
+  for (const label of ["دفتر اداری", "مغازه", "انبار", "کارگاه"]) {
+    expect(
+      screen.getByRole("option", { name: label }).parentElement,
+    ).toHaveAttribute("label", "تجاری");
+  }
+});

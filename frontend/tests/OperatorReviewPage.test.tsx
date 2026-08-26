@@ -224,6 +224,17 @@ test("approves and groups a Submission with an existing Property", async () => {
   );
   expect(screen.getByLabelText("شناسه شهر نرمال‌شده")).toBeVisible();
   expect(screen.getByLabelText("تعداد اتاق نرمال‌شده")).toBeVisible();
+  for (const label of [
+    "آپارتمان",
+    "خانه",
+    "ویلا",
+    "دفتر اداری",
+    "مغازه",
+    "انبار",
+    "کارگاه",
+  ]) {
+    expect(screen.getByRole("option", { name: label })).toBeInTheDocument();
+  }
   expect(screen.getByLabelText("پارکینگ")).toBeVisible();
   expect(screen.getByLabelText("ادعاهای Source (JSON)")).toBeVisible();
   await user.type(

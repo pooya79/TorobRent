@@ -46,7 +46,10 @@ def test_frontend_property_taxonomy_is_generated_from_the_catalog_mapping(tmp_pa
     generated = output.read_text(encoding="utf-8")
     assert generated == render_property_taxonomy_module()
     assert '"types": [\n      "apartment",\n      "house",\n      "villa"' in generated
-    assert '"types": [\n      "office"' in generated
+    assert (
+        '"types": [\n      "office",\n      "shop",\n      "warehouse",\n      "workshop"'
+        in generated
+    )
 
 
 @pytest.mark.django_db
@@ -83,14 +86,27 @@ def test_catalog_uses_uuid_identity_and_preserves_unknown_feature_states():
     assert property_.storage == FeatureState.UNKNOWN
     assert property_.balcony == FeatureState.UNKNOWN
     assert property_.furnished == FeatureState.UNKNOWN
-    assert set(PropertyType.values) == {"apartment", "house", "villa", "office"}
+    assert set(PropertyType.values) == {
+        "apartment",
+        "house",
+        "villa",
+        "office",
+        "shop",
+        "warehouse",
+        "workshop",
+    }
     assert PROPERTY_TYPES_BY_CATEGORY == {
         PropertyCategory.RESIDENTIAL: (
             PropertyType.APARTMENT,
             PropertyType.HOUSE,
             PropertyType.VILLA,
         ),
-        PropertyCategory.COMMERCIAL: (PropertyType.OFFICE,),
+        PropertyCategory.COMMERCIAL: (
+            PropertyType.OFFICE,
+            PropertyType.SHOP,
+            PropertyType.WAREHOUSE,
+            PropertyType.WORKSHOP,
+        ),
     }
 
 
@@ -255,39 +271,51 @@ def test_anonymous_renter_retrieves_property_only_through_an_active_listing(
 
 
 @pytest.mark.django_db
-def test_renter_can_find_and_open_a_published_office_without_a_room_count(
+@pytest.mark.parametrize(
+    ("property_type", "property_type_label", "description"),
+    [
+        ("office", "دفتر اداری", "دفتر اداری مناسب شرکت"),
+        ("shop", "مغازه", "مغازه مناسب خرده‌فروشی"),
+        ("warehouse", "انبار", "انبار مناسب نگهداری کالا"),
+        ("workshop", "کارگاه", "کارگاه مناسب تولید"),
+    ],
+)
+def test_renter_can_find_and_open_each_published_commercial_type_without_a_room_count(
     api_client: APIClient,
+    property_type: str,
+    property_type_label: str,
+    description: str,
 ):
     call_command("loaddata", "catalog_seed", verbosity=0)
     neighborhood = Neighborhood.objects.get(name_fa="سعادت‌آباد")
-    office = Property.objects.create(
+    commercial_property = Property.objects.create(
         city=neighborhood.district.city,
         district=neighborhood.district,
         neighborhood=neighborhood,
-        property_type="office",
+        property_type=property_type,
         area_sqm=95,
     )
     listing = Listing.objects.create(
-        property=office,
+        property=commercial_property,
         source=Source.objects.get(is_builtin=True),
         terms=RentalTerms.objects.create(
             deposit_rial=8_000_000_000,
             monthly_rent_rial=300_000_000,
         ),
         direct_phone="۰۹۱۲۱۲۳۴۵۶۷",
-        description="دفتر اداری مناسب شرکت",
+        description=description,
     )
 
     publish_listing(listing)
-    search = api_client.get("/api/v1/catalog/properties/", {"property_type": "office"})
-    detail = api_client.get(f"/api/v1/catalog/properties/{office.id}/")
+    search = api_client.get("/api/v1/catalog/properties/", {"property_type": property_type})
+    detail = api_client.get(f"/api/v1/catalog/properties/{commercial_property.id}/")
 
     assert search.status_code == 200
     assert search.data["count"] == 1
     assert search.data["results"][0] == {
-        "id": str(office.id),
-        "title": "دفتر اداری در سعادت‌آباد",
-        "canonical_slug": "دفتر-اداری-در-سعادتآباد",
+        "id": str(commercial_property.id),
+        "title": f"{property_type_label} در سعادت‌آباد",
+        "canonical_slug": f"{property_type_label.replace(' ', '-')}-در-سعادتآباد",
         "location": {
             "city": "تهران",
             "district": "منطقه ۲",
@@ -296,8 +324,8 @@ def test_renter_can_find_and_open_a_published_office_without_a_room_count(
         },
         "property_category": "commercial",
         "property_category_label": "تجاری",
-        "property_type": "office",
-        "property_type_label": "دفتر اداری",
+        "property_type": property_type,
+        "property_type_label": property_type_label,
         "area_sqm": 95,
         "construction_year": None,
         "listing_count": 1,
@@ -313,10 +341,17 @@ def test_renter_can_find_and_open_a_published_office_without_a_room_count(
     assert detail.status_code == 200
     assert detail.data["property_category"] == "commercial"
     assert detail.data["property_category_label"] == "تجاری"
-    assert detail.data["property_type"] == "office"
-    assert detail.data["property_type_label"] == "دفتر اداری"
+    assert detail.data["property_type"] == property_type
+    assert detail.data["property_type_label"] == property_type_label
     assert "room_count" not in search.data["results"][0]
     assert "room_count" not in detail.data
+
+
+@pytest.mark.django_db
+def test_public_catalog_rejects_an_unknown_property_type(api_client: APIClient):
+    response = api_client.get("/api/v1/catalog/properties/", {"property_type": "shopping_center"})
+
+    assert response.status_code == 400
 
 
 @pytest.mark.django_db

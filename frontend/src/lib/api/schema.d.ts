@@ -1337,9 +1337,19 @@ export interface components {
      *     * `house` - خانه
      *     * `villa` - ویلا
      *     * `office` - دفتر اداری
+     *     * `shop` - مغازه
+     *     * `warehouse` - انبار
+     *     * `workshop` - کارگاه
      * @enum {string}
      */
-    PropertyTypeEnum: "apartment" | "house" | "villa" | "office";
+    PropertyTypeEnum:
+      | "apartment"
+      | "house"
+      | "villa"
+      | "office"
+      | "shop"
+      | "warehouse"
+      | "workshop";
     PublicationResultAudit: {
       /** Format: uuid */
       listing_id?: string;
@@ -2418,8 +2428,18 @@ export interface operations {
          *     * `house` - خانه
          *     * `villa` - ویلا
          *     * `office` - دفتر اداری
+         *     * `shop` - مغازه
+         *     * `warehouse` - انبار
+         *     * `workshop` - کارگاه
          */
-        property_type?: "apartment" | "house" | "villa" | "office";
+        property_type?:
+          | "apartment"
+          | "house"
+          | "villa"
+          | "office"
+          | "shop"
+          | "warehouse"
+          | "workshop";
         room_count?: number;
         /**
          * @description * `present` - present

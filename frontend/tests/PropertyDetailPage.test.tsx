@@ -33,20 +33,34 @@ test("shows normalized facts, paired toman terms, and freshness", () => {
   expect(listing).toHaveTextContent("آخرین تأیید موجودی");
 });
 
-test("uses commercial room wording and omits the fact when an Office has no room count", () => {
-  const { rerender } = render(
-    <PropertyDetailPage
-      property={{ ...officePropertyDetail, room_count: 3 }}
-    />,
-  );
+test.each([
+  ["office", "دفتر اداری"],
+  ["shop", "مغازه"],
+  ["warehouse", "انبار"],
+  ["workshop", "کارگاه"],
+] as const)(
+  "uses commercial room wording and omission for %s",
+  (propertyType, label) => {
+    const commercialProperty = {
+      ...officePropertyDetail,
+      title: `${label} در سعادت‌آباد`,
+      property_type: propertyType,
+      property_type_label: label,
+    };
+    const { rerender } = render(
+      <PropertyDetailPage
+        property={{ ...commercialProperty, room_count: 3 }}
+      />,
+    );
 
-  expect(screen.getByText("۳ اتاق")).toBeVisible();
-  expect(screen.queryByText(/خواب/)).not.toBeInTheDocument();
+    expect(screen.getByText("۳ اتاق")).toBeVisible();
+    expect(screen.queryByText(/خواب/)).not.toBeInTheDocument();
 
-  rerender(<PropertyDetailPage property={officePropertyDetail} />);
-  expect(screen.queryByText("۳ اتاق")).not.toBeInTheDocument();
-  expect(screen.queryByText(/خواب/)).not.toBeInTheDocument();
-});
+    rerender(<PropertyDetailPage property={commercialProperty} />);
+    expect(screen.queryByText("۳ اتاق")).not.toBeInTheDocument();
+    expect(screen.queryByText(/خواب/)).not.toBeInTheDocument();
+  },
+);
 
 test("keeps unknown features distinct and shows the neutral media placeholder", () => {
   render(<PropertyDetailPage property={property} />);

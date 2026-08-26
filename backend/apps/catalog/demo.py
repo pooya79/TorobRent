@@ -18,6 +18,7 @@ from .models import (
     PropertyType,
     RentalTerms,
     Source,
+    property_type_requires_room_count,
 )
 
 ACTIVE_UNTIL = datetime(2099, 12, 31, tzinfo=UTC)
@@ -78,7 +79,8 @@ def _seed_properties() -> list[Property]:
     property_types = tuple(PropertyType.values)
     for index, neighborhood in enumerate(neighborhoods, start=1):
         property_type = property_types[(index - 1) % len(property_types)]
-        property_, _created = Property.objects.get_or_create(
+        room_count = (index - 1) % 5 if property_type_requires_room_count(property_type) else None
+        property_, created = Property.objects.get_or_create(
             id=demo_id(DemoFixtureKind.PROPERTY, index),
             defaults={
                 "city_id": TEHRAN_CITY_ID,
@@ -86,7 +88,7 @@ def _seed_properties() -> list[Property]:
                 "neighborhood": neighborhood,
                 "property_type": property_type,
                 "area_sqm": 45 + index * 2,
-                "room_count": (None if property_type == PropertyType.OFFICE else (index - 1) % 5),
+                "room_count": room_count,
                 "construction_year": 1380 + index % 25,
                 "floor": index % 8,
                 "total_floors": 8,
@@ -102,6 +104,12 @@ def _seed_properties() -> list[Property]:
                 "normalized_at": PUBLISHED_AT,
             },
         )
+        if not created and (
+            property_.property_type != property_type or property_.room_count != room_count
+        ):
+            property_.property_type = property_type
+            property_.room_count = room_count
+            property_.save(update_fields=("property_type", "room_count"))
         properties.append(property_)
     return properties
 

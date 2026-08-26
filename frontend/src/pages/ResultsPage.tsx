@@ -37,7 +37,10 @@ import {
   CatalogSearchError,
   propertySearchQueryOptions,
 } from "@/features/catalog/queries";
-import { roomCountLabels } from "@/features/catalog/property-taxonomy";
+import {
+  roomCountLabels,
+  type PropertyType,
+} from "@/features/catalog/property-taxonomy";
 import type { components } from "@/lib/api/schema";
 
 type PropertySummary = components["schemas"]["PropertySummary"];
@@ -52,12 +55,29 @@ function formatFreshness(value: string) {
   }).format(new Date(value));
 }
 
+const commercialResultsHeadings = {
+  office: "دفترهای اداری اجاره‌ای",
+  shop: "مغازه‌های اجاره‌ای",
+  warehouse: "انبارهای اجاره‌ای",
+  workshop: "کارگاه‌های اجاره‌ای",
+} as const satisfies Partial<Record<PropertyType, string>>;
+
+function isCommercialResultType(
+  propertyType: string,
+): propertyType is keyof typeof commercialResultsHeadings {
+  return propertyType in commercialResultsHeadings;
+}
+
 function resultsPageCopy(propertyType: string | null) {
-  if (propertyType === "office") {
+  const commercialHeading =
+    propertyType && isCommercialResultType(propertyType)
+      ? commercialResultsHeadings[propertyType]
+      : undefined;
+  if (commercialHeading) {
     return {
-      heading: "دفترهای اداری اجاره‌ای",
-      title: "دفترهای اداری اجاره‌ای در تهران | ترب‌رنت",
-      description: "جست‌وجو، فیلتر و مقایسه دفترهای اداری اجاره‌ای در تهران.",
+      heading: commercialHeading,
+      title: `${commercialHeading} در تهران | ترب‌رنت`,
+      description: `جست‌وجو، فیلتر و مقایسه ${commercialHeading} در تهران.`,
     };
   }
   if (propertyType) {

@@ -329,10 +329,19 @@ def test_approval_creates_and_publishes_a_normalized_direct_listing(api_client: 
 
 
 @pytest.mark.django_db
-def test_office_without_rooms_travels_from_submission_through_operator_publication(
-    api_client: APIClient,
+@pytest.mark.parametrize(
+    ("property_type", "property_type_label"),
+    [
+        ("office", "دفتر اداری"),
+        ("shop", "مغازه"),
+        ("warehouse", "انبار"),
+        ("workshop", "کارگاه"),
+    ],
+)
+def test_commercial_type_without_rooms_travels_through_operator_publication(
+    api_client: APIClient, property_type: str, property_type_label: str
 ):
-    submission = make_complete_submission(property_type="office", room_count=None)
+    submission = make_complete_submission(property_type=property_type, room_count=None)
     api_client.force_authenticate(submission.submitter)
 
     draft = api_client.get(f"/api/v1/submissions/{submission.id}/")
@@ -341,8 +350,8 @@ def test_office_without_rooms_travels_from_submission_through_operator_publicati
     assert draft.status_code == 200
     assert draft.data["property_facts"]["property_category"] == "commercial"
     assert draft.data["property_facts"]["property_category_label"] == "تجاری"
-    assert draft.data["property_facts"]["property_type"] == "office"
-    assert draft.data["property_facts"]["property_type_label"] == "دفتر اداری"
+    assert draft.data["property_facts"]["property_type"] == property_type
+    assert draft.data["property_facts"]["property_type_label"] == property_type_label
     assert draft.data["property_facts"]["room_count"] is None
     assert submitted.status_code == 200, submitted.data
 
@@ -360,7 +369,7 @@ def test_office_without_rooms_travels_from_submission_through_operator_publicati
     assert claimed.status_code == 201
     assert approved.status_code == 200, approved.data
     property_ = Property.objects.get(id=approved.data["property_id"])
-    assert property_.property_type == "office"
+    assert property_.property_type == property_type
     assert property_.room_count is None
     assert property_.property_category == "commercial"
     assert property_.listings.get().state == ListingState.PUBLISHED
@@ -596,6 +605,30 @@ def test_approval_rejects_substantive_changes_for_the_request_changes_path(
     )
 
     assert response.status_code == 400
+    submission.refresh_from_db()
+    assert submission.state == SubmissionState.PENDING
+    assert submission.listing_id is None
+
+
+@pytest.mark.django_db
+def test_operator_approval_rejects_an_unknown_property_type(api_client: APIClient):
+    submission = make_complete_submission()
+    submit_for_review(submission=submission, actor=submission.submitter)
+    operator = make_operator()
+    api_client.force_authenticate(operator)
+    api_client.post(f"/api/v1/operator/submissions/{submission.id}/claim/", {}, format="json")
+
+    response = api_client.post(
+        f"/api/v1/operator/submissions/{submission.id}/approve/",
+        {
+            "reviewed_revision": submission.revision,
+            "normalized_property": {"property_type": "shopping_center"},
+        },
+        format="json",
+    )
+
+    assert response.status_code == 400
+    assert "normalized_property.property_type" in response.data["errors"]
     submission.refresh_from_db()
     assert submission.state == SubmissionState.PENDING
     assert submission.listing_id is None

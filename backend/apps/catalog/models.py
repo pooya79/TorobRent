@@ -24,6 +24,9 @@ class PropertyType(models.TextChoices):
     HOUSE = "house", "خانه"
     VILLA = "villa", "ویلا"
     OFFICE = "office", "دفتر اداری"
+    SHOP = "shop", "مغازه"
+    WAREHOUSE = "warehouse", "انبار"
+    WORKSHOP = "workshop", "کارگاه"
 
 
 PROPERTY_TYPES_BY_CATEGORY: dict[PropertyCategory, tuple[PropertyType, ...]] = {
@@ -32,7 +35,12 @@ PROPERTY_TYPES_BY_CATEGORY: dict[PropertyCategory, tuple[PropertyType, ...]] = {
         PropertyType.HOUSE,
         PropertyType.VILLA,
     ),
-    PropertyCategory.COMMERCIAL: (PropertyType.OFFICE,),
+    PropertyCategory.COMMERCIAL: (
+        PropertyType.OFFICE,
+        PropertyType.SHOP,
+        PropertyType.WAREHOUSE,
+        PropertyType.WORKSHOP,
+    ),
 }
 
 

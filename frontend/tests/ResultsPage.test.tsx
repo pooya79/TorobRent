@@ -52,29 +52,46 @@ test("presents each Property with normalized facts and freshest complete Rental 
   expect(screen.getByText("اجاره ماهانه ۲۵٬۰۰۰٬۰۰۰ تومان")).toBeVisible();
 });
 
-test("presents an Office without residential wording or an absent room fact", async () => {
-  server.use(
-    http.get("*/api/v1/catalog/properties/", () =>
-      HttpResponse.json(officePropertySearchPage),
-    ),
-  );
+test.each([
+  ["office", "دفتر اداری", "دفترهای اداری اجاره‌ای"],
+  ["shop", "مغازه", "مغازه‌های اجاره‌ای"],
+  ["warehouse", "انبار", "انبارهای اجاره‌ای"],
+  ["workshop", "کارگاه", "کارگاه‌های اجاره‌ای"],
+] as const)(
+  "presents a %s without residential wording or an absent room fact",
+  async (propertyType, propertyTypeLabel, resultsHeading) => {
+    const searchPage = {
+      ...officePropertySearchPage,
+      results: officePropertySearchPage.results.map((property) => ({
+        ...property,
+        title: `${propertyTypeLabel} در سعادت‌آباد`,
+        property_type: propertyType,
+        property_type_label: propertyTypeLabel,
+      })),
+    };
+    server.use(
+      http.get("*/api/v1/catalog/properties/", () =>
+        HttpResponse.json(searchPage),
+      ),
+    );
 
-  renderResults("/search?property_type=office");
+    renderResults(`/search?property_type=${propertyType}`);
 
-  expect(
-    await screen.findByRole("heading", {
-      name: "دفتر اداری در سعادت‌آباد",
-    }),
-  ).toBeVisible();
-  expect(
-    screen.getByRole("heading", {
-      name: "دفترهای اداری اجاره‌ای در تهران",
-      level: 1,
-    }),
-  ).toBeVisible();
-  expect(screen.getByText("۱۱۰ متر · ساخت ۱٬۴۰۰")).toBeVisible();
-  expect(screen.queryByText(/خواب/)).not.toBeInTheDocument();
-});
+    expect(
+      await screen.findByRole("heading", {
+        name: `${propertyTypeLabel} در سعادت‌آباد`,
+      }),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("heading", {
+        name: `${resultsHeading} در تهران`,
+        level: 1,
+      }),
+    ).toBeVisible();
+    expect(screen.getByText("۱۱۰ متر · ساخت ۱٬۴۰۰")).toBeVisible();
+    expect(screen.queryByText(/خواب/)).not.toBeInTheDocument();
+  },
+);
 
 test("announces loading and explains when no Property matches", async () => {
   server.use(

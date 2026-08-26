@@ -137,6 +137,27 @@ test("accepts an Office without room count and uses commercial wording", async (
   );
 });
 
+test("presents all seven Property Types under their canonical categories", async () => {
+  server.use(
+    http.get("*/api/v1/submissions/:id/", () =>
+      HttpResponse.json({ ...draft, current_step: "property_facts" }),
+    ),
+  );
+  renderPage(`/add-submission?submission=${draft.id}&step=property_facts`);
+
+  await screen.findByLabelText("نوع ملک");
+  for (const label of ["آپارتمان", "خانه", "ویلا"]) {
+    expect(
+      screen.getByRole("option", { name: label }).parentElement,
+    ).toHaveAttribute("label", "مسکونی");
+  }
+  for (const label of ["دفتر اداری", "مغازه", "انبار", "کارگاه"]) {
+    expect(
+      screen.getByRole("option", { name: label }).parentElement,
+    ).toHaveAttribute("label", "تجاری");
+  }
+});
+
 test("normalizes Persian Toman input before saving and resumes at the next step", async () => {
   const user = userEvent.setup();
   let savedBody: unknown;

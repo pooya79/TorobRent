@@ -9,6 +9,9 @@ export const propertyTypeLabels = {
   house: "خانه",
   villa: "ویلا",
   office: "دفتر اداری",
+  shop: "مغازه",
+  warehouse: "انبار",
+  workshop: "کارگاه",
 } as const satisfies Record<PropertyType, string>;
 
 export const propertyTypeGroups = [
@@ -20,7 +23,7 @@ export const propertyTypeGroups = [
   {
     category: "commercial",
     label: "تجاری",
-    types: ["office"],
+    types: ["office", "shop", "warehouse", "workshop"],
   },
 ] as const satisfies readonly {
   category: PropertyCategory;

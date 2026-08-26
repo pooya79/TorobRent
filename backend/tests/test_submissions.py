@@ -88,8 +88,17 @@ def test_verified_submitter_can_create_an_owner_draft(api_client: APIClient):
 
 
 @pytest.mark.django_db
-def test_submission_validation_accepts_office_without_rooms_and_preserves_residential_rule(
-    api_client: APIClient,
+@pytest.mark.parametrize(
+    ("property_type", "property_type_label"),
+    [
+        ("office", "دفتر اداری"),
+        ("shop", "مغازه"),
+        ("warehouse", "انبار"),
+        ("workshop", "کارگاه"),
+    ],
+)
+def test_submission_accepts_commercial_types_without_rooms_and_preserves_residential_rule(
+    api_client: APIClient, property_type: str, property_type_label: str
 ):
     submitter = User.objects.create_user(
         email="office-owner@example.com",
@@ -99,12 +108,12 @@ def test_submission_validation_accepts_office_without_rooms_and_preserves_reside
     submission_id = create_draft(api_client, submitter)
     detail_url = f"/api/v1/submissions/{submission_id}/"
 
-    office = api_client.patch(
+    commercial = api_client.patch(
         detail_url,
         {
             "completed_step": "property_facts",
             "property_facts": {
-                "property_type": "office",
+                "property_type": property_type,
                 "area_sqm": 95,
                 "room_count": None,
             },
@@ -120,12 +129,12 @@ def test_submission_validation_accepts_office_without_rooms_and_preserves_reside
         format="json",
     )
 
-    assert office.status_code == 200, office.data
-    assert office.data["property_facts"] == {
+    assert commercial.status_code == 200, commercial.data
+    assert commercial.data["property_facts"] == {
         "property_category": "commercial",
         "property_category_label": "تجاری",
-        "property_type": "office",
-        "property_type_label": "دفتر اداری",
+        "property_type": property_type,
+        "property_type_label": property_type_label,
         "area_sqm": 95,
         "room_count": None,
         "construction_year": None,
@@ -135,6 +144,31 @@ def test_submission_validation_accepts_office_without_rooms_and_preserves_reside
     }
     assert apartment.status_code == 400
     assert "property_facts.room_count" in apartment.data["errors"]
+
+
+@pytest.mark.django_db
+def test_submission_rejects_an_unknown_property_type(api_client: APIClient):
+    submitter = User.objects.create_user(
+        email="unknown-type-owner@example.com",
+        password="correct-horse-battery",
+        email_verified_at=timezone.now(),
+    )
+    submission_id = create_draft(api_client, submitter)
+
+    response = api_client.patch(
+        f"/api/v1/submissions/{submission_id}/",
+        {
+            "completed_step": "property_facts",
+            "property_facts": {
+                "property_type": "shopping_center",
+                "area_sqm": 95,
+            },
+        },
+        format="json",
+    )
+
+    assert response.status_code == 400
+    assert "property_facts.property_type" in response.data["errors"]
 
 
 @pytest.mark.django_db

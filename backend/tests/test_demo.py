@@ -18,6 +18,7 @@ from apps.catalog.models import (
     PropertyType,
     RentalTerms,
 )
+from apps.common.demo import DemoFixtureKind, demo_id
 from apps.submissions.models import Submission, SubmissionEvent, SubmissionState
 
 
@@ -52,9 +53,28 @@ def test_seed_demo_catalog_exercises_review_scenarios():
     call_command("seed_demo", verbosity=0)
 
     assert set(Property.objects.values_list("property_type", flat=True)) == set(PropertyType.values)
-    assert Property.objects.filter(
-        property_type=PropertyType.OFFICE, room_count__isnull=True
-    ).exists()
+    commercial_types = {
+        PropertyType.OFFICE,
+        PropertyType.SHOP,
+        PropertyType.WAREHOUSE,
+        PropertyType.WORKSHOP,
+    }
+    assert (
+        set(
+            Property.objects.filter(property_type__in=commercial_types).values_list(
+                "property_type", flat=True
+            )
+        )
+        == commercial_types
+    )
+    assert (
+        set(
+            Property.objects.filter(
+                property_type__in=commercial_types, room_count__isnull=True
+            ).values_list("property_type", flat=True)
+        )
+        == commercial_types
+    )
     for field in ("parking", "elevator", "storage", "balcony", "furnished"):
         assert set(Property.objects.values_list(field, flat=True)) == set(FeatureState.values)
     assert RentalTerms.objects.filter(deposit_rial=0, monthly_rent_rial__gt=0).exists()
@@ -81,6 +101,21 @@ def test_seed_demo_catalog_exercises_review_scenarios():
         .count()
         > 50
     )
+
+
+@pytest.mark.django_db
+def test_seed_demo_upgrades_existing_fixture_taxonomy():
+    call_command("seed_demo", verbosity=0)
+    shop_fixture = Property.objects.get(id=demo_id(DemoFixtureKind.PROPERTY, 5))
+    shop_fixture.property_type = PropertyType.APARTMENT
+    shop_fixture.room_count = 2
+    shop_fixture.save(update_fields=("property_type", "room_count"))
+
+    call_command("seed_demo", verbosity=0)
+
+    shop_fixture.refresh_from_db()
+    assert shop_fixture.property_type == PropertyType.SHOP
+    assert shop_fixture.room_count is None
 
 
 @pytest.mark.django_db
