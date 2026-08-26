@@ -1,25 +1,35 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Building2,
+  BriefcaseBusiness,
   Check,
   CircleHelp,
+  Heart,
   Home,
-  LayoutDashboard,
   LogIn,
   LogOut,
   Mail,
   Menu,
+  MessageCircle,
   Plus,
   Search,
+  UserRound,
 } from "lucide-react";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { NavLink } from "react-router";
 
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { ThemeSwitcher } from "@/components/ThemeSwitcher";
 import {
   Sheet,
-  SheetClose,
   SheetContent,
   SheetDescription,
   SheetHeader,
@@ -28,8 +38,11 @@ import {
 } from "@/components/ui/sheet";
 import { api } from "@/lib/api/client";
 import { apiError } from "@/lib/api/errors";
-import { sessionQuery } from "@/features/session/queries";
+import { currentUserQuery, sessionQuery } from "@/features/session/queries";
 import { cn } from "@/lib/utils";
+import type { components } from "@/lib/api/schema";
+
+type CurrentUser = components["schemas"]["CurrentUser"];
 
 const navigation = [
   { label: "خانه", to: "/", icon: Home },
@@ -63,12 +76,16 @@ function Brand() {
 
 function PrimaryNavigation({
   authenticated,
+  currentUser,
   logout,
   mobile = false,
+  onNavigate,
 }: {
   authenticated: boolean;
+  currentUser?: CurrentUser;
   logout: () => void;
   mobile?: boolean;
+  onNavigate?: () => void;
 }) {
   const links = (
     <>
@@ -79,58 +96,283 @@ function PrimaryNavigation({
             className={navigationClass}
             to={item.to}
             end={item.to === "/"}
+            onClick={onNavigate}
           >
             <Icon className="size-5" aria-hidden="true" />
             {item.label}
           </NavLink>
         );
-        return mobile ? (
-          <SheetClose asChild key={item.to}>
-            {link}
-          </SheetClose>
-        ) : (
-          <span key={item.to}>{link}</span>
-        );
+        return <span key={item.to}>{link}</span>;
       })}
       {authenticated ? (
-        <Button
-          className="min-h-11 justify-start px-3"
-          variant="ghost"
-          onClick={logout}
-        >
-          <LogOut aria-hidden="true" /> خروج
-        </Button>
+        currentUser ? (
+          <AuthenticatedControls
+            currentUser={currentUser}
+            logout={logout}
+            mobile={mobile}
+            onNavigate={onNavigate}
+          />
+        ) : (
+          <span className="text-muted-foreground px-3 text-sm" role="status">
+            در حال بارگذاری حساب…
+          </span>
+        )
       ) : (
-        <NavLink className={navigationClass} to="/login">
-          <LogIn className="size-5" aria-hidden="true" /> ورود
-        </NavLink>
+        <>
+          <NavLink className={navigationClass} onClick={onNavigate} to="/login">
+            <LogIn className="size-5" aria-hidden="true" /> ورود
+          </NavLink>
+          <NavLink
+            className={navigationClass}
+            onClick={onNavigate}
+            to="/register"
+          >
+            ثبت‌نام
+          </NavLink>
+        </>
       )}
     </>
   );
 
   return (
-    <nav className="grid gap-1" aria-label="راهبری اصلی">
+    <nav
+      className={cn(mobile ? "grid gap-1" : "flex items-center gap-1")}
+      aria-label="راهبری اصلی"
+    >
       {links}
-      <Button asChild className="mt-4 min-h-11 rounded-full" variant="outline">
-        <NavLink to="/add-submission">
-          <Plus aria-hidden="true" /> ثبت آگهی
+      <Button asChild className={cn("min-h-11 rounded-full", mobile && "mt-4")}>
+        <NavLink onClick={onNavigate} to="/advertise">
+          <Plus aria-hidden="true" /> می‌خواهم آگهی ثبت کنم
         </NavLink>
       </Button>
-      <Button asChild variant="outline" className="min-h-11">
-        <NavLink to="/dashboard">
-          <LayoutDashboard aria-hidden="true" /> آگهی‌های من
-        </NavLink>
-      </Button>
-      <div className="border-border mt-4 border-t pt-4">
-        <ThemeSwitcher />
-      </div>
     </nav>
+  );
+}
+
+function ComingSoonControl({
+  label,
+  icon: Icon,
+  compact = false,
+}: {
+  label: string;
+  icon: typeof MessageCircle;
+  compact?: boolean;
+}) {
+  const accessibleLabel = `${label} — به‌زودی`;
+  return (
+    <Button
+      aria-disabled="true"
+      aria-label={accessibleLabel}
+      className={cn("min-h-11", compact ? "px-3" : "justify-start px-3")}
+      type="button"
+      variant="ghost"
+    >
+      <Icon aria-hidden="true" />
+      <span className={cn(compact && "sr-only")}>{label}</span>
+      <span
+        className={cn("text-muted-foreground text-xs", compact && "sr-only")}
+      >
+        به‌زودی
+      </span>
+    </Button>
+  );
+}
+
+function accountName(currentUser: CurrentUser) {
+  return [currentUser.first_name, currentUser.last_name]
+    .filter(Boolean)
+    .join(" ");
+}
+
+function AccountIdentity({ currentUser }: { currentUser: CurrentUser }) {
+  const name = accountName(currentUser);
+  return (
+    <>
+      {name ? <p className="font-semibold">{name}</p> : null}
+      <p className="text-muted-foreground text-sm font-normal" dir="ltr">
+        {currentUser.email}
+      </p>
+    </>
+  );
+}
+
+function MobileAccountPanel({
+  currentUser,
+  logout,
+  onNavigate,
+}: {
+  currentUser: CurrentUser;
+  logout: () => void;
+  onNavigate?: () => void;
+}) {
+  const isOperator = currentUser.operator_capabilities.length > 0;
+
+  return (
+    <div
+      aria-label="فهرست حساب کاربری"
+      className="border-border bg-popover text-popover-foreground grid min-w-72 gap-1 rounded-xl border p-2 shadow-lg"
+      role="region"
+    >
+      <div className="border-border mb-1 border-b px-3 py-2">
+        <AccountIdentity currentUser={currentUser} />
+      </div>
+      <ComingSoonControl label="نمایه" icon={UserRound} />
+      <ComingSoonControl label="پیام‌ها" icon={MessageCircle} />
+      <ComingSoonControl label="علاقه‌مندی‌ها" icon={Heart} />
+      <Button asChild className="justify-start px-3" variant="ghost">
+        <NavLink onClick={onNavigate} to="/guide">
+          <CircleHelp aria-hidden="true" /> راهنما
+        </NavLink>
+      </Button>
+      <Button asChild className="justify-start px-3" variant="ghost">
+        <NavLink onClick={onNavigate} to="/contact">
+          <Mail aria-hidden="true" /> تماس با پشتیبانی
+        </NavLink>
+      </Button>
+      {isOperator ? (
+        <Button asChild className="justify-start px-3" variant="ghost">
+          <NavLink onClick={onNavigate} to="/operator">
+            <BriefcaseBusiness aria-hidden="true" /> فضای کاری اپراتور
+          </NavLink>
+        </Button>
+      ) : null}
+      <Button
+        className="justify-start px-3"
+        onClick={logout}
+        type="button"
+        variant="ghost"
+      >
+        <LogOut aria-hidden="true" /> خروج
+      </Button>
+    </div>
+  );
+}
+
+function AuthenticatedControls({
+  currentUser,
+  logout,
+  mobile,
+  onNavigate,
+}: {
+  currentUser: CurrentUser;
+  logout: () => void;
+  mobile: boolean;
+  onNavigate?: () => void;
+}) {
+  if (mobile) {
+    return (
+      <>
+        <ComingSoonControl label="پیام‌ها" icon={MessageCircle} />
+        <ComingSoonControl label="علاقه‌مندی‌ها" icon={Heart} />
+        <div className="border-border mt-3 border-t pt-3">
+          <p className="px-3 py-2 text-sm font-semibold">حساب کاربری</p>
+          <MobileAccountPanel
+            currentUser={currentUser}
+            logout={logout}
+            onNavigate={onNavigate}
+          />
+        </div>
+      </>
+    );
+  }
+
+  return (
+    <>
+      <ComingSoonControl compact label="پیام‌ها" icon={MessageCircle} />
+      <ComingSoonControl compact label="علاقه‌مندی‌ها" icon={Heart} />
+      <AccountMenu currentUser={currentUser} logout={logout} />
+    </>
+  );
+}
+
+function AccountMenu({
+  currentUser,
+  logout,
+}: {
+  currentUser: CurrentUser;
+  logout: () => void;
+}) {
+  const isOperator = currentUser.operator_capabilities.length > 0;
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          aria-label="حساب کاربری"
+          className="px-3"
+          type="button"
+          variant="ghost"
+        >
+          <UserRound aria-hidden="true" /> حساب
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        align="end"
+        aria-label="فهرست حساب کاربری"
+        className="w-72"
+      >
+        <DropdownMenuLabel>
+          <AccountIdentity currentUser={currentUser} />
+        </DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <ComingSoonMenuItem label="نمایه" icon={UserRound} />
+        <ComingSoonMenuItem label="پیام‌ها" icon={MessageCircle} />
+        <ComingSoonMenuItem label="علاقه‌مندی‌ها" icon={Heart} />
+        <DropdownMenuItem asChild>
+          <NavLink to="/guide">
+            <CircleHelp aria-hidden="true" /> راهنما
+          </NavLink>
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild>
+          <NavLink to="/contact">
+            <Mail aria-hidden="true" /> تماس با پشتیبانی
+          </NavLink>
+        </DropdownMenuItem>
+        {isOperator ? (
+          <DropdownMenuItem asChild>
+            <NavLink to="/operator">
+              <BriefcaseBusiness aria-hidden="true" /> فضای کاری اپراتور
+            </NavLink>
+          </DropdownMenuItem>
+        ) : null}
+        <DropdownMenuItem onSelect={logout}>
+          <LogOut aria-hidden="true" /> خروج
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+function ComingSoonMenuItem({
+  label,
+  icon: Icon,
+}: {
+  label: string;
+  icon: typeof MessageCircle;
+}) {
+  const accessibleLabel = `${label} — به‌زودی`;
+  return (
+    <DropdownMenuItem
+      aria-disabled="true"
+      aria-label={accessibleLabel}
+      onSelect={(event) => event.preventDefault()}
+    >
+      <Icon aria-hidden="true" />
+      <span>{label}</span>
+      <span className="text-muted-foreground text-xs">به‌زودی</span>
+    </DropdownMenuItem>
   );
 }
 
 export function ProductShell({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
   const session = useQuery(sessionQuery);
+  const authenticated = session.data?.authenticated === true;
+  const currentUser = useQuery({
+    ...currentUserQuery,
+    enabled: authenticated,
+  });
+  const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false);
   const logout = useMutation({
     mutationFn: async () => {
       const { data, error } = await api.POST("/api/v1/auth/logout/");
@@ -159,48 +401,63 @@ export function ProductShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="min-h-screen overflow-x-clip">
-      <aside className="border-border bg-background fixed inset-y-0 start-0 z-30 hidden w-72 border-e px-5 py-6 lg:flex lg:flex-col">
-        <Brand />
-        <div className="mt-10 flex-1">
-          <PrimaryNavigation
-            authenticated={session.data?.authenticated === true}
-            logout={() => logout.mutate()}
-          />
-        </div>
-        <p className="text-muted-foreground text-xs leading-6">
-          جست‌وجو و مقایسه شفاف آگهی‌های اجاره
-        </p>
-      </aside>
-
-      <header className="border-border bg-background/95 sticky top-0 z-30 flex min-h-18 items-center justify-between border-b px-4 backdrop-blur lg:hidden">
-        <Brand />
-        <Sheet>
-          <SheetTrigger asChild>
-            <Button
-              size="icon"
-              variant="secondary"
-              aria-label="باز کردن فهرست راهبری"
-            >
-              <Menu aria-hidden="true" />
-            </Button>
-          </SheetTrigger>
-          <SheetContent side="right" className="w-[min(88vw,22rem)] pt-14">
-            <SheetHeader className="text-start">
-              <SheetTitle>راهبری ترب‌رنت</SheetTitle>
-              <SheetDescription>به بخش موردنظر بروید.</SheetDescription>
-            </SheetHeader>
-            <div className="mt-6">
+      <header
+        aria-label="راهبری عمومی"
+        className="border-border bg-background/95 sticky top-0 z-30 border-b backdrop-blur"
+      >
+        <div className="mx-auto flex min-h-18 w-full max-w-360 items-center justify-between gap-3 px-4 sm:px-6 lg:px-10">
+          <Brand />
+          <div className="flex items-center gap-2">
+            <div className="hidden xl:block">
               <PrimaryNavigation
-                authenticated={session.data?.authenticated === true}
+                authenticated={authenticated}
+                currentUser={currentUser.data}
                 logout={() => logout.mutate()}
-                mobile
               />
             </div>
-          </SheetContent>
-        </Sheet>
+            <ThemeSwitcher />
+            <div className="xl:hidden">
+              <Sheet
+                onOpenChange={setMobileNavigationOpen}
+                open={mobileNavigationOpen}
+              >
+                <SheetTrigger asChild>
+                  <Button
+                    size="icon"
+                    variant="secondary"
+                    aria-label="باز کردن فهرست راهبری"
+                  >
+                    <Menu aria-hidden="true" />
+                  </Button>
+                </SheetTrigger>
+                <SheetContent
+                  side="right"
+                  className="w-[min(88vw,22rem)] pt-14"
+                >
+                  <SheetHeader className="text-start">
+                    <SheetTitle>راهبری ترب‌رنت</SheetTitle>
+                    <SheetDescription>به بخش موردنظر بروید.</SheetDescription>
+                  </SheetHeader>
+                  <div className="mt-6">
+                    <PrimaryNavigation
+                      authenticated={authenticated}
+                      currentUser={currentUser.data}
+                      logout={() => {
+                        setMobileNavigationOpen(false);
+                        logout.mutate();
+                      }}
+                      mobile
+                      onNavigate={() => setMobileNavigationOpen(false)}
+                    />
+                  </div>
+                </SheetContent>
+              </Sheet>
+            </div>
+          </div>
+        </div>
       </header>
 
-      <div className="lg:ps-72">
+      <div>
         {children}
         <footer className="border-border mx-auto mt-16 flex w-full max-w-360 flex-col gap-5 border-t px-4 py-8 text-sm sm:px-6 lg:px-10">
           <div className="flex flex-wrap items-center justify-between gap-4">

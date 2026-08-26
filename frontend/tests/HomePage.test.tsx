@@ -21,13 +21,21 @@ function SearchLocationProbe() {
   );
 }
 
+function ShellLocationProbe() {
+  const location = useLocation();
+  return <output aria-label="مسیر جاری">{location.pathname}</output>;
+}
+
 function renderHomeShell(queryClient: QueryClient) {
   return render(
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
         <MemoryRouter>
           <ProductShell>
-            <HomePage />
+            <>
+              <HomePage />
+              <ShellLocationProbe />
+            </>
           </ProductShell>
         </MemoryRouter>
       </ThemeProvider>
@@ -35,7 +43,7 @@ function renderHomeShell(queryClient: QueryClient) {
   );
 }
 
-test("presents Persian search and primary destinations", async () => {
+test("presents the anonymous public navbar and real advertisement introduction", async () => {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
@@ -46,12 +54,50 @@ test("presents Persian search and primary destinations", async () => {
   ).toBeVisible();
   expect(screen.getByRole("combobox", { name: "شهر یا محله" })).toBeVisible();
 
-  const navigation = screen.getByRole("navigation", { name: "راهبری اصلی" });
-  for (const name of ["خانه", "راهنما", "تماس", "ورود", "ثبت آگهی"]) {
-    expect(within(navigation).getByRole("link", { name })).toBeVisible();
-  }
+  const navbar = screen.getByRole("banner", { name: "راهبری عمومی" });
+  const navigation = within(navbar).getByRole("navigation", {
+    name: "راهبری اصلی",
+  });
+  expect(
+    within(navigation).getByRole("link", { name: "ورود" }),
+  ).toHaveAttribute("href", "/login");
+  expect(
+    within(navigation).getByRole("link", { name: "ثبت‌نام" }),
+  ).toHaveAttribute("href", "/register");
+  expect(
+    within(navigation).getByRole("link", {
+      name: "می‌خواهم آگهی ثبت کنم",
+    }),
+  ).toHaveAttribute("href", "/advertise");
+  expect(
+    within(navbar).getByRole("combobox", { name: /پوستهٔ نمایش/ }),
+  ).toBeVisible();
+  expect(within(navbar).queryByText("آگهی‌های من")).not.toBeInTheDocument();
 
   expect(await screen.findByText("سامانه در دسترس است")).toBeVisible();
+});
+
+test("closes the mobile navigation after choosing the advertisement introduction", async () => {
+  const user = userEvent.setup();
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  renderHomeShell(queryClient);
+
+  await user.click(
+    screen.getByRole("button", { name: "باز کردن فهرست راهبری" }),
+  );
+  const mobileMenu = screen.getByRole("dialog", { name: "راهبری ترب‌رنت" });
+  await user.click(
+    within(mobileMenu).getByRole("link", {
+      name: "می‌خواهم آگهی ثبت کنم",
+    }),
+  );
+
+  expect(screen.queryByRole("dialog", { name: "راهبری ترب‌رنت" })).toBeNull();
+  expect(screen.getByRole("status", { name: "مسیر جاری" })).toHaveTextContent(
+    "/advertise",
+  );
 });
 
 test("recovers when the readiness check fails during startup", async () => {
@@ -78,12 +124,171 @@ test("recovers when the readiness check fails during startup", async () => {
   expect(attempts).toBe(3);
 });
 
+test("shows Renter controls and honest placeholders in the authenticated account menu", async () => {
+  const user = userEvent.setup();
+  server.use(
+    http.get("*/api/v1/auth/session/", () =>
+      HttpResponse.json({ authenticated: true, csrf_token: "test-token" }),
+    ),
+    http.get("*/api/v1/users/me/", () =>
+      HttpResponse.json({
+        id: "10000000-0000-4000-8000-000000000001",
+        email: "renter@example.com",
+        first_name: "پویا",
+        last_name: "اجاره‌جو",
+        email_verified: true,
+        operator_capabilities: [],
+      }),
+    ),
+  );
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  renderHomeShell(queryClient);
+
+  const navbar = screen.getByRole("banner", { name: "راهبری عمومی" });
+  expect(
+    await within(navbar).findByRole("button", {
+      name: "پیام‌ها — به‌زودی",
+    }),
+  ).toHaveAttribute("aria-disabled", "true");
+  expect(
+    within(navbar).getByRole("button", {
+      name: "علاقه‌مندی‌ها — به‌زودی",
+    }),
+  ).toHaveAttribute("aria-disabled", "true");
+  expect(within(navbar).queryByRole("link", { name: "ورود" })).toBeNull();
+  expect(within(navbar).queryByRole("link", { name: "ثبت‌نام" })).toBeNull();
+
+  await user.click(within(navbar).getByRole("button", { name: "حساب کاربری" }));
+  const account = screen.getByRole("menu", { name: "حساب کاربری" });
+  expect(within(account).getByText("پویا اجاره‌جو")).toBeVisible();
+  expect(within(account).getByText("renter@example.com")).toBeVisible();
+  for (const name of [
+    "نمایه — به‌زودی",
+    "پیام‌ها — به‌زودی",
+    "علاقه‌مندی‌ها — به‌زودی",
+  ]) {
+    expect(within(account).getByRole("menuitem", { name })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
+  }
+  const profilePlaceholder = within(account).getByRole("menuitem", {
+    name: "نمایه — به‌زودی",
+  });
+  profilePlaceholder.focus();
+  expect(profilePlaceholder).toHaveFocus();
+  await user.click(profilePlaceholder);
+  expect(account).toBeVisible();
+  expect(profilePlaceholder).toHaveFocus();
+  expect(
+    within(account).getByRole("menuitem", { name: "راهنما" }),
+  ).toHaveAttribute("href", "/guide");
+  expect(
+    within(account).getByRole("menuitem", { name: "تماس با پشتیبانی" }),
+  ).toHaveAttribute("href", "/contact");
+  expect(within(account).queryByText("فضای کاری اپراتور")).toBeNull();
+  expect(within(account).queryByText("آگهی‌های من")).toBeNull();
+  expect(within(account).queryByText("ثبت آگهی")).toBeNull();
+
+  await user.keyboard("{Escape}");
+  expect(screen.queryByRole("menu", { name: "حساب کاربری" })).toBeNull();
+  expect(
+    within(navbar).getByRole("button", { name: "حساب کاربری" }),
+  ).toHaveFocus();
+});
+
+test("offers the Operator workspace only when the account holds an Operator Capability", async () => {
+  const user = userEvent.setup();
+  server.use(
+    http.get("*/api/v1/auth/session/", () =>
+      HttpResponse.json({ authenticated: true, csrf_token: "test-token" }),
+    ),
+    http.get("*/api/v1/users/me/", () =>
+      HttpResponse.json({
+        id: "10000000-0000-4000-8000-000000000002",
+        email: "operator@example.com",
+        first_name: "",
+        last_name: "",
+        email_verified: true,
+        operator_capabilities: ["handle_support"],
+      }),
+    ),
+  );
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  renderHomeShell(queryClient);
+
+  const navbar = screen.getByRole("banner", { name: "راهبری عمومی" });
+  await user.click(
+    await within(navbar).findByRole("button", { name: "حساب کاربری" }),
+  );
+
+  expect(
+    screen.getByRole("menuitem", { name: "فضای کاری اپراتور" }),
+  ).toHaveAttribute("href", "/operator");
+});
+
+test("keeps authenticated navigation and repeated account placeholders in the mobile menu", async () => {
+  const user = userEvent.setup();
+  server.use(
+    http.get("*/api/v1/auth/session/", () =>
+      HttpResponse.json({ authenticated: true, csrf_token: "test-token" }),
+    ),
+    http.get("*/api/v1/users/me/", () =>
+      HttpResponse.json({
+        id: "10000000-0000-4000-8000-000000000003",
+        email: "mobile@example.com",
+        first_name: "",
+        last_name: "",
+        email_verified: true,
+        operator_capabilities: [],
+      }),
+    ),
+  );
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  renderHomeShell(queryClient);
+
+  await screen.findByRole("button", { name: "حساب کاربری" });
+  await user.click(
+    screen.getByRole("button", { name: "باز کردن فهرست راهبری" }),
+  );
+  const mobileMenu = screen.getByRole("dialog", { name: "راهبری ترب‌رنت" });
+  expect(
+    within(mobileMenu).getAllByRole("button", {
+      name: "پیام‌ها — به‌زودی",
+    }),
+  ).toHaveLength(2);
+  expect(
+    within(mobileMenu).getAllByRole("button", {
+      name: "علاقه‌مندی‌ها — به‌زودی",
+    }),
+  ).toHaveLength(2);
+  expect(
+    within(mobileMenu).getByRole("region", { name: "فهرست حساب کاربری" }),
+  ).toBeVisible();
+});
+
 test("lets an authenticated Submitter log out from primary navigation", async () => {
   const user = userEvent.setup();
   let loggedOut = false;
   server.use(
     http.get("*/api/v1/auth/session/", () =>
       HttpResponse.json({ authenticated: true, csrf_token: "test-token" }),
+    ),
+    http.get("*/api/v1/users/me/", () =>
+      HttpResponse.json({
+        id: "10000000-0000-4000-8000-000000000001",
+        email: "renter@example.com",
+        first_name: "",
+        last_name: "",
+        email_verified: true,
+        operator_capabilities: [],
+      }),
     ),
     http.post("*/api/v1/auth/logout/", () => {
       loggedOut = true;
@@ -95,10 +300,16 @@ test("lets an authenticated Submitter log out from primary navigation", async ()
   });
   renderHomeShell(queryClient);
 
-  await user.click(await screen.findByRole("button", { name: "خروج" }));
+  const navbar = screen.getByRole("banner", { name: "راهبری عمومی" });
+  await user.click(
+    await within(navbar).findByRole("button", { name: "حساب کاربری" }),
+  );
+  await user.click(screen.getByRole("menuitem", { name: "خروج" }));
 
   expect(loggedOut).toBe(true);
-  expect(await screen.findByRole("link", { name: "ورود" })).toBeVisible();
+  expect(
+    await within(navbar).findByRole("link", { name: "ورود" }),
+  ).toBeVisible();
 });
 
 test("selects a Persian autocomplete result and navigates to a shareable Results URL", async () => {

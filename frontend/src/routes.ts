@@ -6,6 +6,7 @@ export default [
   route("contact", "routes/contact.tsx"),
   route("login", "routes/login.tsx"),
   route("register", "routes/register.tsx"),
+  route("advertise", "routes/advertise.tsx"),
   route("forgot-password", "routes/forgot-password.tsx"),
   route("verify-email", "routes/verify-email.tsx"),
   route("reset-password", "routes/reset-password.tsx"),
