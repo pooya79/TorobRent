@@ -1,6 +1,6 @@
-from typing import Any, cast
+from typing import Any, Literal, cast
 
-from drf_spectacular.utils import extend_schema_field
+from drf_spectacular.utils import extend_schema_field, extend_schema_serializer
 from rest_framework import serializers
 
 from .models import (
@@ -73,6 +73,31 @@ class TomanRialField(LocalizedIntegerField):
         return toman_to_rial(super().to_internal_value(data))
 
 
+@extend_schema_field({
+    "oneOf": [
+        {"type": "integer", "minimum": 0},
+        {"type": "string", "enum": ["3_plus"]},
+    ]
+})
+class BedroomCountQueryField(serializers.Field[Any, Any, Any, Any]):
+    default_error_messages = {"invalid": "یک عدد صحیح نامنفی یا 3_plus وارد کنید."}
+
+    def to_internal_value(self, data: Any) -> int | Literal["3_plus"]:
+        if data == "3_plus":
+            return "3_plus"
+        if isinstance(data, str):
+            try:
+                data = parse_localized_integer(data)
+            except ValueError:
+                self.fail("invalid")
+        if isinstance(data, bool) or not isinstance(data, int) or data < 0:
+            self.fail("invalid")
+        return data
+
+    def to_representation(self, value: Any) -> Any:
+        return value
+
+
 class PropertySearchQuerySerializer(serializers.Serializer[Any]):
     location = serializers.CharField(required=False, allow_blank=True)
     property_category = serializers.ChoiceField(
@@ -89,7 +114,7 @@ class PropertySearchQuerySerializer(serializers.Serializer[Any]):
     )
     area_min = LocalizedIntegerField(required=False, min_value=1)
     area_max = LocalizedIntegerField(required=False, min_value=1)
-    room_count = LocalizedIntegerField(required=False, min_value=0)
+    room_count = BedroomCountQueryField(required=False)
     property_type = serializers.ListField(
         required=False,
         child=serializers.ChoiceField(choices=PropertyType.choices),
@@ -217,6 +242,39 @@ class PropertySummarySerializer(serializers.Serializer[Any]):
             "deposit_toman": rial_to_toman(deposit_rial),
             "monthly_rent_toman": rial_to_toman(monthly_rent_rial),
         }
+
+
+class FacetCountSerializer(serializers.Serializer[Any]):
+    value = serializers.CharField()
+    count = serializers.IntegerField(min_value=0)
+
+
+class FeatureStateFacetSerializer(serializers.Serializer[Any]):
+    present = serializers.IntegerField(min_value=0)
+    absent = serializers.IntegerField(min_value=0)
+    unknown = serializers.IntegerField(min_value=0)
+
+
+class FeatureFacetsSerializer(serializers.Serializer[Any]):
+    parking = FeatureStateFacetSerializer()
+    elevator = FeatureStateFacetSerializer()
+    storage = FeatureStateFacetSerializer()
+    furnished = FeatureStateFacetSerializer()
+
+
+class CatalogFacetsSerializer(serializers.Serializer[Any]):
+    property_types = FacetCountSerializer(many=True)
+    bedroom_counts = FacetCountSerializer(many=True)
+    features = FeatureFacetsSerializer()
+
+
+@extend_schema_serializer(many=False)
+class PropertySearchPageSerializer(serializers.Serializer[Any]):
+    count = serializers.IntegerField(min_value=0)
+    next = serializers.URLField(allow_null=True)
+    previous = serializers.URLField(allow_null=True)
+    results = PropertySummarySerializer(many=True)
+    facets = CatalogFacetsSerializer()
 
 
 class ListingPublicSerializer(serializers.Serializer[Any]):

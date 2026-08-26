@@ -70,7 +70,8 @@ def test_public_catalog_query_count_is_bounded_for_representative_demo_fixture(
 
     assert search_response.status_code == 200
     assert detail_response.status_code == 200
-    assert len(search_queries) <= 2
+    # Page count, page data, Property Type/Bedroom facets, and four self-excluding features.
+    assert len(search_queries) <= 8
     assert len(detail_queries) <= 2
 
 
@@ -181,6 +182,119 @@ def test_public_catalog_filters_by_property_category_and_rejects_incompatible_ty
 
     assert incompatible_response.status_code == 400
     assert "property_type" in incompatible_response.data["errors"]
+
+
+@pytest.mark.django_db
+def test_public_catalog_exposes_self_excluding_property_and_quick_filter_facets(
+    api_client: APIClient,
+):
+    call_command("loaddata", "catalog_seed", verbosity=0)
+    neighborhood = Neighborhood.objects.select_related("district__city").first()
+    assert neighborhood is not None
+    source = Source.objects.get(is_builtin=True)
+    now = timezone.now()
+
+    def publish_property(
+        property_type: PropertyType,
+        room_count: int | None,
+        *,
+        parking: FeatureState,
+        elevator: FeatureState = FeatureState.UNKNOWN,
+        storage: FeatureState = FeatureState.UNKNOWN,
+        furnished: FeatureState = FeatureState.UNKNOWN,
+    ) -> None:
+        property_ = Property.objects.create(
+            city=neighborhood.district.city,
+            district=neighborhood.district,
+            neighborhood=neighborhood,
+            property_type=property_type,
+            area_sqm=90,
+            room_count=room_count,
+            parking=parking,
+            elevator=elevator,
+            storage=storage,
+            furnished=furnished,
+        )
+        Listing.objects.create(
+            property=property_,
+            source=source,
+            terms=RentalTerms.objects.create(
+                deposit_rial=5_000_000_000,
+                monthly_rent_rial=200_000_000,
+            ),
+            state=ListingState.PUBLISHED,
+            direct_phone="۰۹۱۲۱۲۳۴۵۶۷",
+            availability_confirmed_at=now,
+            available_until=now + timedelta(days=1),
+        )
+
+    publish_property(PropertyType.APARTMENT, 1, parking=FeatureState.PRESENT)
+    publish_property(
+        PropertyType.APARTMENT,
+        4,
+        parking=FeatureState.PRESENT,
+        furnished=FeatureState.ABSENT,
+    )
+    publish_property(PropertyType.APARTMENT, 4, parking=FeatureState.ABSENT)
+    publish_property(
+        PropertyType.HOUSE,
+        2,
+        parking=FeatureState.ABSENT,
+        elevator=FeatureState.PRESENT,
+        furnished=FeatureState.PRESENT,
+    )
+    publish_property(PropertyType.VILLA, 3, parking=FeatureState.UNKNOWN)
+    publish_property(
+        PropertyType.OFFICE,
+        None,
+        parking=FeatureState.PRESENT,
+        storage=FeatureState.PRESENT,
+    )
+
+    response = api_client.get(
+        "/api/v1/catalog/properties/",
+        {
+            "property_category": "residential",
+            "property_type": "apartment",
+            "parking": "present",
+            "room_count": "3_plus",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.data["count"] == 1
+    assert response.data["facets"]["property_types"] == [
+        {"value": "apartment", "count": 1},
+        {"value": "house", "count": 0},
+        {"value": "villa", "count": 0},
+    ]
+    assert response.data["facets"]["bedroom_counts"] == [
+        {"value": "1", "count": 1},
+        {"value": "2", "count": 0},
+        {"value": "3_plus", "count": 1},
+    ]
+    assert response.data["facets"]["features"]["parking"] == {
+        "present": 1,
+        "absent": 1,
+        "unknown": 0,
+    }
+
+
+@pytest.mark.django_db
+def test_public_catalog_feature_facets_keep_unknown_distinct_from_absent(
+    api_client: APIClient,
+):
+    call_command("seed_demo", verbosity=0)
+
+    response = api_client.get(
+        "/api/v1/catalog/properties/",
+        {"property_category": "residential"},
+    )
+
+    assert response.status_code == 200
+    parking = response.data["facets"]["features"]["parking"]
+    assert set(parking) == {"present", "absent", "unknown"}
+    assert sum(parking.values()) == response.data["count"]
 
 
 @pytest.mark.django_db

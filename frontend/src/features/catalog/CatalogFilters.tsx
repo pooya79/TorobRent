@@ -12,6 +12,7 @@ import {
   selectedPropertyTypesForCategory,
 } from "./property-type-selection";
 import { PropertyTypeSelector } from "./PropertyTypeSelector";
+import { type CatalogFacetData, propertyTypeFacetCounts } from "./QuickFilters";
 
 export const filterLabels = {
   deposit_min_toman: "حداقل ودیعه",
@@ -35,6 +36,9 @@ export const filterChoiceLabels = {
   ...propertyTypeLabels,
   present: "دارد",
   absent: "ندارد",
+  "1": "یک خوابه",
+  "2": "دو خوابه",
+  "3_plus": "سه خواب و بیشتر",
 } as const;
 
 const featureOptions = [
@@ -119,10 +123,12 @@ export function CatalogFilters({
   prefix,
   searchParams,
   setSearchParams,
+  facets,
 }: {
   prefix: string;
   searchParams: URLSearchParams;
   setSearchParams: SetURLSearchParams;
+  facets?: CatalogFacetData;
 }) {
   const propertyCategory = selectedPropertyCategory(searchParams);
   const applyFilters = (event: FormEvent<HTMLFormElement>) => {
@@ -202,6 +208,7 @@ export function CatalogFilters({
               searchParams,
               propertyCategory,
             )}
+            facetCounts={propertyTypeFacetCounts(facets)}
           />
         </div>
       </div>

@@ -92,7 +92,10 @@ export function propertySearchQueryOptions(searchParams: URLSearchParams) {
     monthly_rent_max_toman: integerParameter("monthly_rent_max_toman"),
     area_min: integerParameter("area_min"),
     area_max: integerParameter("area_max"),
-    room_count: integerParameter("room_count"),
+    room_count:
+      searchParams.get("room_count") === "3_plus"
+        ? "3_plus"
+        : integerParameter("room_count"),
     property_type: searchParams.has("property_type")
       ? selectedPropertyTypesForCategory(searchParams, propertyCategory)
       : undefined,

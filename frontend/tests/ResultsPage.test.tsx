@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { MemoryRouter, useLocation, useNavigate } from "react-router";
@@ -98,7 +98,7 @@ test("switching Property Category clears incompatible state and preserves shared
     }),
   );
   renderResults(
-    "/search?location=تهران&location_label=تهران&property_category=residential&property_type=apartment&room_count=2&area_min=60&parking=present&page=2",
+    "/search?location=تهران&location_label=تهران&property_category=residential&property_type=apartment&room_count=2&area_min=60&parking=present&furnished=present&page=2",
   );
 
   const toolbar = screen.getByRole("search", { name: "نوار جست‌وجوی ملک" });
@@ -107,6 +107,7 @@ test("switching Property Category clears incompatible state and preserves shared
   expect(requestedParams.get("property_category")).toBe("commercial");
   expect(requestedParams.has("property_type")).toBe(false);
   expect(requestedParams.has("room_count")).toBe(false);
+  expect(requestedParams.has("furnished")).toBe(false);
   expect(requestedParams.has("page")).toBe(false);
   expect(requestedParams.get("area_min")).toBe("60");
   expect(requestedParams.get("parking")).toBe("present");
@@ -119,6 +120,111 @@ test("switching Property Category clears incompatible state and preserves shared
   expect(
     within(toolbar).queryByRole("checkbox", { name: "آپارتمان" }),
   ).toBeNull();
+});
+
+test("applies Residential Quick Filters immediately and exposes them as removable chips", async () => {
+  const user = userEvent.setup();
+  let requestedParams = new URLSearchParams();
+  server.use(
+    http.get("*/api/v1/catalog/properties/", ({ request }) => {
+      requestedParams = new URL(request.url).searchParams;
+      return HttpResponse.json({
+        ...propertySearchPage,
+        facets: {
+          property_types: [
+            { value: "apartment", count: 1 },
+            { value: "house", count: 0 },
+            { value: "villa", count: 2 },
+          ],
+          bedroom_counts: [
+            { value: "1", count: 1 },
+            { value: "2", count: 2 },
+            { value: "3_plus", count: 3 },
+          ],
+          features: {
+            parking: { present: 0, absent: 2, unknown: 1 },
+            elevator: { present: 2, absent: 1, unknown: 0 },
+            storage: { present: 1, absent: 1, unknown: 1 },
+            furnished: { present: 1, absent: 1, unknown: 1 },
+          },
+        },
+      });
+    }),
+  );
+  renderResults();
+  await screen.findByText("۱ ملک پیدا شد");
+
+  const toolbar = screen.getByRole("search", { name: "نوار جست‌وجوی ملک" });
+  expect(
+    within(toolbar).getByRole("button", { name: /یک خوابه/ }),
+  ).toBeVisible();
+  expect(
+    within(toolbar).getByRole("button", { name: /دو خوابه/ }),
+  ).toBeVisible();
+  expect(
+    within(toolbar).getByRole("button", { name: /سه خواب و بیشتر/ }),
+  ).toBeVisible();
+  expect(within(toolbar).getByRole("button", { name: /مبله/ })).toBeVisible();
+  expect(within(toolbar).queryByRole("button", { name: /انباری/ })).toBeNull();
+  expect(
+    within(toolbar).getByRole("button", { name: /پارکینگ/ }),
+  ).toBeDisabled();
+
+  await user.click(
+    within(toolbar).getByRole("button", { name: /سه خواب و بیشتر/ }),
+  );
+  expect(screen.getByLabelText("وضعیت جست‌وجو")).toHaveTextContent(
+    "room_count=3_plus",
+  );
+  await waitFor(() => expect(requestedParams.get("room_count")).toBe("3_plus"));
+  const chip = await screen.findByRole("button", {
+    name: "حذف فیلتر تعداد اتاق",
+  });
+  expect(chip).toHaveTextContent("سه خواب و بیشتر");
+  expect(
+    screen.getByRole("button", { name: "پاک کردن همه فیلترها" }),
+  ).toBeVisible();
+  await user.click(chip);
+  expect(screen.getByLabelText("وضعیت جست‌وجو")).not.toHaveTextContent(
+    "room_count",
+  );
+});
+
+test("shows Commercial Quick Filters without Bedroom Count choices", async () => {
+  const user = userEvent.setup();
+  server.use(
+    http.get("*/api/v1/catalog/properties/", () =>
+      HttpResponse.json({
+        ...officePropertySearchPage,
+        facets: {
+          property_types: [
+            { value: "office", count: 1 },
+            { value: "shop", count: 0 },
+            { value: "warehouse", count: 0 },
+            { value: "workshop", count: 0 },
+          ],
+          bedroom_counts: [],
+          features: {
+            parking: { present: 1, absent: 0, unknown: 0 },
+            elevator: { present: 1, absent: 0, unknown: 0 },
+            storage: { present: 1, absent: 0, unknown: 0 },
+            furnished: { present: 0, absent: 0, unknown: 1 },
+          },
+        },
+      }),
+    ),
+  );
+  renderResults("/search?property_category=commercial");
+
+  const toolbar = screen.getByRole("search", { name: "نوار جست‌وجوی ملک" });
+  expect(within(toolbar).queryByRole("button", { name: /خوابه/ })).toBeNull();
+  expect(within(toolbar).getByRole("button", { name: /انباری/ })).toBeVisible();
+  expect(within(toolbar).queryByRole("button", { name: /مبله/ })).toBeNull();
+
+  await user.click(within(toolbar).getByRole("button", { name: "همه نوع‌ها" }));
+  expect(
+    within(toolbar).getByRole("checkbox", { name: "مغازه" }),
+  ).toBeDisabled();
 });
 
 test("finds every upcoming city as a disabled Coming soon option", async () => {

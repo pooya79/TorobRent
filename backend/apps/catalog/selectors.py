@@ -1,6 +1,6 @@
 import re
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any, Literal, cast
 
 from django.db.models import CharField, Count, OuterRef, Q, QuerySet, Subquery, Value
@@ -51,6 +51,7 @@ class CatalogStatistics:
 
 
 type SearchOrdering = Literal["freshness", "monthly_rent", "deposit", "area"]
+type BedroomCountFilter = int | Literal["3_plus"]
 
 
 @dataclass(frozen=True)
@@ -63,7 +64,7 @@ class PropertySearchFilters:
     monthly_rent_max_rial: int | None = None
     area_min: int | None = None
     area_max: int | None = None
-    room_count: int | None = None
+    room_count: BedroomCountFilter | None = None
     property_types: tuple[PropertyType, ...] = ()
     parking: str | None = None
     elevator: str | None = None
@@ -213,7 +214,6 @@ def search_properties(filters: PropertySearchFilters | None = None) -> QuerySet[
     property_filters = {
         "area_sqm__gte": filters.area_min,
         "area_sqm__lte": filters.area_max,
-        "room_count": filters.room_count,
         "parking": filters.parking,
         "elevator": filters.elevator,
         "storage": filters.storage,
@@ -223,6 +223,10 @@ def search_properties(filters: PropertySearchFilters | None = None) -> QuerySet[
     properties = properties.filter(**{
         lookup: value for lookup, value in property_filters.items() if value is not None
     })
+    if filters.room_count == "3_plus":
+        properties = properties.filter(room_count__gte=3)
+    elif filters.room_count is not None:
+        properties = properties.filter(room_count=filters.room_count)
     if filters.property_types:
         properties = properties.filter(property_type__in=filters.property_types)
     elif filters.property_category is not None:
@@ -262,3 +266,67 @@ def search_properties(filters: PropertySearchFilters | None = None) -> QuerySet[
         "area": ("area_sqm", "id"),
     }[filters.ordering]
     return properties.order_by(*property_ordering)
+
+
+type FacetFeature = Literal["parking", "elevator", "storage", "furnished"]
+FACET_FEATURES: tuple[FacetFeature, ...] = ("parking", "elevator", "storage", "furnished")
+
+
+def _without_feature_filter(
+    filters: PropertySearchFilters, feature: FacetFeature
+) -> PropertySearchFilters:
+    if feature == "parking":
+        return replace(filters, parking=None)
+    if feature == "elevator":
+        return replace(filters, elevator=None)
+    if feature == "storage":
+        return replace(filters, storage=None)
+    return replace(filters, furnished=None)
+
+
+def catalog_facets(filters: PropertySearchFilters) -> dict[str, Any]:
+    property_type_rows = (
+        search_properties(replace(filters, property_types=()))
+        .order_by()
+        .values("property_type")
+        .annotate(count=Count("id"))
+    )
+    property_type_counts = {row["property_type"]: row["count"] for row in property_type_rows}
+    property_types = (
+        PROPERTY_TYPES_BY_CATEGORY[filters.property_category]
+        if filters.property_category is not None
+        else tuple(PropertyType)
+    )
+
+    bedroom_counts: list[dict[str, Any]] = []
+    if filters.property_category != PropertyCategory.COMMERCIAL:
+        bedroom_base = search_properties(replace(filters, room_count=None)).order_by()
+        grouped_bedrooms = bedroom_base.aggregate(
+            one=Count("id", filter=Q(room_count=1)),
+            two=Count("id", filter=Q(room_count=2)),
+            three_plus=Count("id", filter=Q(room_count__gte=3)),
+        )
+        bedroom_counts = [
+            {"value": "1", "count": grouped_bedrooms["one"]},
+            {"value": "2", "count": grouped_bedrooms["two"]},
+            {"value": "3_plus", "count": grouped_bedrooms["three_plus"]},
+        ]
+
+    features: dict[str, dict[str, int]] = {}
+    for feature in FACET_FEATURES:
+        feature_base = search_properties(_without_feature_filter(filters, feature)).order_by()
+        counts = feature_base.aggregate(
+            present=Count("id", filter=Q(**{feature: "present"})),
+            absent=Count("id", filter=Q(**{feature: "absent"})),
+            unknown=Count("id", filter=Q(**{feature: "unknown"})),
+        )
+        features[feature] = counts
+
+    return {
+        "property_types": [
+            {"value": property_type.value, "count": property_type_counts.get(property_type, 0)}
+            for property_type in property_types
+        ],
+        "bedroom_counts": bedroom_counts,
+        "features": features,
+    }

@@ -11,19 +11,26 @@ import {
 } from "./property-type-selection";
 import { propertyTypeGroups, type PropertyCategory } from "./property-taxonomy";
 import { SupportedCityCombobox } from "./SupportedCityCombobox";
+import {
+  type CatalogFacetData,
+  propertyTypeFacetCounts,
+  QuickFilters,
+} from "./QuickFilters";
 
 const categorySpecificFilters: Record<PropertyCategory, readonly FilterName[]> =
   {
-    residential: ["room_count"],
-    commercial: [],
+    residential: ["room_count", "furnished"],
+    commercial: ["storage"],
   };
 
 export function SearchToolbar({
   searchParams,
   setSearchParams,
+  facets,
 }: {
   searchParams: URLSearchParams;
   setSearchParams: SetURLSearchParams;
+  facets?: CatalogFacetData;
 }) {
   const category = selectedPropertyCategory(searchParams);
   const selectedTypes = selectedPropertyTypesForCategory(
@@ -107,6 +114,7 @@ export function SearchToolbar({
               category={category}
               compact
               initialSelectedTypes={selectedTypes}
+              facetCounts={propertyTypeFacetCounts(facets)}
               onSelectionChange={(propertyTypes) => {
                 const next = new URLSearchParams(searchParams);
                 next.set("property_category", category);
@@ -121,6 +129,12 @@ export function SearchToolbar({
           </div>
         </div>
       </div>
+      <QuickFilters
+        category={category}
+        facets={facets}
+        searchParams={searchParams}
+        setSearchParams={setSearchParams}
+      />
     </section>
   );
 }
