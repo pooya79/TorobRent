@@ -1,7 +1,11 @@
-import { keepPreviousData, queryOptions } from "@tanstack/react-query";
+import {
+  infiniteQueryOptions,
+  keepPreviousData,
+  queryOptions,
+} from "@tanstack/react-query";
 
 import { createApiClient } from "@/lib/api/client";
-import type { operations } from "@/lib/api/schema";
+import type { components, operations } from "@/lib/api/schema";
 import {
   BEDROOM_COUNT_PARAMETER,
   LEGACY_BEDROOM_COUNT_PARAMETER,
@@ -94,11 +98,7 @@ export function favoritesQueryOptions() {
   });
 }
 
-export function propertySearchQueryOptions(
-  searchParams: URLSearchParams,
-  enabled = true,
-) {
-  const requestSearchParams = searchParams.toString();
+function propertySearchRequest(searchParams: URLSearchParams) {
   const propertyCategory = selectedPropertyCategory(searchParams);
   const integerParameter = (name: string) => {
     const rawValue = searchParams.get(name);
@@ -113,7 +113,7 @@ export function propertySearchQueryOptions(
     searchParams.get(name) === THREE_OR_MORE_BEDROOMS
       ? THREE_OR_MORE_BEDROOMS
       : integerParameter(name);
-  const query = {
+  return {
     location: searchParams.get("location") ?? undefined,
     district: searchParams.has("district")
       ? searchParams.getAll("district")
@@ -162,6 +162,14 @@ export function propertySearchQueryOptions(
     viewport_west: searchParams.get("viewport_west") ?? undefined,
     viewport_zoom: integerParameter("viewport_zoom"),
   } satisfies PropertySearchQuery;
+}
+
+export function propertySearchQueryOptions(
+  searchParams: URLSearchParams,
+  enabled = true,
+) {
+  const requestSearchParams = searchParams.toString();
+  const query = propertySearchRequest(searchParams);
   return queryOptions({
     queryKey: ["catalog", "properties", query] as const,
     enabled,
@@ -177,6 +185,42 @@ export function propertySearchQueryOptions(
       if (!data) throw new CatalogSearchError(response.status);
       return { ...data, requestSearchParams };
     },
+  });
+}
+
+export function propertySearchInfiniteQueryOptions(
+  searchParams: URLSearchParams,
+) {
+  const firstPageSearchParams = new URLSearchParams(searchParams);
+  firstPageSearchParams.delete("page");
+  const requestSearchParams = firstPageSearchParams.toString();
+  const query = propertySearchRequest(firstPageSearchParams);
+  return infiniteQueryOptions({
+    queryKey: ["catalog", "properties", "infinite", query] as const,
+    initialPageParam: null as string | null,
+    staleTime: 30_000,
+    placeholderData: keepPreviousData,
+    queryFn: async ({ pageParam, signal }) => {
+      const baseUrl =
+        typeof window === "undefined" ? "" : window.location.origin;
+      if (pageParam) {
+        const response = await fetch(new URL(pageParam, baseUrl), {
+          credentials: "include",
+          signal,
+        });
+        if (!response.ok) throw new CatalogSearchError(response.status);
+        const data =
+          (await response.json()) as components["schemas"]["PropertySearchPage"];
+        return { ...data, requestSearchParams };
+      }
+      const { data, response } = await createApiClient(baseUrl).GET(
+        "/api/v1/catalog/properties/",
+        { params: { query }, signal },
+      );
+      if (!data) throw new CatalogSearchError(response.status);
+      return { ...data, requestSearchParams };
+    },
+    getNextPageParam: (lastPage) => lastPage.next,
   });
 }
 

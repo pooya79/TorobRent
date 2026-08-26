@@ -1,4 +1,9 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  useMutation,
+  useQuery,
+  useQueryClient,
+  type InfiniteData,
+} from "@tanstack/react-query";
 import {
   Building2,
   BriefcaseBusiness,
@@ -47,6 +52,36 @@ import type { components } from "@/lib/api/schema";
 
 type CurrentUser = components["schemas"]["CurrentUser"];
 type PropertySearchPage = components["schemas"]["PropertySearchPage"];
+type PropertySearchData =
+  | PropertySearchPage
+  | InfiniteData<
+      PropertySearchPage & { requestSearchParams: string },
+      string | null
+    >;
+
+function withoutFavoriteState(page: PropertySearchPage) {
+  return {
+    ...page,
+    results: page.results.map((property) => ({
+      ...property,
+      is_favorite: false,
+    })),
+  };
+}
+
+function withoutFavorites(data: PropertySearchData | undefined) {
+  if (!data) return data;
+  if ("pages" in data) {
+    return {
+      ...data,
+      pages: data.pages.map((page) => ({
+        ...withoutFavoriteState(page),
+        requestSearchParams: page.requestSearchParams,
+      })),
+    };
+  }
+  return withoutFavoriteState(data);
+}
 
 const navigation = [
   { label: "خانه", to: "/", icon: Home },
@@ -426,18 +461,9 @@ export function ProductShell({ children }: { children: ReactNode }) {
     },
     onSuccess: () => {
       queryClient.removeQueries({ queryKey: ["current-user"] });
-      queryClient.setQueriesData<PropertySearchPage>(
+      queryClient.setQueriesData<PropertySearchData>(
         { queryKey: ["catalog", "properties"] },
-        (page) =>
-          page
-            ? {
-                ...page,
-                results: page.results.map((property) => ({
-                  ...property,
-                  is_favorite: false,
-                })),
-              }
-            : page,
+        withoutFavorites,
       );
       queryClient.setQueryData(["session"], (current: typeof session.data) =>
         current ? { ...current, authenticated: false } : current,

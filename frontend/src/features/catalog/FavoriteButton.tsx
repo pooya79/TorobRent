@@ -1,4 +1,9 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  useMutation,
+  useQuery,
+  useQueryClient,
+  type InfiniteData,
+} from "@tanstack/react-query";
 import { Heart } from "lucide-react";
 
 import { useRenterAccess } from "@/features/session/RenterAccessDialog";
@@ -9,13 +14,17 @@ import { cn } from "@/lib/utils";
 
 type PropertySearchPage = components["schemas"]["PropertySearchPage"];
 type FavoriteCollection = components["schemas"]["FavoriteCollection"];
+type InfinitePropertySearch = InfiniteData<
+  PropertySearchPage & { requestSearchParams: string },
+  string | null
+>;
+type PropertySearchData = PropertySearchPage | InfinitePropertySearch;
 
-function withFavoriteState(
-  page: PropertySearchPage | undefined,
+function withFavoriteStateInPage(
+  page: PropertySearchPage,
   propertyId: string,
   isFavorite: boolean,
 ) {
-  if (!page) return page;
   return {
     ...page,
     results: page.results.map((property) =>
@@ -24,6 +33,23 @@ function withFavoriteState(
         : property,
     ),
   };
+}
+
+function withFavoriteState(
+  data: PropertySearchData | undefined,
+  propertyId: string,
+  isFavorite: boolean,
+) {
+  if (!data) return data;
+  if ("pages" in data) {
+    return {
+      ...data,
+      pages: data.pages.map((page) =>
+        withFavoriteStateInPage(page, propertyId, isFavorite),
+      ),
+    };
+  }
+  return withFavoriteStateInPage(data, propertyId, isFavorite);
 }
 
 export function FavoriteButton({
@@ -58,7 +84,7 @@ export function FavoriteButton({
       for (const [
         queryKey,
         page,
-      ] of queryClient.getQueriesData<PropertySearchPage>({
+      ] of queryClient.getQueriesData<PropertySearchData>({
         queryKey: ["catalog", "properties"],
       })) {
         queryClient.setQueryData(
@@ -87,7 +113,7 @@ export function FavoriteButton({
       for (const [
         queryKey,
         page,
-      ] of queryClient.getQueriesData<PropertySearchPage>({
+      ] of queryClient.getQueriesData<PropertySearchData>({
         queryKey: ["catalog", "properties"],
       })) {
         queryClient.setQueryData(
