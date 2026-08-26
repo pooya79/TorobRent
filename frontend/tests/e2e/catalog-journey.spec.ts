@@ -1,9 +1,77 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
 const externalEnvironment = Boolean(process.env.E2E_BASE_URL);
 const operatorEmail = process.env.E2E_OPERATOR_EMAIL ?? "operator@example.com";
 const operatorPassword =
   process.env.E2E_OPERATOR_PASSWORD ?? "operator-password";
+
+async function createRentalTerms(
+  page: Page,
+  depositToman: string,
+  monthlyRentToman: string,
+) {
+  await page.goto("/admin/catalog/rentalterms/add/");
+  await page.locator("#id_deposit_toman").fill(depositToman);
+  await page.locator("#id_monthly_rent_toman").fill(monthlyRentToman);
+  await page.locator('input[name="_continue"]').click();
+  await expect(page).toHaveURL(/\/admin\/catalog\/rentalterms\/.+\/change\/$/);
+  const termsId = page.url().match(/rentalterms\/([^/]+)\/change/)?.[1];
+  expect(termsId).toBeTruthy();
+  return termsId!;
+}
+
+async function createProperty(
+  page: Page,
+  facts: {
+    propertyType: "apartment" | "office" | "villa";
+    areaSqm: string;
+    parking: "absent" | "present";
+    roomCount?: string;
+  },
+) {
+  await page.goto("/admin/catalog/property/add/");
+  await page.locator("#id_city").selectOption({ label: "تهران" });
+  await page.locator("#id_district").selectOption({ label: "منطقه ۲" });
+  await page.locator("#id_neighborhood").selectOption({ label: "سعادت‌آباد" });
+  await page.locator("#id_property_type").selectOption(facts.propertyType);
+  await page.locator("#id_area_sqm").fill(facts.areaSqm);
+  if (facts.roomCount) {
+    await page.locator("#id_room_count").fill(facts.roomCount);
+  }
+  await page.locator("#id_parking").selectOption(facts.parking);
+  await page.locator('input[name="_continue"]').click();
+  await expect(page).toHaveURL(/\/admin\/catalog\/property\/.+\/change\/$/);
+  const propertyId = page.url().match(/property\/([^/]+)\/change/)?.[1];
+  expect(propertyId).toBeTruthy();
+  return propertyId!;
+}
+
+async function publishDirectListing(
+  page: Page,
+  listing: {
+    propertyId: string;
+    termsId: string;
+    description: string;
+    rowName: RegExp;
+  },
+) {
+  await page.goto("/admin/catalog/listing/add/");
+  await page.locator("#id_property").selectOption(listing.propertyId);
+  await page
+    .locator("#id_source")
+    .selectOption({ label: "منبع مستقیم ترب‌رنت" });
+  await page.locator("#id_terms").selectOption(listing.termsId);
+  await page.locator("#id_description").fill(listing.description);
+  await page.locator("#id_direct_phone").fill("۰۹۱۲۱۲۳۴۵۶۷");
+  await page.locator('input[name="_save"]').click();
+  await expect(page).toHaveURL(/\/admin\/catalog\/listing\/$/);
+
+  const listingRow = page.getByRole("row", { name: listing.rowName });
+  await listingRow.locator('input[name="_selected_action"]').check();
+  await page.locator('select[name="action"]').selectOption("publish_listings");
+  await page.locator('button[name="index"]').click();
+  await expect(page.getByText("یک آگهی منتشر شد.")).toBeVisible();
+}
 
 test("@milestone Operator publishes a curated Property that a Renter opens through SSR", async ({
   page,
@@ -21,44 +89,54 @@ test("@milestone Operator publishes a curated Property that a Renter opens throu
   await page.getByRole("button", { name: /log in/i }).click();
   await expect(page).toHaveURL(/\/admin\/$/);
 
-  await page.goto("/admin/catalog/rentalterms/add/");
-  await page.locator("#id_deposit_toman").fill("۱٬۰۰۰٬۰۰۰٬۰۰۰");
-  await page.locator("#id_monthly_rent_toman").fill("۲۵٬۰۰۰٬۰۰۰");
-  await page.locator('input[name="_continue"]').click();
-  await expect(page).toHaveURL(/\/admin\/catalog\/rentalterms\/.+\/change\/$/);
-  const termsId = page.url().match(/rentalterms\/([^/]+)\/change/)?.[1];
-  expect(termsId).toBeTruthy();
-
-  await page.goto("/admin/catalog/property/add/");
-  await page.locator("#id_city").selectOption({ label: "تهران" });
-  await page.locator("#id_district").selectOption({ label: "منطقه ۲" });
-  await page.locator("#id_neighborhood").selectOption({ label: "سعادت‌آباد" });
-  await page.locator("#id_property_type").selectOption("office");
-  await page.locator("#id_area_sqm").fill("110");
-  await page.locator("#id_parking").selectOption("present");
-  await page.locator('input[name="_continue"]').click();
-  await expect(page).toHaveURL(/\/admin\/catalog\/property\/.+\/change\/$/);
-  const propertyId = page.url().match(/property\/([^/]+)\/change/)?.[1];
-  expect(propertyId).toBeTruthy();
-
-  await page.goto("/admin/catalog/listing/add/");
-  await page.locator("#id_property").selectOption(propertyId!);
-  await page
-    .locator("#id_source")
-    .selectOption({ label: "منبع مستقیم ترب‌رنت" });
-  await page.locator("#id_terms").selectOption(termsId!);
-  await page.locator("#id_description").fill("دفتر اداری روشن و آرام");
-  await page.locator("#id_direct_phone").fill("۰۹۱۲۱۲۳۴۵۶۷");
-  await page.locator('input[name="_save"]').click();
-  await expect(page).toHaveURL(/\/admin\/catalog\/listing\/$/);
-
-  const listingRow = page.getByRole("row", {
-    name: /منبع مستقیم ترب‌رنت: دفتر اداری در سعادت‌آباد/,
+  const termsId = await createRentalTerms(page, "۱٬۰۰۰٬۰۰۰٬۰۰۰", "۲۵٬۰۰۰٬۰۰۰");
+  const propertyId = await createProperty(page, {
+    propertyType: "office",
+    areaSqm: "110",
+    parking: "present",
   });
-  await listingRow.locator('input[name="_selected_action"]').check();
-  await page.locator('select[name="action"]').selectOption("publish_listings");
-  await page.locator('button[name="index"]').click();
-  await expect(page.getByText("یک آگهی منتشر شد.")).toBeVisible();
+  await publishDirectListing(page, {
+    propertyId,
+    termsId,
+    description: "دفتر اداری روشن و آرام",
+    rowName: /منبع مستقیم ترب‌رنت: دفتر اداری در سعادت‌آباد/,
+  });
+
+  const residentialTermsId = await createRentalTerms(
+    page,
+    "۸۰۰٬۰۰۰٬۰۰۰",
+    "۲۰٬۰۰۰٬۰۰۰",
+  );
+  const residentialPropertyId = await createProperty(page, {
+    propertyType: "apartment",
+    areaSqm: "95",
+    roomCount: "2",
+    parking: "absent",
+  });
+  await publishDirectListing(page, {
+    propertyId: residentialPropertyId,
+    termsId: residentialTermsId,
+    description: "آپارتمان دوخوابهٔ روشن",
+    rowName: /منبع مستقیم ترب‌رنت: آپارتمان در سعادت‌آباد/,
+  });
+
+  const excludedTermsId = await createRentalTerms(
+    page,
+    "۶۰۰٬۰۰۰٬۰۰۰",
+    "۱۵٬۰۰۰٬۰۰۰",
+  );
+  const excludedPropertyId = await createProperty(page, {
+    propertyType: "villa",
+    areaSqm: "180",
+    roomCount: "3",
+    parking: "present",
+  });
+  await publishDirectListing(page, {
+    propertyId: excludedPropertyId,
+    termsId: excludedTermsId,
+    description: "ویلای سه‌خوابهٔ محوطه‌دار",
+    rowName: /منبع مستقیم ترب‌رنت: ویلا در سعادت‌آباد/,
+  });
 
   await page.goto("/");
   await expect(page.getByText("سامانه در دسترس است")).toBeVisible();
@@ -71,6 +149,7 @@ test("@milestone Operator publishes a curated Property that a Renter opens throu
   await expect(page).toHaveURL(/\/$/);
   await page.getByRole("button", { name: "همه ملک‌ها" }).click();
   await page.getByRole("checkbox", { name: "دفتر اداری" }).click();
+  await page.getByRole("checkbox", { name: "آپارتمان" }).click();
   await page.getByRole("button", { name: "جست‌وجوی ملک" }).click();
   await expect
     .poll(() => {
@@ -86,15 +165,23 @@ test("@milestone Operator publishes a curated Property that a Renter opens throu
       pathname: "/search",
       location: "11111111-1111-4111-8111-111111111111",
       locationLabel: "تهران",
-      propertyTypes: ["office"],
+      propertyTypes: ["apartment", "office"],
     });
   await expect(
     page.getByRole("heading", { name: "دفتر اداری در سعادت‌آباد" }),
   ).toBeVisible();
-  await expect(page.getByText(/خواب/)).toHaveCount(0);
-  await expect(page.getByText("۱ آگهی فعال")).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "آپارتمان در سعادت‌آباد" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "ویلا در سعادت‌آباد" }),
+  ).toHaveCount(0);
+  await expect(page.getByText("۲ خواب")).toBeVisible();
+  await expect(page.getByText("۱ آگهی فعال")).toHaveCount(2);
   await expect(page.getByText("ودیعه ۱٬۰۰۰٬۰۰۰٬۰۰۰ تومان")).toBeVisible();
+  await expect(page.getByText("ودیعه ۸۰۰٬۰۰۰٬۰۰۰ تومان")).toBeVisible();
   await expect(page.getByText("اجاره ماهانه ۲۵٬۰۰۰٬۰۰۰ تومان")).toBeVisible();
+  await expect(page.getByText("اجاره ماهانه ۲۰٬۰۰۰٬۰۰۰ تومان")).toBeVisible();
 
   const unfilteredResultsUrl = page.url();
   const desktopFilters = page.getByRole("complementary", {
@@ -129,9 +216,9 @@ test("@milestone Operator publishes a curated Property that a Renter opens throu
   await expect(desktopFilters).toBeHidden();
   await page.getByRole("button", { name: "فیلترها" }).click();
   const mobileFilters = page.getByRole("dialog");
-  await mobileFilters.getByLabel("حداکثر متراژ").fill("100");
+  await mobileFilters.getByLabel("حداکثر متراژ").fill("90");
   await mobileFilters.getByRole("button", { name: "اعمال فیلترها" }).click();
-  await expect(page).toHaveURL(/area_max=100/);
+  await expect(page).toHaveURL(/area_max=90/);
   await expect(
     page.getByRole("heading", { name: "ملکی در این محدوده پیدا نشد" }),
   ).toBeVisible();
@@ -156,7 +243,9 @@ test("@milestone Operator publishes a curated Property that a Renter opens throu
   await expect(page.getByRole("alert")).toContainText(
     "مسیر ادامه این آگهی در دسترس نیست",
   );
-  await expect(page.getByRole("link", { name: /تماس با/ })).toHaveCount(0);
+  await expect(
+    page.locator("main").getByRole("link", { name: /تماس با/ }),
+  ).toHaveCount(0);
 
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto("/admin/catalog/source/add/");
@@ -240,7 +329,7 @@ test("@milestone Operator publishes a curated Property that a Renter opens throu
   await expect(page).toHaveURL(mixedSearchUrl.toString());
 
   await page.goto(`/admin/catalog/listing/${externalListingId}/change/`);
-  await page.locator("#id_property").selectOption(propertyId!);
+  await page.locator("#id_property").selectOption(propertyId);
   await page.locator('input[name="_save"]').click();
   await page.goto(`/properties/${propertyId}/نشانی-قدیمی`);
   await expect(page.getByRole("article")).toHaveCount(2);
@@ -307,7 +396,7 @@ test("@milestone Operator publishes a curated Property that a Renter opens throu
   await page
     .locator('select[name="target_property"]')
     .first()
-    .selectOption(propertyId!);
+    .selectOption(propertyId);
   await page.locator('button[name="index"]').click();
   await expect(page.getByText("یک ملک تکراری ادغام شد.")).toBeVisible();
   await page.goto(`/properties/${propertyId}/نشانی-قدیمی`);

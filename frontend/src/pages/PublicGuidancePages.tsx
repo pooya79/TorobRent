@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { Link } from "react-router";
 
 import { AlphaNotice } from "@/components/guidance/AlphaNotice";
+import cities from "@/features/cities/cities.json";
 
 function GuidanceLayout({
   eyebrow,
@@ -93,6 +94,88 @@ export function AdvertisePage() {
           را از صفحه <Link to="/contact">تماس با پشتیبانی</Link> بفرستید.
         </p>
       </Section>
+    </GuidanceLayout>
+  );
+}
+
+export function AboutPage() {
+  return (
+    <GuidanceLayout
+      eyebrow="شناخت ترب‌رنت"
+      title="درباره ترب‌رنت"
+      intro="ترب‌رنت مسیر جست‌وجوی ملک‌های مسکونی و تجاری برای اجاره را روشن‌تر می‌کند."
+    >
+      <Section title="چه کاری انجام می‌دهیم؟">
+        <p>
+          اطلاعات تأییدشدهٔ هر ملک را از آگهی‌های منابع جدا نگه می‌داریم. هر
+          آگهی با منبع، شرایط اجاره و زمان آخرین تأیید خود نمایش داده می‌شود تا
+          اختلاف منابع پنهان نماند.
+        </p>
+      </Section>
+      <Section title="مرز امروز محصول">
+        <p>
+          در حال حاضر فقط تهران قابل جست‌وجو است. ترب‌رنت خودش طرف قرارداد اجاره
+          نیست و موجود بودن ملک یا درستی همهٔ ادعاهای منبع را تضمین نمی‌کند؛ پیش
+          از پرداخت یا توافق، بررسی مستقل ضروری است.
+        </p>
+      </Section>
+      <Section title="اطلاعات نادرست یا ناموجود">
+        <p>
+          اگر موردی نادرست است، از صفحهٔ
+          <Link className="text-primary mx-1 underline" to="/contact">
+            تماس با پشتیبانی
+          </Link>
+          یک درخواست پشتیبانی ثبت کنید.
+        </p>
+      </Section>
+    </GuidanceLayout>
+  );
+}
+
+export function PhotoCreditsPage() {
+  return (
+    <GuidanceLayout
+      eyebrow="منبع و مجوز"
+      title="اعتبار تصویرها"
+      intro="منبع، سازنده و مجوز هر تصویر شهر در این صفحه ثبت شده است."
+    >
+      <div className="grid gap-5 sm:grid-cols-2">
+        {cities.map((city) => (
+          <article
+            key={city.slug}
+            aria-label={city.name}
+            className="border-border rounded-xl border p-6"
+          >
+            <h2 className="text-xl font-semibold">{city.name}</h2>
+            <div className="text-muted-foreground mt-4 grid gap-3 text-sm">
+              <div>
+                <p className="font-semibold">سازنده</p>
+                <p dir="ltr" className="mt-1 text-start">
+                  {city.creator}
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-x-5 gap-y-2">
+                <a
+                  className="text-primary min-h-11 content-center underline"
+                  href={city.sourceUrl}
+                  rel="noreferrer"
+                  target="_blank"
+                >
+                  منبع تصویر
+                </a>
+                <a
+                  className="text-primary min-h-11 content-center underline"
+                  href={city.licenseUrl}
+                  rel="noreferrer"
+                  target="_blank"
+                >
+                  {city.licenseName}
+                </a>
+              </div>
+            </div>
+          </article>
+        ))}
+      </div>
     </GuidanceLayout>
   );
 }

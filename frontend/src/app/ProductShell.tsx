@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Building2,
   BriefcaseBusiness,
+  Camera,
   Check,
   CircleHelp,
   Heart,
@@ -13,6 +14,7 @@ import {
   MessageCircle,
   Plus,
   Search,
+  Send,
   UserRound,
 } from "lucide-react";
 import { useState, type ReactNode } from "react";
@@ -73,6 +75,22 @@ function Brand() {
     </NavLink>
   );
 }
+
+const footerLinks = [
+  { label: "درباره ترب‌رنت", to: "/about" },
+  { label: "راهنما", to: "/guide" },
+  { label: "تماس با پشتیبانی", to: "/contact" },
+  { label: "حریم خصوصی", to: "/privacy" },
+  { label: "شرایط استفاده", to: "/terms" },
+  { label: "اعتبار تصویرها", to: "/photo-credits" },
+] as const;
+
+const socialPlaceholders = [
+  { label: "Instagram", icon: Camera },
+  { label: "Telegram", icon: Send },
+  { label: "LinkedIn", icon: BriefcaseBusiness },
+  { label: "X", icon: null },
+] as const;
 
 function PrimaryNavigation({
   authenticated,
@@ -459,38 +477,63 @@ export function ProductShell({ children }: { children: ReactNode }) {
 
       <div>
         {children}
-        <footer className="border-border mx-auto mt-16 flex w-full max-w-360 flex-col gap-5 border-t px-4 py-8 text-sm sm:px-6 lg:px-10">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <p>ترب‌رنت؛ راه شفاف‌تر پیدا کردن خانه اجاره‌ای</p>
-            <div className="text-muted-foreground flex flex-wrap gap-4">
-              <NavLink
-                className="inline-flex min-h-11 items-center"
-                to="/guide"
+        <footer className="border-border mx-auto mt-16 grid w-full max-w-360 gap-8 border-t px-4 py-10 text-sm sm:px-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)] lg:px-10">
+          <div>
+            <p className="font-semibold">ترب‌رنت</p>
+            <p className="text-muted-foreground mt-2 max-w-md leading-7">
+              جست‌وجو و مقایسهٔ شفاف‌تر ملک‌های مسکونی و تجاری برای اجاره
+            </p>
+          </div>
+          <div className="grid gap-7 sm:grid-cols-2">
+            <nav aria-label="اطلاعات ترب‌رنت">
+              <p className="font-semibold">اطلاعات</p>
+              <div className="text-muted-foreground mt-2 grid grid-cols-2 gap-x-5">
+                {footerLinks.map((link) => (
+                  <NavLink
+                    key={link.to}
+                    className="hover:text-foreground inline-flex min-h-11 items-center rounded-md focus-visible:ring-2 focus-visible:outline-none"
+                    to={link.to}
+                  >
+                    {link.label}
+                  </NavLink>
+                ))}
+              </div>
+            </nav>
+            <div>
+              <p className="font-semibold">دنبال کردن ترب‌رنت</p>
+              <div
+                aria-label="شبکه‌های اجتماعی — به‌زودی"
+                className="mt-3 flex flex-wrap gap-2"
+                role="group"
               >
-                راهنما
-              </NavLink>
-              <NavLink
-                className="inline-flex min-h-11 items-center"
-                to="/contact"
-              >
-                تماس
-              </NavLink>
-              <NavLink
-                className="inline-flex min-h-11 items-center"
-                to="/privacy"
-              >
-                حریم خصوصی
-              </NavLink>
-              <NavLink
-                className="inline-flex min-h-11 items-center"
-                to="/terms"
-              >
-                شرایط استفاده
-              </NavLink>
+                {socialPlaceholders.map(({ label, icon: Icon }) => (
+                  <Button
+                    key={label}
+                    aria-disabled="true"
+                    aria-label={`${label} — به‌زودی`}
+                    className="min-h-11"
+                    type="button"
+                    variant="outline"
+                  >
+                    {Icon ? (
+                      <Icon aria-hidden="true" />
+                    ) : (
+                      <span aria-hidden="true" className="font-semibold">
+                        X
+                      </span>
+                    )}
+                    <span>{label}</span>
+                    <span className="text-muted-foreground text-xs">
+                      به‌زودی
+                    </span>
+                  </Button>
+                ))}
+              </div>
             </div>
           </div>
           <div
-            className="text-muted-foreground flex items-center gap-2 text-xs"
+            aria-label="وضعیت آمادگی سامانه"
+            className="text-muted-foreground flex items-center gap-2 text-xs lg:col-span-2"
             role="status"
             aria-live="polite"
           >

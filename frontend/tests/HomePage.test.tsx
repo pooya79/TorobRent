@@ -78,6 +78,57 @@ test("presents the anonymous public navbar and real advertisement introduction",
   expect(await screen.findByText("سامانه در دسترس است")).toBeVisible();
 });
 
+test("publishes complete footer navigation and honest social placeholders", async () => {
+  const user = userEvent.setup();
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  renderHomeShell(queryClient);
+
+  const footer = screen.getByRole("contentinfo");
+  const information = within(footer).getByRole("navigation", {
+    name: "اطلاعات ترب‌رنت",
+  });
+  for (const [name, href] of [
+    ["درباره ترب‌رنت", "/about"],
+    ["راهنما", "/guide"],
+    ["تماس با پشتیبانی", "/contact"],
+    ["حریم خصوصی", "/privacy"],
+    ["شرایط استفاده", "/terms"],
+    ["اعتبار تصویرها", "/photo-credits"],
+  ]) {
+    expect(within(information).getByRole("link", { name })).toHaveAttribute(
+      "href",
+      href,
+    );
+  }
+
+  expect(
+    within(footer).getByRole("status", { name: "وضعیت آمادگی سامانه" }),
+  ).toBeVisible();
+
+  const social = within(footer).getByRole("group", {
+    name: "شبکه‌های اجتماعی — به‌زودی",
+  });
+  for (const name of ["Instagram", "Telegram", "LinkedIn", "X"]) {
+    const placeholder = within(social).getByRole("button", {
+      name: `${name} — به‌زودی`,
+    });
+    expect(placeholder).toHaveAttribute("aria-disabled", "true");
+    expect(placeholder).not.toHaveAttribute("href");
+  }
+
+  const instagram = within(social).getByRole("button", {
+    name: "Instagram — به‌زودی",
+  });
+  instagram.focus();
+  expect(instagram).toHaveFocus();
+  await user.click(instagram);
+  expect(screen.getByRole("status", { name: "مسیر جاری" })).toHaveTextContent(
+    "/",
+  );
+});
+
 test("presents ordered Popular Cities with Tehran as the only discovery action", async () => {
   const user = userEvent.setup();
   const queryClient = new QueryClient({
@@ -631,6 +682,36 @@ test("shows only domain-grounded trust claims and live catalog statistics", asyn
 
   expect(screen.queryByText("ملک‌های به‌روزشده در تهران")).toBeNull();
   expect(screen.queryByText("نمونه‌های تازه")).toBeNull();
+});
+
+test("keeps the final homepage sections in the agreed public order", () => {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  renderHomeShell(queryClient);
+
+  const main = screen.getByRole("main");
+  const orderedSections = [
+    within(main).getByRole("heading", {
+      name: "اجارهٔ ملک مسکونی و تجاری در تهران",
+    }),
+    within(main).getByRole("heading", { name: "شهرهای محبوب" }),
+    within(main).getByRole("heading", {
+      name: "چرا به اطلاعات اعتماد کنیم؟",
+    }),
+    within(main).getByRole("heading", { name: "آمار زندهٔ کاتالوگ" }),
+    within(main).getByRole("heading", { name: "پرسش‌های پرتکرار" }),
+  ];
+
+  for (const [index, section] of orderedSections.entries()) {
+    const nextSection = orderedSections[index + 1];
+    if (nextSection) {
+      expect(
+        section.compareDocumentPosition(nextSection) &
+          Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+    }
+  }
 });
 
 test("keeps live statistics honest while loading, unavailable, and empty", async () => {

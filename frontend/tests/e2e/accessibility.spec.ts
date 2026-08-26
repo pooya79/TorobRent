@@ -1,5 +1,5 @@
 import AxeBuilder from "@axe-core/playwright";
-import { expect, test } from "@playwright/test";
+import { expect, test, type Locator } from "@playwright/test";
 
 import {
   canonicalSurfaces,
@@ -7,8 +7,139 @@ import {
   loginDemoOperator,
 } from "./helpers/theme";
 
-const publicRoutes = ["/", "/search", "/guide", "/contact"] as const;
+const publicRoutes = [
+  "/",
+  "/search",
+  "/about",
+  "/guide",
+  "/contact",
+  "/privacy",
+  "/terms",
+  "/photo-credits",
+  "/advertise",
+] as const;
 const demoSeedAvailable = Boolean(process.env.E2E_SEED_DEMO);
+
+async function expectVisibleKeyboardFocus(locator: Locator) {
+  await expect(locator).toBeFocused();
+  const hasVisibleIndicator = await locator.evaluate((element) => {
+    const style = getComputedStyle(element);
+    return (
+      (style.outlineStyle !== "none" &&
+        Number.parseFloat(style.outlineWidth) > 0) ||
+      style.boxShadow !== "none"
+    );
+  });
+  expect(hasVisibleIndicator).toBe(true);
+}
+
+test("@a11y public home interactions are keyboard operable", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/");
+  await expect(page.getByText("سامانه در دسترس است")).toBeVisible();
+
+  const navigationTrigger = page.getByRole("button", {
+    name: "باز کردن فهرست راهبری",
+  });
+  await page.keyboard.press("Tab");
+  await expect(
+    page.getByRole("link", { name: "رفتن به محتوای اصلی" }),
+  ).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(page.getByRole("link", { name: "ترب‌رنت، خانه" })).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(
+    page.getByRole("combobox", { name: /پوستهٔ نمایش/ }),
+  ).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expectVisibleKeyboardFocus(navigationTrigger);
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("dialog")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(navigationTrigger).toBeFocused();
+
+  const cityInput = page.getByRole("combobox", { name: "شهر" });
+  await page.keyboard.press("Tab");
+  await expectVisibleKeyboardFocus(cityInput);
+  await expect(page.getByRole("option", { name: "تهران" })).toBeVisible();
+  await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("Enter");
+  await expect(cityInput).toHaveValue("تهران");
+
+  const propertyTypeTrigger = page.getByRole("button", { name: "همه ملک‌ها" });
+  await page.keyboard.press("Tab");
+  await expectVisibleKeyboardFocus(propertyTypeTrigger);
+  await page.keyboard.press("Enter");
+  const apartment = page.getByRole("checkbox", { name: "آپارتمان" });
+  await page.keyboard.press("Tab");
+  await expect(
+    page.getByRole("checkbox", { name: "همه ملک‌ها" }),
+  ).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(page.getByRole("checkbox", { name: "مسکونی" })).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expectVisibleKeyboardFocus(apartment);
+  await page.keyboard.press("Space");
+  await expect(apartment).toBeChecked();
+
+  const tehranLink = page.getByRole("link", {
+    name: "مشاهدهٔ ملک‌های تهران",
+  });
+  await tehranLink.focus();
+  await expectVisibleKeyboardFocus(tehranLink);
+  await expect(
+    page.getByRole("region", { name: "آمار زندهٔ کاتالوگ" }),
+  ).toBeVisible();
+
+  const firstQuestion = page.getByRole("button", {
+    name: "چطور ملک جست‌وجو کنم؟",
+  });
+  await firstQuestion.focus();
+  await expectVisibleKeyboardFocus(firstQuestion);
+  await page.keyboard.press("Enter");
+  await expect(firstQuestion).toHaveAttribute("aria-expanded", "true");
+  await expect(page.locator("#faq-answer-0")).toBeVisible();
+
+  await expect(
+    page.getByRole("status", { name: "وضعیت آمادگی سامانه" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("group", { name: "شبکه‌های اجتماعی — به‌زودی" }),
+  ).toBeVisible();
+  const instagram = page.getByRole("button", {
+    name: "Instagram — به‌زودی",
+  });
+  const currentUrl = page.url();
+  await instagram.focus();
+  await expectVisibleKeyboardFocus(instagram);
+  await page.keyboard.press("Enter");
+  await expect(instagram).toBeFocused();
+  await expect(page).toHaveURL(currentUrl);
+  await expect(instagram).toHaveAttribute("aria-disabled", "true");
+});
+
+test("@a11y authenticated account placeholders remain keyboard discoverable", async ({
+  page,
+}) => {
+  test.skip(!demoSeedAvailable, "account menu requires the demo catalog");
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await loginDemoOperator(page);
+  await page.goto("/");
+
+  const accountTrigger = page.getByRole("button", { name: "حساب کاربری" });
+  await accountTrigger.focus();
+  await page.keyboard.press("Enter");
+  const profile = page.getByRole("menuitem", { name: "نمایه — به‌زودی" });
+  await expect(profile).toBeFocused();
+  await expect(profile).toHaveAttribute("aria-disabled", "true");
+  const currentUrl = page.url();
+  await page.keyboard.press("Enter");
+  await expect(page).toHaveURL(currentUrl);
+  await page.keyboard.press("Escape");
+  await expect(accountTrigger).toBeFocused();
+});
 
 for (const viewport of [
   { name: "mobile", width: 390, height: 844 },

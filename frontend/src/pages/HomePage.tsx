@@ -224,14 +224,14 @@ function CatalogStatisticsSection() {
               ].map(([value, label]) => (
                 <div
                   key={label}
-                  className="border-border bg-card rounded-2xl border p-6 text-center"
+                  className="border-border bg-card flex flex-col rounded-2xl border p-6 text-center"
                 >
-                  <dd className="text-primary text-4xl font-semibold tabular-nums">
-                    {persianNumber.format(value as number)}
-                  </dd>
-                  <dt className="text-muted-foreground mt-2 text-sm">
+                  <dt className="text-muted-foreground order-2 mt-2 text-sm">
                     {label}
                   </dt>
+                  <dd className="text-primary order-1 text-4xl font-semibold tabular-nums">
+                    {persianNumber.format(value as number)}
+                  </dd>
                 </div>
               ))}
             </dl>
