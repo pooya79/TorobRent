@@ -1,86 +1,14 @@
 import type { SetURLSearchParams } from "react-router";
 
 import { Button } from "@/components/ui/button";
-import type { components } from "@/lib/api/schema";
 import { cn } from "@/lib/utils";
-import type { PropertyCategory, PropertyType } from "./property-taxonomy";
-
-export type CatalogFacetData = components["schemas"]["CatalogFacets"];
-
-export function propertyTypeFacetCounts(facets?: CatalogFacetData) {
-  return Object.fromEntries(
-    (facets?.property_types ?? []).map(({ value, count }) => [value, count]),
-  ) as Partial<Record<PropertyType, number>>;
-}
-
-const quickFilters = {
-  residential: [
-    {
-      parameter: "room_count",
-      value: "1",
-      label: "یک خوابه",
-      facet: "bedroom",
-    },
-    {
-      parameter: "room_count",
-      value: "2",
-      label: "دو خوابه",
-      facet: "bedroom",
-    },
-    {
-      parameter: "room_count",
-      value: "3_plus",
-      label: "سه خواب و بیشتر",
-      facet: "bedroom",
-    },
-    {
-      parameter: "parking",
-      value: "present",
-      label: "پارکینگ",
-      facet: "feature",
-    },
-    {
-      parameter: "elevator",
-      value: "present",
-      label: "آسانسور",
-      facet: "feature",
-    },
-    {
-      parameter: "furnished",
-      value: "present",
-      label: "مبله",
-      facet: "feature",
-    },
-  ],
-  commercial: [
-    {
-      parameter: "parking",
-      value: "present",
-      label: "پارکینگ",
-      facet: "feature",
-    },
-    {
-      parameter: "elevator",
-      value: "present",
-      label: "آسانسور",
-      facet: "feature",
-    },
-    {
-      parameter: "storage",
-      value: "present",
-      label: "انباری",
-      facet: "feature",
-    },
-  ],
-} as const satisfies Record<
-  PropertyCategory,
-  readonly {
-    parameter: "room_count" | "parking" | "elevator" | "storage" | "furnished";
-    value: string;
-    label: string;
-    facet: "bedroom" | "feature";
-  }[]
->;
+import {
+  BEDROOM_COUNT_PARAMETER,
+  LEGACY_BEDROOM_COUNT_PARAMETER,
+} from "./bedroom-filter";
+import type { CatalogFacetData } from "./facets";
+import type { PropertyCategory } from "./property-taxonomy";
+import { quickFilterOptions } from "./quick-filter-options";
 
 export function QuickFilters({
   category,
@@ -94,7 +22,7 @@ export function QuickFilters({
   setSearchParams: SetURLSearchParams;
 }) {
   const countFor = (
-    filter: (typeof quickFilters)[PropertyCategory][number],
+    filter: (typeof quickFilterOptions)[PropertyCategory][number],
   ) => {
     if (!facets) return undefined;
     if (filter.facet === "bedroom") {
@@ -109,8 +37,13 @@ export function QuickFilters({
   return (
     <fieldset className="mt-3 flex flex-wrap items-center gap-2">
       <legend className="sr-only">فیلترهای سریع</legend>
-      {quickFilters[category].map((filter) => {
-        const selected = searchParams.get(filter.parameter) === filter.value;
+      {quickFilterOptions[category].map((filter) => {
+        const selectedValue =
+          filter.parameter === BEDROOM_COUNT_PARAMETER
+            ? (searchParams.get(BEDROOM_COUNT_PARAMETER) ??
+              searchParams.get(LEGACY_BEDROOM_COUNT_PARAMETER))
+            : searchParams.get(filter.parameter);
+        const selected = selectedValue === filter.value;
         const count = countFor(filter);
         return (
           <Button
@@ -125,6 +58,9 @@ export function QuickFilters({
             disabled={!selected && count === 0}
             onClick={() => {
               const next = new URLSearchParams(searchParams);
+              if (filter.parameter === BEDROOM_COUNT_PARAMETER) {
+                next.delete(LEGACY_BEDROOM_COUNT_PARAMETER);
+              }
               if (selected) next.delete(filter.parameter);
               else next.set(filter.parameter, filter.value);
               next.delete("page");

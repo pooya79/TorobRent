@@ -3,7 +3,7 @@ import type { SetURLSearchParams } from "react-router";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import type { FilterName } from "./CatalogFilters";
+import { type CatalogFacetData, propertyTypeFacetCounts } from "./facets";
 import { PropertyTypeSelector } from "./PropertyTypeSelector";
 import {
   selectedPropertyCategory,
@@ -11,17 +11,8 @@ import {
 } from "./property-type-selection";
 import { propertyTypeGroups, type PropertyCategory } from "./property-taxonomy";
 import { SupportedCityCombobox } from "./SupportedCityCombobox";
-import {
-  type CatalogFacetData,
-  propertyTypeFacetCounts,
-  QuickFilters,
-} from "./QuickFilters";
-
-const categorySpecificFilters: Record<PropertyCategory, readonly FilterName[]> =
-  {
-    residential: ["room_count", "furnished"],
-    commercial: ["storage"],
-  };
+import { QuickFilters } from "./QuickFilters";
+import { categorySpecificQuickFilterParameters } from "./quick-filter-options";
 
 export function SearchToolbar({
   searchParams,
@@ -45,7 +36,9 @@ export function SearchToolbar({
     const next = new URLSearchParams(searchParams);
     next.set("property_category", nextCategory);
     next.delete("property_type");
-    for (const filter of categorySpecificFilters[category]) next.delete(filter);
+    for (const filter of categorySpecificQuickFilterParameters(category)) {
+      next.delete(filter);
+    }
     next.delete("page");
     setSearchParams(next);
   };

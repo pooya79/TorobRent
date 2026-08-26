@@ -441,6 +441,15 @@ paths:
           * `present` - present
           * `absent` - absent
       - in: query
+        name: bedroom_count
+        schema:
+          oneOf:
+          - type: integer
+            minimum: 0
+          - type: string
+            enum:
+            - 3_plus
+      - in: query
         name: deposit_max_toman
         schema:
           type: integer
@@ -559,6 +568,7 @@ paths:
           - type: string
             enum:
             - 3_plus
+        description: Deprecated alias for bedroom_count
       - in: query
         name: storage
         schema:

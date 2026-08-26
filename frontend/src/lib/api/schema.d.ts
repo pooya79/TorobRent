@@ -2532,6 +2532,7 @@ export interface operations {
          *     * `absent` - absent
          */
         balcony?: "present" | "absent";
+        bedroom_count?: number | "3_plus";
         deposit_max_toman?: number;
         deposit_min_toman?: number;
         /**
@@ -2574,6 +2575,7 @@ export interface operations {
           | "warehouse"
           | "workshop"
         )[];
+        /** @description Deprecated alias for bedroom_count */
         room_count?: number | "3_plus";
         /**
          * @description * `present` - present

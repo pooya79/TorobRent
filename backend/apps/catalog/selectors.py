@@ -1,6 +1,7 @@
 import re
 import uuid
 from dataclasses import dataclass, replace
+from enum import StrEnum
 from typing import Any, Literal, cast
 
 from django.db.models import CharField, Count, OuterRef, Q, QuerySet, Subquery, Value
@@ -51,7 +52,13 @@ class CatalogStatistics:
 
 
 type SearchOrdering = Literal["freshness", "monthly_rent", "deposit", "area"]
-type BedroomCountFilter = int | Literal["3_plus"]
+
+
+class BedroomCountRange(StrEnum):
+    THREE_OR_MORE = "3_plus"
+
+
+type BedroomCountFilter = int | BedroomCountRange
 
 
 @dataclass(frozen=True)
@@ -64,7 +71,7 @@ class PropertySearchFilters:
     monthly_rent_max_rial: int | None = None
     area_min: int | None = None
     area_max: int | None = None
-    room_count: BedroomCountFilter | None = None
+    bedroom_count: BedroomCountFilter | None = None
     property_types: tuple[PropertyType, ...] = ()
     parking: str | None = None
     elevator: str | None = None
@@ -223,10 +230,10 @@ def search_properties(filters: PropertySearchFilters | None = None) -> QuerySet[
     properties = properties.filter(**{
         lookup: value for lookup, value in property_filters.items() if value is not None
     })
-    if filters.room_count == "3_plus":
+    if filters.bedroom_count == BedroomCountRange.THREE_OR_MORE:
         properties = properties.filter(room_count__gte=3)
-    elif filters.room_count is not None:
-        properties = properties.filter(room_count=filters.room_count)
+    elif filters.bedroom_count is not None:
+        properties = properties.filter(room_count=filters.bedroom_count)
     if filters.property_types:
         properties = properties.filter(property_type__in=filters.property_types)
     elif filters.property_category is not None:
@@ -300,7 +307,7 @@ def catalog_facets(filters: PropertySearchFilters) -> dict[str, Any]:
 
     bedroom_counts: list[dict[str, Any]] = []
     if filters.property_category != PropertyCategory.COMMERCIAL:
-        bedroom_base = search_properties(replace(filters, room_count=None)).order_by()
+        bedroom_base = search_properties(replace(filters, bedroom_count=None)).order_by()
         grouped_bedrooms = bedroom_base.aggregate(
             one=Count("id", filter=Q(room_count=1)),
             two=Count("id", filter=Q(room_count=2)),
@@ -309,7 +316,10 @@ def catalog_facets(filters: PropertySearchFilters) -> dict[str, Any]:
         bedroom_counts = [
             {"value": "1", "count": grouped_bedrooms["one"]},
             {"value": "2", "count": grouped_bedrooms["two"]},
-            {"value": "3_plus", "count": grouped_bedrooms["three_plus"]},
+            {
+                "value": BedroomCountRange.THREE_OR_MORE.value,
+                "count": grouped_bedrooms["three_plus"],
+            },
         ]
 
     features: dict[str, dict[str, int]] = {}

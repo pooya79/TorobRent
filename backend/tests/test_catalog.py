@@ -183,6 +183,20 @@ def test_public_catalog_filters_by_property_category_and_rejects_incompatible_ty
     assert incompatible_response.status_code == 400
     assert "property_type" in incompatible_response.data["errors"]
 
+    commercial_bedroom_response = api_client.get(
+        "/api/v1/catalog/properties/",
+        {"property_category": "commercial", "bedroom_count": 2},
+    )
+    assert commercial_bedroom_response.status_code == 400
+    assert "bedroom_count" in commercial_bedroom_response.data["errors"]
+
+    inferred_commercial_bedroom_response = api_client.get(
+        "/api/v1/catalog/properties/",
+        {"property_type": "office", "bedroom_count": 2},
+    )
+    assert inferred_commercial_bedroom_response.status_code == 400
+    assert "bedroom_count" in inferred_commercial_bedroom_response.data["errors"]
+
 
 @pytest.mark.django_db
 def test_public_catalog_exposes_self_excluding_property_and_quick_filter_facets(
@@ -257,7 +271,7 @@ def test_public_catalog_exposes_self_excluding_property_and_quick_filter_facets(
             "property_category": "residential",
             "property_type": "apartment",
             "parking": "present",
-            "room_count": "3_plus",
+            "bedroom_count": "3_plus",
         },
     )
 

@@ -98,7 +98,7 @@ test("switching Property Category clears incompatible state and preserves shared
     }),
   );
   renderResults(
-    "/search?location=تهران&location_label=تهران&property_category=residential&property_type=apartment&room_count=2&area_min=60&parking=present&furnished=present&page=2",
+    "/search?location=تهران&location_label=تهران&property_category=residential&property_type=apartment&bedroom_count=2&area_min=60&parking=present&furnished=present&page=2",
   );
 
   const toolbar = screen.getByRole("search", { name: "نوار جست‌وجوی ملک" });
@@ -106,7 +106,7 @@ test("switching Property Category clears incompatible state and preserves shared
 
   expect(requestedParams.get("property_category")).toBe("commercial");
   expect(requestedParams.has("property_type")).toBe(false);
-  expect(requestedParams.has("room_count")).toBe(false);
+  expect(requestedParams.has("bedroom_count")).toBe(false);
   expect(requestedParams.has("furnished")).toBe(false);
   expect(requestedParams.has("page")).toBe(false);
   expect(requestedParams.get("area_min")).toBe("60");
@@ -174,11 +174,13 @@ test("applies Residential Quick Filters immediately and exposes them as removabl
     within(toolbar).getByRole("button", { name: /سه خواب و بیشتر/ }),
   );
   expect(screen.getByLabelText("وضعیت جست‌وجو")).toHaveTextContent(
-    "room_count=3_plus",
+    "bedroom_count=3_plus",
   );
-  await waitFor(() => expect(requestedParams.get("room_count")).toBe("3_plus"));
+  await waitFor(() =>
+    expect(requestedParams.get("bedroom_count")).toBe("3_plus"),
+  );
   const chip = await screen.findByRole("button", {
-    name: "حذف فیلتر تعداد اتاق",
+    name: "حذف فیلتر تعداد اتاق خواب",
   });
   expect(chip).toHaveTextContent("سه خواب و بیشتر");
   expect(
@@ -186,7 +188,7 @@ test("applies Residential Quick Filters immediately and exposes them as removabl
   ).toBeVisible();
   await user.click(chip);
   expect(screen.getByLabelText("وضعیت جست‌وجو")).not.toHaveTextContent(
-    "room_count",
+    "bedroom_count",
   );
 });
 
@@ -225,6 +227,36 @@ test("shows Commercial Quick Filters without Bedroom Count choices", async () =>
   expect(
     within(toolbar).getByRole("checkbox", { name: "مغازه" }),
   ).toBeDisabled();
+});
+
+test("keeps legacy Bedroom Count URLs working during the API migration", async () => {
+  const user = userEvent.setup();
+  let requestedParams = new URLSearchParams();
+  server.use(
+    http.get("*/api/v1/catalog/properties/", ({ request }) => {
+      requestedParams = new URL(request.url).searchParams;
+      return HttpResponse.json(propertySearchPage);
+    }),
+  );
+
+  renderResults("/search?room_count=3_plus");
+
+  expect(
+    await screen.findByRole("button", {
+      name: "حذف فیلتر تعداد اتاق خواب",
+    }),
+  ).toHaveTextContent("سه خواب و بیشتر");
+  expect(requestedParams.get("room_count")).toBe("3_plus");
+
+  const toolbar = screen.getByRole("search", { name: "نوار جست‌وجوی ملک" });
+  const quickFilter = within(toolbar).getByRole("button", {
+    name: /سه خواب و بیشتر/,
+  });
+  expect(quickFilter).toHaveAttribute("aria-pressed", "true");
+  await user.click(quickFilter);
+  expect(screen.getByLabelText("وضعیت جست‌وجو")).not.toHaveTextContent(
+    /(?:bedroom|room)_count/,
+  );
 });
 
 test("finds every upcoming city as a disabled Coming soon option", async () => {
@@ -455,7 +487,7 @@ test("applies every filter with tolerant numeric entry and exposes removable chi
     name: "فیلترهای جست‌وجو",
   });
   await user.type(within(filters).getByLabelText("حداقل ودیعه"), "۵۰۰٬۰۰۰٬۰۰۰");
-  await user.type(within(filters).getByLabelText("تعداد اتاق"), "۲");
+  await user.type(within(filters).getByLabelText("تعداد اتاق خواب"), "۲");
   await user.click(within(filters).getByRole("button", { name: "همه نوع‌ها" }));
   await user.click(within(filters).getByRole("checkbox", { name: "آپارتمان" }));
   await user.selectOptions(
@@ -467,7 +499,7 @@ test("applies every filter with tolerant numeric entry and exposes removable chi
   );
 
   expect(requestedParams.get("deposit_min_toman")).toBe("500000000");
-  expect(requestedParams.get("room_count")).toBe("2");
+  expect(requestedParams.get("bedroom_count")).toBe("2");
   expect(requestedParams.get("property_type")).toBe("apartment");
   expect(requestedParams.get("parking")).toBe("present");
   expect(requestedParams.has("page")).toBe(false);

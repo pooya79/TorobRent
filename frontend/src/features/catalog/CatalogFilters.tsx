@@ -5,6 +5,11 @@ import type { SetURLSearchParams } from "react-router";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  BEDROOM_COUNT_PARAMETER,
+  bedroomCountQuickFilterLabels,
+  LEGACY_BEDROOM_COUNT_PARAMETER,
+} from "./bedroom-filter";
 import { normalizeNumericEntry, persianDigits } from "./numeric-entry";
 import { propertyTypeLabels } from "./property-taxonomy";
 import {
@@ -12,7 +17,7 @@ import {
   selectedPropertyTypesForCategory,
 } from "./property-type-selection";
 import { PropertyTypeSelector } from "./PropertyTypeSelector";
-import { type CatalogFacetData, propertyTypeFacetCounts } from "./QuickFilters";
+import { type CatalogFacetData, propertyTypeFacetCounts } from "./facets";
 
 export const filterLabels = {
   deposit_min_toman: "حداقل ودیعه",
@@ -21,7 +26,8 @@ export const filterLabels = {
   monthly_rent_max_toman: "حداکثر اجاره ماهانه",
   area_min: "حداقل متراژ",
   area_max: "حداکثر متراژ",
-  room_count: "تعداد اتاق",
+  bedroom_count: "تعداد اتاق خواب",
+  room_count: "تعداد اتاق خواب",
   property_type: "نوع ملک",
   parking: "پارکینگ",
   elevator: "آسانسور",
@@ -36,9 +42,7 @@ export const filterChoiceLabels = {
   ...propertyTypeLabels,
   present: "دارد",
   absent: "ندارد",
-  "1": "یک خوابه",
-  "2": "دو خوابه",
-  "3_plus": "سه خواب و بیشتر",
+  ...bedroomCountQuickFilterLabels,
 } as const;
 
 const featureOptions = [
@@ -53,7 +57,7 @@ const numericFilters = new Set<FilterName>([
   "monthly_rent_max_toman",
   "area_min",
   "area_max",
-  "room_count",
+  "bedroom_count",
 ]);
 
 const selectClassName =
@@ -189,17 +193,22 @@ export function CatalogFilters({
         maximum="area_max"
       />
       <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-2">
-          <Label htmlFor={`${prefix}-room_count`}>
-            {filterLabels.room_count}
-          </Label>
-          <Input
-            id={`${prefix}-room_count`}
-            name="room_count"
-            inputMode="numeric"
-            defaultValue={persianDigits(searchParams.get("room_count"))}
-          />
-        </div>
+        {propertyCategory === "residential" && (
+          <div className="space-y-2">
+            <Label htmlFor={`${prefix}-bedroom_count`}>
+              {filterLabels.bedroom_count}
+            </Label>
+            <Input
+              id={`${prefix}-bedroom_count`}
+              name="bedroom_count"
+              inputMode="numeric"
+              defaultValue={persianDigits(
+                searchParams.get(BEDROOM_COUNT_PARAMETER) ??
+                  searchParams.get(LEGACY_BEDROOM_COUNT_PARAMETER),
+              )}
+            />
+          </div>
+        )}
         <div className="space-y-2">
           <Label>{filterLabels.property_type}</Label>
           <PropertyTypeSelector
