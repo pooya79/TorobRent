@@ -12,6 +12,7 @@ import { PropertyCard } from "@/components/properties/PropertyCard";
 import { Button } from "@/components/ui/button";
 import { prototypeRepository } from "@/features/prototype/fixtures";
 import { PropertyTypeSelector } from "@/features/catalog/PropertyTypeSelector";
+import { PopularCities } from "@/features/cities/PopularCities";
 import {
   SupportedCityCombobox,
   type SelectedSupportedCity,
@@ -102,6 +103,8 @@ export function HomePage() {
           </form>
         </div>
       </section>
+
+      <PopularCities />
 
       <section
         className="bg-muted/70 border-border border-y"

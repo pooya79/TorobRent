@@ -487,6 +487,12 @@ export function ProductShell({ children }: { children: ReactNode }) {
               >
                 شرایط استفاده
               </NavLink>
+              <NavLink
+                className="inline-flex min-h-11 items-center"
+                to="/photo-credits"
+              >
+                اعتبار عکس‌ها
+              </NavLink>
             </div>
           </div>
           <div

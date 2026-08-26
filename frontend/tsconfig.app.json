@@ -22,5 +22,5 @@
     "types": ["vite/client", "vitest/globals", "@testing-library/jest-dom"],
     "rootDirs": [".", "./.react-router/types"]
   },
-  "include": ["src", "tests", ".react-router/types/**/*"]
+  "include": ["src", "tests", "scripts", ".react-router/types/**/*"]
 }

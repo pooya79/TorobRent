@@ -75,8 +75,75 @@ test("presents the anonymous public navbar and real advertisement introduction",
     within(navbar).getByRole("combobox", { name: /پوستهٔ نمایش/ }),
   ).toBeVisible();
   expect(within(navbar).queryByText("آگهی‌های من")).not.toBeInTheDocument();
+  expect(
+    within(screen.getByRole("contentinfo")).getByRole("link", {
+      name: "اعتبار عکس‌ها",
+    }),
+  ).toHaveAttribute("href", "/photo-credits");
 
   expect(await screen.findByText("سامانه در دسترس است")).toBeVisible();
+});
+
+test("presents ordered Popular Cities with Tehran as the only discovery action", async () => {
+  const user = userEvent.setup();
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  render(
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter initialEntries={["/"]}>
+        <>
+          <HomePage />
+          <ShellLocationProbe />
+        </>
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+
+  const gallery = screen.getByRole("region", { name: "شهرهای محبوب" });
+  const cards = within(gallery).getAllByRole("article");
+  const cityNames = [
+    "تهران",
+    "اصفهان",
+    "مشهد",
+    "شیراز",
+    "تبریز",
+    "قم",
+    "اهواز",
+    "رشت",
+    "کرمانشاه",
+    "یزد",
+  ];
+
+  expect(cards).toHaveLength(cityNames.length);
+  expect(
+    cards.map((card) => within(card).getByRole("heading").textContent),
+  ).toEqual(cityNames);
+  const tehranLink = within(cards[0]!).getByRole("link", {
+    name: /مشاهدهٔ ملک‌های تهران/,
+  });
+  expect(tehranLink).toHaveAttribute(
+    "href",
+    "/search?location=%D8%AA%D9%87%D8%B1%D8%A7%D9%86&location_label=%D8%AA%D9%87%D8%B1%D8%A7%D9%86",
+  );
+
+  for (const [index, cityName] of cityNames.entries()) {
+    expect(
+      within(cards[index]!).getByRole("img", {
+        name: new RegExp(cityName),
+      }),
+    ).toBeVisible();
+    if (index > 0) {
+      expect(within(cards[index]!).getByText("به‌زودی")).toBeVisible();
+      expect(within(cards[index]!).queryByRole("link")).toBeNull();
+      expect(cards[index]).not.toHaveTextContent(/[\d۰-۹]/);
+    }
+  }
+
+  await user.click(tehranLink);
+  expect(screen.getByRole("status", { name: "مسیر جاری" })).toHaveTextContent(
+    "/search",
+  );
 });
 
 test("closes the mobile navigation after choosing the advertisement introduction", async () => {
