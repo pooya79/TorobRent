@@ -187,6 +187,7 @@ class PropertySummarySerializer(serializers.Serializer[Any]):
     room_count = OmitNullIntegerField(required=False)
     construction_year = serializers.IntegerField(allow_null=True)
     listing_count = serializers.IntegerField()
+    is_favorite = serializers.BooleanField(required=False)
     rental_terms = serializers.SerializerMethodField()
     availability_confirmed_at = serializers.DateTimeField(
         source="selected_availability_confirmed_at"

@@ -1,6 +1,7 @@
 import uuid
 from typing import ClassVar
 
+from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models import Q
@@ -238,6 +239,33 @@ class Property(models.Model):
     @property
     def canonical_slug(self) -> str:
         return slugify(self.title, allow_unicode=True)
+
+
+class Favorite(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    account = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="favorites",
+    )
+    property = models.ForeignKey(
+        Property,
+        on_delete=models.CASCADE,
+        related_name="favorites",
+    )
+    saved_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ("-saved_at", "id")
+        constraints = [
+            models.UniqueConstraint(
+                fields=("account", "property"),
+                name="catalog_unique_favorite_per_account_property",
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.account_id}: {self.property_id}"
 
 
 class RentalTerms(models.Model):

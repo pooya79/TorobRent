@@ -607,6 +607,41 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: No Property with an Active Listing was found
+  /api/v1/catalog/properties/{property_id}/favorite/:
+    put:
+      operationId: v1_catalog_properties_favorite_update
+      summary: Save an active Property as a Favorite
+      parameters:
+      - in: path
+        name: property_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
+    delete:
+      operationId: v1_catalog_properties_favorite_destroy
+      summary: Remove an active Property from Favorites
+      parameters:
+      - in: path
+        name: property_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
   /api/v1/catalog/properties/{property_id}/view/:
     post:
       operationId: v1_catalog_properties_view_create
@@ -2899,6 +2934,8 @@ components:
           - 'null'
         listing_count:
           type: integer
+        is_favorite:
+          type: boolean
         rental_terms:
           allOf:
           - $ref: '#/components/schemas/RentalTermsPublic'

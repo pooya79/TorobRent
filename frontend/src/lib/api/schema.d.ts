@@ -225,6 +225,24 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/v1/catalog/properties/{property_id}/favorite/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /** Save an active Property as a Favorite */
+    put: operations["v1_catalog_properties_favorite_update"];
+    post?: never;
+    /** Remove an active Property from Favorites */
+    delete: operations["v1_catalog_properties_favorite_destroy"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/v1/catalog/properties/{property_id}/view/": {
     parameters: {
       query?: never;
@@ -1385,6 +1403,7 @@ export interface components {
       room_count?: number;
       construction_year: number | null;
       listing_count: number;
+      is_favorite?: boolean;
       readonly rental_terms: components["schemas"]["RentalTermsPublic"];
       /** Format: date-time */
       availability_confirmed_at: string;
@@ -2610,6 +2629,46 @@ export interface operations {
         content: {
           "application/problem+json": components["schemas"]["Problem"];
         };
+      };
+    };
+  };
+  v1_catalog_properties_favorite_update: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        property_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description No response body */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  v1_catalog_properties_favorite_destroy: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        property_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description No response body */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
       };
     };
   };

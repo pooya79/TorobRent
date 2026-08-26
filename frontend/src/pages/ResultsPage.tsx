@@ -138,6 +138,7 @@ function toCardData(
       property.location.city,
     ].join("، "),
     facts,
+    isFavorite: property.is_favorite ?? false,
     listingCountLabel: `${formatNumber(property.listing_count)} آگهی فعال`,
     rentalTerms: {
       depositLabel: `${formatNumber(property.rental_terms.deposit_toman)} تومان`,

@@ -85,6 +85,9 @@ function AccessForm({
       await queryClient.invalidateQueries({ queryKey: ["session"] });
       await queryClient.fetchQuery(sessionQuery);
       void queryClient.invalidateQueries({ queryKey: ["current-user"] });
+      await queryClient.invalidateQueries({
+        queryKey: ["catalog", "properties"],
+      });
       onAuthenticated(user);
     },
   });

@@ -46,6 +46,7 @@ import { cn } from "@/lib/utils";
 import type { components } from "@/lib/api/schema";
 
 type CurrentUser = components["schemas"]["CurrentUser"];
+type PropertySearchPage = components["schemas"]["PaginatedPropertySummaryList"];
 
 const navigation = [
   { label: "خانه", to: "/", icon: Home },
@@ -425,9 +426,25 @@ export function ProductShell({ children }: { children: ReactNode }) {
     },
     onSuccess: () => {
       queryClient.removeQueries({ queryKey: ["current-user"] });
+      queryClient.setQueriesData<PropertySearchPage>(
+        { queryKey: ["catalog", "properties"] },
+        (page) =>
+          page
+            ? {
+                ...page,
+                results: page.results.map((property) => ({
+                  ...property,
+                  is_favorite: false,
+                })),
+              }
+            : page,
+      );
       queryClient.setQueryData(["session"], (current: typeof session.data) =>
         current ? { ...current, authenticated: false } : current,
       );
+      void queryClient.invalidateQueries({
+        queryKey: ["catalog", "properties"],
+      });
     },
   });
   const health = useQuery({
