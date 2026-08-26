@@ -139,7 +139,13 @@ export function createFakeMapAdapter({
           <button
             key={cluster.id}
             type="button"
-            onClick={() => onSelectCluster(cluster.id)}
+            onClick={() => {
+              onSelectCluster(cluster.id);
+              onViewportChange({
+                ...initialViewport,
+                zoom: initialViewport.zoom + 2,
+              });
+            }}
           >
             خوشه {formatNumber(cluster.propertyCount)} ملک
           </button>

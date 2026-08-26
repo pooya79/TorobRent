@@ -1,3 +1,4 @@
+from decimal import Decimal
 from typing import Any, cast
 
 from drf_spectacular.utils import extend_schema_field, extend_schema_serializer
@@ -14,7 +15,12 @@ from .models import (
     property_category_for_type,
 )
 from .money import parse_localized_integer, rial_to_toman, toman_to_rial
-from .selectors import BedroomCountRange, PropertySearchFilters, SearchOrdering
+from .selectors import (
+    BedroomCountRange,
+    MapViewportBounds,
+    PropertySearchFilters,
+    SearchOrdering,
+)
 
 
 class LocationSerializer(serializers.Serializer[Any]):
@@ -155,6 +161,35 @@ class PropertySearchQuerySerializer(serializers.Serializer[Any]):
         required=False, choices=("freshness", "monthly_rent", "deposit", "area")
     )
     page = LocalizedIntegerField(required=False, min_value=1)
+    viewport_north = serializers.DecimalField(
+        required=False,
+        max_digits=9,
+        decimal_places=6,
+        min_value=Decimal("-90"),
+        max_value=Decimal("90"),
+    )
+    viewport_east = serializers.DecimalField(
+        required=False,
+        max_digits=9,
+        decimal_places=6,
+        min_value=Decimal("-180"),
+        max_value=Decimal("180"),
+    )
+    viewport_south = serializers.DecimalField(
+        required=False,
+        max_digits=9,
+        decimal_places=6,
+        min_value=Decimal("-90"),
+        max_value=Decimal("90"),
+    )
+    viewport_west = serializers.DecimalField(
+        required=False,
+        max_digits=9,
+        decimal_places=6,
+        min_value=Decimal("-180"),
+        max_value=Decimal("180"),
+    )
+    viewport_zoom = LocalizedIntegerField(required=False, min_value=0, max_value=22)
 
     def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
         ranges = (
@@ -165,6 +200,30 @@ class PropertySearchQuerySerializer(serializers.Serializer[Any]):
         for minimum, maximum in ranges:
             if minimum in attrs and maximum in attrs and attrs[minimum] > attrs[maximum]:
                 raise serializers.ValidationError({maximum: "باید بزرگ‌تر یا مساوی حداقل باشد."})
+        viewport_fields = (
+            "viewport_north",
+            "viewport_east",
+            "viewport_south",
+            "viewport_west",
+        )
+        present_viewport_fields = [field for field in viewport_fields if field in attrs]
+        if present_viewport_fields and len(present_viewport_fields) != len(viewport_fields):
+            raise serializers.ValidationError({
+                "viewport_north": "هر چهار مرز محدوده نقشه باید ارسال شوند."
+            })
+        if "viewport_zoom" in attrs and not present_viewport_fields:
+            raise serializers.ValidationError({
+                "viewport_zoom": "بزرگ‌نمایی فقط همراه محدوده نقشه معتبر است."
+            })
+        if len(present_viewport_fields) == len(viewport_fields):
+            if attrs["viewport_south"] >= attrs["viewport_north"]:
+                raise serializers.ValidationError({
+                    "viewport_north": "مرز شمالی باید بالاتر از مرز جنوبی باشد."
+                })
+            if attrs["viewport_west"] >= attrs["viewport_east"]:
+                raise serializers.ValidationError({
+                    "viewport_east": "مرز شرقی باید بعد از مرز غربی باشد."
+                })
         category = attrs.get("property_category")
         if "bedroom_count" in attrs and "room_count" in attrs:
             raise serializers.ValidationError({
@@ -197,6 +256,15 @@ class PropertySearchQuerySerializer(serializers.Serializer[Any]):
 
     def validated_filters(self) -> PropertySearchFilters:
         data = self.validated_data
+        viewport = None
+        if "viewport_north" in data:
+            viewport = MapViewportBounds(
+                north=data["viewport_north"],
+                east=data["viewport_east"],
+                south=data["viewport_south"],
+                west=data["viewport_west"],
+                zoom=data.get("viewport_zoom", 11),
+            )
         return PropertySearchFilters(
             location=data.get("location", ""),
             property_category=(
@@ -218,6 +286,7 @@ class PropertySearchQuerySerializer(serializers.Serializer[Any]):
             balcony=data.get("balcony"),
             furnished=data.get("furnished"),
             ordering=cast(SearchOrdering, data.get("ordering", "freshness")),
+            viewport=viewport,
         )
 
 
@@ -317,6 +386,21 @@ class CatalogFacetsSerializer(serializers.Serializer[Any]):
     features = FeatureFacetsSerializer()
 
 
+class MapClusterSerializer(serializers.Serializer[Any]):
+    id = serializers.CharField()
+    latitude = serializers.DecimalField(max_digits=9, decimal_places=6)
+    longitude = serializers.DecimalField(max_digits=9, decimal_places=6)
+    property_count = serializers.IntegerField(min_value=2)
+    property_ids = serializers.ListField(child=serializers.UUIDField())
+
+
+class CatalogMapSerializer(serializers.Serializer[Any]):
+    property_count = serializers.IntegerField(min_value=0)
+    mappable_property_count = serializers.IntegerField(min_value=0)
+    clusters = MapClusterSerializer(many=True)
+    markers = PropertySummarySerializer(many=True)
+
+
 @extend_schema_serializer(many=False)
 class PropertySearchPageSerializer(serializers.Serializer[Any]):
     count = serializers.IntegerField(min_value=0)
@@ -324,6 +408,7 @@ class PropertySearchPageSerializer(serializers.Serializer[Any]):
     previous = serializers.URLField(allow_null=True)
     results = PropertySummarySerializer(many=True)
     facets = CatalogFacetsSerializer()
+    map = CatalogMapSerializer()
 
 
 class ListingPublicSerializer(serializers.Serializer[Any]):

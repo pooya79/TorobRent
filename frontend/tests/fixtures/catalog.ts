@@ -137,6 +137,12 @@ export const propertySearchPage: components["schemas"]["PropertySearchPage"] = {
   next: null,
   previous: null,
   facets: residentialFacets,
+  map: {
+    property_count: 1,
+    mappable_property_count: 1,
+    clusters: [],
+    markers: [],
+  },
   results: [
     {
       id: propertyDetail.id,
@@ -159,6 +165,7 @@ export const propertySearchPage: components["schemas"]["PropertySearchPage"] = {
     },
   ],
 };
+propertySearchPage.map.markers.push(propertySearchPage.results[0]!);
 
 export const officePropertyDetail: components["schemas"]["PropertyDetail"] = {
   ...propertyDetail,
@@ -182,6 +189,12 @@ export const officePropertySearchPage: components["schemas"]["PropertySearchPage
     next: null,
     previous: null,
     facets: commercialFacets,
+    map: {
+      property_count: 1,
+      mappable_property_count: 1,
+      clusters: [],
+      markers: [],
+    },
     results: [
       {
         id: officePropertyDetail.id,
@@ -204,3 +217,4 @@ export const officePropertySearchPage: components["schemas"]["PropertySearchPage
       },
     ],
   };
+officePropertySearchPage.map.markers.push(officePropertySearchPage.results[0]!);

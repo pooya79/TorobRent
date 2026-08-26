@@ -11,7 +11,7 @@ import {
   type MapViewport,
 } from "./adapter";
 
-const tehranViewport: MapViewport = {
+export const tehranViewport: MapViewport = {
   north: 35.82,
   east: 51.52,
   south: 35.65,

@@ -1,4 +1,6 @@
 import uuid
+from collections import defaultdict
+from decimal import ROUND_FLOOR, Decimal
 from typing import cast
 
 from django.db.models import F, QuerySet
@@ -30,6 +32,7 @@ from .selectors import (
 )
 from .serializers import (
     CatalogFacetsSerializer,
+    CatalogMapSerializer,
     CatalogStatisticsSerializer,
     EventSessionSerializer,
     ExternalContinuationSerializer,
@@ -51,6 +54,62 @@ EVENT_SESSION_PARAMETER = OpenApiParameter(
     required=True,
     description="Ephemeral per-tab token used only for short-lived deduplication and rate control",
 )
+
+
+def catalog_map_payload(
+    properties: list[Property], *, property_count: int, zoom: int
+) -> dict[str, object]:
+    markers = properties
+    clusters: list[dict[str, object]] = []
+    if zoom <= 13:
+        cell_sizes = {
+            10: Decimal("0.2"),
+            11: Decimal("0.1"),
+            12: Decimal("0.05"),
+            13: Decimal("0.025"),
+        }
+        cell_size = cell_sizes.get(zoom, Decimal("0.4"))
+        cells: dict[tuple[int, int], list[Property]] = defaultdict(list)
+        for property_ in properties:
+            latitude = property_.approximate_latitude
+            longitude = property_.approximate_longitude
+            if latitude is None or longitude is None:
+                continue
+            cell = (
+                int((latitude / cell_size).to_integral_value(rounding=ROUND_FLOOR)),
+                int((longitude / cell_size).to_integral_value(rounding=ROUND_FLOOR)),
+            )
+            cells[cell].append(property_)
+        clustered_ids: set[uuid.UUID] = set()
+        for cell, cell_properties in sorted(cells.items()):
+            if len(cell_properties) < 2:
+                continue
+            property_ids = [property_.id for property_ in cell_properties]
+            latitudes = [
+                property_.approximate_latitude
+                for property_ in cell_properties
+                if property_.approximate_latitude is not None
+            ]
+            longitudes = [
+                property_.approximate_longitude
+                for property_ in cell_properties
+                if property_.approximate_longitude is not None
+            ]
+            clustered_ids.update(property_ids)
+            clusters.append({
+                "id": f"{zoom}:{cell[0]}:{cell[1]}",
+                "latitude": sum(latitudes, start=Decimal()) / len(cell_properties),
+                "longitude": sum(longitudes, start=Decimal()) / len(cell_properties),
+                "property_count": len(cell_properties),
+                "property_ids": property_ids,
+            })
+        markers = [property_ for property_ in properties if property_.id not in clustered_ids]
+    return {
+        "property_count": property_count,
+        "mappable_property_count": len(properties),
+        "clusters": clusters,
+        "markers": markers,
+    }
 
 
 def event_session(request: Request) -> uuid.UUID:
@@ -132,6 +191,20 @@ class PropertySearchView(ListAPIView[Property]):
             raise RuntimeError("Catalog search pagination must be configured")
         response = self.get_paginated_response(self.get_serializer(page, many=True).data)
         response.data["facets"] = CatalogFacetsSerializer(catalog_facets(filters)).data
+        mappable_properties = list(
+            search_properties(filters, favorite_account_id=account_id).filter(
+                approximate_latitude__isnull=False,
+                approximate_longitude__isnull=False,
+            )
+        )
+        zoom = filters.viewport.zoom if filters.viewport is not None else 11
+        response.data["map"] = CatalogMapSerializer(
+            catalog_map_payload(
+                mappable_properties,
+                property_count=response.data["count"],
+                zoom=zoom,
+            )
+        ).data
         return response
 
     def get_queryset(self) -> QuerySet[Property]:

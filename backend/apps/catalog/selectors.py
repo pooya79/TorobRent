@@ -1,6 +1,7 @@
 import re
 import uuid
 from dataclasses import dataclass, replace
+from decimal import Decimal
 from enum import StrEnum
 from typing import Any, Literal, cast
 
@@ -63,6 +64,15 @@ type BedroomCountFilter = int | BedroomCountRange
 
 
 @dataclass(frozen=True)
+class MapViewportBounds:
+    north: Decimal
+    east: Decimal
+    south: Decimal
+    west: Decimal
+    zoom: int = 11
+
+
+@dataclass(frozen=True)
 class PropertySearchFilters:
     location: str = ""
     property_category: PropertyCategory | None = None
@@ -80,6 +90,7 @@ class PropertySearchFilters:
     balcony: str | None = None
     furnished: str | None = None
     ordering: SearchOrdering = "freshness"
+    viewport: MapViewportBounds | None = None
 
 
 def normalize_persian_search(value: str) -> str:
@@ -255,6 +266,15 @@ def search_properties(
             property_type__in=PROPERTY_TYPES_BY_CATEGORY[filters.property_category]
         )
 
+    if filters.viewport is not None:
+        viewport = filters.viewport
+        properties = properties.filter(
+            approximate_latitude__gte=viewport.south,
+            approximate_latitude__lte=viewport.north,
+            approximate_longitude__gte=viewport.west,
+            approximate_longitude__lte=viewport.east,
+        )
+
     location = filters.location.strip()
     if location:
         try:
@@ -337,14 +357,30 @@ def catalog_facets(filters: PropertySearchFilters) -> dict[str, Any]:
         ]
 
     features: dict[str, dict[str, int]] = {}
-    for feature in FACET_FEATURES:
-        feature_base = search_properties(_without_feature_filter(filters, feature)).order_by()
-        counts = feature_base.aggregate(
-            present=Count("id", filter=Q(**{feature: "present"})),
-            absent=Count("id", filter=Q(**{feature: "absent"})),
-            unknown=Count("id", filter=Q(**{feature: "unknown"})),
-        )
-        features[feature] = counts
+    if all(getattr(filters, feature) is None for feature in FACET_FEATURES):
+        feature_base = search_properties(filters).order_by()
+        aggregate_fields = {
+            f"{feature}_{state}": Count("id", filter=Q(**{feature: state}))
+            for feature in FACET_FEATURES
+            for state in ("present", "absent", "unknown")
+        }
+        combined_counts = feature_base.aggregate(**aggregate_fields)
+        features = {
+            feature: {
+                state: combined_counts[f"{feature}_{state}"]
+                for state in ("present", "absent", "unknown")
+            }
+            for feature in FACET_FEATURES
+        }
+    else:
+        for feature in FACET_FEATURES:
+            feature_base = search_properties(_without_feature_filter(filters, feature)).order_by()
+            counts = feature_base.aggregate(
+                present=Count("id", filter=Q(**{feature: "present"})),
+                absent=Count("id", filter=Q(**{feature: "absent"})),
+                unknown=Count("id", filter=Q(**{feature: "unknown"})),
+            )
+            features[feature] = counts
 
     return {
         "property_types": [

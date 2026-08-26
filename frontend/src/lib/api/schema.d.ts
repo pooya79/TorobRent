@@ -967,6 +967,12 @@ export interface components {
       bedroom_counts: components["schemas"]["FacetCount"][];
       features: components["schemas"]["FeatureFacets"];
     };
+    CatalogMap: {
+      property_count: number;
+      mappable_property_count: number;
+      clusters: components["schemas"]["MapCluster"][];
+      markers: components["schemas"]["PropertySummary"][];
+    };
     CatalogStatistics: {
       searchable_property_count: number;
       active_listing_count: number;
@@ -1212,6 +1218,15 @@ export interface components {
       email: string;
       password: string;
     };
+    MapCluster: {
+      id: string;
+      /** Format: decimal */
+      latitude: string;
+      /** Format: decimal */
+      longitude: string;
+      property_count: number;
+      property_ids: string[];
+    };
     NormalizedCorrectionsAudit: {
       property?: components["schemas"]["AuditedNormalizedProperty"];
       source_metadata?: components["schemas"]["AuditedSourceMetadata"];
@@ -1426,6 +1441,7 @@ export interface components {
       previous: string | null;
       results: components["schemas"]["PropertySummary"][];
       facets: components["schemas"]["CatalogFacets"];
+      map: components["schemas"]["CatalogMap"];
     };
     PropertySummary: {
       /** Format: uuid */
@@ -2627,6 +2643,11 @@ export interface operations {
          *     * `absent` - absent
          */
         storage?: "present" | "absent";
+        viewport_east?: string;
+        viewport_north?: string;
+        viewport_south?: string;
+        viewport_west?: string;
+        viewport_zoom?: number;
       };
       header?: never;
       path?: never;

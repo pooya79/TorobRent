@@ -189,7 +189,7 @@ test("@milestone Operator publishes a curated Property that a Renter opens throu
   });
   await expect(desktopFilters).toBeVisible();
   await desktopFilters.getByLabel("پارکینگ").selectOption("present");
-  await desktopFilters.getByRole("button", { name: "اعمال فیلترها" }).click();
+  await desktopFilters.getByRole("button", { name: /نمایش .* ملک/ }).click();
   await expect(page).toHaveURL(/parking=present/);
   const filteredResultsUrl = page.url();
   await page.getByRole("link", { name: "دفتر اداری در سعادت‌آباد" }).click();
@@ -205,7 +205,7 @@ test("@milestone Operator publishes a curated Property that a Renter opens throu
   await expect(desktopFilters.getByLabel("پارکینگ")).toHaveValue("present");
 
   await desktopFilters.getByLabel("حداکثر متراژ").fill("۱۰۰");
-  await desktopFilters.getByRole("button", { name: "اعمال فیلترها" }).click();
+  await desktopFilters.getByRole("button", { name: /نمایش .* ملک/ }).click();
   await expect(page).toHaveURL(/area_max=100/);
   await expect(
     page.getByRole("heading", { name: "ملکی در این محدوده پیدا نشد" }),
@@ -217,7 +217,7 @@ test("@milestone Operator publishes a curated Property that a Renter opens throu
   await page.getByRole("button", { name: "فیلترها" }).click();
   const mobileFilters = page.getByRole("dialog");
   await mobileFilters.getByLabel("حداکثر متراژ").fill("90");
-  await mobileFilters.getByRole("button", { name: "اعمال فیلترها" }).click();
+  await mobileFilters.getByRole("button", { name: /نمایش .* ملک/ }).click();
   await expect(page).toHaveURL(/area_max=90/);
   await expect(
     page.getByRole("heading", { name: "ملکی در این محدوده پیدا نشد" }),

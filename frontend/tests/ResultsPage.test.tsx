@@ -675,6 +675,247 @@ test("renders public approximate markers and uncertainty circles through the map
   expect(screen.getByText("محدوده تقریبی ۵۰۰ متر")).toBeVisible();
 });
 
+test("settles user map movement into a shareable replacement viewport query", async () => {
+  const user = userEvent.setup();
+  const requestedViewports: URLSearchParams[] = [];
+  server.use(
+    http.get("*/api/v1/catalog/properties/", ({ request }) => {
+      const parameters = new URL(request.url).searchParams;
+      if (parameters.has("viewport_north")) {
+        requestedViewports.push(parameters);
+      }
+      return HttpResponse.json(propertySearchPage);
+    }),
+  );
+  renderResults(
+    ["/search?location=previous", "/search?location=تهران"],
+    createFakeMapAdapter(),
+  );
+
+  await screen.findByRole("heading", { name: "آپارتمان در سعادت‌آباد" });
+  await user.click(
+    screen.getByRole("button", { name: "تغییر محدوده آزمایشی" }),
+  );
+  expect(requestedViewports).toHaveLength(0);
+
+  await waitFor(() => expect(requestedViewports).toHaveLength(1), {
+    timeout: 1_000,
+  });
+  expect(requestedViewports[0]?.get("viewport_north")).toBe("35.82");
+  expect(requestedViewports[0]?.get("viewport_zoom")).toBe("12");
+  expect(screen.getByLabelText("وضعیت جست‌وجو")).toHaveTextContent(
+    "viewport_north=35.82",
+  );
+
+  await user.click(screen.getByRole("button", { name: "بازگشت آزمایشی" }));
+  expect(screen.getByLabelText("وضعیت جست‌وجو")).toHaveTextContent(
+    "location=previous",
+  );
+});
+
+test("shows server Property clusters and discloses city-wide map coverage", async () => {
+  server.use(
+    http.get("*/api/v1/catalog/properties/", () =>
+      HttpResponse.json({
+        ...propertySearchPage,
+        count: 9,
+        map: {
+          property_count: 9,
+          mappable_property_count: 7,
+          markers: [],
+          clusters: [
+            {
+              id: "11:357:514",
+              latitude: "35.750000",
+              longitude: "51.400000",
+              property_count: 7,
+              property_ids: propertySearchPage.results.map(
+                (property) => property.id,
+              ),
+            },
+          ],
+        },
+      }),
+    ),
+  );
+
+  renderResults("/search", createFakeMapAdapter());
+
+  expect(
+    await screen.findByRole("button", { name: "خوشه ۷ ملک" }),
+  ).toBeVisible();
+  expect(screen.getByText("۹ ملک پیدا شد")).toBeVisible();
+  expect(screen.getByText("از این تعداد، ۷ ملک روی نقشه است")).toBeVisible();
+});
+
+test("keeps the previous map and results subdued until a viewport response swaps together", async () => {
+  const user = userEvent.setup();
+  const replacement = {
+    ...propertySearchPage,
+    results: propertySearchPage.results.map((property) => ({
+      ...property,
+      title: "آپارتمان در ونک",
+    })),
+    map: {
+      ...propertySearchPage.map,
+      markers: propertySearchPage.map.markers.map((property) => ({
+        ...property,
+        title: "آپارتمان در ونک",
+      })),
+    },
+  };
+  server.use(
+    http.get("*/api/v1/catalog/properties/", async ({ request }) => {
+      if (new URL(request.url).searchParams.has("viewport_north")) {
+        await delay(150);
+        return HttpResponse.json(replacement);
+      }
+      return HttpResponse.json(propertySearchPage);
+    }),
+  );
+  renderResults("/search", createFakeMapAdapter());
+
+  await screen.findByRole("heading", { name: "آپارتمان در سعادت‌آباد" });
+  await user.click(
+    screen.getByRole("button", { name: "تغییر محدوده آزمایشی" }),
+  );
+
+  await waitFor(() =>
+    expect(
+      screen.getByRole("region", { name: "نتایج و نقشه جاری" }),
+    ).toHaveAttribute("aria-busy", "true"),
+  );
+  expect(
+    screen.getByRole("heading", { name: "آپارتمان در سعادت‌آباد" }),
+  ).toBeVisible();
+  expect(screen.getByRole("region", { name: "نتایج و نقشه جاری" })).toHaveClass(
+    "opacity-60",
+  );
+
+  expect(
+    await screen.findByRole("heading", { name: "آپارتمان در ونک" }),
+  ).toBeVisible();
+  expect(
+    screen.getByRole("region", { name: "نتایج و نقشه جاری" }),
+  ).toHaveAttribute("aria-busy", "false");
+});
+
+test("never lets an obsolete viewport response replace the final movement", async () => {
+  const user = userEvent.setup();
+  let viewportRequest = 0;
+  const responseWithTitle = (title: string) => ({
+    ...propertySearchPage,
+    results: propertySearchPage.results.map((property) => ({
+      ...property,
+      title,
+    })),
+    map: {
+      ...propertySearchPage.map,
+      markers: propertySearchPage.map.markers.map((property) => ({
+        ...property,
+        title,
+      })),
+    },
+  });
+  server.use(
+    http.get("*/api/v1/catalog/properties/", async ({ request }) => {
+      if (!new URL(request.url).searchParams.has("viewport_north")) {
+        return HttpResponse.json(propertySearchPage);
+      }
+      viewportRequest += 1;
+      if (viewportRequest === 1) {
+        await delay(1_000);
+        return HttpResponse.json(responseWithTitle("پاسخ قدیمی"));
+      }
+      await delay(10);
+      return HttpResponse.json(responseWithTitle("پاسخ نهایی"));
+    }),
+  );
+  renderResults("/search", createFakeMapAdapter());
+
+  await screen.findByRole("heading", { name: "آپارتمان در سعادت‌آباد" });
+  await user.click(
+    screen.getByRole("button", { name: "تغییر محدوده آزمایشی" }),
+  );
+  await waitFor(() => expect(viewportRequest).toBe(1), { timeout: 1_000 });
+  await user.click(
+    screen.getByRole("button", { name: "تغییر محدوده آزمایشی" }),
+  );
+
+  expect(
+    await screen.findByRole(
+      "heading",
+      { name: "پاسخ نهایی" },
+      { timeout: 1_000 },
+    ),
+  ).toBeVisible();
+  await new Promise((resolve) => setTimeout(resolve, 600));
+  expect(screen.queryByRole("heading", { name: "پاسخ قدیمی" })).toBeNull();
+});
+
+test("marker selection does not accidentally redefine the viewport", async () => {
+  const user = userEvent.setup();
+  let viewportRequests = 0;
+  server.use(
+    http.get("*/api/v1/catalog/properties/", ({ request }) => {
+      if (new URL(request.url).searchParams.has("viewport_north")) {
+        viewportRequests += 1;
+      }
+      return HttpResponse.json(propertySearchPage);
+    }),
+  );
+  renderResults("/search", createFakeMapAdapter());
+
+  await user.click(
+    await screen.findByRole("button", {
+      name: "موقعیت تقریبی آپارتمان در سعادت‌آباد",
+    }),
+  );
+  await new Promise((resolve) => setTimeout(resolve, 600));
+
+  expect(viewportRequests).toBe(0);
+  expect(screen.getByLabelText("وضعیت جست‌وجو")).not.toHaveTextContent(
+    "viewport_north",
+  );
+});
+
+test("keeps an empty viewport and offers clear filters and Reset to Tehran", async () => {
+  const user = userEvent.setup();
+  server.use(
+    http.get("*/api/v1/catalog/properties/", () =>
+      HttpResponse.json({
+        ...propertySearchPage,
+        count: 0,
+        results: [],
+        map: {
+          property_count: 0,
+          mappable_property_count: 0,
+          clusters: [],
+          markers: [],
+        },
+      }),
+    ),
+  );
+  renderResults(
+    "/search?parking=present&viewport_north=35.8&viewport_east=51.5&viewport_south=35.7&viewport_west=51.3&viewport_zoom=13",
+    createFakeMapAdapter(),
+  );
+
+  await screen.findByRole("heading", { name: "ملکی در این محدوده پیدا نشد" });
+  await user.click(screen.getByRole("button", { name: "پاک کردن فیلترها" }));
+  expect(screen.getByLabelText("وضعیت جست‌وجو")).not.toHaveTextContent(
+    "parking=present",
+  );
+  expect(screen.getByLabelText("وضعیت جست‌وجو")).toHaveTextContent(
+    "viewport_north=35.8",
+  );
+
+  await user.click(screen.getByRole("button", { name: "بازنشانی به تهران" }));
+  expect(screen.getByLabelText("وضعیت جست‌وجو")).not.toHaveTextContent(
+    "viewport_north",
+  );
+});
+
 test.each([
   ["office", "دفتر اداری", "دفترهای اداری اجاره‌ای"],
   ["shop", "مغازه", "مغازه‌های اجاره‌ای"],
@@ -813,7 +1054,7 @@ test("applies every filter with tolerant numeric entry and exposes removable chi
     "present",
   );
   await user.click(
-    within(filters).getByRole("button", { name: "اعمال فیلترها" }),
+    within(filters).getByRole("button", { name: "نمایش ۱ ملک" }),
   );
 
   expect(requestedParams.get("deposit_min_toman")).toBe("500000000");
@@ -874,7 +1115,7 @@ test("preserves compatible Property Types through requests, filters, pagination,
 
   await user.type(within(filters).getByLabelText("حداکثر متراژ"), "۱۲۰");
   await user.click(
-    within(filters).getByRole("button", { name: "اعمال فیلترها" }),
+    within(filters).getByRole("button", { name: "نمایش ۲۶ ملک" }),
   );
   expect(requestedParams.getAll("property_type")).toEqual([
     "apartment",
