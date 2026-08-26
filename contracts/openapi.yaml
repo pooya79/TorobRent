@@ -330,6 +330,21 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: Request was throttled
+  /api/v1/catalog/favorites/:
+    get:
+      operationId: v1_catalog_favorites_retrieve
+      summary: List active and temporarily unavailable Favorites
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FavoriteCollection'
+          description: ''
   /api/v1/catalog/listings/{listing_id}/continuation/:
     post:
       operationId: v1_catalog_listings_continuation_create
@@ -525,16 +540,24 @@ paths:
         name: ordering
         schema:
           enum:
-          - freshness
+          - newest
           - monthly_rent
           - deposit
+          - area_desc
+          - area_asc
+          - freshness
           - area
           type: string
           minLength: 1
         description: |-
-          * `freshness` - freshness
+          Use the five canonical sort modes. `freshness` and `area` remain supported as deprecated aliases for `newest` and `area_asc`.
+
+          * `newest` - newest
           * `monthly_rent` - monthly_rent
           * `deposit` - deposit
+          * `area_desc` - area_desc
+          * `area_asc` - area_asc
+          * `freshness` - freshness
           * `area` - area
       - in: query
         name: page
@@ -606,6 +629,36 @@ paths:
         description: |-
           * `present` - present
           * `absent` - absent
+      - in: query
+        name: viewport_east
+        schema:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,6})?$
+      - in: query
+        name: viewport_north
+        schema:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,6})?$
+      - in: query
+        name: viewport_south
+        schema:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,6})?$
+      - in: query
+        name: viewport_west
+        schema:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,6})?$
+      - in: query
+        name: viewport_zoom
+        schema:
+          type: integer
+          maximum: 22
+          minimum: 0
       tags:
       - v1
       security:
@@ -667,7 +720,7 @@ paths:
           description: No response body
     delete:
       operationId: v1_catalog_properties_favorite_destroy
-      summary: Remove an active Property from Favorites
+      summary: Remove a Property from Favorites
       parameters:
       - in: path
         name: property_id
@@ -1909,6 +1962,77 @@ paths:
           description: Authentication is required
 components:
   schemas:
+    ActiveFavoriteSummary:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        canonical_slug:
+          type: string
+        location:
+          allOf:
+          - $ref: '#/components/schemas/Location'
+          readOnly: true
+        approximate_location:
+          oneOf:
+          - $ref: '#/components/schemas/ApproximateLocation'
+          - type: 'null'
+          readOnly: true
+        property_category:
+          $ref: '#/components/schemas/PropertyCategoryEnum'
+        property_category_label:
+          type: string
+        property_type:
+          $ref: '#/components/schemas/PropertyTypeEnum'
+        property_type_label:
+          type: string
+        area_sqm:
+          type: integer
+        room_count:
+          type: integer
+        construction_year:
+          type:
+          - integer
+          - 'null'
+        primary_image:
+          oneOf:
+          - $ref: '#/components/schemas/PropertyImageSummary'
+          - type: 'null'
+          readOnly: true
+        listing_count:
+          type: integer
+        is_favorite:
+          type: boolean
+        rental_terms:
+          allOf:
+          - $ref: '#/components/schemas/RentalTermsPublic'
+          readOnly: true
+        availability_confirmed_at:
+          type: string
+          format: date-time
+        saved_at:
+          type: string
+          format: date-time
+      required:
+      - approximate_location
+      - area_sqm
+      - availability_confirmed_at
+      - canonical_slug
+      - construction_year
+      - id
+      - listing_count
+      - location
+      - primary_image
+      - property_category
+      - property_category_label
+      - property_type
+      - property_type_label
+      - rental_terms
+      - saved_at
+      - title
     ApproximateLocation:
       type: object
       properties:
@@ -2031,6 +2155,28 @@ components:
       - bedroom_counts
       - features
       - property_types
+    CatalogMap:
+      type: object
+      properties:
+        total_property_count:
+          type: integer
+          minimum: 0
+        mappable_property_count:
+          type: integer
+          minimum: 0
+        clusters:
+          type: array
+          items:
+            $ref: '#/components/schemas/MapCluster'
+        markers:
+          type: array
+          items:
+            $ref: '#/components/schemas/PropertySummary'
+      required:
+      - clusters
+      - mappable_property_count
+      - markers
+      - total_property_count
     CatalogStatistics:
       type: object
       properties:
@@ -2261,6 +2407,20 @@ components:
       required:
       - count
       - value
+    FavoriteCollection:
+      type: object
+      properties:
+        active:
+          type: array
+          items:
+            $ref: '#/components/schemas/ActiveFavoriteSummary'
+        unavailable:
+          type: array
+          items:
+            $ref: '#/components/schemas/UnavailableFavoriteSummary'
+      required:
+      - active
+      - unavailable
     FeatureFacets:
       type: object
       properties:
@@ -2548,6 +2708,33 @@ components:
       required:
       - email
       - password
+    MapCluster:
+      type: object
+      properties:
+        id:
+          type: string
+        latitude:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,6})?$
+        longitude:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,6})?$
+        property_count:
+          type: integer
+          minimum: 2
+        property_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+      required:
+      - id
+      - latitude
+      - longitude
+      - property_count
+      - property_ids
     NormalizedCorrectionsAudit:
       type: object
       properties:
@@ -3037,6 +3224,21 @@ components:
       - property_type
       - property_type_label
       - room_count
+    PropertyImageSummary:
+      type: object
+      properties:
+        url:
+          type: string
+        width:
+          type: integer
+          minimum: 1
+        height:
+          type: integer
+          minimum: 1
+      required:
+      - height
+      - url
+      - width
     PropertySearchPage:
       type: object
       properties:
@@ -3059,9 +3261,12 @@ components:
             $ref: '#/components/schemas/PropertySummary'
         facets:
           $ref: '#/components/schemas/CatalogFacets'
+        map:
+          $ref: '#/components/schemas/CatalogMap'
       required:
       - count
       - facets
+      - map
       - next
       - previous
       - results
@@ -3100,6 +3305,11 @@ components:
           type:
           - integer
           - 'null'
+        primary_image:
+          oneOf:
+          - $ref: '#/components/schemas/PropertyImageSummary'
+          - type: 'null'
+          readOnly: true
         listing_count:
           type: integer
         is_favorite:
@@ -3120,6 +3330,7 @@ components:
       - id
       - listing_count
       - location
+      - primary_image
       - property_category
       - property_category_label
       - property_type
@@ -4554,6 +4765,43 @@ components:
           type: string
       required:
       - token
+    UnavailableFavoriteSummary:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        location:
+          allOf:
+          - $ref: '#/components/schemas/Location'
+          readOnly: true
+        property_category:
+          $ref: '#/components/schemas/PropertyCategoryEnum'
+        property_category_label:
+          type: string
+        property_type:
+          $ref: '#/components/schemas/PropertyTypeEnum'
+        property_type_label:
+          type: string
+        area_sqm:
+          type: integer
+        room_count:
+          type: integer
+        saved_at:
+          type: string
+          format: date-time
+      required:
+      - area_sqm
+      - id
+      - location
+      - property_category
+      - property_category_label
+      - property_type
+      - property_type_label
+      - saved_at
+      - title
     User:
       type: object
       properties:

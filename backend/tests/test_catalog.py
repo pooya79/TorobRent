@@ -590,6 +590,152 @@ def test_public_location_uses_lower_precision_fallback_and_keeps_unmapped_proper
 
 
 @pytest.mark.django_db
+def test_catalog_viewport_filters_properties_facets_and_map_counts(api_client: APIClient):
+    call_command("loaddata", "catalog_seed", verbosity=0)
+    neighborhood = Neighborhood.objects.get(name_fa="سعادت‌آباد")
+    source = Source.objects.get(is_builtin=True)
+
+    def create_searchable_property(
+        *, latitude: str | None, longitude: str | None, parking: FeatureState
+    ) -> Property:
+        property_ = Property.objects.create(
+            city=neighborhood.district.city,
+            district=neighborhood.district,
+            neighborhood=neighborhood,
+            property_type=PropertyType.APARTMENT,
+            area_sqm=90,
+            room_count=1,
+            parking=parking,
+        )
+        listing = Listing.objects.create(
+            property=property_,
+            source=source,
+            terms=RentalTerms.objects.create(
+                deposit_rial=5_000_000_000,
+                monthly_rent_rial=100_000_000,
+            ),
+            direct_phone="۰۹۱۲۱۲۳۴۵۶۷",
+        )
+        publish_listing(listing)
+        property_.approximate_latitude = latitude
+        property_.approximate_longitude = longitude
+        property_.save(update_fields=("approximate_latitude", "approximate_longitude"))
+        return property_
+
+    inside = create_searchable_property(
+        latitude="35.750000", longitude="51.400000", parking=FeatureState.PRESENT
+    )
+    create_searchable_property(
+        latitude="35.790000", longitude="51.450000", parking=FeatureState.ABSENT
+    )
+    create_searchable_property(latitude=None, longitude=None, parking=FeatureState.UNKNOWN)
+
+    citywide = api_client.get("/api/v1/catalog/properties/")
+    response = api_client.get(
+        "/api/v1/catalog/properties/",
+        {
+            "viewport_north": "35.76",
+            "viewport_east": "51.41",
+            "viewport_south": "35.74",
+            "viewport_west": "51.39",
+            "viewport_zoom": "15",
+        },
+    )
+
+    assert citywide.status_code == 200
+    assert citywide.data["map"]["total_property_count"] == 3
+    assert citywide.data["map"]["mappable_property_count"] == 2
+    assert citywide.data["map"]["markers"] == []
+    assert len(citywide.data["map"]["clusters"]) == 1
+    assert citywide.data["map"]["clusters"][0]["property_count"] == 2
+    assert response.status_code == 200
+    assert response.data["count"] == 1
+    assert response.data["results"][0]["id"] == str(inside.id)
+    assert response.data["facets"]["features"]["parking"] == {
+        "present": 1,
+        "absent": 0,
+        "unknown": 0,
+    }
+    assert response.data["map"]["total_property_count"] == 1
+    assert response.data["map"]["mappable_property_count"] == 1
+    assert response.data["map"]["clusters"] == []
+    assert [marker["id"] for marker in response.data["map"]["markers"]] == [str(inside.id)]
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    "parameters",
+    [
+        {"viewport_north": "35.8"},
+        {
+            "viewport_north": "35.7",
+            "viewport_east": "51.4",
+            "viewport_south": "35.8",
+            "viewport_west": "51.3",
+        },
+        {
+            "viewport_north": "91",
+            "viewport_east": "51.4",
+            "viewport_south": "35.7",
+            "viewport_west": "51.3",
+        },
+    ],
+)
+def test_catalog_rejects_invalid_viewport_bounds(api_client: APIClient, parameters: dict[str, str]):
+    response = api_client.get("/api/v1/catalog/properties/", parameters)
+
+    assert response.status_code == 400
+
+
+@pytest.mark.django_db
+def test_rental_terms_ordering_selects_one_complete_active_listing_pair(
+    api_client: APIClient,
+):
+    call_command("loaddata", "catalog_seed", verbosity=0)
+    neighborhood = Neighborhood.objects.get(name_fa="سعادت‌آباد")
+    source = Source.objects.get(is_builtin=True)
+    property_ = Property.objects.create(
+        city=neighborhood.district.city,
+        district=neighborhood.district,
+        neighborhood=neighborhood,
+        property_type=PropertyType.APARTMENT,
+        area_sqm=75,
+        room_count=1,
+    )
+    now = timezone.now()
+    for deposit_toman, monthly_rent_toman in (
+        (900_000_000, 10_000_000),
+        (500_000_000, 20_000_000),
+    ):
+        Listing.objects.create(
+            property=property_,
+            source=source,
+            terms=RentalTerms.objects.create(
+                deposit_rial=deposit_toman * 10,
+                monthly_rent_rial=monthly_rent_toman * 10,
+            ),
+            state=ListingState.PUBLISHED,
+            direct_phone="۰۹۱۲۱۲۳۴۵۶۷",
+            availability_confirmed_at=now,
+            available_until=now + timedelta(days=1),
+        )
+
+    monthly = api_client.get("/api/v1/catalog/properties/", {"ordering": "monthly_rent"})
+    deposit = api_client.get("/api/v1/catalog/properties/", {"ordering": "deposit"})
+
+    monthly_terms = next(
+        item["rental_terms"] for item in monthly.data["results"] if item["id"] == str(property_.id)
+    )
+    deposit_terms = next(
+        item["rental_terms"] for item in deposit.data["results"] if item["id"] == str(property_.id)
+    )
+    assert monthly_terms["deposit_toman"] == 900_000_000
+    assert monthly_terms["monthly_rent_toman"] == 10_000_000
+    assert deposit_terms["deposit_toman"] == 500_000_000
+    assert deposit_terms["monthly_rent_toman"] == 20_000_000
+
+
+@pytest.mark.django_db
 @pytest.mark.parametrize(
     ("property_type", "property_type_label", "description"),
     [
@@ -648,6 +794,7 @@ def test_renter_can_find_and_open_each_published_commercial_type_without_a_room_
         "property_type_label": property_type_label,
         "area_sqm": 95,
         "construction_year": None,
+        "primary_image": None,
         "listing_count": 1,
         "rental_terms": {
             "deposit_rial": 8_000_000_000,
@@ -825,6 +972,7 @@ def test_property_search_groups_active_listings_and_uses_the_freshest_terms(
             "area_sqm": 110,
             "room_count": 2,
             "construction_year": 1400,
+            "primary_image": None,
             "listing_count": 2,
             "rental_terms": {
                 "deposit_rial": 10_000_000_000,
@@ -1151,10 +1299,13 @@ def test_property_search_filters_multiple_areas_and_a_construction_year_range(
 @pytest.mark.parametrize(
     ("ordering", "expected_areas"),
     [
+        ("newest", [80, 90, 100]),
         ("freshness", [80, 90, 100]),
         ("monthly_rent", [90, 100, 80]),
         ("deposit", [100, 80, 90]),
+        ("area_asc", [80, 90, 100]),
         ("area", [80, 90, 100]),
+        ("area_desc", [100, 90, 80]),
     ],
 )
 def test_property_search_sort_options_have_deterministic_ties(
@@ -1195,6 +1346,73 @@ def test_property_search_sort_options_have_deterministic_ties(
 
     assert response.status_code == 200
     assert [item["area_sqm"] for item in response.data["results"]] == expected_areas
+
+
+@pytest.mark.django_db
+def test_property_search_exposes_only_the_reviewed_primary_property_image(
+    api_client: APIClient,
+):
+    from apps.catalog.models import (
+        ListingImage,
+        ListingImageVariant,
+        PropertyImage,
+        PropertyImageVariant,
+    )
+    from apps.submissions.models import MediaAsset
+
+    call_command("seed_demo", verbosity=0)
+    initial_search = api_client.get("/api/v1/catalog/properties/")
+    property_ = Property.objects.get(id=initial_search.data["results"][0]["id"])
+    listing = Listing.objects.active().filter(property=property_).first()
+    assert listing is not None
+    listing_asset = MediaAsset.objects.create(
+        file="reviewed-media/listing-only.webp",
+        width=960,
+        height=720,
+        byte_size=1,
+    )
+    listing_image = ListingImage.objects.create(listing=listing, position=0, is_primary=True)
+    ListingImageVariant.objects.create(
+        image=listing_image,
+        kind="medium",
+        asset=listing_asset,
+    )
+
+    without_property_image = api_client.get("/api/v1/catalog/properties/")
+
+    summary = next(
+        item for item in without_property_image.data["results"] if item["id"] == str(property_.id)
+    )
+    assert summary["primary_image"] is None
+
+    property_asset = MediaAsset.objects.create(
+        file="reviewed-media/property-primary.webp",
+        width=960,
+        height=720,
+        byte_size=1,
+    )
+    property_image = PropertyImage.objects.create(
+        property=property_,
+        position=0,
+        is_primary=True,
+        reviewed_at=timezone.now(),
+    )
+    PropertyImageVariant.objects.create(
+        image=property_image,
+        kind="medium",
+        asset=property_asset,
+    )
+
+    with_property_image = api_client.get("/api/v1/catalog/properties/")
+
+    summary = next(
+        item for item in with_property_image.data["results"] if item["id"] == str(property_.id)
+    )
+    assert summary["primary_image"] == {
+        "url": "/reviewed-media/property-primary.webp",
+        "width": 960,
+        "height": 720,
+    }
 
 
 @pytest.mark.django_db

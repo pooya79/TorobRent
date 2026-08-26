@@ -1,10 +1,23 @@
 import re
 import uuid
 from dataclasses import dataclass, replace
+from decimal import Decimal
 from enum import StrEnum
 from typing import Any, Literal, cast
 
-from django.db.models import CharField, Count, Exists, OuterRef, Q, QuerySet, Subquery, Value
+from django.db.models import (
+    Case,
+    CharField,
+    Count,
+    Exists,
+    IntegerField,
+    OuterRef,
+    Q,
+    QuerySet,
+    Subquery,
+    Value,
+    When,
+)
 from django.db.models.functions import Replace
 
 from .models import (
@@ -17,6 +30,7 @@ from .models import (
     Neighborhood,
     Property,
     PropertyCategory,
+    PropertyImageVariant,
     PropertyType,
 )
 
@@ -52,7 +66,42 @@ class CatalogStatistics:
     covered_neighborhood_count: int
 
 
-type SearchOrdering = Literal["freshness", "monthly_rent", "deposit", "area"]
+class SearchOrdering(StrEnum):
+    NEWEST = "newest"
+    MONTHLY_RENT = "monthly_rent"
+    DEPOSIT = "deposit"
+    AREA_DESC = "area_desc"
+    AREA_ASC = "area_asc"
+
+
+@dataclass(frozen=True)
+class SearchOrderingSpec:
+    listing: tuple[str, ...]
+    property: tuple[str, ...]
+
+
+SEARCH_ORDERING_SPECS = {
+    SearchOrdering.NEWEST: SearchOrderingSpec(
+        listing=("-availability_confirmed_at", "id"),
+        property=("-selected_availability_confirmed_at", "id"),
+    ),
+    SearchOrdering.MONTHLY_RENT: SearchOrderingSpec(
+        listing=("terms__monthly_rent_rial", "id"),
+        property=("selected_monthly_rent_rial", "id"),
+    ),
+    SearchOrdering.DEPOSIT: SearchOrderingSpec(
+        listing=("terms__deposit_rial", "id"),
+        property=("selected_deposit_rial", "id"),
+    ),
+    SearchOrdering.AREA_DESC: SearchOrderingSpec(
+        listing=("-availability_confirmed_at", "id"),
+        property=("-area_sqm", "id"),
+    ),
+    SearchOrdering.AREA_ASC: SearchOrderingSpec(
+        listing=("-availability_confirmed_at", "id"),
+        property=("area_sqm", "id"),
+    ),
+}
 
 
 class BedroomCountRange(StrEnum):
@@ -60,6 +109,15 @@ class BedroomCountRange(StrEnum):
 
 
 type BedroomCountFilter = int | BedroomCountRange
+
+
+@dataclass(frozen=True)
+class MapViewportBounds:
+    north: Decimal
+    east: Decimal
+    south: Decimal
+    west: Decimal
+    zoom: int = 11
 
 
 @dataclass(frozen=True)
@@ -83,7 +141,8 @@ class PropertySearchFilters:
     storage: str | None = None
     balcony: str | None = None
     furnished: str | None = None
-    ordering: SearchOrdering = "freshness"
+    ordering: SearchOrdering = SearchOrdering.NEWEST
+    viewport: MapViewportBounds | None = None
 
 
 def normalize_persian_search(value: str) -> str:
@@ -176,6 +235,25 @@ def catalog_statistics() -> CatalogStatistics:
     return CatalogStatistics(**counts)
 
 
+def _primary_property_image_variant() -> QuerySet[PropertyImageVariant]:
+    return (
+        PropertyImageVariant.objects
+        .filter(
+            image__property_id=OuterRef("pk"),
+            image__is_primary=True,
+        )
+        .annotate(
+            card_priority=Case(
+                When(kind="medium", then=0),
+                When(kind="large", then=1),
+                default=2,
+                output_field=IntegerField(),
+            )
+        )
+        .order_by("card_priority", "id")
+    )
+
+
 def search_properties(
     filters: PropertySearchFilters | None = None,
     *,
@@ -193,13 +271,8 @@ def search_properties(
         lookup: value for lookup, value in listing_ranges.items() if value is not None
     })
 
-    listing_ordering = {
-        "freshness": ("-availability_confirmed_at", "id"),
-        "monthly_rent": ("terms__monthly_rent_rial", "id"),
-        "deposit": ("terms__deposit_rial", "id"),
-        "area": ("-availability_confirmed_at", "id"),
-    }[filters.ordering]
-    selected_listing = active_listings.order_by(*listing_ordering)
+    ordering_spec = SEARCH_ORDERING_SPECS[filters.ordering]
+    selected_listing = active_listings.order_by(*ordering_spec.listing)
     all_active_listings = Listing.objects.active().filter(property_id=OuterRef("pk"))
     active_listing_counts = (
         all_active_listings
@@ -208,6 +281,7 @@ def search_properties(
         .annotate(total=Count("id"))
         .values("total")
     )
+    primary_image_variant = _primary_property_image_variant()
     properties = (
         Property.objects
         .filter(city_id=TEHRAN_CITY_ID)
@@ -223,6 +297,9 @@ def search_properties(
                 selected_listing.values("terms__monthly_rent_rial")[:1]
             ),
             selected_currency=Subquery(selected_listing.values("terms__currency")[:1]),
+            primary_image_file=Subquery(primary_image_variant.values("asset__file")[:1]),
+            primary_image_width=Subquery(primary_image_variant.values("asset__width")[:1]),
+            primary_image_height=Subquery(primary_image_variant.values("asset__height")[:1]),
         )
     )
     properties = properties.filter(selected_listing_id__isnull=False)
@@ -265,6 +342,15 @@ def search_properties(
             property_type__in=PROPERTY_TYPES_BY_CATEGORY[filters.property_category]
         )
 
+    if filters.viewport is not None:
+        viewport = filters.viewport
+        properties = properties.filter(
+            approximate_latitude__gte=viewport.south,
+            approximate_latitude__lte=viewport.north,
+            approximate_longitude__gte=viewport.west,
+            approximate_longitude__lte=viewport.east,
+        )
+
     location = filters.location.strip()
     if location:
         try:
@@ -290,13 +376,46 @@ def search_properties(
                 Q(city_id=location_id) | Q(district_id=location_id) | Q(neighborhood_id=location_id)
             )
 
-    property_ordering = {
-        "freshness": ("-selected_availability_confirmed_at", "id"),
-        "monthly_rent": ("selected_monthly_rent_rial", "id"),
-        "deposit": ("selected_deposit_rial", "id"),
-        "area": ("area_sqm", "id"),
-    }[filters.ordering]
-    return properties.order_by(*property_ordering)
+    return properties.order_by(*ordering_spec.property)
+
+
+def favorite_properties(
+    account_id: uuid.UUID,
+) -> tuple[QuerySet[Property], QuerySet[Property]]:
+    favorite = Favorite.objects.filter(account_id=account_id, property_id=OuterRef("pk"))
+    active_listings = Listing.objects.active().filter(property_id=OuterRef("pk"))
+    selected_listing = active_listings.order_by("-availability_confirmed_at", "id")
+    primary_image_variant = _primary_property_image_variant()
+    active_listing_counts = (
+        active_listings.order_by().values("property_id").annotate(total=Count("id")).values("total")
+    )
+    favorites = (
+        Property.objects
+        .filter(favorites__account_id=account_id)
+        .select_related("city", "district", "neighborhood")
+        .annotate(
+            favorite_saved_at=Subquery(favorite.values("saved_at")[:1]),
+            has_active_listing=Exists(active_listings),
+        )
+    )
+    active = favorites.filter(has_active_listing=True).annotate(
+        listing_count=Subquery(active_listing_counts),
+        selected_availability_confirmed_at=Subquery(
+            selected_listing.values("availability_confirmed_at")[:1]
+        ),
+        selected_deposit_rial=Subquery(selected_listing.values("terms__deposit_rial")[:1]),
+        selected_monthly_rent_rial=Subquery(
+            selected_listing.values("terms__monthly_rent_rial")[:1]
+        ),
+        selected_currency=Subquery(selected_listing.values("terms__currency")[:1]),
+        primary_image_file=Subquery(primary_image_variant.values("asset__file")[:1]),
+        primary_image_width=Subquery(primary_image_variant.values("asset__width")[:1]),
+        primary_image_height=Subquery(primary_image_variant.values("asset__height")[:1]),
+        is_favorite=Value(True),
+    )
+    unavailable = favorites.filter(has_active_listing=False)
+    ordering = ("-favorite_saved_at", "id")
+    return active.order_by(*ordering), unavailable.order_by(*ordering)
 
 
 type FacetFeature = Literal["parking", "elevator", "storage", "balcony", "furnished"]
@@ -355,14 +474,30 @@ def catalog_facets(filters: PropertySearchFilters) -> dict[str, Any]:
         ]
 
     features: dict[str, dict[str, int]] = {}
-    for feature in FACET_FEATURES:
-        feature_base = search_properties(_without_feature_filter(filters, feature)).order_by()
-        counts = feature_base.aggregate(
-            present=Count("id", filter=Q(**{feature: "present"})),
-            absent=Count("id", filter=Q(**{feature: "absent"})),
-            unknown=Count("id", filter=Q(**{feature: "unknown"})),
-        )
-        features[feature] = counts
+    if all(getattr(filters, feature) is None for feature in FACET_FEATURES):
+        feature_base = search_properties(filters).order_by()
+        aggregate_fields = {
+            f"{feature}_{state}": Count("id", filter=Q(**{feature: state}))
+            for feature in FACET_FEATURES
+            for state in ("present", "absent", "unknown")
+        }
+        combined_counts = feature_base.aggregate(**aggregate_fields)
+        features = {
+            feature: {
+                state: combined_counts[f"{feature}_{state}"]
+                for state in ("present", "absent", "unknown")
+            }
+            for feature in FACET_FEATURES
+        }
+    else:
+        for feature in FACET_FEATURES:
+            feature_base = search_properties(_without_feature_filter(filters, feature)).order_by()
+            counts = feature_base.aggregate(
+                present=Count("id", filter=Q(**{feature: "present"})),
+                absent=Count("id", filter=Q(**{feature: "absent"})),
+                unknown=Count("id", filter=Q(**{feature: "unknown"})),
+            )
+            features[feature] = counts
 
     return {
         "property_types": [

@@ -401,15 +401,17 @@ export function CatalogFilters({
             name="ordering"
             className="border-input bg-background h-11 w-full rounded-md border px-3 text-sm shadow-sm"
             defaultValue={
+              searchParams.get("ordering") === "newest" ||
               searchParams.get("ordering") === "freshness"
                 ? ""
                 : (searchParams.get("ordering") ?? "")
             }
           >
-            <option value="">تازه‌ترین</option>
+            <option value="">جدیدترین</option>
             <option value="monthly_rent">کمترین اجاره ماهانه</option>
             <option value="deposit">کمترین ودیعه</option>
-            <option value="area">کمترین متراژ</option>
+            <option value="area_desc">بیشترین متراژ</option>
+            <option value="area_asc">کمترین متراژ</option>
           </select>
         </div>
       </div>

@@ -439,6 +439,64 @@ class ListingImageVariant(models.Model):
         return f"{self.image_id}: {self.kind}"
 
 
+class PropertyImage(models.Model):
+    """An Operator-reviewed image normalized onto a Property."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    property = models.ForeignKey(Property, on_delete=models.CASCADE, related_name="images")
+    position = models.PositiveSmallIntegerField()
+    is_primary = models.BooleanField(default=False)
+    reviewed_at = models.DateTimeField()
+    reviewed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        related_name="reviewed_property_images",
+        null=True,
+        blank=True,
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ("position",)
+        constraints = [
+            models.UniqueConstraint(
+                fields=("property", "position"),
+                name="unique_property_image_position",
+            ),
+            models.UniqueConstraint(
+                fields=("property",),
+                condition=Q(is_primary=True),
+                name="one_primary_image_per_property",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.property_id}: {self.position}"
+
+
+class PropertyImageVariant(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    image = models.ForeignKey(PropertyImage, on_delete=models.CASCADE, related_name="variants")
+    kind = models.CharField(max_length=8, choices=MediaVariantKind)
+    asset = models.ForeignKey(
+        "submissions.MediaAsset",
+        on_delete=models.PROTECT,
+        related_name="property_variants",
+    )
+
+    class Meta:
+        ordering = ("kind",)
+        constraints = [
+            models.UniqueConstraint(
+                fields=("image", "kind"),
+                name="unique_property_image_variant",
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.image_id}: {self.kind}"
+
+
 class ProductEventType(models.TextChoices):
     PROPERTY_VIEW = "property_view", "بازدید ملک"
     EXTERNAL_CONTINUATION = "external_continuation", "ادامه در منبع بیرونی"

@@ -14,6 +14,7 @@ from rest_framework.exceptions import Throttled
 
 from .locations import derive_public_location
 from .models import (
+    Favorite,
     Listing,
     ListingGroupingAction,
     ListingGroupingEvent,
@@ -23,6 +24,8 @@ from .models import (
     ProductEvent,
     ProductEventType,
     Property,
+    PropertyImage,
+    PropertyImageVariant,
     RentalTerms,
     Source,
 )
@@ -39,7 +42,7 @@ class ListingImageVariantSpec:
 
 
 @dataclass(frozen=True)
-class ListingImageSpec:
+class ReviewedImageSpec:
     position: int
     is_primary: bool
     variants: tuple[ListingImageVariantSpec, ...]
@@ -52,7 +55,7 @@ class DirectListingSpec:
     property_corrections: Mapping[str, object]
     terms_values: Mapping[str, object]
     listing_values: Mapping[str, object]
-    image_specs: Sequence[ListingImageSpec]
+    image_specs: Sequence[ReviewedImageSpec]
     property_id: UUID | None = None
     existing_listing_id: UUID | None = None
 
@@ -227,7 +230,7 @@ def materialize_direct_listing(*, spec: DirectListingSpec) -> Listing:
 
 @transaction.atomic
 def replace_listing_images(
-    *, listing: Listing, image_specs: Sequence[ListingImageSpec]
+    *, listing: Listing, image_specs: Sequence[ReviewedImageSpec]
 ) -> list[ListingImage]:
     ListingImage.objects.filter(listing=listing).delete()
     retained: list[ListingImage] = []
@@ -241,6 +244,38 @@ def replace_listing_images(
         ListingImageVariant.objects.bulk_create([
             ListingImageVariant(
                 image=listing_image,
+                kind=variant.kind,
+                asset_id=variant.asset_id,
+            )
+            for variant in image_spec.variants
+        ])
+    return retained
+
+
+@transaction.atomic
+def replace_property_images(
+    *,
+    property_: Property,
+    image_specs: Sequence[ReviewedImageSpec],
+    reviewer_id: UUID,
+) -> list[PropertyImage]:
+    """Publish the images explicitly accepted in an Operator review onto a Property."""
+
+    PropertyImage.objects.filter(property=property_).delete()
+    reviewed_at = timezone.now()
+    retained: list[PropertyImage] = []
+    for image_spec in image_specs:
+        property_image = PropertyImage.objects.create(
+            property=property_,
+            position=image_spec.position,
+            is_primary=image_spec.is_primary,
+            reviewed_at=reviewed_at,
+            reviewed_by_id=reviewer_id,
+        )
+        retained.append(property_image)
+        PropertyImageVariant.objects.bulk_create([
+            PropertyImageVariant(
+                image=property_image,
                 kind=variant.kind,
                 asset_id=variant.asset_id,
             )
@@ -267,6 +302,24 @@ def merge_properties(*, target: Property, duplicate: Property, reason: str = "")
         raise ValidationError("ملک مقصد قبلاً در ملک دیگری ادغام شده است.")
     if duplicate.merged_into_id is not None:
         raise ValidationError("ملک تکراری قبلاً ادغام شده است.")
+
+    duplicate_favorites = Favorite.objects.select_for_update().filter(property=duplicate)
+    for duplicate_favorite in duplicate_favorites:
+        target_favorite = (
+            Favorite.objects
+            .select_for_update()
+            .filter(account_id=duplicate_favorite.account_id, property=target)
+            .first()
+        )
+        if target_favorite is None:
+            duplicate_favorite.property = target
+            duplicate_favorite.save(update_fields=["property"])
+            continue
+        if duplicate_favorite.saved_at > target_favorite.saved_at:
+            Favorite.objects.filter(pk=target_favorite.pk).update(
+                saved_at=duplicate_favorite.saved_at
+            )
+        duplicate_favorite.delete()
 
     for listing in Listing.objects.select_for_update().filter(property=duplicate):
         listing.property = target

@@ -140,6 +140,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/v1/catalog/favorites/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List active and temporarily unavailable Favorites */
+    get: operations["v1_catalog_favorites_retrieve"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/v1/catalog/listings/{listing_id}/continuation/": {
     parameters: {
       query?: never;
@@ -236,7 +253,7 @@ export interface paths {
     /** Save an active Property as a Favorite */
     put: operations["v1_catalog_properties_favorite_update"];
     post?: never;
-    /** Remove an active Property from Favorites */
+    /** Remove a Property from Favorites */
     delete: operations["v1_catalog_properties_favorite_destroy"];
     options?: never;
     head?: never;
@@ -915,6 +932,31 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
   schemas: {
+    ActiveFavoriteSummary: {
+      /** Format: uuid */
+      id: string;
+      title: string;
+      canonical_slug: string;
+      readonly location: components["schemas"]["Location"];
+      readonly approximate_location:
+        components["schemas"]["ApproximateLocation"] | null;
+      property_category: components["schemas"]["PropertyCategoryEnum"];
+      property_category_label: string;
+      property_type: components["schemas"]["PropertyTypeEnum"];
+      property_type_label: string;
+      area_sqm: number;
+      room_count?: number;
+      construction_year: number | null;
+      readonly primary_image:
+        components["schemas"]["PropertyImageSummary"] | null;
+      listing_count: number;
+      is_favorite?: boolean;
+      readonly rental_terms: components["schemas"]["RentalTermsPublic"];
+      /** Format: date-time */
+      availability_confirmed_at: string;
+      /** Format: date-time */
+      saved_at: string;
+    };
     ApproximateLocation: {
       /** Format: decimal */
       latitude: string;
@@ -966,6 +1008,12 @@ export interface components {
       property_types: components["schemas"]["FacetCount"][];
       bedroom_counts: components["schemas"]["FacetCount"][];
       features: components["schemas"]["FeatureFacets"];
+    };
+    CatalogMap: {
+      total_property_count: number;
+      mappable_property_count: number;
+      clusters: components["schemas"]["MapCluster"][];
+      markers: components["schemas"]["PropertySummary"][];
     };
     CatalogStatistics: {
       searchable_property_count: number;
@@ -1084,6 +1132,10 @@ export interface components {
     FacetCount: {
       value: string;
       count: number;
+    };
+    FavoriteCollection: {
+      active: components["schemas"]["ActiveFavoriteSummary"][];
+      unavailable: components["schemas"]["UnavailableFavoriteSummary"][];
     };
     FeatureFacets: {
       parking: components["schemas"]["FeatureStateFacet"];
@@ -1212,6 +1264,15 @@ export interface components {
       /** Format: email */
       email: string;
       password: string;
+    };
+    MapCluster: {
+      id: string;
+      /** Format: decimal */
+      latitude: string;
+      /** Format: decimal */
+      longitude: string;
+      property_count: number;
+      property_ids: string[];
     };
     NormalizedCorrectionsAudit: {
       property?: components["schemas"]["AuditedNormalizedProperty"];
@@ -1419,6 +1480,11 @@ export interface components {
       readonly property_category_label: string;
       readonly property_type_label: string;
     };
+    PropertyImageSummary: {
+      url: string;
+      width: number;
+      height: number;
+    };
     PropertySearchPage: {
       count: number;
       /** Format: uri */
@@ -1427,6 +1493,7 @@ export interface components {
       previous: string | null;
       results: components["schemas"]["PropertySummary"][];
       facets: components["schemas"]["CatalogFacets"];
+      map: components["schemas"]["CatalogMap"];
     };
     PropertySummary: {
       /** Format: uuid */
@@ -1443,6 +1510,8 @@ export interface components {
       area_sqm: number;
       room_count?: number;
       construction_year: number | null;
+      readonly primary_image:
+        components["schemas"]["PropertyImageSummary"] | null;
       listing_count: number;
       is_favorite?: boolean;
       readonly rental_terms: components["schemas"]["RentalTermsPublic"];
@@ -2060,6 +2129,20 @@ export interface components {
     Token: {
       token: string;
     };
+    UnavailableFavoriteSummary: {
+      /** Format: uuid */
+      id: string;
+      title: string;
+      readonly location: components["schemas"]["Location"];
+      property_category: components["schemas"]["PropertyCategoryEnum"];
+      property_category_label: string;
+      property_type: components["schemas"]["PropertyTypeEnum"];
+      property_type_label: string;
+      area_sqm: number;
+      room_count?: number;
+      /** Format: date-time */
+      saved_at: string;
+    };
     User: {
       /** Format: uuid */
       readonly id: string;
@@ -2498,6 +2581,25 @@ export interface operations {
       };
     };
   };
+  v1_catalog_favorites_retrieve: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["FavoriteCollection"];
+        };
+      };
+    };
+  };
   v1_catalog_listings_continuation_create: {
     parameters: {
       query?: never;
@@ -2599,12 +2701,24 @@ export interface operations {
         monthly_rent_min_toman?: number;
         neighborhood?: string[];
         /**
-         * @description * `freshness` - freshness
+         * @description Use the five canonical sort modes. `freshness` and `area` remain supported as deprecated aliases for `newest` and `area_asc`.
+         *
+         *     * `newest` - newest
          *     * `monthly_rent` - monthly_rent
          *     * `deposit` - deposit
+         *     * `area_desc` - area_desc
+         *     * `area_asc` - area_asc
+         *     * `freshness` - freshness
          *     * `area` - area
          */
-        ordering?: "freshness" | "monthly_rent" | "deposit" | "area";
+        ordering?:
+          | "newest"
+          | "monthly_rent"
+          | "deposit"
+          | "area_desc"
+          | "area_asc"
+          | "freshness"
+          | "area";
         page?: number;
         /**
          * @description * `present` - present
@@ -2632,6 +2746,11 @@ export interface operations {
          *     * `absent` - absent
          */
         storage?: "present" | "absent";
+        viewport_east?: string;
+        viewport_north?: string;
+        viewport_south?: string;
+        viewport_west?: string;
+        viewport_zoom?: number;
       };
       header?: never;
       path?: never;

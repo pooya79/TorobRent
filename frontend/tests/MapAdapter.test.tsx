@@ -67,15 +67,24 @@ test("the fake adapter deterministically exposes the TorobRent map contract", as
   await user.click(screen.getByRole("button", { name: marker.label }));
   expect(onSelectProperty).toHaveBeenCalledWith("property-1");
   expect(onPreviewProperty).toHaveBeenCalledWith("property-1");
+  expect(onViewportChange).toHaveBeenCalledWith(
+    expect.objectContaining({ zoom: 11 }),
+    "programmatic",
+  );
 
   await user.click(screen.getByRole("button", { name: "خوشه ۷ ملک" }));
   expect(onSelectCluster).toHaveBeenCalledWith("cluster-1");
+  expect(onViewportChange).toHaveBeenCalledWith(
+    expect.objectContaining({ zoom: 13 }),
+    "user",
+  );
 
   await user.click(
     screen.getByRole("button", { name: "تغییر محدوده آزمایشی" }),
   );
   expect(onViewportChange).toHaveBeenCalledWith(
     expect.objectContaining({ zoom: 12 }),
+    "user",
   );
 });
 

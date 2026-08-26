@@ -129,6 +129,8 @@ export function NeshanMapAdapter({
   onSelectCluster,
 }: MapAdapterProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const initialViewportRef = useRef(initialViewport);
+  const userMovementRef = useRef(false);
   const [map, setMap] = useState<ProviderMap | null>(null);
 
   useEffect(() => {
@@ -143,8 +145,8 @@ export function NeshanMapAdapter({
     const target = containerRef.current;
     if (!target) return;
     const center = fromLonLat([
-      (initialViewport.east + initialViewport.west) / 2,
-      (initialViewport.north + initialViewport.south) / 2,
+      (initialViewportRef.current.east + initialViewportRef.current.west) / 2,
+      (initialViewportRef.current.north + initialViewportRef.current.south) / 2,
     ]);
     try {
       const initializedMap = new ProviderMapConstructor({
@@ -154,7 +156,7 @@ export function NeshanMapAdapter({
         poi: true,
         traffic: false,
         keyboardEventTarget: target,
-        view: new View({ center, zoom: initialViewport.zoom }),
+        view: new View({ center, zoom: initialViewportRef.current.zoom }),
       });
       setMap(initializedMap);
       onReady();
@@ -169,16 +171,32 @@ export function NeshanMapAdapter({
         }),
       );
     }
-  }, [initialViewport, onError, onReady, retryToken]);
+  }, [onError, onReady, retryToken]);
 
   useEffect(() => {
     if (!map) return;
+    const target = map.getTargetElement();
+    const markUserMovement = () => {
+      userMovementRef.current = true;
+    };
     const handleMoveEnd = () => {
       const viewport = viewportFromMap(map);
-      if (viewport) onViewportChange(viewport);
+      const origin = userMovementRef.current ? "user" : "programmatic";
+      userMovementRef.current = false;
+      if (viewport) onViewportChange(viewport, origin);
     };
+    target.addEventListener("pointerdown", markUserMovement);
+    target.addEventListener("touchstart", markUserMovement);
+    target.addEventListener("wheel", markUserMovement);
+    target.addEventListener("keydown", markUserMovement);
     map.on("moveend", handleMoveEnd);
-    return () => map.un("moveend", handleMoveEnd);
+    return () => {
+      target.removeEventListener("pointerdown", markUserMovement);
+      target.removeEventListener("touchstart", markUserMovement);
+      target.removeEventListener("wheel", markUserMovement);
+      target.removeEventListener("keydown", markUserMovement);
+      map.un("moveend", handleMoveEnd);
+    };
   }, [map, onViewportChange]);
 
   useEffect(() => {
@@ -272,17 +290,21 @@ export function NeshanMapAdapter({
         (feature: Feature) => {
           const metadata = featureMetadata(feature);
           if (metadata?.kind === "marker") {
+            userMovementRef.current = false;
             onSelectProperty(metadata.propertyId);
             onPreviewProperty(metadata.propertyId);
             return feature;
           }
           if (metadata?.kind === "cluster") {
             onSelectCluster(metadata.clusterId);
+            userMovementRef.current = true;
             const geometry = feature.getGeometry();
             if (geometry instanceof Point) {
               map.getView().animate({
                 center: geometry.getCoordinates(),
-                zoom: (map.getView().getZoom() ?? initialViewport.zoom) + 2,
+                zoom:
+                  (map.getView().getZoom() ?? initialViewportRef.current.zoom) +
+                  2,
                 duration: 200,
               });
             }
@@ -301,7 +323,6 @@ export function NeshanMapAdapter({
     };
   }, [
     clusters,
-    initialViewport.zoom,
     map,
     markers,
     onPreviewProperty,

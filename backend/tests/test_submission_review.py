@@ -467,6 +467,12 @@ def test_approval_records_the_reviewed_claim_corrections_and_publication_result(
     }
     assert event["publication_result"]["published_at"]
     assert event["publication_result"]["available_until"]
+    from apps.catalog.models import PropertyImage
+
+    property_image = PropertyImage.objects.get(property_id=approved.data["property_id"])
+    assert property_image.is_primary is True
+    assert property_image.reviewed_by_id == operator.id
+    assert property_image.reviewed_at is not None
 
 
 @pytest.mark.django_db
@@ -709,6 +715,7 @@ def test_approval_can_group_with_existing_property_and_new_revision_stays_privat
     )
     listing = Listing.objects.get(id=approved.data["listing_id"])
     original_description = listing.description
+    assert not existing.images.exists()
 
     api_client.force_authenticate(submission.submitter)
     revision = api_client.patch(

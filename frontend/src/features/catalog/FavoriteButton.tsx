@@ -8,6 +8,7 @@ import type { components } from "@/lib/api/schema";
 import { cn } from "@/lib/utils";
 
 type PropertySearchPage = components["schemas"]["PropertySearchPage"];
+type FavoriteCollection = components["schemas"]["FavoriteCollection"];
 
 function withFavoriteState(
   page: PropertySearchPage | undefined,
@@ -65,7 +66,22 @@ export function FavoriteButton({
           withFavoriteState(page, propertyId, nextFavorite),
         );
       }
-      return { previousFavorite: isFavorite };
+      await queryClient.cancelQueries({ queryKey: ["catalog", "favorites"] });
+      const previousCollection = queryClient.getQueryData<FavoriteCollection>([
+        "catalog",
+        "favorites",
+      ]);
+      if (!nextFavorite && previousCollection) {
+        queryClient.setQueryData<FavoriteCollection>(["catalog", "favorites"], {
+          active: previousCollection.active.filter(
+            (property) => property.id !== propertyId,
+          ),
+          unavailable: previousCollection.unavailable.filter(
+            (property) => property.id !== propertyId,
+          ),
+        });
+      }
+      return { previousFavorite: isFavorite, previousCollection };
     },
     onError: (_error, _nextFavorite, context) => {
       for (const [
@@ -82,6 +98,19 @@ export function FavoriteButton({
             context?.previousFavorite ?? isFavorite,
           ),
         );
+      }
+      if (context?.previousCollection) {
+        queryClient.setQueryData(
+          ["catalog", "favorites"],
+          context.previousCollection,
+        );
+      }
+    },
+    onSuccess: (_data, nextFavorite) => {
+      if (nextFavorite) {
+        void queryClient.invalidateQueries({
+          queryKey: ["catalog", "favorites"],
+        });
       }
     },
   });
