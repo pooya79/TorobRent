@@ -3,7 +3,10 @@ import { queryOptions } from "@tanstack/react-query";
 import { createApiClient } from "@/lib/api/client";
 import type { operations } from "@/lib/api/schema";
 import { normalizeNumericEntry } from "./numeric-entry";
-import { selectedPropertyTypes } from "./property-type-selection";
+import {
+  selectedPropertyCategory,
+  selectedPropertyTypesForCategory,
+} from "./property-type-selection";
 
 type PropertySearchQuery = NonNullable<
   operations["v1_catalog_properties_list"]["parameters"]["query"]
@@ -72,6 +75,7 @@ export function catalogStatisticsQueryOptions() {
 }
 
 export function propertySearchQueryOptions(searchParams: URLSearchParams) {
+  const propertyCategory = selectedPropertyCategory(searchParams);
   const integerParameter = (name: string) => {
     const rawValue = searchParams.get(name);
     if (rawValue === null || rawValue === "") return undefined;
@@ -80,6 +84,7 @@ export function propertySearchQueryOptions(searchParams: URLSearchParams) {
   };
   const query = {
     location: searchParams.get("location") ?? undefined,
+    property_category: propertyCategory,
     page: integerParameter("page"),
     deposit_min_toman: integerParameter("deposit_min_toman"),
     deposit_max_toman: integerParameter("deposit_max_toman"),
@@ -89,7 +94,7 @@ export function propertySearchQueryOptions(searchParams: URLSearchParams) {
     area_max: integerParameter("area_max"),
     room_count: integerParameter("room_count"),
     property_type: searchParams.has("property_type")
-      ? selectedPropertyTypes(searchParams)
+      ? selectedPropertyTypesForCategory(searchParams, propertyCategory)
       : undefined,
     parking:
       (searchParams.get("parking") as PropertySearchQuery["parking"]) ??

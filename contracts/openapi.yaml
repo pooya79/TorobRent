@@ -472,6 +472,17 @@ paths:
           * `present` - present
           * `absent` - absent
       - in: query
+        name: property_category
+        schema:
+          enum:
+          - residential
+          - commercial
+          type: string
+          minLength: 1
+        description: |-
+          * `residential` - مسکونی
+          * `commercial` - تجاری
+      - in: query
         name: property_type
         schema:
           type: array

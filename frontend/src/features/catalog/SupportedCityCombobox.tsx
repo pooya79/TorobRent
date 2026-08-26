@@ -18,22 +18,31 @@ function matchesCity(cityName: string, query: string) {
 
 export function SupportedCityCombobox({
   onSelectionChange,
+  initialCity = null,
+  showUpcoming = false,
 }: {
   onSelectionChange: (city: SelectedSupportedCity | null) => void;
+  initialCity?: SelectedSupportedCity | null;
+  showUpcoming?: boolean;
 }) {
   const listboxId = useId();
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(initialCity?.name ?? "");
+  const [committedCity, setCommittedCity] = useState(initialCity);
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const cities = useQuery(supportedCitiesQueryOptions());
   const matchingCities = (cities.data ?? []).filter((city) =>
     matchesCity(city.name, query),
   );
+  const upcomingCities = ["مشهد", "اصفهان", "شیراز", "کرج", "تبریز"].filter(
+    (city) => matchesCity(city, query),
+  );
   const activeCity =
     activeIndex === null ? undefined : matchingCities[activeIndex];
 
   const selectCity = (city: SelectedSupportedCity) => {
     setQuery(city.name);
+    setCommittedCity(city);
     setOpen(false);
     setActiveIndex(null);
     onSelectionChange(city);
@@ -47,14 +56,22 @@ export function SupportedCityCombobox({
         role="combobox"
         aria-autocomplete="list"
         aria-controls={
-          open && cities.isSuccess && matchingCities.length > 0
+          open &&
+          cities.isSuccess &&
+          (matchingCities.length > 0 ||
+            (showUpcoming && upcomingCities.length > 0))
             ? listboxId
             : undefined
         }
         aria-activedescendant={
           activeCity ? `${listboxId}-option-${activeIndex}` : undefined
         }
-        aria-expanded={open && cities.isSuccess && matchingCities.length > 0}
+        aria-expanded={
+          open &&
+          cities.isSuccess &&
+          (matchingCities.length > 0 ||
+            (showUpcoming && upcomingCities.length > 0))
+        }
         aria-label="شهر"
         placeholder="تهران"
         value={query}
@@ -65,7 +82,10 @@ export function SupportedCityCombobox({
           onSelectionChange(null);
         }}
         onFocus={() => setOpen(true)}
-        onBlur={() => setOpen(false)}
+        onBlur={() => {
+          setOpen(false);
+          setQuery(committedCity?.name ?? "");
+        }}
         onKeyDown={(event) => {
           if (event.key === "Escape") {
             setOpen(false);
@@ -125,34 +145,75 @@ export function SupportedCityCombobox({
               </Button>
             </div>
           )}
-          {cities.isSuccess && matchingCities.length === 0 && (
-            <p
-              className="text-muted-foreground px-3 py-2 text-sm"
-              role="status"
-              aria-label="شهری پیدا نشد"
-            >
-              شهری پیدا نشد.
-            </p>
-          )}
-          {cities.isSuccess && matchingCities.length > 0 && (
-            <ul id={listboxId} role="listbox" aria-label="شهرهای قابل جست‌وجو">
-              {matchingCities.map((city, index) => (
-                <li key={city.id} role="none">
-                  <button
-                    id={`${listboxId}-option-${index}`}
-                    className="hover:bg-accent focus-visible:bg-accent min-h-11 w-full rounded-lg px-3 text-start text-sm"
-                    type="button"
-                    role="option"
-                    aria-selected={city.name === query}
-                    onMouseDown={(event) => event.preventDefault()}
-                    onClick={() => selectCity(city)}
+          {cities.isSuccess &&
+            matchingCities.length === 0 &&
+            (!showUpcoming || upcomingCities.length === 0) && (
+              <p
+                className="text-muted-foreground px-3 py-2 text-sm"
+                role="status"
+                aria-label="شهری پیدا نشد"
+              >
+                شهری پیدا نشد.
+              </p>
+            )}
+          {cities.isSuccess &&
+            (matchingCities.length > 0 ||
+              (showUpcoming && upcomingCities.length > 0)) && (
+              <ul
+                id={listboxId}
+                role="listbox"
+                aria-label="شهرهای قابل جست‌وجو"
+              >
+                {matchingCities.length > 0 && (
+                  <li role="group" aria-label="فعال">
+                    <ul role="none">
+                      {matchingCities.map((city, index) => (
+                        <li key={city.id} role="none">
+                          <button
+                            id={`${listboxId}-option-${index}`}
+                            className="hover:bg-accent focus-visible:bg-accent min-h-11 w-full rounded-lg px-3 text-start text-sm"
+                            type="button"
+                            role="option"
+                            aria-selected={city.name === query}
+                            onMouseDown={(event) => event.preventDefault()}
+                            onClick={() => selectCity(city)}
+                          >
+                            {city.label}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </li>
+                )}
+                {showUpcoming && upcomingCities.length > 0 && (
+                  <li
+                    className="mt-1 border-t pt-1"
+                    role="group"
+                    aria-label="به‌زودی"
                   >
-                    {city.label}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
+                    <p className="text-muted-foreground px-3 py-1 text-xs">
+                      به‌زودی
+                    </p>
+                    <ul role="none">
+                      {upcomingCities.map((city) => (
+                        <li key={city} role="none">
+                          <button
+                            className="text-muted-foreground min-h-11 w-full cursor-not-allowed rounded-lg px-3 text-start text-sm"
+                            type="button"
+                            role="option"
+                            aria-disabled="true"
+                            aria-selected="false"
+                            disabled
+                          >
+                            {city} — به‌زودی
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </li>
+                )}
+              </ul>
+            )}
         </div>
       )}
     </>

@@ -7,7 +7,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { normalizeNumericEntry, persianDigits } from "./numeric-entry";
 import { propertyTypeLabels } from "./property-taxonomy";
-import { selectedPropertyTypes } from "./property-type-selection";
+import {
+  selectedPropertyCategory,
+  selectedPropertyTypesForCategory,
+} from "./property-type-selection";
 import { PropertyTypeSelector } from "./PropertyTypeSelector";
 
 export const filterLabels = {
@@ -121,6 +124,7 @@ export function CatalogFilters({
   searchParams: URLSearchParams;
   setSearchParams: SetURLSearchParams;
 }) {
+  const propertyCategory = selectedPropertyCategory(searchParams);
   const applyFilters = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
@@ -193,7 +197,11 @@ export function CatalogFilters({
         <div className="space-y-2">
           <Label>{filterLabels.property_type}</Label>
           <PropertyTypeSelector
-            initialSelectedTypes={selectedPropertyTypes(searchParams)}
+            category={propertyCategory}
+            initialSelectedTypes={selectedPropertyTypesForCategory(
+              searchParams,
+              propertyCategory,
+            )}
           />
         </div>
       </div>
