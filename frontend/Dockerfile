@@ -10,6 +10,10 @@ EXPOSE 5173
 CMD ["pnpm", "dev"]
 
 FROM development AS build
+ARG VITE_NESHAN_MAP_KEY=""
+ARG VITE_MAP_ADAPTER="neshan"
+ENV VITE_NESHAN_MAP_KEY=$VITE_NESHAN_MAP_KEY
+ENV VITE_MAP_ADAPTER=$VITE_MAP_ADAPTER
 RUN pnpm build
 
 FROM base AS production-dependencies
