@@ -184,12 +184,16 @@ test("@milestone Operator publishes a curated Property that a Renter opens throu
   await expect(page.getByText("اجاره ماهانه ۲۰٬۰۰۰٬۰۰۰ تومان")).toBeVisible();
 
   const unfilteredResultsUrl = page.url();
-  const desktopFilters = page.getByRole("complementary", {
-    name: "فیلترهای جست‌وجو",
+  await page.getByRole("button", { name: "فیلترهای پیشرفته" }).click();
+  let desktopFilters = page.getByRole("dialog", {
+    name: "فیلترهای پیشرفته",
   });
   await expect(desktopFilters).toBeVisible();
-  await desktopFilters.getByLabel("پارکینگ").selectOption("present");
-  await desktopFilters.getByRole("button", { name: "اعمال فیلترها" }).click();
+  await desktopFilters
+    .getByRole("group", { name: "پارکینگ" })
+    .getByRole("radio", { name: "ضروری" })
+    .click();
+  await desktopFilters.getByRole("button", { name: /نمایش .* ملک/ }).click();
   await expect(page).toHaveURL(/parking=present/);
   const filteredResultsUrl = page.url();
   await page.getByRole("link", { name: "دفتر اداری در سعادت‌آباد" }).click();
@@ -202,10 +206,16 @@ test("@milestone Operator publishes a curated Property that a Renter opens throu
   await expect(
     page.getByRole("button", { name: "حذف فیلتر پارکینگ" }),
   ).toBeVisible();
-  await expect(desktopFilters.getByLabel("پارکینگ")).toHaveValue("present");
+  await page.getByRole("button", { name: "فیلترهای پیشرفته" }).click();
+  desktopFilters = page.getByRole("dialog", { name: "فیلترهای پیشرفته" });
+  await expect(
+    desktopFilters
+      .getByRole("group", { name: "پارکینگ" })
+      .getByRole("radio", { name: "ضروری" }),
+  ).toBeChecked();
 
   await desktopFilters.getByLabel("حداکثر متراژ").fill("۱۰۰");
-  await desktopFilters.getByRole("button", { name: "اعمال فیلترها" }).click();
+  await desktopFilters.getByRole("button", { name: /نمایش .* ملک/ }).click();
   await expect(page).toHaveURL(/area_max=100/);
   await expect(
     page.getByRole("heading", { name: "ملکی در این محدوده پیدا نشد" }),
@@ -213,11 +223,12 @@ test("@milestone Operator publishes a curated Property that a Renter opens throu
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(unfilteredResultsUrl);
-  await expect(desktopFilters).toBeHidden();
-  await page.getByRole("button", { name: "فیلترها" }).click();
-  const mobileFilters = page.getByRole("dialog");
+  await page.getByRole("button", { name: "فیلترهای پیشرفته" }).click();
+  const mobileFilters = page.getByRole("dialog", {
+    name: "فیلترهای پیشرفته",
+  });
   await mobileFilters.getByLabel("حداکثر متراژ").fill("90");
-  await mobileFilters.getByRole("button", { name: "اعمال فیلترها" }).click();
+  await mobileFilters.getByRole("button", { name: /نمایش .* ملک/ }).click();
   await expect(page).toHaveURL(/area_max=90/);
   await expect(
     page.getByRole("heading", { name: "ملکی در این محدوده پیدا نشد" }),

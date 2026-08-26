@@ -195,6 +195,80 @@ function ResultsLoading() {
   );
 }
 
+function searchContextParams(searchParams: URLSearchParams) {
+  const next = new URLSearchParams();
+  for (const name of ["location", "location_label", "property_category"]) {
+    const value = searchParams.get(name);
+    if (value) next.set(name, value);
+  }
+  return next;
+}
+
+function AdvancedFiltersSheet({
+  open,
+  onOpenChange,
+  searchParams,
+  setSearchParams,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  searchParams: URLSearchParams;
+  setSearchParams: (next: URLSearchParams) => void;
+}) {
+  const [draftParams, setDraftParams] = useState(
+    () => new URLSearchParams(searchParams),
+  );
+  const [formVersion, setFormVersion] = useState(0);
+  const preview = useQuery(propertySearchQueryOptions(draftParams, open));
+  const changeOpen = (nextOpen: boolean) => {
+    setDraftParams(new URLSearchParams(searchParams));
+    setFormVersion((version) => version + 1);
+    onOpenChange(nextOpen);
+  };
+
+  return (
+    <Sheet open={open} onOpenChange={changeOpen}>
+      <SheetTrigger asChild>
+        <Button variant="outline">
+          <SlidersHorizontal aria-hidden="true" /> فیلترهای پیشرفته
+        </Button>
+      </SheetTrigger>
+      <SheetContent
+        side="right"
+        className="flex w-full max-w-none flex-col overflow-hidden pt-14 sm:max-w-none lg:w-[30rem] lg:max-w-[calc(100vw-2rem)]"
+      >
+        <SheetHeader>
+          <SheetTitle>فیلترهای پیشرفته</SheetTitle>
+          <SheetDescription>
+            تغییرها را بررسی کنید و سپس همه را یک‌جا اعمال کنید.
+          </SheetDescription>
+        </SheetHeader>
+        <div className="mt-6 min-h-0 flex-1">
+          <CatalogFilters
+            key={formVersion}
+            prefix="advanced"
+            searchParams={draftParams}
+            facets={preview.data?.facets}
+            onDraftChange={setDraftParams}
+            onApply={() => {
+              setSearchParams(draftParams);
+              onOpenChange(false);
+            }}
+            onCancel={() => changeOpen(false)}
+            onClear={() => {
+              setDraftParams(searchContextParams(searchParams));
+              setFormVersion((version) => version + 1);
+            }}
+            previewCount={preview.data?.count}
+            previewPending={preview.isPending || preview.isFetching}
+            previewError={preview.isError}
+          />
+        </div>
+      </SheetContent>
+    </Sheet>
+  );
+}
+
 export function ResultsPage({ mapAdapter }: { mapAdapter?: MapAdapter }) {
   const [searchParams, setSearchParams] = useSearchParams();
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -225,6 +299,12 @@ export function ResultsPage({ mapAdapter }: { mapAdapter?: MapAdapter }) {
     if (name === "property_type") {
       return summarizePropertyTypes(selectedPropertyTypes(searchParams));
     }
+    if (name === "district" || name === "neighborhood") {
+      return (
+        searchParams.getAll(`${name}_label`).join("، ") ||
+        searchParams.getAll(name).join("، ")
+      );
+    }
     const value = searchParams.get(name) ?? "";
     if (value in filterChoiceLabels) {
       return filterChoiceLabels[value as keyof typeof filterChoiceLabels];
@@ -235,6 +315,9 @@ export function ResultsPage({ mapAdapter }: { mapAdapter?: MapAdapter }) {
   const removeFilter = (name: FilterName) => {
     const next = new URLSearchParams(searchParams);
     next.delete(name);
+    if (name === "district" || name === "neighborhood") {
+      next.delete(`${name}_label`);
+    }
     next.delete("page");
     setSearchParams(next);
   };
@@ -251,37 +334,13 @@ export function ResultsPage({ mapAdapter }: { mapAdapter?: MapAdapter }) {
           {resultsCopy.heading} در {location}
         </h1>
       </header>
-      <div className="mb-6 flex justify-end lg:hidden">
-        <Sheet open={filtersOpen} onOpenChange={setFiltersOpen}>
-          <SheetTrigger asChild>
-            <Button className="lg:hidden" variant="outline">
-              <SlidersHorizontal aria-hidden="true" /> فیلترها
-            </Button>
-          </SheetTrigger>
-          <SheetContent
-            side="right"
-            className="flex w-[min(92vw,24rem)] flex-col overflow-hidden pt-14"
-          >
-            <SheetHeader>
-              <SheetTitle>فیلتر نتایج</SheetTitle>
-              <SheetDescription>
-                فیلترها را انتخاب کنید و نتایج را به‌روز کنید.
-              </SheetDescription>
-            </SheetHeader>
-            <div className="mt-6 min-h-0 flex-1 overflow-y-auto pb-8">
-              <CatalogFilters
-                key={`mobile-${searchParams.toString()}`}
-                prefix="mobile"
-                searchParams={searchParams}
-                facets={search.data?.facets}
-                setSearchParams={(next) => {
-                  setSearchParams(next);
-                  setFiltersOpen(false);
-                }}
-              />
-            </div>
-          </SheetContent>
-        </Sheet>
+      <div className="mb-6 flex justify-end">
+        <AdvancedFiltersSheet
+          open={filtersOpen}
+          onOpenChange={setFiltersOpen}
+          searchParams={searchParams}
+          setSearchParams={setSearchParams}
+        />
       </div>
 
       {activeFilters.length > 0 && (
@@ -307,156 +366,129 @@ export function ResultsPage({ mapAdapter }: { mapAdapter?: MapAdapter }) {
             size="sm"
             variant="ghost"
             aria-label="پاک کردن همه فیلترها"
-            onClick={() => {
-              const next = new URLSearchParams();
-              for (const name of [
-                "location",
-                "location_label",
-                "property_category",
-              ]) {
-                const value = searchParams.get(name);
-                if (value) next.set(name, value);
-              }
-              setSearchParams(next);
-            }}
+            onClick={() => setSearchParams(searchContextParams(searchParams))}
           >
             پاک کردن همه
           </Button>
         </div>
       )}
 
-      <div className="grid gap-8 lg:grid-cols-[18rem_minmax(0,1fr)]">
-        <aside className="hidden lg:block" aria-label="فیلترهای جست‌وجو">
-          <div className="sticky top-6 rounded-xl border p-5">
-            <h2 className="mb-5 text-lg font-semibold">فیلتر نتایج</h2>
-            <CatalogFilters
-              key={`desktop-${searchParams.toString()}`}
-              prefix="desktop"
-              searchParams={searchParams}
-              facets={search.data?.facets}
-              setSearchParams={setSearchParams}
+      <div>
+        <p className="text-muted-foreground mb-5 text-sm" aria-live="polite">
+          {search.data
+            ? `${formatNumber(count)} ملک پیدا شد`
+            : "جست‌وجوی ملک‌ها"}
+        </p>
+        <div
+          className={
+            mapAvailable
+              ? "grid gap-8 xl:grid-cols-[minmax(20rem,0.85fr)_minmax(0,1.4fr)]"
+              : "space-y-5"
+          }
+        >
+          <div
+            className={mapAvailable ? "xl:sticky xl:top-6 xl:self-start" : ""}
+          >
+            <SearchMapPanel
+              adapter={MapAdapterComponent}
+              markers={mapMarkers}
+              clusters={[]}
+              onAvailabilityChange={setMapAvailable}
             />
           </div>
-        </aside>
-        <div>
-          <p className="text-muted-foreground mb-5 text-sm" aria-live="polite">
-            {search.data
-              ? `${formatNumber(count)} ملک پیدا شد`
-              : "جست‌وجوی ملک‌ها"}
-          </p>
-          <div
-            className={
-              mapAvailable
-                ? "grid gap-8 xl:grid-cols-[minmax(20rem,0.85fr)_minmax(0,1.4fr)]"
-                : "space-y-5"
-            }
-          >
-            <div
-              className={mapAvailable ? "xl:sticky xl:top-6 xl:self-start" : ""}
-            >
-              <SearchMapPanel
-                adapter={MapAdapterComponent}
-                markers={mapMarkers}
-                clusters={[]}
-                onAvailabilityChange={setMapAvailable}
-              />
-            </div>
-            <div>
-              {search.isPending ? (
-                <ResultsLoading />
-              ) : search.isError ? (
-                search.error instanceof CatalogSearchError &&
-                search.error.status === 503 ? (
-                  <Alert variant="destructive">
-                    <AlertTitle>نتایج فعلاً در دسترس نیست</AlertTitle>
-                    <AlertDescription>
-                      اطلاعات ملک‌ها موقتاً بارگذاری نمی‌شود. چند دقیقه دیگر
-                      دوباره تلاش کنید.
-                    </AlertDescription>
-                  </Alert>
-                ) : (
-                  <Alert>
-                    <AlertTitle>بارگذاری نتایج کامل نشد</AlertTitle>
-                    <AlertDescription className="mt-3">
-                      اتصال خود را بررسی کنید.
-                      <Button
-                        className="ms-3"
-                        size="sm"
-                        variant="outline"
-                        type="button"
-                        onClick={() => void search.refetch()}
-                      >
-                        تلاش دوباره
-                      </Button>
-                    </AlertDescription>
-                  </Alert>
-                )
-              ) : search.data.results.length === 0 ? (
-                <section className="bg-muted flex min-h-80 flex-col items-center justify-center rounded-xl p-8 text-center">
-                  <h2 className="text-xl font-semibold">
-                    ملکی در این محدوده پیدا نشد
-                  </h2>
-                  <p className="text-muted-foreground mt-3 max-w-md text-sm leading-7">
-                    نام شهر، منطقه یا محله دیگری را جست‌وجو کنید.
-                  </p>
-                  <Button asChild className="mt-5" variant="outline">
-                    <Link to="/">جست‌وجوی دوباره</Link>
-                  </Button>
-                </section>
+          <div>
+            {search.isPending ? (
+              <ResultsLoading />
+            ) : search.isError ? (
+              search.error instanceof CatalogSearchError &&
+              search.error.status === 503 ? (
+                <Alert variant="destructive">
+                  <AlertTitle>نتایج فعلاً در دسترس نیست</AlertTitle>
+                  <AlertDescription>
+                    اطلاعات ملک‌ها موقتاً بارگذاری نمی‌شود. چند دقیقه دیگر
+                    دوباره تلاش کنید.
+                  </AlertDescription>
+                </Alert>
               ) : (
-                <section
-                  className={
-                    mapAvailable
-                      ? "grid gap-x-5 gap-y-10 sm:grid-cols-2"
-                      : "grid gap-x-5 gap-y-10 sm:grid-cols-2 xl:grid-cols-3"
-                  }
-                  aria-label="ملک‌های پیدا شده"
-                >
-                  {search.data.results.map((property) => (
-                    <PropertyCard
-                      key={property.id}
-                      property={toCardData(property, searchParams)}
-                    />
-                  ))}
-                </section>
-              )}
+                <Alert>
+                  <AlertTitle>بارگذاری نتایج کامل نشد</AlertTitle>
+                  <AlertDescription className="mt-3">
+                    اتصال خود را بررسی کنید.
+                    <Button
+                      className="ms-3"
+                      size="sm"
+                      variant="outline"
+                      type="button"
+                      onClick={() => void search.refetch()}
+                    >
+                      تلاش دوباره
+                    </Button>
+                  </AlertDescription>
+                </Alert>
+              )
+            ) : search.data.results.length === 0 ? (
+              <section className="bg-muted flex min-h-80 flex-col items-center justify-center rounded-xl p-8 text-center">
+                <h2 className="text-xl font-semibold">
+                  ملکی در این محدوده پیدا نشد
+                </h2>
+                <p className="text-muted-foreground mt-3 max-w-md text-sm leading-7">
+                  نام شهر، منطقه یا محله دیگری را جست‌وجو کنید.
+                </p>
+                <Button asChild className="mt-5" variant="outline">
+                  <Link to="/">جست‌وجوی دوباره</Link>
+                </Button>
+              </section>
+            ) : (
+              <section
+                className={
+                  mapAvailable
+                    ? "grid gap-x-5 gap-y-10 sm:grid-cols-2"
+                    : "grid gap-x-5 gap-y-10 sm:grid-cols-2 xl:grid-cols-3"
+                }
+                aria-label="ملک‌های پیدا شده"
+              >
+                {search.data.results.map((property) => (
+                  <PropertyCard
+                    key={property.id}
+                    property={toCardData(property, searchParams)}
+                  />
+                ))}
+              </section>
+            )}
 
-              {search.data && pageCount > 1 && (
-                <Pagination
-                  className="mt-12"
-                  dir="ltr"
-                  aria-label="صفحه‌بندی نتایج"
-                >
-                  <PaginationContent>
-                    {currentPage > 1 && (
-                      <PaginationItem>
-                        <PaginationPrevious
-                          href={hrefForPage(currentPage - 1)}
-                        />
-                      </PaginationItem>
-                    )}
-                    {Array.from(
-                      { length: pageCount },
-                      (_, index) => index + 1,
-                    ).map((page) => (
-                      <PaginationItem key={page}>
-                        <PaginationLink
-                          href={hrefForPage(page)}
-                          isActive={currentPage === page}
-                        >
-                          {formatNumber(page)}
-                        </PaginationLink>
-                      </PaginationItem>
-                    ))}
-                    {currentPage < pageCount && (
-                      <PaginationItem>
-                        <PaginationNext href={hrefForPage(currentPage + 1)} />
-                      </PaginationItem>
-                    )}
-                  </PaginationContent>
-                </Pagination>
-              )}
-            </div>
+            {search.data && pageCount > 1 && (
+              <Pagination
+                className="mt-12"
+                dir="ltr"
+                aria-label="صفحه‌بندی نتایج"
+              >
+                <PaginationContent>
+                  {currentPage > 1 && (
+                    <PaginationItem>
+                      <PaginationPrevious href={hrefForPage(currentPage - 1)} />
+                    </PaginationItem>
+                  )}
+                  {Array.from(
+                    { length: pageCount },
+                    (_, index) => index + 1,
+                  ).map((page) => (
+                    <PaginationItem key={page}>
+                      <PaginationLink
+                        href={hrefForPage(page)}
+                        isActive={currentPage === page}
+                      >
+                        {formatNumber(page)}
+                      </PaginationLink>
+                    </PaginationItem>
+                  ))}
+                  {currentPage < pageCount && (
+                    <PaginationItem>
+                      <PaginationNext href={hrefForPage(currentPage + 1)} />
+                    </PaginationItem>
+                  )}
+                </PaginationContent>
+              </Pagination>
+            )}
           </div>
         </div>
       </div>

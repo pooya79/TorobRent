@@ -15,6 +15,7 @@ const residentialFacets: components["schemas"]["CatalogFacets"] = {
     parking: { present: 1, absent: 1, unknown: 1 },
     elevator: { present: 1, absent: 1, unknown: 1 },
     storage: { present: 1, absent: 1, unknown: 1 },
+    balcony: { present: 1, absent: 1, unknown: 1 },
     furnished: { present: 1, absent: 1, unknown: 1 },
   },
 };

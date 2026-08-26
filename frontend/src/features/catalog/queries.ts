@@ -79,7 +79,10 @@ export function catalogStatisticsQueryOptions() {
   });
 }
 
-export function propertySearchQueryOptions(searchParams: URLSearchParams) {
+export function propertySearchQueryOptions(
+  searchParams: URLSearchParams,
+  enabled = true,
+) {
   const propertyCategory = selectedPropertyCategory(searchParams);
   const integerParameter = (name: string) => {
     const rawValue = searchParams.get(name);
@@ -96,6 +99,12 @@ export function propertySearchQueryOptions(searchParams: URLSearchParams) {
       : integerParameter(name);
   const query = {
     location: searchParams.get("location") ?? undefined,
+    district: searchParams.has("district")
+      ? searchParams.getAll("district")
+      : undefined,
+    neighborhood: searchParams.has("neighborhood")
+      ? searchParams.getAll("neighborhood")
+      : undefined,
     property_category: propertyCategory,
     page: integerParameter("page"),
     deposit_min_toman: integerParameter("deposit_min_toman"),
@@ -104,6 +113,8 @@ export function propertySearchQueryOptions(searchParams: URLSearchParams) {
     monthly_rent_max_toman: integerParameter("monthly_rent_max_toman"),
     area_min: integerParameter("area_min"),
     area_max: integerParameter("area_max"),
+    construction_year_min: integerParameter("construction_year_min"),
+    construction_year_max: integerParameter("construction_year_max"),
     bedroom_count: bedroomCountParameter(BEDROOM_COUNT_PARAMETER),
     room_count: searchParams.has(BEDROOM_COUNT_PARAMETER)
       ? undefined
@@ -132,6 +143,7 @@ export function propertySearchQueryOptions(searchParams: URLSearchParams) {
   } satisfies PropertySearchQuery;
   return queryOptions({
     queryKey: ["catalog", "properties", query] as const,
+    enabled,
     staleTime: 30_000,
     queryFn: async () => {
       const baseUrl =

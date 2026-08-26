@@ -1089,6 +1089,7 @@ export interface components {
       parking: components["schemas"]["FeatureStateFacet"];
       elevator: components["schemas"]["FeatureStateFacet"];
       storage: components["schemas"]["FeatureStateFacet"];
+      balcony: components["schemas"]["FeatureStateFacet"];
       furnished: components["schemas"]["FeatureStateFacet"];
     };
     /**
@@ -2578,8 +2579,11 @@ export interface operations {
          */
         balcony?: "present" | "absent";
         bedroom_count?: number | "3_plus";
+        construction_year_max?: number;
+        construction_year_min?: number;
         deposit_max_toman?: number;
         deposit_min_toman?: number;
+        district?: string[];
         /**
          * @description * `present` - present
          *     * `absent` - absent
@@ -2593,6 +2597,7 @@ export interface operations {
         location?: string;
         monthly_rent_max_toman?: number;
         monthly_rent_min_toman?: number;
+        neighborhood?: string[];
         /**
          * @description * `freshness` - freshness
          *     * `monthly_rent` - monthly_rent

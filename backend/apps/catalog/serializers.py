@@ -124,6 +124,8 @@ class BedroomCountQueryField(serializers.Field[Any, Any, Any, Any]):
 
 class PropertySearchQuerySerializer(serializers.Serializer[Any]):
     location = serializers.CharField(required=False, allow_blank=True)
+    district = serializers.ListField(required=False, child=serializers.UUIDField())
+    neighborhood = serializers.ListField(required=False, child=serializers.UUIDField())
     property_category = serializers.ChoiceField(
         required=False,
         choices=PropertyCategory.choices,
@@ -138,6 +140,8 @@ class PropertySearchQuerySerializer(serializers.Serializer[Any]):
     )
     area_min = LocalizedIntegerField(required=False, min_value=1)
     area_max = LocalizedIntegerField(required=False, min_value=1)
+    construction_year_min = LocalizedIntegerField(required=False, min_value=1200, max_value=1500)
+    construction_year_max = LocalizedIntegerField(required=False, min_value=1200, max_value=1500)
     bedroom_count = BedroomCountQueryField(required=False)
     room_count = BedroomCountQueryField(
         required=False, help_text="Deprecated alias for bedroom_count"
@@ -161,6 +165,7 @@ class PropertySearchQuerySerializer(serializers.Serializer[Any]):
             ("deposit_min_rial", "deposit_max_rial"),
             ("monthly_rent_min_rial", "monthly_rent_max_rial"),
             ("area_min", "area_max"),
+            ("construction_year_min", "construction_year_max"),
         )
         for minimum, maximum in ranges:
             if minimum in attrs and maximum in attrs and attrs[minimum] > attrs[maximum]:
@@ -199,6 +204,8 @@ class PropertySearchQuerySerializer(serializers.Serializer[Any]):
         data = self.validated_data
         return PropertySearchFilters(
             location=data.get("location", ""),
+            district_ids=tuple(data.get("district", ())),
+            neighborhood_ids=tuple(data.get("neighborhood", ())),
             property_category=(
                 PropertyCategory(data["property_category"]) if "property_category" in data else None
             ),
@@ -208,6 +215,8 @@ class PropertySearchQuerySerializer(serializers.Serializer[Any]):
             monthly_rent_max_rial=data.get("monthly_rent_max_rial"),
             area_min=data.get("area_min"),
             area_max=data.get("area_max"),
+            construction_year_min=data.get("construction_year_min"),
+            construction_year_max=data.get("construction_year_max"),
             bedroom_count=data.get("bedroom_count", data.get("room_count")),
             property_types=tuple(
                 PropertyType(property_type) for property_type in data.get("property_type", ())
@@ -308,6 +317,7 @@ class FeatureFacetsSerializer(serializers.Serializer[Any]):
     parking = FeatureStateFacetSerializer()
     elevator = FeatureStateFacetSerializer()
     storage = FeatureStateFacetSerializer()
+    balcony = FeatureStateFacetSerializer()
     furnished = FeatureStateFacetSerializer()
 
 
