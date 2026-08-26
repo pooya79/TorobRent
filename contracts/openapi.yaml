@@ -1838,11 +1838,13 @@ components:
       type: object
       properties:
         latitude:
-          type: number
-          format: double
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,6})?$
         longitude:
-          type: number
-          format: double
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,6})?$
         precision:
           $ref: '#/components/schemas/PrecisionEnum'
         radius_meters:
@@ -2704,8 +2706,8 @@ components:
       - neighborhood
       type: string
       description: |-
-        * `approximate` - approximate
-        * `neighborhood` - neighborhood
+        * `approximate` - Approximate
+        * `neighborhood` - Neighborhood
     PrivacyActionTypeEnum:
       enum:
       - defensive_contact_removal

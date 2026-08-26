@@ -1,3 +1,4 @@
+import math
 import uuid
 from datetime import timedelta
 from pathlib import Path
@@ -369,11 +370,27 @@ def test_anonymous_renter_retrieves_property_only_through_an_active_listing(
     assert response.data["features"]["elevator"] == FeatureState.UNKNOWN
     assert response.data["approximate_location"]["precision"] == "approximate"
     assert response.data["approximate_location"]["radius_meters"] == 500
-    assert response.data["approximate_location"]["latitude"] != 35.770001
-    assert response.data["approximate_location"]["longitude"] != 51.379999
+    assert response.data["approximate_location"]["latitude"] != "35.770001"
+    assert response.data["approximate_location"]["longitude"] != "51.379999"
     serialized = response.json()
     assert "35.770001" not in str(serialized)
     assert "51.379999" not in str(serialized)
+    public_latitude = math.radians(float(response.data["approximate_location"]["latitude"]))
+    exact_latitude = math.radians(35.770001)
+    latitude_delta = public_latitude - exact_latitude
+    longitude_delta = math.radians(
+        float(response.data["approximate_location"]["longitude"]) - 51.379999
+    )
+    haversine = (
+        math.sin(latitude_delta / 2) ** 2
+        + math.cos(exact_latitude) * math.cos(public_latitude) * math.sin(longitude_delta / 2) ** 2
+    )
+    distance_meters = 6_371_000 * 2 * math.asin(math.sqrt(haversine))
+    assert 0 < distance_meters < response.data["approximate_location"]["radius_meters"]
+    search = api_client.get("/api/v1/catalog/properties/", {"location": "تهران"})
+    assert search.status_code == 200
+    assert "35.770001" not in str(search.json())
+    assert "51.379999" not in str(search.json())
     assert response.data["listings"][0]["rental_terms"] == {
         "deposit_rial": 10_000_000_000,
         "monthly_rent_rial": 250_000_000,
@@ -436,8 +453,8 @@ def test_public_location_uses_lower_precision_fallback_and_keeps_unmapped_proper
     assert response.status_code == 200
     by_id = {item["id"]: item for item in response.data["results"]}
     assert by_id[str(fallback_property.id)]["approximate_location"] == {
-        "latitude": 35.778,
-        "longitude": 51.38,
+        "latitude": "35.778000",
+        "longitude": "51.380000",
         "precision": "neighborhood",
         "radius_meters": 1500,
     }

@@ -421,6 +421,20 @@ def test_exact_location_is_visible_only_to_responsible_submitter_and_review_oper
         "latitude": "35.770001",
         "longitude": "51.379999",
     }
+    invalid = api_client.patch(
+        detail_url,
+        {
+            "completed_step": "location",
+            "location": {
+                "neighborhood_id": str(neighborhood.id),
+                "address": "بلوار دریا، کوچه سرو",
+                "exact_location": {"latitude": "91.123456", "longitude": "51.379999"},
+            },
+        },
+        format="json",
+    )
+    assert invalid.status_code == 400
+    assert "91.123456" not in str(invalid.json())
 
     unrelated = User.objects.create_user(
         email="unrelated@example.com",
@@ -439,6 +453,25 @@ def test_exact_location_is_visible_only_to_responsible_submitter_and_review_oper
         is_staff=True,
     )
     api_client.force_authenticate(generic_staff)
+    assert api_client.get(detail_url).status_code == 404
+    assert api_client.get(f"/api/v1/operator/submissions/{submission_id}/").status_code == 403
+
+    unrelated_operator = User.objects.create_user(
+        email="support-only-operator@example.com",
+        password="correct-horse-battery",
+        email_verified_at=timezone.now(),
+    )
+    unrelated_operator.user_permissions.add(
+        *Permission.objects.filter(
+            content_type__app_label="accounts",
+            codename__in=(
+                "handle_privacy_support_requests",
+                "handle_general_support_requests",
+                "manage_operator_queue",
+            ),
+        )
+    )
+    api_client.force_authenticate(unrelated_operator)
     assert api_client.get(detail_url).status_code == 404
     assert api_client.get(f"/api/v1/operator/submissions/{submission_id}/").status_code == 403
 

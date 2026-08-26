@@ -898,10 +898,10 @@ export type webhooks = Record<string, never>;
 export interface components {
   schemas: {
     ApproximateLocation: {
-      /** Format: double */
-      latitude: number;
-      /** Format: double */
-      longitude: number;
+      /** Format: decimal */
+      latitude: string;
+      /** Format: decimal */
+      longitude: string;
       precision: components["schemas"]["PrecisionEnum"];
       radius_meters: number;
     };
@@ -1317,8 +1317,8 @@ export interface components {
       phone: string;
     };
     /**
-     * @description * `approximate` - approximate
-     *     * `neighborhood` - neighborhood
+     * @description * `approximate` - Approximate
+     *     * `neighborhood` - Neighborhood
      * @enum {string}
      */
     PrecisionEnum: "approximate" | "neighborhood";

@@ -733,6 +733,7 @@ export function OperatorReviewPage() {
                             </Label>
                           ))}
                           <ExactLocationPicker
+                            key={selected.id}
                             value={{
                               latitude: Number(
                                 corrections.exact_latitude ??

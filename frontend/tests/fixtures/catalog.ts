@@ -11,8 +11,8 @@ export const propertyDetail: components["schemas"]["PropertyDetail"] = {
     neighborhood: "سعادت‌آباد",
   },
   approximate_location: {
-    latitude: 35.7718,
-    longitude: 51.3812,
+    latitude: "35.771800",
+    longitude: "51.381200",
     precision: "approximate",
     radius_meters: 500,
   },

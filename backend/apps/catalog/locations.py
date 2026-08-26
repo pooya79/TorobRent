@@ -5,7 +5,7 @@ from decimal import Decimal
 
 from django.conf import settings
 
-from .models import Property
+from .models import LocationPrecision, Property
 
 APPROXIMATE_RADIUS_METERS = 500
 NEIGHBORHOOD_RADIUS_METERS = 1500
@@ -32,7 +32,7 @@ def derive_public_location(property_: Property) -> None:
         property_.approximate_longitude = Decimal(
             f"{longitude + math.degrees(longitude_offset):.6f}"
         )
-        property_.location_precision = "approximate"
+        property_.location_precision = LocationPrecision.APPROXIMATE
         property_.location_radius_meters = APPROXIMATE_RADIUS_METERS
         return
 
@@ -44,7 +44,7 @@ def derive_public_location(property_: Property) -> None:
     ):
         property_.approximate_latitude = neighborhood.center_latitude
         property_.approximate_longitude = neighborhood.center_longitude
-        property_.location_precision = "neighborhood"
+        property_.location_precision = LocationPrecision.NEIGHBORHOOD
         property_.location_radius_meters = NEIGHBORHOOD_RADIUS_METERS
         return
 

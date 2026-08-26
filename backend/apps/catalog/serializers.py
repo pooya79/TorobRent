@@ -6,6 +6,7 @@ from rest_framework import serializers
 from .models import (
     FeatureState,
     Listing,
+    LocationPrecision,
     OutboundPolicy,
     Property,
     PropertyCategory,
@@ -24,9 +25,9 @@ class LocationSerializer(serializers.Serializer[Any]):
 
 
 class ApproximateLocationSerializer(serializers.Serializer[Any]):
-    latitude = serializers.FloatField()
-    longitude = serializers.FloatField()
-    precision = serializers.ChoiceField(choices=("approximate", "neighborhood"))
+    latitude = serializers.DecimalField(max_digits=9, decimal_places=6, coerce_to_string=True)
+    longitude = serializers.DecimalField(max_digits=9, decimal_places=6, coerce_to_string=True)
+    precision = serializers.ChoiceField(choices=LocationPrecision.choices)
     radius_meters = serializers.IntegerField(min_value=1)
 
 
@@ -39,8 +40,8 @@ def approximate_location_data(property_: Property) -> dict[str, Any] | None:
     ):
         return None
     return {
-        "latitude": float(property_.approximate_latitude),
-        "longitude": float(property_.approximate_longitude),
+        "latitude": str(property_.approximate_latitude),
+        "longitude": str(property_.approximate_longitude),
         "precision": property_.location_precision,
         "radius_meters": property_.location_radius_meters,
     }

@@ -162,8 +162,8 @@ function toMapMarker(
     label: `موقعیت تقریبی ${property.title}`,
     approximateLocation: {
       center: {
-        latitude: location.latitude,
-        longitude: location.longitude,
+        latitude: Number(location.latitude),
+        longitude: Number(location.longitude),
       },
       radiusMeters: location.radius_meters,
       precision: location.precision,

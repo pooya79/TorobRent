@@ -501,6 +501,29 @@ class AvailabilityOutputSerializer(serializers.Serializer[dict[str, object]]):
     expiring_soon = serializers.BooleanField()
 
 
+def submission_location_data(submission: Submission) -> dict[str, Any] | None:
+    if not submission.city or not submission.district or not submission.neighborhood:
+        return None
+    exact_location = (
+        {
+            "latitude": str(submission.exact_latitude),
+            "longitude": str(submission.exact_longitude),
+        }
+        if submission.exact_latitude is not None and submission.exact_longitude is not None
+        else None
+    )
+    return {
+        "city_id": submission.city_id,
+        "city": submission.city.name_fa,
+        "district_id": submission.district_id,
+        "district": submission.district.name_fa,
+        "neighborhood_id": submission.neighborhood_id,
+        "neighborhood": submission.neighborhood.name_fa,
+        "address": submission.address,
+        "exact_location": exact_location,
+    }
+
+
 class SubmissionSerializer(ClaimStatusMixin, serializers.ModelSerializer[Submission]):
     location = serializers.SerializerMethodField()
     property_facts = serializers.SerializerMethodField()
@@ -603,29 +626,7 @@ class SubmissionSerializer(ClaimStatusMixin, serializers.ModelSerializer[Submiss
 
     @extend_schema_field(LocationOutputSerializer(allow_null=True))
     def get_location(self, submission: Submission) -> dict[str, Any] | None:
-        if (
-            submission.city is None
-            or submission.district is None
-            or submission.neighborhood is None
-        ):
-            return None
-        return {
-            "city_id": submission.city_id,
-            "city": submission.city.name_fa,
-            "district_id": submission.district_id,
-            "district": submission.district.name_fa,
-            "neighborhood_id": submission.neighborhood_id,
-            "neighborhood": submission.neighborhood.name_fa,
-            "address": submission.address,
-            "exact_location": (
-                {
-                    "latitude": str(submission.exact_latitude),
-                    "longitude": str(submission.exact_longitude),
-                }
-                if submission.exact_latitude is not None and submission.exact_longitude is not None
-                else None
-            ),
-        }
+        return submission_location_data(submission)
 
     @extend_schema_field(PropertyFactsOutputSerializer(allow_null=True))
     def get_property_facts(self, submission: Submission) -> dict[str, Any] | None:
@@ -784,25 +785,7 @@ class OperatorSubmissionQueueSerializer(ClaimStatusMixin, serializers.ModelSeria
 
     @extend_schema_field(LocationOutputSerializer(allow_null=True))
     def get_location(self, submission: Submission) -> dict[str, Any] | None:
-        if not submission.city or not submission.district or not submission.neighborhood:
-            return None
-        return {
-            "city_id": submission.city_id,
-            "city": submission.city.name_fa,
-            "district_id": submission.district_id,
-            "district": submission.district.name_fa,
-            "neighborhood_id": submission.neighborhood_id,
-            "neighborhood": submission.neighborhood.name_fa,
-            "address": submission.address,
-            "exact_location": (
-                {
-                    "latitude": str(submission.exact_latitude),
-                    "longitude": str(submission.exact_longitude),
-                }
-                if submission.exact_latitude is not None and submission.exact_longitude is not None
-                else None
-            ),
-        }
+        return submission_location_data(submission)
 
 
 class ForceReleaseReviewClaimSerializer(serializers.Serializer[Any]):

@@ -68,6 +68,11 @@ class OutboundPolicy(models.TextChoices):
     DISABLED = "disabled", "غیرفعال"
 
 
+class LocationPrecision(models.TextChoices):
+    APPROXIMATE = "approximate", "Approximate"
+    NEIGHBORHOOD = "neighborhood", "Neighborhood"
+
+
 class ProvenancedLocation(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name_fa = models.CharField(max_length=120)
@@ -173,7 +178,7 @@ class Property(models.Model):
     )
     location_precision = models.CharField(
         max_length=16,
-        choices=(("approximate", "Approximate"), ("neighborhood", "Neighborhood")),
+        choices=LocationPrecision,
         blank=True,
         editable=False,
     )
