@@ -5,7 +5,10 @@ import { renderToString } from "react-dom/server";
 import { expect, test, vi } from "vitest";
 
 import { PropertyDetailPage } from "@/pages/PropertyDetailPage";
-import { propertyDetail as property } from "./fixtures/catalog";
+import {
+  officePropertyDetail,
+  propertyDetail as property,
+} from "./fixtures/catalog";
 import { server } from "./server";
 
 test("shows normalized facts, paired toman terms, and freshness", () => {
@@ -28,6 +31,21 @@ test("shows normalized facts, paired toman terms, and freshness", () => {
   expect(listing).toHaveTextContent("۱٬۰۰۰٬۰۰۰٬۰۰۰ تومان");
   expect(listing).toHaveTextContent("۲۵٬۰۰۰٬۰۰۰ تومان");
   expect(listing).toHaveTextContent("آخرین تأیید موجودی");
+});
+
+test("uses commercial room wording and omits the fact when an Office has no room count", () => {
+  const { rerender } = render(
+    <PropertyDetailPage
+      property={{ ...officePropertyDetail, room_count: 3 }}
+    />,
+  );
+
+  expect(screen.getByText("۳ اتاق")).toBeVisible();
+  expect(screen.queryByText(/خواب/)).not.toBeInTheDocument();
+
+  rerender(<PropertyDetailPage property={officePropertyDetail} />);
+  expect(screen.queryByText("۳ اتاق")).not.toBeInTheDocument();
+  expect(screen.queryByText(/خواب/)).not.toBeInTheDocument();
 });
 
 test("keeps unknown features distinct and shows the neutral media placeholder", () => {

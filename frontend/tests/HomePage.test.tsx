@@ -16,7 +16,7 @@ function SearchLocationProbe() {
   return (
     <p>
       {location.pathname}|{params.get("location")}|
-      {params.get("location_label")}
+      {params.get("location_label")}|{params.get("property_type")}
     </p>
   );
 }
@@ -42,7 +42,7 @@ test("presents Persian search and primary destinations", async () => {
   renderHomeShell(queryClient);
 
   expect(
-    screen.getByRole("heading", { name: "خانه‌ای برای اجاره پیدا کنید" }),
+    screen.getByRole("heading", { name: "ملکی برای اجاره پیدا کنید" }),
   ).toBeVisible();
   expect(screen.getByRole("combobox", { name: "شهر یا محله" })).toBeVisible();
 
@@ -126,9 +126,12 @@ test("selects a Persian autocomplete result and navigates to a shareable Results
       name: "سعادت‌آباد، منطقه ۲، تهران",
     }),
   );
-  await user.click(screen.getByRole("button", { name: "جست‌وجوی خانه" }));
+  await user.selectOptions(screen.getByLabelText("نوع ملک"), "office");
+  await user.click(screen.getByRole("button", { name: "جست‌وجوی ملک" }));
 
   expect(
-    screen.getByText("/search|30000000-0000-4000-8000-000000000043|سعادت‌آباد"),
+    screen.getByText(
+      "/search|30000000-0000-4000-8000-000000000043|سعادت‌آباد|office",
+    ),
   ).toBeVisible();
 });

@@ -1266,16 +1266,24 @@ export interface components {
       code: string;
       message: string;
     };
+    /**
+     * @description * `residential` - مسکونی
+     *     * `commercial` - تجاری
+     * @enum {string}
+     */
+    PropertyCategoryEnum: "residential" | "commercial";
     PropertyDetail: {
       /** Format: uuid */
       id: string;
       title: string;
       canonical_slug: string;
       location: components["schemas"]["Location"];
+      property_category: components["schemas"]["PropertyCategoryEnum"];
+      property_category_label: string;
       property_type: components["schemas"]["PropertyTypeEnum"];
       property_type_label: string;
       area_sqm: number;
-      room_count: number;
+      room_count?: number;
       construction_year: number | null;
       floor: number | null;
       total_floors: number | null;
@@ -1288,11 +1296,23 @@ export interface components {
     PropertyFactsInput: {
       property_type: components["schemas"]["PropertyTypeEnum"];
       area_sqm: number;
-      room_count: number;
+      room_count: number | null;
       construction_year?: number | null;
       floor?: number | null;
       total_floors?: number | null;
       units_per_floor?: number | null;
+    };
+    PropertyFactsOutput: {
+      property_type: components["schemas"]["PropertyTypeEnum"];
+      area_sqm: number;
+      room_count: number | null;
+      construction_year?: number | null;
+      floor?: number | null;
+      total_floors?: number | null;
+      units_per_floor?: number | null;
+      readonly property_category: components["schemas"]["PropertyCategoryEnum"];
+      readonly property_category_label: string;
+      readonly property_type_label: string;
     };
     PropertySummary: {
       /** Format: uuid */
@@ -1300,10 +1320,12 @@ export interface components {
       title: string;
       canonical_slug: string;
       readonly location: components["schemas"]["Location"];
+      property_category: components["schemas"]["PropertyCategoryEnum"];
+      property_category_label: string;
       property_type: components["schemas"]["PropertyTypeEnum"];
       property_type_label: string;
       area_sqm: number;
-      room_count: number;
+      room_count?: number;
       construction_year: number | null;
       listing_count: number;
       readonly rental_terms: components["schemas"]["RentalTermsPublic"];
@@ -1314,9 +1336,10 @@ export interface components {
      * @description * `apartment` - آپارتمان
      *     * `house` - خانه
      *     * `villa` - ویلا
+     *     * `office` - دفتر اداری
      * @enum {string}
      */
-    PropertyTypeEnum: "apartment" | "house" | "villa";
+    PropertyTypeEnum: "apartment" | "house" | "villa" | "office";
     PublicationResultAudit: {
       /** Format: uuid */
       listing_id?: string;
@@ -1440,7 +1463,7 @@ export interface components {
       readonly images: components["schemas"]["SubmissionImage"][];
       readonly location: components["schemas"]["LocationOutput"] | null;
       readonly property_facts:
-        components["schemas"]["PropertyFactsInput"] | null;
+        components["schemas"]["PropertyFactsOutput"] | null;
       readonly rental_terms: components["schemas"]["RentalTermsOutput"] | null;
       readonly features: components["schemas"]["FeaturesInput"];
       description?: string;
@@ -2394,8 +2417,9 @@ export interface operations {
          * @description * `apartment` - آپارتمان
          *     * `house` - خانه
          *     * `villa` - ویلا
+         *     * `office` - دفتر اداری
          */
-        property_type?: "apartment" | "house" | "villa";
+        property_type?: "apartment" | "house" | "villa" | "office";
         room_count?: number;
         /**
          * @description * `present` - present

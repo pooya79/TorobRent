@@ -14,7 +14,10 @@ from apps.catalog.models import (
     FeatureState,
     ListingState,
     Neighborhood,
+    PropertyCategory,
     PropertyType,
+    property_category_for_type,
+    property_type_requires_room_count,
 )
 from apps.catalog.money import rial_to_toman
 from apps.catalog.serializers import LocalizedIntegerField, TomanRialField
@@ -110,11 +113,12 @@ class PropertyFactsInputSerializer(serializers.Serializer[Any]):
         },
     )
     room_count = LocalizedIntegerField(
+        allow_null=True,
         min_value=0,
         error_messages={
             "required": REQUIRED_ERROR,
             "invalid": INVALID_NUMBER_ERROR,
-            "min_value": "تعداد اتاق خواب نمی‌تواند منفی باشد.",
+            "min_value": "تعداد اتاق نمی‌تواند منفی باشد.",
         },
     )
     construction_year = LocalizedIntegerField(
@@ -147,6 +151,20 @@ class PropertyFactsInputSerializer(serializers.Serializer[Any]):
             "min_value": "تعداد واحدها باید مثبت باشد.",
         },
     )
+
+    def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
+        if (
+            property_type_requires_room_count(attrs["property_type"])
+            and attrs.get("room_count") is None
+        ):
+            raise serializers.ValidationError({"room_count": REQUIRED_ERROR})
+        return attrs
+
+
+class PropertyFactsOutputSerializer(PropertyFactsInputSerializer):
+    property_category = serializers.ChoiceField(choices=PropertyCategory.choices, read_only=True)
+    property_category_label = serializers.CharField(read_only=True)
+    property_type_label = serializers.CharField(read_only=True)
 
 
 class RentalTermsInputSerializer(serializers.Serializer[Any]):
@@ -581,21 +599,27 @@ class SubmissionSerializer(ClaimStatusMixin, serializers.ModelSerializer[Submiss
             "address": submission.address,
         }
 
-    @extend_schema_field(PropertyFactsInputSerializer(allow_null=True))
+    @extend_schema_field(PropertyFactsOutputSerializer(allow_null=True))
     def get_property_facts(self, submission: Submission) -> dict[str, Any] | None:
         if not submission.property_type:
             return None
+        category = property_category_for_type(submission.property_type)
         return {
-            field: getattr(submission, field)
-            for field in (
-                "property_type",
-                "area_sqm",
-                "room_count",
-                "construction_year",
-                "floor",
-                "total_floors",
-                "units_per_floor",
-            )
+            "property_category": category,
+            "property_category_label": category.label,
+            "property_type_label": PropertyType(submission.property_type).label,
+            **{
+                field: getattr(submission, field)
+                for field in (
+                    "property_type",
+                    "area_sqm",
+                    "room_count",
+                    "construction_year",
+                    "floor",
+                    "total_floors",
+                    "units_per_floor",
+                )
+            },
         }
 
     @extend_schema_field(RentalTermsOutputSerializer(allow_null=True))

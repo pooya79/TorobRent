@@ -60,7 +60,12 @@ def make_operator(*, email: str = "operator@example.com", permitted: bool = True
     return operator
 
 
-def make_complete_submission(*, email: str = "submitter@example.com") -> Submission:
+def make_complete_submission(
+    *,
+    email: str = "submitter@example.com",
+    property_type: str = "apartment",
+    room_count: int | None = 2,
+) -> Submission:
     submitter = User.objects.create_user(
         email=email,
         password="password",
@@ -117,9 +122,9 @@ def make_complete_submission(*, email: str = "submitter@example.com") -> Submiss
         district=district,
         neighborhood=neighborhood,
         address="بلوار دریا، کوچه سرو",
-        property_type="apartment",
+        property_type=property_type,
         area_sqm=110,
-        room_count=2,
+        room_count=room_count,
         deposit_rial=10_000_000_000,
         monthly_rent_rial=250_000_000,
         parking="present",
@@ -321,6 +326,44 @@ def test_approval_creates_and_publishes_a_normalized_direct_listing(api_client: 
     assert listing.description == "نورگیر و آرام."
     assert listing.direct_phone == submission.contact_phone
     assert approved.data["listing_id"] == str(listing.id)
+
+
+@pytest.mark.django_db
+def test_office_without_rooms_travels_from_submission_through_operator_publication(
+    api_client: APIClient,
+):
+    submission = make_complete_submission(property_type="office", room_count=None)
+    api_client.force_authenticate(submission.submitter)
+
+    draft = api_client.get(f"/api/v1/submissions/{submission.id}/")
+    submitted = api_client.post(f"/api/v1/submissions/{submission.id}/submit/", {}, format="json")
+
+    assert draft.status_code == 200
+    assert draft.data["property_facts"]["property_category"] == "commercial"
+    assert draft.data["property_facts"]["property_category_label"] == "تجاری"
+    assert draft.data["property_facts"]["property_type"] == "office"
+    assert draft.data["property_facts"]["property_type_label"] == "دفتر اداری"
+    assert draft.data["property_facts"]["room_count"] is None
+    assert submitted.status_code == 200, submitted.data
+
+    operator = make_operator()
+    api_client.force_authenticate(operator)
+    claimed = api_client.post(
+        f"/api/v1/operator/submissions/{submission.id}/claim/", {}, format="json"
+    )
+    approved = api_client.post(
+        f"/api/v1/operator/submissions/{submission.id}/approve/",
+        {"reviewed_revision": submission.revision},
+        format="json",
+    )
+
+    assert claimed.status_code == 201
+    assert approved.status_code == 200, approved.data
+    property_ = Property.objects.get(id=approved.data["property_id"])
+    assert property_.property_type == "office"
+    assert property_.room_count is None
+    assert property_.property_category == "commercial"
+    assert property_.listings.get().state == ListingState.PUBLISHED
 
 
 @pytest.mark.django_db

@@ -478,12 +478,14 @@ paths:
           - apartment
           - house
           - villa
+          - office
           type: string
           minLength: 1
         description: |-
           * `apartment` - آپارتمان
           * `house` - خانه
           * `villa` - ویلا
+          * `office` - دفتر اداری
       - in: query
         name: room_count
         schema:
@@ -2586,6 +2588,14 @@ components:
       required:
       - code
       - message
+    PropertyCategoryEnum:
+      enum:
+      - residential
+      - commercial
+      type: string
+      description: |-
+        * `residential` - مسکونی
+        * `commercial` - تجاری
     PropertyDetail:
       type: object
       properties:
@@ -2598,6 +2608,10 @@ components:
           type: string
         location:
           $ref: '#/components/schemas/Location'
+        property_category:
+          $ref: '#/components/schemas/PropertyCategoryEnum'
+        property_category_label:
+          type: string
         property_type:
           $ref: '#/components/schemas/PropertyTypeEnum'
         property_type_label:
@@ -2643,9 +2657,10 @@ components:
       - id
       - listings
       - location
+      - property_category
+      - property_category_label
       - property_type
       - property_type_label
-      - room_count
       - title
       - total_floors
       - units_per_floor
@@ -2658,7 +2673,9 @@ components:
           type: integer
           minimum: 1
         room_count:
-          type: integer
+          type:
+          - integer
+          - 'null'
           minimum: 0
         construction_year:
           type:
@@ -2683,6 +2700,55 @@ components:
       - area_sqm
       - property_type
       - room_count
+    PropertyFactsOutput:
+      type: object
+      properties:
+        property_type:
+          $ref: '#/components/schemas/PropertyTypeEnum'
+        area_sqm:
+          type: integer
+          minimum: 1
+        room_count:
+          type:
+          - integer
+          - 'null'
+          minimum: 0
+        construction_year:
+          type:
+          - integer
+          - 'null'
+          minimum: 1200
+        floor:
+          type:
+          - integer
+          - 'null'
+        total_floors:
+          type:
+          - integer
+          - 'null'
+          minimum: 1
+        units_per_floor:
+          type:
+          - integer
+          - 'null'
+          minimum: 1
+        property_category:
+          allOf:
+          - $ref: '#/components/schemas/PropertyCategoryEnum'
+          readOnly: true
+        property_category_label:
+          type: string
+          readOnly: true
+        property_type_label:
+          type: string
+          readOnly: true
+      required:
+      - area_sqm
+      - property_category
+      - property_category_label
+      - property_type
+      - property_type_label
+      - room_count
     PropertySummary:
       type: object
       properties:
@@ -2697,6 +2763,10 @@ components:
           allOf:
           - $ref: '#/components/schemas/Location'
           readOnly: true
+        property_category:
+          $ref: '#/components/schemas/PropertyCategoryEnum'
+        property_category_label:
+          type: string
         property_type:
           $ref: '#/components/schemas/PropertyTypeEnum'
         property_type_label:
@@ -2726,21 +2796,24 @@ components:
       - id
       - listing_count
       - location
+      - property_category
+      - property_category_label
       - property_type
       - property_type_label
       - rental_terms
-      - room_count
       - title
     PropertyTypeEnum:
       enum:
       - apartment
       - house
       - villa
+      - office
       type: string
       description: |-
         * `apartment` - آپارتمان
         * `house` - خانه
         * `villa` - ویلا
+        * `office` - دفتر اداری
     PublicationResultAudit:
       type: object
       properties:
@@ -3013,7 +3086,7 @@ components:
           readOnly: true
         property_facts:
           oneOf:
-          - $ref: '#/components/schemas/PropertyFactsInput'
+          - $ref: '#/components/schemas/PropertyFactsOutput'
           - type: 'null'
           readOnly: true
         rental_terms:

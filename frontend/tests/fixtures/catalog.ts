@@ -10,6 +10,8 @@ export const propertyDetail: components["schemas"]["PropertyDetail"] = {
     district_number: 2,
     neighborhood: "سعادت‌آباد",
   },
+  property_category: "residential",
+  property_category_label: "مسکونی",
   property_type: "apartment",
   property_type_label: "آپارتمان",
   area_sqm: 110,
@@ -105,6 +107,8 @@ export const propertySearchPage: components["schemas"]["PaginatedPropertySummary
         title: propertyDetail.title,
         canonical_slug: propertyDetail.canonical_slug,
         location: propertyDetail.location,
+        property_category: propertyDetail.property_category,
+        property_category_label: propertyDetail.property_category_label,
         property_type: propertyDetail.property_type,
         property_type_label: propertyDetail.property_type_label,
         area_sqm: propertyDetail.area_sqm,
@@ -114,6 +118,48 @@ export const propertySearchPage: components["schemas"]["PaginatedPropertySummary
         rental_terms: propertyDetail.listings[0]!.rental_terms,
         availability_confirmed_at:
           propertyDetail.listings[0]!.availability_confirmed_at,
+      },
+    ],
+  };
+
+export const officePropertyDetail: components["schemas"]["PropertyDetail"] = {
+  ...propertyDetail,
+  id: "7a294499-0f8d-45cb-8ec6-90ac3ca1669e",
+  title: "دفتر اداری در سعادت‌آباد",
+  canonical_slug: "دفتر-اداری-در-سعادتآباد",
+  property_category: "commercial",
+  property_category_label: "تجاری",
+  property_type: "office",
+  property_type_label: "دفتر اداری",
+  room_count: undefined,
+  listings: propertyDetail.listings.map((listing) => ({
+    ...listing,
+    description: "دفتر اداری مناسب شرکت",
+  })),
+};
+
+export const officePropertySearchPage: components["schemas"]["PaginatedPropertySummaryList"] =
+  {
+    count: 1,
+    next: null,
+    previous: null,
+    results: [
+      {
+        id: officePropertyDetail.id,
+        title: officePropertyDetail.title,
+        canonical_slug: officePropertyDetail.canonical_slug,
+        location: officePropertyDetail.location,
+        property_category: officePropertyDetail.property_category,
+        property_category_label: officePropertyDetail.property_category_label,
+        property_type: officePropertyDetail.property_type,
+        property_type_label: officePropertyDetail.property_type_label,
+        area_sqm: officePropertyDetail.area_sqm,
+        room_count: officePropertyDetail.room_count,
+        construction_year: officePropertyDetail.construction_year,
+        listing_count: 2,
+        rental_terms: officePropertyDetail.listings[0]!.rental_terms,
+        availability_confirmed_at:
+          officePropertyDetail.listings[0]!.availability_confirmed_at,
       },
     ],
   };

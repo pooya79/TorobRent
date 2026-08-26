@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { normalizeNumericEntry, persianDigits } from "./numeric-entry";
+import { propertyTypeLabels, propertyTypeOptions } from "./property-taxonomy";
 
 export const filterLabels = {
   deposit_min_toman: "حداقل ودیعه",
@@ -26,18 +27,10 @@ export const filterLabels = {
 export type FilterName = keyof typeof filterLabels;
 
 export const filterChoiceLabels = {
-  apartment: "آپارتمان",
-  house: "خانه",
-  villa: "ویلا",
+  ...propertyTypeLabels,
   present: "دارد",
   absent: "ندارد",
 } as const;
-
-const propertyTypeOptions = [
-  ["apartment", filterChoiceLabels.apartment],
-  ["house", filterChoiceLabels.house],
-  ["villa", filterChoiceLabels.villa],
-] as const;
 
 const featureOptions = [
   ["present", filterChoiceLabels.present],

@@ -14,6 +14,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { prototypeRepository } from "@/features/prototype/fixtures";
 import { locationAutocompleteQueryOptions } from "@/features/catalog/queries";
+import {
+  propertyTypeGroups,
+  propertyTypeLabels,
+} from "@/features/catalog/property-taxonomy";
 
 const popularPlaces = ["تهران", "کرج", "مشهد", "شیراز"] as const;
 
@@ -37,7 +41,7 @@ export function HomePage() {
             آگهی‌های چند منبع، یک‌جا و قابل مقایسه
           </p>
           <h1 className="text-4xl leading-tight font-semibold tracking-tight sm:text-5xl">
-            خانه‌ای برای اجاره پیدا کنید
+            ملکی برای اجاره پیدا کنید
           </h1>
           <p className="text-muted-foreground mx-auto mt-5 max-w-2xl leading-8">
             ملک‌ها را با اطلاعات یکدست ببینید، آگهی‌های هر منبع را جداگانه
@@ -143,13 +147,20 @@ export function HomePage() {
                 defaultValue=""
               >
                 <option value="">همه ملک‌ها</option>
-                <option value="apartment">آپارتمان</option>
-                <option value="house">خانه</option>
+                {propertyTypeGroups.map((group) => (
+                  <optgroup key={group.category} label={group.label}>
+                    {group.types.map((type) => (
+                      <option key={type} value={type}>
+                        {propertyTypeLabels[type]}
+                      </option>
+                    ))}
+                  </optgroup>
+                ))}
               </select>
             </span>
           </label>
           <Button className="min-h-15 rounded-full px-7" type="submit">
-            <Search aria-hidden="true" /> جست‌وجوی خانه
+            <Search aria-hidden="true" /> جست‌وجوی ملک
           </Button>
         </form>
 

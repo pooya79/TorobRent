@@ -6,7 +6,10 @@ import { MemoryRouter } from "react-router";
 import { expect, test } from "vitest";
 
 import { meta, ResultsPage } from "@/pages/ResultsPage";
-import { propertySearchPage } from "./fixtures/catalog";
+import {
+  officePropertySearchPage,
+  propertySearchPage,
+} from "./fixtures/catalog";
 import { server } from "./server";
 
 function renderResults(entry = "/search") {
@@ -36,11 +39,41 @@ test("presents each Property with normalized facts and freshest complete Rental 
   expect(
     await screen.findByRole("heading", { name: "آپارتمان در سعادت‌آباد" }),
   ).toBeVisible();
+  expect(
+    screen.getByRole("heading", {
+      name: "ملک‌های اجاره‌ای در سعادت‌آباد",
+      level: 1,
+    }),
+  ).toBeVisible();
   expect(requestedLocation).toBe("سعادت‌آباد");
   expect(screen.getByText("۲ آگهی فعال")).toBeVisible();
   expect(screen.getByText("۱۱۰ متر · ۲ خواب · ساخت ۱٬۴۰۰")).toBeVisible();
   expect(screen.getByText("ودیعه ۱٬۰۰۰٬۰۰۰٬۰۰۰ تومان")).toBeVisible();
   expect(screen.getByText("اجاره ماهانه ۲۵٬۰۰۰٬۰۰۰ تومان")).toBeVisible();
+});
+
+test("presents an Office without residential wording or an absent room fact", async () => {
+  server.use(
+    http.get("*/api/v1/catalog/properties/", () =>
+      HttpResponse.json(officePropertySearchPage),
+    ),
+  );
+
+  renderResults("/search?property_type=office");
+
+  expect(
+    await screen.findByRole("heading", {
+      name: "دفتر اداری در سعادت‌آباد",
+    }),
+  ).toBeVisible();
+  expect(
+    screen.getByRole("heading", {
+      name: "دفترهای اداری اجاره‌ای در تهران",
+      level: 1,
+    }),
+  ).toBeVisible();
+  expect(screen.getByText("۱۱۰ متر · ساخت ۱٬۴۰۰")).toBeVisible();
+  expect(screen.queryByText(/خواب/)).not.toBeInTheDocument();
 });
 
 test("announces loading and explains when no Property matches", async () => {
@@ -184,7 +217,12 @@ test("marks filtered result pages non-indexable and keeps return navigation on c
     meta({ location: { search: "?location=تهران&parking=present" } }),
   ).toContainEqual({ name: "robots", content: "noindex, follow" });
   expect(meta({ location: { search: "" } })).toContainEqual({
-    title: "خانه‌های اجاره‌ای در تهران | ترب‌رنت",
+    title: "ملک‌های اجاره‌ای در تهران | ترب‌رنت",
+  });
+  expect(
+    meta({ location: { search: "?property_type=office" } }),
+  ).toContainEqual({
+    title: "دفترهای اداری اجاره‌ای در تهران | ترب‌رنت",
   });
   expect(
     await screen.findByRole("link", { name: "آپارتمان در سعادت‌آباد" }),

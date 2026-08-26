@@ -52,6 +52,9 @@ def test_seed_demo_catalog_exercises_review_scenarios():
     call_command("seed_demo", verbosity=0)
 
     assert set(Property.objects.values_list("property_type", flat=True)) == set(PropertyType.values)
+    assert Property.objects.filter(
+        property_type=PropertyType.OFFICE, room_count__isnull=True
+    ).exists()
     for field in ("parking", "elevator", "storage", "balcony", "furnished"):
         assert set(Property.objects.values_list(field, flat=True)) == set(FeatureState.values)
     assert RentalTerms.objects.filter(deposit_rial=0, monthly_rent_rial__gt=0).exists()

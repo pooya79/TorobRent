@@ -19,7 +19,13 @@ from PIL import Image, ImageOps, UnidentifiedImageError
 
 from apps.accounts.capabilities import OperatorCapability, has_capability
 from apps.accounts.models import User
-from apps.catalog.models import Listing, ListingImage, Source
+from apps.catalog.models import (
+    Listing,
+    ListingImage,
+    PropertyType,
+    Source,
+    property_type_requires_room_count,
+)
 from apps.catalog.services import (
     DirectListingSpec,
     ListingImageSpec,
@@ -451,13 +457,18 @@ def _validate_complete_submission(submission: Submission) -> None:
         "address": submission.address,
         "property_type": submission.property_type,
         "area_sqm": submission.area_sqm,
-        "room_count": submission.room_count,
         "deposit_rial": submission.deposit_rial,
         "monthly_rent_rial": submission.monthly_rent_rial,
         "contact_name": submission.contact_name,
         "contact_phone": submission.contact_phone,
     }
     missing = [field for field, value in required.items() if value is None or value == ""]
+    if (
+        submission.property_type in PropertyType.values
+        and property_type_requires_room_count(submission.property_type)
+        and submission.room_count is None
+    ):
+        missing.append("room_count")
     if (
         missing
         or not submission.authorization_declared
