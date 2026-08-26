@@ -55,6 +55,22 @@ export function supportedCitiesQueryOptions() {
   });
 }
 
+export function catalogStatisticsQueryOptions() {
+  return queryOptions({
+    queryKey: ["catalog", "statistics"] as const,
+    staleTime: 30_000,
+    queryFn: async () => {
+      const baseUrl =
+        typeof window === "undefined" ? "" : window.location.origin;
+      const { data, response } = await createApiClient(baseUrl).GET(
+        "/api/v1/catalog/statistics/",
+      );
+      if (!data) throw new CatalogSearchError(response.status);
+      return data;
+    },
+  });
+}
+
 export function propertySearchQueryOptions(searchParams: URLSearchParams) {
   const integerParameter = (name: string) => {
     const rawValue = searchParams.get(name);

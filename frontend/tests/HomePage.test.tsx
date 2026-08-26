@@ -607,3 +607,101 @@ test.each(["clear the last selected type", "select All Properties"])(
     expect(screen.getByText("/search|تهران|تهران|")).toBeVisible();
   },
 );
+
+test("shows only domain-grounded trust claims and live catalog statistics", async () => {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  renderHomeShell(queryClient);
+
+  const trust = screen.getByRole("region", {
+    name: "چرا به اطلاعات اعتماد کنیم؟",
+  });
+  expect(within(trust).getByText("بازبینی پیش از انتشار")).toBeVisible();
+  expect(within(trust).getByText("موجودی جاری")).toBeVisible();
+  expect(within(trust).getByText("منابع شفاف و جدا")).toBeVisible();
+
+  const statistics = screen.getByRole("region", { name: "آمار زندهٔ کاتالوگ" });
+  expect(await within(statistics).findByText("۱۲")).toBeVisible();
+  expect(within(statistics).getByText("۱۸")).toBeVisible();
+  expect(within(statistics).getByText("۵")).toBeVisible();
+  expect(within(statistics).getByText("ملک قابل جست‌وجو")).toBeVisible();
+  expect(within(statistics).getByText("آگهی فعال")).toBeVisible();
+  expect(within(statistics).getByText("محلهٔ تحت پوشش")).toBeVisible();
+
+  expect(screen.queryByText("ملک‌های به‌روزشده در تهران")).toBeNull();
+  expect(screen.queryByText("نمونه‌های تازه")).toBeNull();
+});
+
+test("keeps live statistics honest while loading, unavailable, and empty", async () => {
+  let state: "loading" | "error" | "zero" = "loading";
+  server.use(
+    http.get("*/api/v1/catalog/statistics/", async () => {
+      if (state === "loading") await delay(100);
+      if (state === "error") {
+        return HttpResponse.json({ detail: "unavailable" }, { status: 503 });
+      }
+      return HttpResponse.json({
+        searchable_property_count: 0,
+        active_listing_count: 0,
+        covered_neighborhood_count: 0,
+      });
+    }),
+  );
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  renderHomeShell(queryClient);
+
+  expect(
+    screen.getByRole("status", { name: "در حال دریافت آمار زنده" }),
+  ).toBeVisible();
+  await screen.findByText("هنوز ملک قابل جست‌وجویی منتشر نشده است.");
+
+  state = "error";
+  await queryClient.invalidateQueries({ queryKey: ["catalog", "statistics"] });
+  expect(
+    await screen.findByRole("alert", {
+      name: "آمار زنده اکنون در دسترس نیست.",
+    }),
+  ).toBeVisible();
+
+  state = "zero";
+  await userEvent.click(screen.getByRole("button", { name: "تلاش دوباره" }));
+  expect(
+    await screen.findByText("هنوز ملک قابل جست‌وجویی منتشر نشده است."),
+  ).toBeVisible();
+});
+
+test("answers the agreed FAQ questions with keyboard-operable disclosures", async () => {
+  const user = userEvent.setup();
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  renderHomeShell(queryClient);
+
+  const faq = screen.getByRole("region", { name: "پرسش‌های پرتکرار" });
+  const questions = within(faq).getAllByRole("button");
+  expect(questions).toHaveLength(6);
+  expect(questions.map((question) => question.textContent)).toEqual([
+    "چطور ملک جست‌وجو کنم؟",
+    "چه نوع ملک‌هایی در ترب‌رنت پشتیبانی می‌شوند؟",
+    "ترب‌رنت در چه شهرهایی فعال است؟",
+    "آگهی‌ها چقدر تازه‌اند؟",
+    "چرا ممکن است یک ملک چند آگهی داشته باشد؟",
+    "چطور اطلاعات نادرست را گزارش کنم؟",
+  ]);
+
+  questions[0]?.focus();
+  await user.keyboard("{Enter}");
+  expect(questions[0]).toHaveAttribute("aria-expanded", "true");
+  expect(
+    within(faq).getByRole("link", { name: "راهنمای جست‌وجو" }),
+  ).toHaveAttribute("href", "/guide");
+
+  await user.click(questions[5]!);
+  expect(within(faq).getByText(/درخواست پشتیبانی/)).toBeVisible();
+  expect(
+    within(faq).getByRole("link", { name: "تماس با پشتیبانی" }),
+  ).toHaveAttribute("href", "/contact");
+});
