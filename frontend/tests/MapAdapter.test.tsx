@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { expect, test, vi } from "vitest";
 
 import { createFakeMapAdapter, type MapMarker } from "@/features/map/adapter";
+import { NeshanMapAdapter } from "@/features/map/NeshanMapAdapter";
 
 const marker: MapMarker = {
   propertyId: "property-1",
@@ -107,4 +108,32 @@ test("the fake adapter can reproduce a provider initialization failure", () => {
   expect(onError).toHaveBeenCalledWith(
     expect.objectContaining({ code: "provider-unavailable" }),
   );
+});
+
+test("the production adapter owns and preserves Neshan attribution", () => {
+  render(
+    <NeshanMapAdapter
+      initialViewport={{
+        north: 35.82,
+        east: 51.52,
+        south: 35.65,
+        west: 51.25,
+        zoom: 11,
+      }}
+      markers={[]}
+      clusters={[]}
+      selectedPropertyId={null}
+      retryToken={0}
+      onReady={vi.fn()}
+      onError={vi.fn()}
+      onViewportChange={vi.fn()}
+      onSelectProperty={vi.fn()}
+      onPreviewProperty={vi.fn()}
+      onSelectCluster={vi.fn()}
+    />,
+  );
+
+  expect(
+    screen.getByRole("link", { name: "داده‌های نقشه © نشان" }),
+  ).toBeVisible();
 });

@@ -20,15 +20,41 @@ import {
   type MapAdapterProps,
   type MapViewport,
 } from "./adapter";
-
-const configuredMapKey: unknown = import.meta.env.VITE_NESHAN_MAP_KEY;
-const mapKey =
-  typeof configuredMapKey === "string" ? configuredMapKey.trim() : "";
+import { neshanMapKey } from "./environment";
 
 type TileErrorSource = {
   on: (type: "tileloaderror", listener: () => void) => unknown;
   un: (type: "tileloaderror", listener: () => void) => void;
 };
+
+type MapFeatureMetadata =
+  | { kind: "approximate-location"; propertyId: string }
+  | { kind: "marker"; propertyId: string }
+  | { kind: "cluster"; clusterId: string; propertyCount: number };
+
+function featureMetadata(feature: Feature): MapFeatureMetadata | null {
+  const value: unknown = feature.get("mapMetadata");
+  if (typeof value !== "object" || value === null) return null;
+  const metadata = value as Record<string, unknown>;
+  if (
+    (metadata.kind === "approximate-location" || metadata.kind === "marker") &&
+    typeof metadata.propertyId === "string"
+  ) {
+    return { kind: metadata.kind, propertyId: metadata.propertyId };
+  }
+  if (
+    metadata.kind === "cluster" &&
+    typeof metadata.clusterId === "string" &&
+    typeof metadata.propertyCount === "number"
+  ) {
+    return {
+      kind: metadata.kind,
+      clusterId: metadata.clusterId,
+      propertyCount: metadata.propertyCount,
+    };
+  }
+  return null;
+}
 
 function viewportFromMap(map: ProviderMap): MapViewport | null {
   const size = map.getSize();
@@ -106,7 +132,7 @@ export function NeshanMapAdapter({
   const [map, setMap] = useState<ProviderMap | null>(null);
 
   useEffect(() => {
-    if (!mapKey) {
+    if (!neshanMapKey) {
       onError(
         new MapProviderError(
           "VITE_NESHAN_MAP_KEY is required to initialize the production map",
@@ -123,7 +149,7 @@ export function NeshanMapAdapter({
     try {
       const initializedMap = new ProviderMapConstructor({
         target,
-        key: mapKey,
+        key: neshanMapKey,
         mapType: "neshan",
         poi: true,
         traffic: false,
@@ -188,15 +214,19 @@ export function NeshanMapAdapter({
             center,
             marker.approximateLocation.radiusMeters,
           ),
-          mapFeatureKind: "approximate-location",
-          propertyId: marker.propertyId,
+          mapMetadata: {
+            kind: "approximate-location",
+            propertyId: marker.propertyId,
+          } satisfies MapFeatureMetadata,
         }),
       );
       source.addFeature(
         new Feature({
           geometry: new Point(center),
-          mapFeatureKind: "marker",
-          propertyId: marker.propertyId,
+          mapMetadata: {
+            kind: "marker",
+            propertyId: marker.propertyId,
+          } satisfies MapFeatureMetadata,
         }),
       );
     }
@@ -206,9 +236,11 @@ export function NeshanMapAdapter({
           geometry: new Point(
             fromLonLat([cluster.center.longitude, cluster.center.latitude]),
           ),
-          mapFeatureKind: "cluster",
-          clusterId: cluster.id,
-          propertyCount: cluster.propertyCount,
+          mapMetadata: {
+            kind: "cluster",
+            clusterId: cluster.id,
+            propertyCount: cluster.propertyCount,
+          } satisfies MapFeatureMetadata,
         }),
       );
     }
@@ -216,17 +248,20 @@ export function NeshanMapAdapter({
     const layer = new VectorLayer({
       source,
       style: (feature) => {
-        const kind = feature.get("mapFeatureKind") as string | undefined;
-        if (kind === "approximate-location") {
+        const metadata = featureMetadata(feature as Feature);
+        if (metadata?.kind === "approximate-location") {
           return new Style({
             fill: new Fill({ color: "rgba(224, 11, 65, 0.10)" }),
             stroke: new Stroke({ color: "#e00b41", width: 1.5 }),
           });
         }
-        if (kind === "cluster") {
-          return clusterStyle(feature.get("propertyCount") as number);
+        if (metadata?.kind === "cluster") {
+          return clusterStyle(metadata.propertyCount);
         }
-        return markerStyle(feature.get("propertyId") === selectedPropertyId);
+        return markerStyle(
+          metadata?.kind === "marker" &&
+            metadata.propertyId === selectedPropertyId,
+        );
       },
     });
     map.addLayer(layer);
@@ -235,16 +270,14 @@ export function NeshanMapAdapter({
       map.forEachFeatureAtPixel(
         event.pixel,
         (feature: Feature) => {
-          const kind = feature.get("mapFeatureKind") as string | undefined;
-          if (kind === "marker") {
-            const propertyId = feature.get("propertyId") as string;
-            onSelectProperty(propertyId);
-            onPreviewProperty(propertyId);
+          const metadata = featureMetadata(feature);
+          if (metadata?.kind === "marker") {
+            onSelectProperty(metadata.propertyId);
+            onPreviewProperty(metadata.propertyId);
             return feature;
           }
-          if (kind === "cluster") {
-            const clusterId = feature.get("clusterId") as string;
-            onSelectCluster(clusterId);
+          if (metadata?.kind === "cluster") {
+            onSelectCluster(metadata.clusterId);
             const geometry = feature.getGeometry();
             if (geometry instanceof Point) {
               map.getView().animate({
@@ -277,17 +310,25 @@ export function NeshanMapAdapter({
     selectedPropertyId,
   ]);
 
-  if (!mapKey) return null;
-
   return (
-    <div
-      ref={containerRef}
-      dir="rtl"
-      lang="fa"
-      role="application"
-      aria-label="نقشه تعاملی ملک‌ها"
-      tabIndex={0}
-      className="h-full min-h-80 w-full"
-    />
+    <div className="relative h-full min-h-80 w-full">
+      <div
+        ref={containerRef}
+        dir="rtl"
+        lang="fa"
+        role="application"
+        aria-label="نقشه تعاملی ملک‌ها"
+        tabIndex={0}
+        className="h-full min-h-80 w-full"
+      />
+      <a
+        className="bg-background/90 absolute start-2 bottom-2 rounded px-2 py-1 text-xs underline underline-offset-2"
+        href="https://neshan.org"
+        target="_blank"
+        rel="noreferrer"
+      >
+        داده‌های نقشه © نشان
+      </a>
+    </div>
   );
 }

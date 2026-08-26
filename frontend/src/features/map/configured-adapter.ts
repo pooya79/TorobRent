@@ -6,6 +6,7 @@ import {
   type MapAdapter,
   type MapAdapterProps,
 } from "./adapter";
+import { configuredMapAdapterName, neshanMapKey } from "./environment";
 
 const deterministicFakeMapAdapter = createFakeMapAdapter();
 const LazyNeshanMapAdapter = lazy(async () => {
@@ -24,15 +25,9 @@ function MissingNeshanConfiguration({ onError, retryToken }: MapAdapterProps) {
   return null;
 }
 
-const adapterSetting: unknown = import.meta.env.VITE_MAP_ADAPTER;
-const neshanMapKeySetting: unknown = import.meta.env.VITE_NESHAN_MAP_KEY;
-const hasNeshanMapKey =
-  typeof neshanMapKeySetting === "string" &&
-  neshanMapKeySetting.trim().length > 0;
-
 export const configuredMapAdapter: MapAdapter =
-  adapterSetting === "fake"
+  configuredMapAdapterName === "fake"
     ? deterministicFakeMapAdapter
-    : hasNeshanMapKey
+    : neshanMapKey
       ? LazyNeshanMapAdapter
       : MissingNeshanConfiguration;

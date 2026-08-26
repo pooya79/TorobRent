@@ -1,5 +1,6 @@
 import { MapPin } from "lucide-react";
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { Link } from "react-router";
 
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -127,9 +128,9 @@ export function SearchMapPanel({
           )}
           {preview && (
             <aside className="bg-card absolute inset-x-3 bottom-8 rounded-xl border p-4 shadow-lg">
-              <a className="font-semibold" href={preview.detailHref}>
+              <Link className="font-semibold" to={preview.detailHref}>
                 {preview.title}
-              </a>
+              </Link>
               <p className="text-muted-foreground mt-1 text-sm">
                 {preview.locationLabel}
               </p>
@@ -137,17 +138,41 @@ export function SearchMapPanel({
           )}
         </div>
       )}
-      <p className="text-muted-foreground mt-2 text-xs">
-        داده‌های نقشه ©{" "}
-        <a
-          className="underline underline-offset-2"
-          href="https://neshan.org"
-          target="_blank"
-          rel="noreferrer"
-        >
-          نشان
-        </a>
-      </p>
+      <details className="mt-2 text-sm">
+        <summary className="cursor-pointer">فهرست دسترس‌پذیر نقشه</summary>
+        <div className="mt-2 space-y-2 rounded-lg border p-3">
+          {markers.length === 0 && clusters.length === 0 ? (
+            <p className="text-muted-foreground">
+              ملکی دارای موقعیت برای نمایش روی نقشه نیست.
+            </p>
+          ) : (
+            <>
+              {markers.map((marker) => (
+                <Button
+                  key={marker.propertyId}
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  aria-pressed={selectedPropertyId === marker.propertyId}
+                  onClick={() => {
+                    handleSelectProperty(marker.propertyId);
+                    handlePreviewProperty(marker.propertyId);
+                  }}
+                >
+                  {marker.preview.title}: {marker.label}
+                </Button>
+              ))}
+              {clusters.map((cluster) => (
+                <p key={cluster.id}>
+                  خوشه{" "}
+                  {new Intl.NumberFormat("fa-IR").format(cluster.propertyCount)}{" "}
+                  ملک
+                </p>
+              ))}
+            </>
+          )}
+        </div>
+      </details>
     </section>
   );
 }
