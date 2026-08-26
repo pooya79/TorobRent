@@ -148,6 +148,42 @@ def test_public_catalog_filters_by_repeated_property_types(api_client: APIClient
 
 
 @pytest.mark.django_db
+def test_public_catalog_filters_by_property_category_and_rejects_incompatible_types(
+    api_client: APIClient,
+):
+    call_command("seed_demo", verbosity=0)
+
+    commercial_response = api_client.get(
+        "/api/v1/catalog/properties/",
+        {
+            "property_category": "commercial",
+            "property_type": ["office", "shop"],
+        },
+    )
+
+    assert commercial_response.status_code == 200
+    assert commercial_response.data["results"]
+    assert {result["property_category"] for result in commercial_response.data["results"]} == {
+        "commercial"
+    }
+    assert {result["property_type"] for result in commercial_response.data["results"]} == {
+        "office",
+        "shop",
+    }
+
+    incompatible_response = api_client.get(
+        "/api/v1/catalog/properties/",
+        {
+            "property_category": "residential",
+            "property_type": ["apartment", "office"],
+        },
+    )
+
+    assert incompatible_response.status_code == 400
+    assert "property_type" in incompatible_response.data["errors"]
+
+
+@pytest.mark.django_db
 def test_catalog_uses_uuid_identity_and_preserves_unknown_feature_states():
     property_ = Property(property_type=PropertyType.APARTMENT, area_sqm=85, room_count=2)
     terms = RentalTerms(deposit_rial=5_000_000_000, monthly_rent_rial=200_000_000)

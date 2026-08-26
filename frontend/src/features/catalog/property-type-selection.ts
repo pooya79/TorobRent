@@ -1,6 +1,8 @@
 import {
+  propertyCategoryForType,
   propertyTypeGroups,
   propertyTypeLabels,
+  type PropertyCategory,
   type PropertyType,
 } from "./property-taxonomy";
 
@@ -15,6 +17,33 @@ export function normalizePropertyTypes(types: readonly string[]) {
 
 export function selectedPropertyTypes(searchParams: URLSearchParams) {
   return normalizePropertyTypes(searchParams.getAll("property_type"));
+}
+
+export function selectedPropertyCategory(searchParams: URLSearchParams) {
+  const requestedCategory = searchParams.get("property_category");
+  if (
+    requestedCategory === "residential" ||
+    requestedCategory === "commercial"
+  ) {
+    return requestedCategory satisfies PropertyCategory;
+  }
+  const selectedTypes = selectedPropertyTypes(searchParams);
+  const inferredCategories = new Set(
+    selectedTypes.map(propertyCategoryForType),
+  );
+  if (inferredCategories.size === 1) {
+    return [...inferredCategories][0]!;
+  }
+  return "residential" satisfies PropertyCategory;
+}
+
+export function selectedPropertyTypesForCategory(
+  searchParams: URLSearchParams,
+  category: PropertyCategory,
+) {
+  return selectedPropertyTypes(searchParams).filter(
+    (propertyType) => propertyCategoryForType(propertyType) === category,
+  );
 }
 
 export function summarizePropertyTypes(selectedTypes: readonly PropertyType[]) {

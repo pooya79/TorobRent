@@ -45,6 +45,7 @@ import {
   selectedPropertyTypes,
   summarizePropertyTypes,
 } from "@/features/catalog/property-type-selection";
+import { SearchToolbar } from "@/features/catalog/SearchToolbar";
 import type { components } from "@/lib/api/schema";
 
 type PropertySummary = components["schemas"]["PropertySummary"];
@@ -204,17 +205,16 @@ export function ResultsPage() {
 
   return (
     <PageMain>
-      <header className="mb-8 flex items-end justify-between gap-4">
-        <div>
-          <p className="text-muted-foreground mb-2 text-sm" aria-live="polite">
-            {search.data
-              ? `${formatNumber(count)} ملک پیدا شد`
-              : "جست‌وجوی ملک‌ها"}
-          </p>
-          <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-            {resultsCopy.heading} در {location}
-          </h1>
-        </div>
+      <header>
+        <SearchToolbar
+          searchParams={searchParams}
+          setSearchParams={setSearchParams}
+        />
+        <h1 className="sr-only">
+          {resultsCopy.heading} در {location}
+        </h1>
+      </header>
+      <div className="mb-6 flex justify-end lg:hidden">
         <Sheet open={filtersOpen} onOpenChange={setFiltersOpen}>
           <SheetTrigger asChild>
             <Button className="lg:hidden" variant="outline">
@@ -244,7 +244,7 @@ export function ResultsPage() {
             </div>
           </SheetContent>
         </Sheet>
-      </header>
+      </div>
 
       {activeFilters.length > 0 && (
         <div
@@ -280,6 +280,11 @@ export function ResultsPage() {
           </div>
         </aside>
         <div>
+          <p className="text-muted-foreground mb-5 text-sm" aria-live="polite">
+            {search.data
+              ? `${formatNumber(count)} ملک پیدا شد`
+              : "جست‌وجوی ملک‌ها"}
+          </p>
           {search.isPending ? (
             <ResultsLoading />
           ) : search.isError ? (

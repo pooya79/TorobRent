@@ -6,7 +6,17 @@ from typing import Any, Literal, cast
 from django.db.models import CharField, Count, OuterRef, Q, QuerySet, Subquery, Value
 from django.db.models.functions import Replace
 
-from .models import TEHRAN_CITY_ID, City, District, Listing, Neighborhood, Property, PropertyType
+from .models import (
+    PROPERTY_TYPES_BY_CATEGORY,
+    TEHRAN_CITY_ID,
+    City,
+    District,
+    Listing,
+    Neighborhood,
+    Property,
+    PropertyCategory,
+    PropertyType,
+)
 
 PERSIAN_SEARCH_REPLACEMENTS = (
     ("ي", "ی"),
@@ -46,6 +56,7 @@ type SearchOrdering = Literal["freshness", "monthly_rent", "deposit", "area"]
 @dataclass(frozen=True)
 class PropertySearchFilters:
     location: str = ""
+    property_category: PropertyCategory | None = None
     deposit_min_rial: int | None = None
     deposit_max_rial: int | None = None
     monthly_rent_min_rial: int | None = None
@@ -214,6 +225,10 @@ def search_properties(filters: PropertySearchFilters | None = None) -> QuerySet[
     })
     if filters.property_types:
         properties = properties.filter(property_type__in=filters.property_types)
+    elif filters.property_category is not None:
+        properties = properties.filter(
+            property_type__in=PROPERTY_TYPES_BY_CATEGORY[filters.property_category]
+        )
 
     location = filters.location.strip()
     if location:
