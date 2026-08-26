@@ -27,6 +27,13 @@ export const server = setupServer(
       },
     ]),
   ),
+  http.get("*/api/v1/catalog/statistics/", () =>
+    HttpResponse.json({
+      searchable_property_count: 12,
+      active_listing_count: 18,
+      covered_neighborhood_count: 5,
+    }),
+  ),
   http.get("*/api/v1/catalog/properties/", () =>
     HttpResponse.json(propertySearchPage),
   ),
