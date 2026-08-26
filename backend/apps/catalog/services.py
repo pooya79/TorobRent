@@ -14,6 +14,7 @@ from rest_framework.exceptions import Throttled
 
 from .locations import derive_public_location
 from .models import (
+    Favorite,
     Listing,
     ListingGroupingAction,
     ListingGroupingEvent,
@@ -267,6 +268,24 @@ def merge_properties(*, target: Property, duplicate: Property, reason: str = "")
         raise ValidationError("ملک مقصد قبلاً در ملک دیگری ادغام شده است.")
     if duplicate.merged_into_id is not None:
         raise ValidationError("ملک تکراری قبلاً ادغام شده است.")
+
+    duplicate_favorites = Favorite.objects.select_for_update().filter(property=duplicate)
+    for duplicate_favorite in duplicate_favorites:
+        target_favorite = (
+            Favorite.objects
+            .select_for_update()
+            .filter(account_id=duplicate_favorite.account_id, property=target)
+            .first()
+        )
+        if target_favorite is None:
+            duplicate_favorite.property = target
+            duplicate_favorite.save(update_fields=["property"])
+            continue
+        if duplicate_favorite.saved_at > target_favorite.saved_at:
+            Favorite.objects.filter(pk=target_favorite.pk).update(
+                saved_at=duplicate_favorite.saved_at
+            )
+        duplicate_favorite.delete()
 
     for listing in Listing.objects.select_for_update().filter(property=duplicate):
         listing.property = target

@@ -15,14 +15,16 @@ export type PropertyCardData = {
   location: string;
   facts: readonly string[];
   imageUrl?: string;
-  listingCountLabel: string;
+  listingCountLabel?: string;
   isFavorite: boolean;
-  rentalTerms: {
+  rentalTerms?: {
     depositLabel: string;
     monthlyRentLabel: string;
   };
-  freshnessLabel: string;
-  detailHref?: string;
+  freshnessLabel?: string;
+  navigation:
+    | { kind: "property-detail"; href: string }
+    | { kind: "temporarily-unavailable" };
 };
 
 export function PropertyCard({ property }: { property: PropertyCardData }) {
@@ -46,9 +48,11 @@ export function PropertyCard({ property }: { property: PropertyCardData }) {
             <span className="text-sm">تصویر این ملک هنوز منتشر نشده است</span>
           </div>
         )}
-        <Badge className="bg-card text-foreground hover:bg-card absolute top-3 left-3 shadow-sm">
-          {property.listingCountLabel}
-        </Badge>
+        {property.listingCountLabel ? (
+          <Badge className="bg-card text-foreground hover:bg-card absolute top-3 left-3 shadow-sm">
+            {property.listingCountLabel}
+          </Badge>
+        ) : null}
       </div>
       <CardHeader className="gap-2 px-0 pt-4 pb-2">
         <div className="text-muted-foreground flex items-center gap-1 text-sm">
@@ -56,26 +60,34 @@ export function PropertyCard({ property }: { property: PropertyCardData }) {
           {property.location}
         </div>
         <h2 className="text-lg font-semibold tracking-tight">
-          <Link
-            className="after:absolute after:inset-0 focus-visible:rounded-sm"
-            to={property.detailHref ?? `/properties/${property.id}`}
-          >
-            {property.title}
-          </Link>
+          {property.navigation.kind === "temporarily-unavailable" ? (
+            property.title
+          ) : (
+            <Link
+              className="after:absolute after:inset-0 focus-visible:rounded-sm"
+              to={property.navigation.href}
+            >
+              {property.title}
+            </Link>
+          )}
         </h2>
         <p className="text-muted-foreground text-sm">
           {property.facts.join(" · ")}
         </p>
       </CardHeader>
-      <CardContent className="space-y-1 px-0 pb-3 text-sm">
-        <p className="font-semibold">
-          ودیعه {property.rentalTerms.depositLabel}
-        </p>
-        <p>اجاره ماهانه {property.rentalTerms.monthlyRentLabel}</p>
-      </CardContent>
-      <CardFooter className="text-muted-foreground border-border border-t px-0 py-3 text-xs">
-        {property.freshnessLabel}
-      </CardFooter>
+      {property.rentalTerms ? (
+        <CardContent className="space-y-1 px-0 pb-3 text-sm">
+          <p className="font-semibold">
+            ودیعه {property.rentalTerms.depositLabel}
+          </p>
+          <p>اجاره ماهانه {property.rentalTerms.monthlyRentLabel}</p>
+        </CardContent>
+      ) : null}
+      {property.freshnessLabel ? (
+        <CardFooter className="text-muted-foreground border-border border-t px-0 py-3 text-xs">
+          {property.freshnessLabel}
+        </CardFooter>
+      ) : null}
     </Card>
   );
 }

@@ -25,6 +25,7 @@ from .selectors import (
     autocomplete_locations,
     catalog_facets,
     catalog_statistics,
+    favorite_properties,
     search_properties,
     supported_cities,
 )
@@ -33,6 +34,7 @@ from .serializers import (
     CatalogStatisticsSerializer,
     EventSessionSerializer,
     ExternalContinuationSerializer,
+    FavoriteCollectionSerializer,
     LocationSuggestionSerializer,
     PhoneRevealSerializer,
     PropertyDetailSerializer,
@@ -172,14 +174,27 @@ class PropertyFavoriteView(APIView):
         return Response(status=204)
 
     @extend_schema(
-        summary="Remove an active Property from Favorites",
+        summary="Remove a Property from Favorites",
         request=None,
         responses={204: None},
     )
     def delete(self, request: Request, property_id: uuid.UUID) -> Response:
-        property_ = self._active_property(property_id)
-        Favorite.objects.filter(account_id=request.user.pk, property=property_).delete()
+        Favorite.objects.filter(account_id=request.user.pk, property_id=property_id).delete()
         return Response(status=204)
+
+
+class FavoriteCollectionView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        summary="List active and temporarily unavailable Favorites",
+        responses={200: FavoriteCollectionSerializer},
+    )
+    def get(self, request: Request) -> Response:
+        account_id = cast(uuid.UUID, request.user.pk)
+        active, unavailable = favorite_properties(account_id)
+        serializer = FavoriteCollectionSerializer({"active": active, "unavailable": unavailable})
+        return Response(serializer.data)
 
 
 class PropertyDetailView(APIView):

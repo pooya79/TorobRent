@@ -289,6 +289,41 @@ def search_properties(
     return properties.order_by(*property_ordering)
 
 
+def favorite_properties(
+    account_id: uuid.UUID,
+) -> tuple[QuerySet[Property], QuerySet[Property]]:
+    favorite = Favorite.objects.filter(account_id=account_id, property_id=OuterRef("pk"))
+    active_listings = Listing.objects.active().filter(property_id=OuterRef("pk"))
+    selected_listing = active_listings.order_by("-availability_confirmed_at", "id")
+    active_listing_counts = (
+        active_listings.order_by().values("property_id").annotate(total=Count("id")).values("total")
+    )
+    favorites = (
+        Property.objects
+        .filter(favorites__account_id=account_id)
+        .select_related("city", "district", "neighborhood")
+        .annotate(
+            favorite_saved_at=Subquery(favorite.values("saved_at")[:1]),
+            has_active_listing=Exists(active_listings),
+        )
+    )
+    active = favorites.filter(has_active_listing=True).annotate(
+        listing_count=Subquery(active_listing_counts),
+        selected_availability_confirmed_at=Subquery(
+            selected_listing.values("availability_confirmed_at")[:1]
+        ),
+        selected_deposit_rial=Subquery(selected_listing.values("terms__deposit_rial")[:1]),
+        selected_monthly_rent_rial=Subquery(
+            selected_listing.values("terms__monthly_rent_rial")[:1]
+        ),
+        selected_currency=Subquery(selected_listing.values("terms__currency")[:1]),
+        is_favorite=Value(True),
+    )
+    unavailable = favorites.filter(has_active_listing=False)
+    ordering = ("-favorite_saved_at", "id")
+    return active.order_by(*ordering), unavailable.order_by(*ordering)
+
+
 type FacetFeature = Literal["parking", "elevator", "storage", "furnished"]
 FACET_FEATURES: tuple[FacetFeature, ...] = ("parking", "elevator", "storage", "furnished")
 

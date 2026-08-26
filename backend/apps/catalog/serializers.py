@@ -242,6 +242,20 @@ class SourceDisagreementSerializer(serializers.Serializer[Any]):
     source_value = serializers.JSONField()
 
 
+def property_location_data(property_: Property) -> dict[str, Any]:
+    city = property_.city
+    district = property_.district
+    neighborhood = property_.neighborhood
+    if city is None or district is None or neighborhood is None:
+        raise ValueError("A public Property must have a complete location")
+    return {
+        "city": city.name_fa,
+        "district": district.name_fa,
+        "district_number": district.number,
+        "neighborhood": neighborhood.name_fa,
+    }
+
+
 class PropertySummarySerializer(serializers.Serializer[Any]):
     id = serializers.UUIDField()
     title = serializers.CharField()
@@ -264,17 +278,7 @@ class PropertySummarySerializer(serializers.Serializer[Any]):
 
     @extend_schema_field(LocationSerializer)
     def get_location(self, property_: Property) -> dict[str, Any]:
-        city = property_.city
-        district = property_.district
-        neighborhood = property_.neighborhood
-        if city is None or district is None or neighborhood is None:
-            raise ValueError("A searchable Property must have a complete location")
-        return {
-            "city": city.name_fa,
-            "district": district.name_fa,
-            "district_number": district.number,
-            "neighborhood": neighborhood.name_fa,
-        }
+        return property_location_data(property_)
 
     @extend_schema_field(ApproximateLocationSerializer(allow_null=True))
     def get_approximate_location(self, property_: Property) -> dict[str, Any] | None:
@@ -291,6 +295,33 @@ class PropertySummarySerializer(serializers.Serializer[Any]):
             "deposit_toman": rial_to_toman(deposit_rial),
             "monthly_rent_toman": rial_to_toman(monthly_rent_rial),
         }
+
+
+class ActiveFavoriteSummarySerializer(PropertySummarySerializer):
+    saved_at = serializers.DateTimeField(source="favorite_saved_at")
+
+
+class UnavailableFavoriteSummarySerializer(serializers.Serializer[Any]):
+    id = serializers.UUIDField()
+    title = serializers.CharField()
+    location = serializers.SerializerMethodField()
+    property_category = serializers.ChoiceField(choices=PropertyCategory.choices)
+    property_category_label = serializers.CharField()
+    property_type = serializers.ChoiceField(choices=PropertyType.choices)
+    property_type_label = serializers.CharField(source="get_property_type_display")
+    area_sqm = serializers.IntegerField()
+    room_count = OmitNullIntegerField(required=False)
+    saved_at = serializers.DateTimeField(source="favorite_saved_at")
+
+    @extend_schema_field(LocationSerializer)
+    def get_location(self, property_: Property) -> dict[str, Any]:
+        return property_location_data(property_)
+
+
+@extend_schema_serializer(many=False)
+class FavoriteCollectionSerializer(serializers.Serializer[Any]):
+    active = ActiveFavoriteSummarySerializer(many=True)
+    unavailable = UnavailableFavoriteSummarySerializer(many=True)
 
 
 class FacetCountSerializer(serializers.Serializer[Any]):

@@ -330,6 +330,21 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: Request was throttled
+  /api/v1/catalog/favorites/:
+    get:
+      operationId: v1_catalog_favorites_retrieve
+      summary: List active and temporarily unavailable Favorites
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FavoriteCollection'
+          description: ''
   /api/v1/catalog/listings/{listing_id}/continuation/:
     post:
       operationId: v1_catalog_listings_continuation_create
@@ -641,7 +656,7 @@ paths:
           description: No response body
     delete:
       operationId: v1_catalog_properties_favorite_destroy
-      summary: Remove an active Property from Favorites
+      summary: Remove a Property from Favorites
       parameters:
       - in: path
         name: property_id
@@ -1883,6 +1898,71 @@ paths:
           description: Authentication is required
 components:
   schemas:
+    ActiveFavoriteSummary:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        canonical_slug:
+          type: string
+        location:
+          allOf:
+          - $ref: '#/components/schemas/Location'
+          readOnly: true
+        approximate_location:
+          oneOf:
+          - $ref: '#/components/schemas/ApproximateLocation'
+          - type: 'null'
+          readOnly: true
+        property_category:
+          $ref: '#/components/schemas/PropertyCategoryEnum'
+        property_category_label:
+          type: string
+        property_type:
+          $ref: '#/components/schemas/PropertyTypeEnum'
+        property_type_label:
+          type: string
+        area_sqm:
+          type: integer
+        room_count:
+          type: integer
+        construction_year:
+          type:
+          - integer
+          - 'null'
+        listing_count:
+          type: integer
+        is_favorite:
+          type: boolean
+        rental_terms:
+          allOf:
+          - $ref: '#/components/schemas/RentalTermsPublic'
+          readOnly: true
+        availability_confirmed_at:
+          type: string
+          format: date-time
+        saved_at:
+          type: string
+          format: date-time
+      required:
+      - approximate_location
+      - area_sqm
+      - availability_confirmed_at
+      - canonical_slug
+      - construction_year
+      - id
+      - listing_count
+      - location
+      - property_category
+      - property_category_label
+      - property_type
+      - property_type_label
+      - rental_terms
+      - saved_at
+      - title
     ApproximateLocation:
       type: object
       properties:
@@ -2235,6 +2315,20 @@ components:
       required:
       - count
       - value
+    FavoriteCollection:
+      type: object
+      properties:
+        active:
+          type: array
+          items:
+            $ref: '#/components/schemas/ActiveFavoriteSummary'
+        unavailable:
+          type: array
+          items:
+            $ref: '#/components/schemas/UnavailableFavoriteSummary'
+      required:
+      - active
+      - unavailable
     FeatureFacets:
       type: object
       properties:
@@ -4525,6 +4619,43 @@ components:
           type: string
       required:
       - token
+    UnavailableFavoriteSummary:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        location:
+          allOf:
+          - $ref: '#/components/schemas/Location'
+          readOnly: true
+        property_category:
+          $ref: '#/components/schemas/PropertyCategoryEnum'
+        property_category_label:
+          type: string
+        property_type:
+          $ref: '#/components/schemas/PropertyTypeEnum'
+        property_type_label:
+          type: string
+        area_sqm:
+          type: integer
+        room_count:
+          type: integer
+        saved_at:
+          type: string
+          format: date-time
+      required:
+      - area_sqm
+      - id
+      - location
+      - property_category
+      - property_category_label
+      - property_type
+      - property_type_label
+      - saved_at
+      - title
     User:
       type: object
       properties:
