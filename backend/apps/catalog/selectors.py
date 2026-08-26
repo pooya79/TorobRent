@@ -6,7 +6,7 @@ from typing import Any, Literal, cast
 from django.db.models import CharField, Count, OuterRef, Q, QuerySet, Subquery, Value
 from django.db.models.functions import Replace
 
-from .models import TEHRAN_CITY_ID, City, District, Listing, Neighborhood, Property
+from .models import TEHRAN_CITY_ID, City, District, Listing, Neighborhood, Property, PropertyType
 
 PERSIAN_SEARCH_REPLACEMENTS = (
     ("ي", "ی"),
@@ -39,7 +39,7 @@ class PropertySearchFilters:
     area_min: int | None = None
     area_max: int | None = None
     room_count: int | None = None
-    property_type: str | None = None
+    property_types: tuple[PropertyType, ...] = ()
     parking: str | None = None
     elevator: str | None = None
     storage: str | None = None
@@ -168,7 +168,6 @@ def search_properties(filters: PropertySearchFilters | None = None) -> QuerySet[
         "area_sqm__gte": filters.area_min,
         "area_sqm__lte": filters.area_max,
         "room_count": filters.room_count,
-        "property_type": filters.property_type,
         "parking": filters.parking,
         "elevator": filters.elevator,
         "storage": filters.storage,
@@ -178,6 +177,8 @@ def search_properties(filters: PropertySearchFilters | None = None) -> QuerySet[
     properties = properties.filter(**{
         lookup: value for lookup, value in property_filters.items() if value is not None
     })
+    if filters.property_types:
+        properties = properties.filter(property_type__in=filters.property_types)
 
     location = filters.location.strip()
     if location:

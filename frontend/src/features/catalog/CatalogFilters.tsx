@@ -6,7 +6,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { normalizeNumericEntry, persianDigits } from "./numeric-entry";
-import { propertyTypeLabels, propertyTypeOptions } from "./property-taxonomy";
+import { propertyTypeLabels } from "./property-taxonomy";
+import { selectedPropertyTypes } from "./property-type-selection";
+import { PropertyTypeSelector } from "./PropertyTypeSelector";
 
 export const filterLabels = {
   deposit_min_toman: "حداقل ودیعه",
@@ -126,6 +128,7 @@ export function CatalogFilters({
     for (const name of [...Object.keys(filterLabels), "ordering"] as (
       FilterName | "ordering"
     )[]) {
+      if (name === "property_type") continue;
       const entry = form.get(name);
       const rawValue = typeof entry === "string" ? entry.trim() : "";
       const value = numericFilters.has(name as FilterName)
@@ -133,6 +136,12 @@ export function CatalogFilters({
         : rawValue;
       if (value) next.set(name, value);
       else next.delete(name);
+    }
+    next.delete("property_type");
+    for (const propertyType of form.getAll("property_type")) {
+      if (typeof propertyType === "string" && propertyType) {
+        next.append("property_type", propertyType);
+      }
     }
     next.delete("page");
     setSearchParams(next);
@@ -181,12 +190,12 @@ export function CatalogFilters({
             defaultValue={persianDigits(searchParams.get("room_count"))}
           />
         </div>
-        <ChoiceField
-          prefix={prefix}
-          searchParams={searchParams}
-          name="property_type"
-          options={propertyTypeOptions}
-        />
+        <div className="space-y-2">
+          <Label>{filterLabels.property_type}</Label>
+          <PropertyTypeSelector
+            initialSelectedTypes={selectedPropertyTypes(searchParams)}
+          />
+        </div>
       </div>
       <div className="grid grid-cols-2 gap-3">
         {(

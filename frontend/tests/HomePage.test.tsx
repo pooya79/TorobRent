@@ -16,7 +16,7 @@ function SearchLocationProbe() {
   return (
     <p>
       {location.pathname}|{params.get("location")}|
-      {params.get("location_label")}|{params.get("property_type")}
+      {params.get("location_label")}|{params.getAll("property_type").join(",")}
     </p>
   );
 }
@@ -337,7 +337,8 @@ test("selects a Persian autocomplete result and navigates to a shareable Results
       name: "سعادت‌آباد، منطقه ۲، تهران",
     }),
   );
-  await user.selectOptions(screen.getByLabelText("نوع ملک"), "office");
+  await user.click(screen.getByRole("button", { name: "همه ملک‌ها" }));
+  await user.click(screen.getByRole("checkbox", { name: "دفتر اداری" }));
   await user.click(screen.getByRole("button", { name: "جست‌وجوی ملک" }));
 
   expect(
@@ -347,20 +348,92 @@ test("selects a Persian autocomplete result and navigates to a shareable Results
   ).toBeVisible();
 });
 
-test("presents all seven Property Types under Residential and Commercial", () => {
+test("presents All Properties, both categories, and all seven Property Types", async () => {
+  const user = userEvent.setup();
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
   renderHomeShell(queryClient);
 
-  for (const label of ["آپارتمان", "خانه", "ویلا"]) {
-    expect(
-      screen.getByRole("option", { name: label }).parentElement,
-    ).toHaveAttribute("label", "مسکونی");
-  }
-  for (const label of ["دفتر اداری", "مغازه", "انبار", "کارگاه"]) {
-    expect(
-      screen.getByRole("option", { name: label }).parentElement,
-    ).toHaveAttribute("label", "تجاری");
+  await user.click(screen.getByRole("button", { name: "همه ملک‌ها" }));
+  for (const label of [
+    "همه ملک‌ها",
+    "مسکونی",
+    "آپارتمان",
+    "خانه",
+    "ویلا",
+    "تجاری",
+    "دفتر اداری",
+    "مغازه",
+    "انبار",
+    "کارگاه",
+  ]) {
+    expect(screen.getByRole("checkbox", { name: label })).toBeVisible();
   }
 });
+
+test("selects Property Type categories and shares mixed selections as repeated parameters", async () => {
+  const user = userEvent.setup();
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  render(
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter initialEntries={["/"]}>
+        <Routes>
+          <Route path="/" element={<HomePage />} />
+          <Route path="/search" element={<SearchLocationProbe />} />
+        </Routes>
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+
+  await user.click(screen.getByRole("button", { name: "همه ملک‌ها" }));
+  await user.click(screen.getByRole("checkbox", { name: "مسکونی" }));
+  expect(screen.getByRole("checkbox", { name: "آپارتمان" })).toBeChecked();
+  expect(screen.getByRole("checkbox", { name: "خانه" })).toBeChecked();
+  expect(screen.getByRole("checkbox", { name: "ویلا" })).toBeChecked();
+
+  await user.click(screen.getByRole("checkbox", { name: "دفتر اداری" }));
+  expect(
+    screen.getByRole("button", { name: "مسکونی، دفتر اداری" }),
+  ).toBeVisible();
+  expect(screen.getByRole("checkbox", { name: "تجاری" })).toHaveAttribute(
+    "data-state",
+    "indeterminate",
+  );
+
+  await user.click(screen.getByRole("button", { name: "جست‌وجوی ملک" }));
+  expect(screen.getByText(/\|apartment,house,villa,office$/)).toBeVisible();
+});
+
+test.each(["clear the last selected type", "select All Properties"])(
+  "%s produces an unfiltered Results URL",
+  async (action) => {
+    const user = userEvent.setup();
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={["/"]}>
+          <Routes>
+            <Route path="/" element={<HomePage />} />
+            <Route path="/search" element={<SearchLocationProbe />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    await user.click(screen.getByRole("button", { name: "همه ملک‌ها" }));
+    await user.click(screen.getByRole("checkbox", { name: "آپارتمان" }));
+    await user.click(
+      screen.getByRole("checkbox", {
+        name: action === "select All Properties" ? "همه ملک‌ها" : "آپارتمان",
+      }),
+    );
+    await user.click(screen.getByRole("button", { name: "جست‌وجوی ملک" }));
+
+    expect(screen.getByText("/search|||")).toBeVisible();
+  },
+);

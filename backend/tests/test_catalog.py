@@ -75,6 +75,24 @@ def test_public_catalog_query_count_is_bounded_for_representative_demo_fixture(
 
 
 @pytest.mark.django_db
+def test_public_catalog_filters_by_repeated_property_types(api_client: APIClient):
+    call_command("seed_demo", verbosity=0)
+
+    response = api_client.get(
+        "/api/v1/catalog/properties/",
+        {"property_type": ["apartment", "office"]},
+    )
+
+    assert response.status_code == 200
+    returned_types = {result["property_type"] for result in response.data["results"]}
+    assert returned_types == {"apartment", "office"}
+
+    unfiltered_response = api_client.get("/api/v1/catalog/properties/")
+    unfiltered_types = {result["property_type"] for result in unfiltered_response.data["results"]}
+    assert unfiltered_types == set(PropertyType.values)
+
+
+@pytest.mark.django_db
 def test_catalog_uses_uuid_identity_and_preserves_unknown_feature_states():
     property_ = Property(property_type=PropertyType.APARTMENT, area_sqm=85, room_count=2)
     terms = RentalTerms(deposit_rial=5_000_000_000, monthly_rent_rial=200_000_000)

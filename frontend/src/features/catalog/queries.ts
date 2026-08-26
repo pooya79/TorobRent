@@ -3,6 +3,7 @@ import { queryOptions } from "@tanstack/react-query";
 import { createApiClient } from "@/lib/api/client";
 import type { operations } from "@/lib/api/schema";
 import { normalizeNumericEntry } from "./numeric-entry";
+import { selectedPropertyTypes } from "./property-type-selection";
 
 type PropertySearchQuery = NonNullable<
   operations["v1_catalog_properties_list"]["parameters"]["query"]
@@ -55,10 +56,9 @@ export function propertySearchQueryOptions(searchParams: URLSearchParams) {
     area_min: integerParameter("area_min"),
     area_max: integerParameter("area_max"),
     room_count: integerParameter("room_count"),
-    property_type:
-      (searchParams.get(
-        "property_type",
-      ) as PropertySearchQuery["property_type"]) ?? undefined,
+    property_type: searchParams.has("property_type")
+      ? selectedPropertyTypes(searchParams)
+      : undefined,
     parking:
       (searchParams.get("parking") as PropertySearchQuery["parking"]) ??
       undefined,

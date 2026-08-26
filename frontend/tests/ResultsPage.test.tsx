@@ -183,10 +183,8 @@ test("applies every filter with tolerant numeric entry and exposes removable chi
   });
   await user.type(within(filters).getByLabelText("حداقل ودیعه"), "۵۰۰٬۰۰۰٬۰۰۰");
   await user.type(within(filters).getByLabelText("تعداد اتاق"), "۲");
-  await user.selectOptions(
-    within(filters).getByLabelText("نوع ملک"),
-    "apartment",
-  );
+  await user.click(within(filters).getByRole("button", { name: "همه ملک‌ها" }));
+  await user.click(within(filters).getByRole("checkbox", { name: "آپارتمان" }));
   await user.selectOptions(
     within(filters).getByLabelText("پارکینگ"),
     "present",
@@ -225,6 +223,54 @@ test("offers the same filter form in an accessible mobile drawer", async () => {
   ).toBeVisible();
   expect(within(drawer).getByLabelText("حداقل اجاره ماهانه")).toBeVisible();
   expect(within(drawer).getByLabelText("مبله")).toBeVisible();
+});
+
+test("preserves mixed Property Types through requests, filters, pagination, chips, and return navigation", async () => {
+  const user = userEvent.setup();
+  let requestedParams = new URLSearchParams();
+  server.use(
+    http.get("*/api/v1/catalog/properties/", ({ request }) => {
+      requestedParams = new URL(request.url).searchParams;
+      return HttpResponse.json({ ...propertySearchPage, count: 26 });
+    }),
+  );
+  renderResults(
+    "/search?property_type=apartment&property_type=office&parking=present",
+  );
+
+  const filters = await screen.findByRole("complementary", {
+    name: "فیلترهای جست‌وجو",
+  });
+  expect(requestedParams.getAll("property_type")).toEqual([
+    "apartment",
+    "office",
+  ]);
+  expect(
+    within(filters).getByRole("button", { name: "آپارتمان، دفتر اداری" }),
+  ).toBeVisible();
+
+  await user.type(within(filters).getByLabelText("حداکثر متراژ"), "۱۲۰");
+  await user.click(
+    within(filters).getByRole("button", { name: "اعمال فیلترها" }),
+  );
+  expect(requestedParams.getAll("property_type")).toEqual([
+    "apartment",
+    "office",
+  ]);
+  const nextPage = screen.getByRole("link", { name: "صفحه بعد" });
+  expect(
+    new URL(
+      nextPage.getAttribute("href")!,
+      "http://example.test",
+    ).searchParams.getAll("property_type"),
+  ).toEqual(["apartment", "office"]);
+  expect(
+    screen.getByRole("link", { name: "آپارتمان در سعادت‌آباد" }),
+  ).toHaveAttribute("href", expect.stringContaining("property_type%3Doffice"));
+
+  await user.click(screen.getByRole("button", { name: "حذف فیلتر نوع ملک" }));
+  expect(requestedParams.has("property_type")).toBe(false);
+  expect(requestedParams.get("parking")).toBe("present");
 });
 
 test("marks filtered result pages non-indexable and keeps return navigation on cards", async () => {

@@ -67,7 +67,8 @@ test("@milestone Operator publishes a curated Property that a Renter opens throu
   await page
     .getByRole("option", { name: "سعادت‌آباد، منطقه ۲، تهران" })
     .click();
-  await page.getByLabel("نوع ملک").selectOption("office");
+  await page.getByRole("button", { name: "همه ملک‌ها" }).click();
+  await page.getByRole("checkbox", { name: "دفتر اداری" }).click();
   await page.getByRole("button", { name: "جست‌وجوی ملک" }).click();
   await expect(page).toHaveURL(/\/search\?location=.*property_type=office/);
   await expect(
@@ -203,9 +204,12 @@ test("@milestone Operator publishes a curated Property that a Renter opens throu
   await page.locator('button[name="index"]').click();
   await expect(page.getByText("یک آگهی منتشر شد.")).toBeVisible();
 
-  const residentialSearchUrl = new URL(unfilteredResultsUrl);
-  residentialSearchUrl.searchParams.set("property_type", "apartment");
-  await page.goto(residentialSearchUrl.toString());
+  const mixedSearchUrl = new URL(unfilteredResultsUrl);
+  mixedSearchUrl.searchParams.append("property_type", "apartment");
+  await page.goto(mixedSearchUrl.toString());
+  await expect(
+    page.getByRole("link", { name: "دفتر اداری در سعادت‌آباد" }),
+  ).toBeVisible();
   const residentialCard = page.locator(
     `a[href^="/properties/${separatePropertyId}"]`,
   );
@@ -215,6 +219,8 @@ test("@milestone Operator publishes a curated Property that a Renter opens throu
     page.getByRole("heading", { name: "آپارتمان در سعادت‌آباد", level: 1 }),
   ).toBeVisible();
   await expect(page.getByText("۲ خواب")).toBeVisible();
+  await page.getByRole("link", { name: "بازگشت به نتایج" }).click();
+  await expect(page).toHaveURL(mixedSearchUrl.toString());
 
   await page.goto(`/admin/catalog/listing/${externalListingId}/change/`);
   await page.locator("#id_property").selectOption(propertyId!);

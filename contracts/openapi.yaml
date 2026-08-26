@@ -474,24 +474,25 @@ paths:
       - in: query
         name: property_type
         schema:
-          enum:
-          - apartment
-          - house
-          - villa
-          - office
-          - shop
-          - warehouse
-          - workshop
-          type: string
-          minLength: 1
-        description: |-
-          * `apartment` - آپارتمان
-          * `house` - خانه
-          * `villa` - ویلا
-          * `office` - دفتر اداری
-          * `shop` - مغازه
-          * `warehouse` - انبار
-          * `workshop` - کارگاه
+          type: array
+          items:
+            enum:
+            - apartment
+            - house
+            - villa
+            - office
+            - shop
+            - warehouse
+            - workshop
+            type: string
+            description: |-
+              * `apartment` - آپارتمان
+              * `house` - خانه
+              * `villa` - ویلا
+              * `office` - دفتر اداری
+              * `shop` - مغازه
+              * `warehouse` - انبار
+              * `workshop` - کارگاه
       - in: query
         name: room_count
         schema:

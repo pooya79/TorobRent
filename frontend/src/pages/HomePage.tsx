@@ -14,10 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { prototypeRepository } from "@/features/prototype/fixtures";
 import { locationAutocompleteQueryOptions } from "@/features/catalog/queries";
-import {
-  propertyTypeGroups,
-  propertyTypeLabels,
-} from "@/features/catalog/property-taxonomy";
+import { PropertyTypeSelector } from "@/features/catalog/PropertyTypeSelector";
 
 const popularPlaces = ["تهران", "کرج", "مشهد", "شیراز"] as const;
 
@@ -128,7 +125,7 @@ export function HomePage() {
               )}
             </span>
           </label>
-          <label className="border-border focus-within:ring-ring flex min-h-15 items-center gap-3 rounded-full border-t px-4 focus-within:ring-2 sm:border-s sm:border-t-0">
+          <div className="border-border flex min-h-15 items-center gap-3 rounded-full border-t px-4 sm:border-s sm:border-t-0">
             <Building2
               className="text-muted-foreground size-5 shrink-0"
               aria-hidden="true"
@@ -140,25 +137,9 @@ export function HomePage() {
               >
                 نوع ملک
               </span>
-              <select
-                aria-labelledby="property-type-label"
-                className="text-muted-foreground h-7 w-full border-0 bg-transparent p-0 text-sm focus:outline-none"
-                name="property_type"
-                defaultValue=""
-              >
-                <option value="">همه ملک‌ها</option>
-                {propertyTypeGroups.map((group) => (
-                  <optgroup key={group.category} label={group.label}>
-                    {group.types.map((type) => (
-                      <option key={type} value={type}>
-                        {propertyTypeLabels[type]}
-                      </option>
-                    ))}
-                  </optgroup>
-                ))}
-              </select>
+              <PropertyTypeSelector compact />
             </span>
-          </label>
+          </div>
           <Button className="min-h-15 rounded-full px-7" type="submit">
             <Search aria-hidden="true" /> جست‌وجوی ملک
           </Button>

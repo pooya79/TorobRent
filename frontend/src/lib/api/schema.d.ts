@@ -2423,23 +2423,15 @@ export interface operations {
          *     * `absent` - absent
          */
         parking?: "present" | "absent";
-        /**
-         * @description * `apartment` - آپارتمان
-         *     * `house` - خانه
-         *     * `villa` - ویلا
-         *     * `office` - دفتر اداری
-         *     * `shop` - مغازه
-         *     * `warehouse` - انبار
-         *     * `workshop` - کارگاه
-         */
-        property_type?:
+        property_type?: (
           | "apartment"
           | "house"
           | "villa"
           | "office"
           | "shop"
           | "warehouse"
-          | "workshop";
+          | "workshop"
+        )[];
         room_count?: number;
         /**
          * @description * `present` - present

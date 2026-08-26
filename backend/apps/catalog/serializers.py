@@ -73,7 +73,10 @@ class PropertySearchQuerySerializer(serializers.Serializer[Any]):
     area_min = LocalizedIntegerField(required=False, min_value=1)
     area_max = LocalizedIntegerField(required=False, min_value=1)
     room_count = LocalizedIntegerField(required=False, min_value=0)
-    property_type = serializers.ChoiceField(required=False, choices=PropertyType.choices)
+    property_type = serializers.ListField(
+        required=False,
+        child=serializers.ChoiceField(choices=PropertyType.choices),
+    )
     parking = serializers.ChoiceField(required=False, choices=("present", "absent"))
     elevator = serializers.ChoiceField(required=False, choices=("present", "absent"))
     storage = serializers.ChoiceField(required=False, choices=("present", "absent"))
@@ -106,7 +109,9 @@ class PropertySearchQuerySerializer(serializers.Serializer[Any]):
             area_min=data.get("area_min"),
             area_max=data.get("area_max"),
             room_count=data.get("room_count"),
-            property_type=data.get("property_type"),
+            property_types=tuple(
+                PropertyType(property_type) for property_type in data.get("property_type", ())
+            ),
             parking=data.get("parking"),
             elevator=data.get("elevator"),
             storage=data.get("storage"),

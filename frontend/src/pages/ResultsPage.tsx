@@ -41,6 +41,10 @@ import {
   roomCountLabels,
   type PropertyType,
 } from "@/features/catalog/property-taxonomy";
+import {
+  selectedPropertyTypes,
+  summarizePropertyTypes,
+} from "@/features/catalog/property-type-selection";
 import type { components } from "@/lib/api/schema";
 
 type PropertySummary = components["schemas"]["PropertySummary"];
@@ -68,7 +72,8 @@ function isCommercialResultType(
   return propertyType in commercialResultsHeadings;
 }
 
-function resultsPageCopy(propertyType: string | null) {
+function resultsPageCopy(propertyTypes: readonly PropertyType[]) {
+  const propertyType = propertyTypes.length === 1 ? propertyTypes[0] : null;
   const commercialHeading =
     propertyType && isCommercialResultType(propertyType)
       ? commercialResultsHeadings[propertyType]
@@ -96,7 +101,7 @@ function resultsPageCopy(propertyType: string | null) {
 
 export function meta({ location }: { location?: { search: string } } = {}) {
   const copy = resultsPageCopy(
-    new URLSearchParams(location?.search).get("property_type"),
+    selectedPropertyTypes(new URLSearchParams(location?.search)),
   );
   return [
     { title: copy.title },
@@ -168,7 +173,7 @@ export function ResultsPage() {
     searchParams.get("location_label") ||
     searchParams.get("location") ||
     "تهران";
-  const resultsCopy = resultsPageCopy(searchParams.get("property_type"));
+  const resultsCopy = resultsPageCopy(selectedPropertyTypes(searchParams));
   const hrefForPage = (page: number) => {
     const next = new URLSearchParams(searchParams);
     next.set("page", String(page));
@@ -180,6 +185,9 @@ export function ResultsPage() {
     searchParams.has(name),
   ) as [FilterName, string][];
   const displayFilterValue = (name: FilterName) => {
+    if (name === "property_type") {
+      return summarizePropertyTypes(selectedPropertyTypes(searchParams));
+    }
     const value = searchParams.get(name) ?? "";
     if (value in filterChoiceLabels) {
       return filterChoiceLabels[value as keyof typeof filterChoiceLabels];
