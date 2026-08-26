@@ -6,16 +6,19 @@ import { sessionQuery } from "@/features/session/queries";
 import { api } from "@/lib/api/client";
 import type { components } from "@/lib/api/schema";
 import { cn } from "@/lib/utils";
+import {
+  mapPropertySearchPages,
+  type PropertySearchData,
+  type PropertySearchPage,
+} from "./property-search-cache";
 
-type PropertySearchPage = components["schemas"]["PropertySearchPage"];
 type FavoriteCollection = components["schemas"]["FavoriteCollection"];
 
-function withFavoriteState(
-  page: PropertySearchPage | undefined,
+function withFavoriteStateInPage(
+  page: PropertySearchPage,
   propertyId: string,
   isFavorite: boolean,
 ) {
-  if (!page) return page;
   const updateProperty = <Property extends { id: string }>(
     property: Property,
   ) =>
@@ -30,6 +33,16 @@ function withFavoriteState(
       markers: page.map.markers.map(updateProperty),
     },
   };
+}
+
+function withFavoriteState(
+  data: PropertySearchData | undefined,
+  propertyId: string,
+  isFavorite: boolean,
+) {
+  return mapPropertySearchPages(data, (page) =>
+    withFavoriteStateInPage(page, propertyId, isFavorite),
+  );
 }
 
 export function FavoriteButton({
@@ -64,7 +77,7 @@ export function FavoriteButton({
       for (const [
         queryKey,
         page,
-      ] of queryClient.getQueriesData<PropertySearchPage>({
+      ] of queryClient.getQueriesData<PropertySearchData>({
         queryKey: ["catalog", "properties"],
       })) {
         queryClient.setQueryData(
@@ -93,7 +106,7 @@ export function FavoriteButton({
       for (const [
         queryKey,
         page,
-      ] of queryClient.getQueriesData<PropertySearchPage>({
+      ] of queryClient.getQueriesData<PropertySearchData>({
         queryKey: ["catalog", "properties"],
       })) {
         queryClient.setQueryData(
