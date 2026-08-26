@@ -16,6 +16,13 @@ const marker: MapMarker = {
   preview: {
     title: "آپارتمان در سعادت‌آباد",
     locationLabel: "سعادت‌آباد، تهران",
+    facts: ["آپارتمان", "۱۱۰ متر", "۲ خواب"],
+    listingCountLabel: "۲ آگهی فعال",
+    isFavorite: false,
+    rentalTerms: {
+      depositLabel: "۱٬۰۰۰٬۰۰۰٬۰۰۰ تومان",
+      monthlyRentLabel: "۲۵٬۰۰۰٬۰۰۰ تومان",
+    },
     detailHref: "/properties/property-1",
   },
 };
@@ -64,7 +71,11 @@ test("the fake adapter deterministically exposes the TorobRent map contract", as
   ).toBeVisible();
   expect(screen.getByText("محدوده تقریبی ۵۰۰ متر")).toBeVisible();
 
-  await user.click(screen.getByRole("button", { name: marker.label }));
+  await user.click(
+    screen.getByRole("button", {
+      name: `انتخاب ${marker.preview.title}، ${marker.label}`,
+    }),
+  );
   expect(onSelectProperty).toHaveBeenCalledWith("property-1");
   expect(onPreviewProperty).toHaveBeenCalledWith("property-1");
   expect(onViewportChange).toHaveBeenCalledWith(
@@ -145,4 +156,41 @@ test("the production adapter owns and preserves Neshan attribution", () => {
   expect(
     screen.getByRole("link", { name: "داده‌های نقشه © نشان" }),
   ).toBeVisible();
+});
+
+test("the production adapter exposes keyboard-selectable Property markers", async () => {
+  const user = userEvent.setup();
+  const onSelectProperty = vi.fn();
+  const onPreviewProperty = vi.fn();
+
+  render(
+    <NeshanMapAdapter
+      initialViewport={{
+        north: 35.82,
+        east: 51.52,
+        south: 35.65,
+        west: 51.25,
+        zoom: 14,
+      }}
+      markers={[marker]}
+      clusters={[]}
+      selectedPropertyId={null}
+      retryToken={0}
+      onReady={vi.fn()}
+      onError={vi.fn()}
+      onViewportChange={vi.fn()}
+      onSelectProperty={onSelectProperty}
+      onPreviewProperty={onPreviewProperty}
+      onSelectCluster={vi.fn()}
+    />,
+  );
+
+  expect(screen.getByText("انتخاب ملک از فهرست نقشه")).toBeVisible();
+  await user.click(
+    screen.getByRole("button", {
+      name: `انتخاب ${marker.preview.title} با صفحه‌کلید`,
+    }),
+  );
+  expect(onSelectProperty).toHaveBeenCalledWith(marker.propertyId);
+  expect(onPreviewProperty).toHaveBeenCalledWith(marker.propertyId);
 });

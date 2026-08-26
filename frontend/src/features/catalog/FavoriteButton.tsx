@@ -16,13 +16,19 @@ function withFavoriteState(
   isFavorite: boolean,
 ) {
   if (!page) return page;
+  const updateProperty = <Property extends { id: string }>(
+    property: Property,
+  ) =>
+    property.id === propertyId
+      ? { ...property, is_favorite: isFavorite }
+      : property;
   return {
     ...page,
-    results: page.results.map((property) =>
-      property.id === propertyId
-        ? { ...property, is_favorite: isFavorite }
-        : property,
-    ),
+    results: page.results.map(updateProperty),
+    map: {
+      ...page.map,
+      markers: page.map.markers.map(updateProperty),
+    },
   };
 }
 

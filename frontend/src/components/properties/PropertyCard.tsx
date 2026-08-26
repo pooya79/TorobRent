@@ -4,6 +4,7 @@ import { Link } from "react-router";
 import { Badge } from "@/components/ui/badge";
 import { FavoriteButton } from "@/features/catalog/FavoriteButton";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 export type PropertyCardData = {
   id: string;
   title: string;
@@ -23,9 +24,23 @@ export type PropertyCardData = {
     | { kind: "temporarily-unavailable" };
 };
 
-export function PropertyCard({ property }: { property: PropertyCardData }) {
+export function PropertyCard({
+  property,
+  selected = false,
+}: {
+  property: PropertyCardData;
+  selected?: boolean;
+}) {
   return (
-    <Card className="group relative min-w-0 gap-0 overflow-hidden border-0 py-0 shadow-none">
+    <Card
+      role="article"
+      aria-label={property.title}
+      data-selected={selected}
+      className={cn(
+        "group relative min-w-0 gap-0 overflow-hidden border-0 py-0 shadow-none",
+        selected && "ring-primary rounded-xl ring-2 ring-offset-4",
+      )}
+    >
       <div className="bg-muted relative aspect-[4/3] overflow-hidden rounded-xl">
         <FavoriteButton
           propertyId={property.id}
