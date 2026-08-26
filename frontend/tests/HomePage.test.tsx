@@ -382,14 +382,50 @@ test("selects Tehran with the keyboard from the city-only listbox", async () => 
   expect(city).toHaveAttribute("aria-expanded", "false");
 });
 
+test.each(["", "تهران"])(
+  "searches Tehran explicitly when the unselected city input is %j",
+  async (cityInput) => {
+    const user = userEvent.setup();
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={["/"]}>
+          <Routes>
+            <Route path="/" element={<HomePage />} />
+            <Route path="/search" element={<SearchLocationProbe />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    if (cityInput) {
+      await user.type(screen.getByRole("combobox", { name: "شهر" }), cityInput);
+    }
+    await user.click(screen.getByRole("button", { name: "جست‌وجوی ملک" }));
+
+    expect(screen.getByText("/search|تهران|تهران|")).toBeVisible();
+  },
+);
+
 test("explains supported-city loading, empty, and failure states accessibly", async () => {
   const user = userEvent.setup();
-  let response: "loading" | "empty" | "failure" = "loading";
+  let response: "loading" | "empty" | "failure" | "success" = "loading";
   server.use(
     http.get("*/api/v1/catalog/supported-cities/", async () => {
       if (response === "loading") await delay(100);
       if (response === "failure") {
         return HttpResponse.json({ detail: "unavailable" }, { status: 503 });
+      }
+      if (response === "success") {
+        return HttpResponse.json([
+          {
+            id: "11111111-1111-4111-8111-111111111111",
+            name: "تهران",
+            label: "تهران",
+          },
+        ]);
       }
       return HttpResponse.json([]);
     }),
@@ -415,6 +451,10 @@ test("explains supported-city loading, empty, and failure states accessibly", as
       name: "دریافت شهرها ممکن نشد. دوباره تلاش کنید.",
     }),
   ).toBeVisible();
+
+  response = "success";
+  await user.click(screen.getByRole("button", { name: "تلاش دوباره" }));
+  expect(await screen.findByRole("option", { name: "تهران" })).toBeVisible();
 });
 
 test("presents All Properties, both categories, and all seven Property Types", async () => {
@@ -503,6 +543,6 @@ test.each(["clear the last selected type", "select All Properties"])(
     );
     await user.click(screen.getByRole("button", { name: "جست‌وجوی ملک" }));
 
-    expect(screen.getByText("/search|||")).toBeVisible();
+    expect(screen.getByText("/search|تهران|تهران|")).toBeVisible();
   },
 );

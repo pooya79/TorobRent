@@ -64,10 +64,8 @@ export function HomePage() {
               for (const [name, value] of [...params.entries()]) {
                 if (!value) params.delete(name);
               }
-              if (selectedCity) {
-                params.set("location", selectedCity.id);
-                params.set("location_label", selectedCity.name);
-              }
+              params.set("location", selectedCity?.id ?? "تهران");
+              params.set("location_label", selectedCity?.name ?? "تهران");
               void navigate(
                 `/search${params.size ? `?${params.toString()}` : ""}`,
               );

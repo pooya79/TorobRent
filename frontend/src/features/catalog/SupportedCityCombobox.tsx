@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useId, useState } from "react";
 
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { supportedCitiesQueryOptions } from "./queries";
 
 export type SelectedSupportedCity = {
@@ -45,11 +46,15 @@ export function SupportedCityCombobox({
         type="search"
         role="combobox"
         aria-autocomplete="list"
-        aria-controls={listboxId}
+        aria-controls={
+          open && cities.isSuccess && matchingCities.length > 0
+            ? listboxId
+            : undefined
+        }
         aria-activedescendant={
           activeCity ? `${listboxId}-option-${activeIndex}` : undefined
         }
-        aria-expanded={open}
+        aria-expanded={open && cities.isSuccess && matchingCities.length > 0}
         aria-label="شهر"
         placeholder="تهران"
         value={query}
@@ -103,13 +108,22 @@ export function SupportedCityCombobox({
             </p>
           )}
           {cities.isError && (
-            <p
-              className="text-destructive px-3 py-2 text-sm"
+            <div
+              className="text-destructive flex items-center justify-between gap-2 px-3 py-2 text-sm"
               role="alert"
               aria-label="دریافت شهرها ممکن نشد. دوباره تلاش کنید."
             >
-              دریافت شهرها ممکن نشد. دوباره تلاش کنید.
-            </p>
+              <span>دریافت شهرها ممکن نشد. دوباره تلاش کنید.</span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => void cities.refetch()}
+              >
+                تلاش دوباره
+              </Button>
+            </div>
           )}
           {cities.isSuccess && matchingCities.length === 0 && (
             <p
