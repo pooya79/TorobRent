@@ -10,6 +10,7 @@ from .models import (
     Property,
     PropertyCategory,
     PropertyType,
+    property_category_for_type,
 )
 from .money import parse_localized_integer, rial_to_toman, toman_to_rial
 from .selectors import PropertySearchFilters, SearchOrdering
@@ -74,6 +75,10 @@ class TomanRialField(LocalizedIntegerField):
 
 class PropertySearchQuerySerializer(serializers.Serializer[Any]):
     location = serializers.CharField(required=False, allow_blank=True)
+    property_category = serializers.ChoiceField(
+        required=False,
+        choices=PropertyCategory.choices,
+    )
     deposit_min_toman = TomanRialField(required=False, min_value=0, source="deposit_min_rial")
     deposit_max_toman = TomanRialField(required=False, min_value=0, source="deposit_max_rial")
     monthly_rent_min_toman = TomanRialField(
@@ -108,12 +113,27 @@ class PropertySearchQuerySerializer(serializers.Serializer[Any]):
         for minimum, maximum in ranges:
             if minimum in attrs and maximum in attrs and attrs[minimum] > attrs[maximum]:
                 raise serializers.ValidationError({maximum: "باید بزرگ‌تر یا مساوی حداقل باشد."})
+        category = attrs.get("property_category")
+        property_types = attrs.get("property_type", ())
+        if category is not None:
+            incompatible_types = [
+                property_type
+                for property_type in property_types
+                if property_category_for_type(property_type) != category
+            ]
+            if incompatible_types:
+                raise serializers.ValidationError({
+                    "property_type": "نوع ملک باید با دسته‌بندی ملک سازگار باشد."
+                })
         return attrs
 
     def validated_filters(self) -> PropertySearchFilters:
         data = self.validated_data
         return PropertySearchFilters(
             location=data.get("location", ""),
+            property_category=(
+                PropertyCategory(data["property_category"]) if "property_category" in data else None
+            ),
             deposit_min_rial=data.get("deposit_min_rial"),
             deposit_max_rial=data.get("deposit_max_rial"),
             monthly_rent_min_rial=data.get("monthly_rent_min_rial"),

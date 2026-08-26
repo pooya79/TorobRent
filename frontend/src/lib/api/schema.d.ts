@@ -2468,6 +2468,11 @@ export interface operations {
          *     * `absent` - absent
          */
         parking?: "present" | "absent";
+        /**
+         * @description * `residential` - مسکونی
+         *     * `commercial` - تجاری
+         */
+        property_category?: "residential" | "commercial";
         property_type?: (
           | "apartment"
           | "house"
