@@ -33,6 +33,19 @@ export class CatalogSearchError extends Error {
   }
 }
 
+async function fetchPropertySearchPage(
+  query: PropertySearchQuery,
+  signal: AbortSignal,
+) {
+  const baseUrl = typeof window === "undefined" ? "" : window.location.origin;
+  const { data, response } = await createApiClient(baseUrl).GET(
+    "/api/v1/catalog/properties/",
+    { params: { query }, signal },
+  );
+  if (!data) throw new CatalogSearchError(response.status);
+  return data;
+}
+
 export function locationAutocompleteQueryOptions(query: string) {
   return queryOptions({
     queryKey: ["catalog", "locations", query] as const,
@@ -175,16 +188,10 @@ export function propertySearchQueryOptions(
     enabled,
     staleTime: 30_000,
     placeholderData: keepPreviousData,
-    queryFn: async ({ signal }) => {
-      const baseUrl =
-        typeof window === "undefined" ? "" : window.location.origin;
-      const { data, response } = await createApiClient(baseUrl).GET(
-        "/api/v1/catalog/properties/",
-        { params: { query }, signal },
-      );
-      if (!data) throw new CatalogSearchError(response.status);
-      return { ...data, requestSearchParams };
-    },
+    queryFn: async ({ signal }) => ({
+      ...(await fetchPropertySearchPage(query, signal)),
+      requestSearchParams,
+    }),
   });
 }
 
@@ -199,7 +206,6 @@ export function propertySearchInfiniteQueryOptions(
     queryKey: ["catalog", "properties", "infinite", query] as const,
     initialPageParam: null as string | null,
     staleTime: 30_000,
-    placeholderData: keepPreviousData,
     queryFn: async ({ pageParam, signal }) => {
       const baseUrl =
         typeof window === "undefined" ? "" : window.location.origin;
@@ -213,12 +219,10 @@ export function propertySearchInfiniteQueryOptions(
           (await response.json()) as components["schemas"]["PropertySearchPage"];
         return { ...data, requestSearchParams };
       }
-      const { data, response } = await createApiClient(baseUrl).GET(
-        "/api/v1/catalog/properties/",
-        { params: { query }, signal },
-      );
-      if (!data) throw new CatalogSearchError(response.status);
-      return { ...data, requestSearchParams };
+      return {
+        ...(await fetchPropertySearchPage(query, signal)),
+        requestSearchParams,
+      };
     },
     getNextPageParam: (lastPage) => lastPage.next,
   });

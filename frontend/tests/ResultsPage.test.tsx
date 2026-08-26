@@ -1048,7 +1048,7 @@ test("shows server Property clusters and discloses city-wide map coverage", asyn
   expect(screen.getByText("از این تعداد، ۷ ملک روی نقشه است")).toBeVisible();
 });
 
-test("keeps the previous map and results subdued until a viewport response swaps together", async () => {
+test("discards the previous map and results while a viewport replacement loads", async () => {
   const user = userEvent.setup();
   const replacement = {
     ...propertySearchPage,
@@ -1081,18 +1081,11 @@ test("keeps the previous map and results subdued until a viewport response swaps
   );
 
   await waitFor(() =>
-    expect(
-      screen.getByRole("region", { name: "نتایج و نقشه جاری" }),
-    ).toHaveAttribute("aria-busy", "true"),
+    expect(screen.getByLabelText("در حال بارگذاری ملک‌ها")).toBeVisible(),
   );
   expect(
-    screen.getByRole("heading", { name: "آپارتمان در سعادت‌آباد" }),
-  ).toBeVisible();
-  expect(screen.getByText("۱ ملک پیدا شد")).toBeVisible();
-  expect(screen.queryByText(/ملک در این محدوده پیدا شد/)).toBeNull();
-  expect(screen.getByRole("region", { name: "نتایج و نقشه جاری" })).toHaveClass(
-    "opacity-60",
-  );
+    screen.queryByRole("heading", { name: "آپارتمان در سعادت‌آباد" }),
+  ).toBeNull();
 
   expect(
     await screen.findByRole("heading", { name: "آپارتمان در ونک" }),
@@ -1487,28 +1480,40 @@ test("reloads accumulated pages from the beginning for a shared query URL", asyn
     id: "50000000-0000-4000-8000-000000000067",
     title: "خانه بازیابی‌شده",
   };
+  const thirdProperty = {
+    ...propertySearchPage.results[0]!,
+    id: "51000000-0000-4000-8000-000000000067",
+    title: "خانه بازیابی‌شده سوم",
+  };
   server.use(
     http.get("*/api/v1/catalog/properties/", ({ request }) => {
       const page = new URL(request.url).searchParams.get("page");
       requestedPages.push(page);
       return HttpResponse.json(
-        page === "2"
-          ? { ...propertySearchPage, count: 2, results: [secondProperty] }
-          : {
-              ...propertySearchPage,
-              count: 2,
-              next: "http://localhost/api/v1/catalog/properties/?parking=present&ordering=deposit&page=2",
-            },
+        page === "3"
+          ? { ...propertySearchPage, count: 3, results: [thirdProperty] }
+          : page === "2"
+            ? {
+                ...propertySearchPage,
+                count: 3,
+                next: "http://localhost/api/v1/catalog/properties/?parking=present&ordering=deposit&page=3",
+                results: [secondProperty],
+              }
+            : {
+                ...propertySearchPage,
+                count: 3,
+                next: "http://localhost/api/v1/catalog/properties/?parking=present&ordering=deposit&page=2",
+              },
       );
     }),
   );
 
-  renderResults("/search?parking=present&ordering=deposit&page=2");
+  renderResults("/search?parking=present&ordering=deposit&page=3");
 
   expect(
-    await screen.findByRole("heading", { name: "خانه بازیابی‌شده" }),
+    await screen.findByRole("heading", { name: "خانه بازیابی‌شده سوم" }),
   ).toBeVisible();
-  expect(requestedPages).toEqual([null, "2"]);
+  expect(requestedPages).toEqual([null, "2", "3"]);
   expect(
     screen.getByRole("heading", { name: "آپارتمان در سعادت‌آباد" }),
   ).toBeVisible();
@@ -1614,9 +1619,10 @@ test("discards accumulated pages when the query changes", async () => {
     title: "خانه سه‌خوابه تازه",
   };
   server.use(
-    http.get("*/api/v1/catalog/properties/", ({ request }) => {
+    http.get("*/api/v1/catalog/properties/", async ({ request }) => {
       const parameters = new URL(request.url).searchParams;
       if (parameters.get("bedroom_count") === "3_plus") {
+        await delay(100);
         return HttpResponse.json({
           ...propertySearchPage,
           results: [filteredProperty],
@@ -1647,6 +1653,10 @@ test("discards accumulated pages when the query changes", async () => {
     within(toolbar).getByRole("button", { name: /سه خواب و بیشتر/ }),
   );
 
+  expect(screen.getByLabelText("در حال بارگذاری ملک‌ها")).toBeVisible();
+  expect(
+    screen.queryByRole("heading", { name: "خانه از پرس‌وجوی قبلی" }),
+  ).toBeNull();
   expect(
     await screen.findByRole("heading", { name: "خانه سه‌خوابه تازه" }),
   ).toBeVisible();

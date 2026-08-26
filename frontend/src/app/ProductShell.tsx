@@ -1,9 +1,4 @@
-import {
-  useMutation,
-  useQuery,
-  useQueryClient,
-  type InfiniteData,
-} from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Building2,
   BriefcaseBusiness,
@@ -47,17 +42,15 @@ import { api } from "@/lib/api/client";
 import { apiError } from "@/lib/api/errors";
 import { currentUserQuery, sessionQuery } from "@/features/session/queries";
 import { useRenterAccess } from "@/features/session/RenterAccessDialog";
+import {
+  mapPropertySearchPages,
+  type PropertySearchData,
+  type PropertySearchPage,
+} from "@/features/catalog/property-search-cache";
 import { cn } from "@/lib/utils";
 import type { components } from "@/lib/api/schema";
 
 type CurrentUser = components["schemas"]["CurrentUser"];
-type PropertySearchPage = components["schemas"]["PropertySearchPage"];
-type PropertySearchData =
-  | PropertySearchPage
-  | InfiniteData<
-      PropertySearchPage & { requestSearchParams: string },
-      string | null
-    >;
 
 function withoutFavoriteState(page: PropertySearchPage) {
   return {
@@ -70,17 +63,7 @@ function withoutFavoriteState(page: PropertySearchPage) {
 }
 
 function withoutFavorites(data: PropertySearchData | undefined) {
-  if (!data) return data;
-  if ("pages" in data) {
-    return {
-      ...data,
-      pages: data.pages.map((page) => ({
-        ...withoutFavoriteState(page),
-        requestSearchParams: page.requestSearchParams,
-      })),
-    };
-  }
-  return withoutFavoriteState(data);
+  return mapPropertySearchPages(data, withoutFavoriteState);
 }
 
 const navigation = [

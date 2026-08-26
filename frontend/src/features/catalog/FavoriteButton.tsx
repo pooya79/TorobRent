@@ -1,9 +1,4 @@
-import {
-  useMutation,
-  useQuery,
-  useQueryClient,
-  type InfiniteData,
-} from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Heart } from "lucide-react";
 
 import { useRenterAccess } from "@/features/session/RenterAccessDialog";
@@ -11,14 +6,13 @@ import { sessionQuery } from "@/features/session/queries";
 import { api } from "@/lib/api/client";
 import type { components } from "@/lib/api/schema";
 import { cn } from "@/lib/utils";
+import {
+  mapPropertySearchPages,
+  type PropertySearchData,
+  type PropertySearchPage,
+} from "./property-search-cache";
 
-type PropertySearchPage = components["schemas"]["PropertySearchPage"];
 type FavoriteCollection = components["schemas"]["FavoriteCollection"];
-type InfinitePropertySearch = InfiniteData<
-  PropertySearchPage & { requestSearchParams: string },
-  string | null
->;
-type PropertySearchData = PropertySearchPage | InfinitePropertySearch;
 
 function withFavoriteStateInPage(
   page: PropertySearchPage,
@@ -40,16 +34,9 @@ function withFavoriteState(
   propertyId: string,
   isFavorite: boolean,
 ) {
-  if (!data) return data;
-  if ("pages" in data) {
-    return {
-      ...data,
-      pages: data.pages.map((page) =>
-        withFavoriteStateInPage(page, propertyId, isFavorite),
-      ),
-    };
-  }
-  return withFavoriteStateInPage(data, propertyId, isFavorite);
+  return mapPropertySearchPages(data, (page) =>
+    withFavoriteStateInPage(page, propertyId, isFavorite),
+  );
 }
 
 export function FavoriteButton({

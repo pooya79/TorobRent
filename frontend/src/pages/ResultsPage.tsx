@@ -352,19 +352,21 @@ export function ResultsPage({ mapAdapter }: { mapAdapter?: MapAdapter }) {
       propertyCount: cluster.property_count,
       propertyIds: cluster.property_ids,
     })) ?? [];
+  const requestedPageCount = Math.max(
+    1,
+    Number(searchParams.get("page") ?? "1") || 1,
+  );
   const loadMore = useCallback(async () => {
     if (!search.hasNextPage || search.isFetchingNextPage) return;
     const result = await search.fetchNextPage({ cancelRefetch: false });
     if (result.isError || !result.data) return;
     const loadedPageCount = result.data.pages.length;
-    const next = new URLSearchParams(latestSearchParamsRef.current);
-    if (loadedPageCount > 1) next.set("page", String(loadedPageCount));
-    setSearchParams(next, { replace: true });
-  }, [search, setSearchParams]);
-  const requestedPageCount = Math.max(
-    1,
-    Number(searchParams.get("page") ?? "1") || 1,
-  );
+    if (loadedPageCount >= requestedPageCount) {
+      const next = new URLSearchParams(latestSearchParamsRef.current);
+      if (loadedPageCount > 1) next.set("page", String(loadedPageCount));
+      setSearchParams(next, { replace: true });
+    }
+  }, [requestedPageCount, search, setSearchParams]);
   useEffect(() => {
     if (
       search.data &&
