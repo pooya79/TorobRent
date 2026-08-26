@@ -1,12 +1,11 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { MemoryRouter } from "react-router";
 import { expect, test } from "vitest";
 
 import { ContactPage } from "@/pages/ContactPage";
-import { PhotoCreditsPage } from "@/pages/PhotoCreditsPage";
 import {
   AdvertisePage,
   GuidePage,
@@ -19,7 +18,6 @@ import { meta as advertiseMeta } from "@/routes/advertise";
 import { meta as contactMeta } from "@/routes/contact";
 import { meta as guideMeta } from "@/routes/guide";
 import { meta as privacyMeta } from "@/routes/privacy";
-import { meta as photoCreditsMeta } from "@/routes/photo-credits";
 import { meta as termsMeta } from "@/routes/terms";
 
 function renderPage(page: React.ReactNode) {
@@ -57,25 +55,6 @@ test("publishes Persian Guide, Privacy, Terms, and honest alpha guidance", () =>
     expect(screen.getByRole("heading", { name: item.heading })).toBeVisible();
     expect(screen.getByText(new RegExp(item.copy))).toBeVisible();
     view.unmount();
-  }
-});
-
-test("publishes complete city photo provenance and license links", () => {
-  renderPage(<PhotoCreditsPage />);
-
-  expect(screen.getByRole("heading", { name: "اعتبار عکس‌ها" })).toBeVisible();
-  const credits = screen.getAllByRole("article");
-  expect(credits).toHaveLength(10);
-  for (const credit of credits) {
-    expect(credit).toHaveTextContent(/عکاس:/);
-    expect(credit).toHaveTextContent(/مجوز:/);
-    expect(credit).toHaveTextContent(/نحوهٔ انتساب:/);
-    expect(
-      within(credit).getByRole("link", { name: "صفحهٔ منبع" }),
-    ).toHaveAttribute("href", expect.stringContaining("commons.wikimedia.org"));
-    expect(
-      within(credit).getByRole("link", { name: /CC BY-SA/ }),
-    ).toHaveAttribute("href", expect.stringContaining("creativecommons.org"));
   }
 });
 
@@ -202,7 +181,6 @@ test("pre-renders public guidance with Persian metadata", () => {
     "/advertise",
     "/privacy",
     "/terms",
-    "/photo-credits",
   ]);
   const routeMetadata = [
     [guideMeta(), "راهنمای فارسی جست‌وجو"],
@@ -210,7 +188,6 @@ test("pre-renders public guidance with Persian metadata", () => {
     [advertiseMeta(), "ثبت‌نام تلفنی مالک و نمایندهٔ مجاز"],
     [privacyMeta(), "سیاست حریم خصوصی فارسی"],
     [termsMeta(), "شرایط استفاده فارسی"],
-    [photoCreditsMeta(), "منبع، عکاس، مجوز"],
   ] as const;
   for (const [metadata, expectedDescription] of routeMetadata) {
     const title = metadata.find((item) => "title" in item)?.title;

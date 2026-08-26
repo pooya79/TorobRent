@@ -12,7 +12,6 @@ export default [
   route("reset-password", "routes/reset-password.tsx"),
   route("privacy", "routes/privacy.tsx"),
   route("terms", "routes/terms.tsx"),
-  route("photo-credits", "routes/photo-credits.tsx"),
   route("add-submission", "routes/protected-add-submission.tsx"),
   route("search", "pages/ResultsPage.tsx"),
   route("properties/:propertyId/:slug?", "routes/property-detail.tsx"),

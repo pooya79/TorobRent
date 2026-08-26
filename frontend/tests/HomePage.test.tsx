@@ -75,12 +75,6 @@ test("presents the anonymous public navbar and real advertisement introduction",
     within(navbar).getByRole("combobox", { name: /پوستهٔ نمایش/ }),
   ).toBeVisible();
   expect(within(navbar).queryByText("آگهی‌های من")).not.toBeInTheDocument();
-  expect(
-    within(screen.getByRole("contentinfo")).getByRole("link", {
-      name: "اعتبار عکس‌ها",
-    }),
-  ).toHaveAttribute("href", "/photo-credits");
-
   expect(await screen.findByText("سامانه در دسترس است")).toBeVisible();
 });
 
