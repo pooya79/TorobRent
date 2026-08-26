@@ -1,4 +1,4 @@
-import { queryOptions } from "@tanstack/react-query";
+import { keepPreviousData, queryOptions } from "@tanstack/react-query";
 
 import { createApiClient } from "@/lib/api/client";
 import type { operations } from "@/lib/api/schema";
@@ -80,6 +80,7 @@ export function catalogStatisticsQueryOptions() {
 }
 
 export function propertySearchQueryOptions(searchParams: URLSearchParams) {
+  const requestSearchParams = searchParams.toString();
   const propertyCategory = selectedPropertyCategory(searchParams);
   const integerParameter = (name: string) => {
     const rawValue = searchParams.get(name);
@@ -129,19 +130,25 @@ export function propertySearchQueryOptions(searchParams: URLSearchParams) {
     ordering:
       (searchParams.get("ordering") as PropertySearchQuery["ordering"]) ??
       undefined,
+    viewport_north: searchParams.get("viewport_north") ?? undefined,
+    viewport_east: searchParams.get("viewport_east") ?? undefined,
+    viewport_south: searchParams.get("viewport_south") ?? undefined,
+    viewport_west: searchParams.get("viewport_west") ?? undefined,
+    viewport_zoom: integerParameter("viewport_zoom"),
   } satisfies PropertySearchQuery;
   return queryOptions({
     queryKey: ["catalog", "properties", query] as const,
     staleTime: 30_000,
-    queryFn: async () => {
+    placeholderData: keepPreviousData,
+    queryFn: async ({ signal }) => {
       const baseUrl =
         typeof window === "undefined" ? "" : window.location.origin;
       const { data, response } = await createApiClient(baseUrl).GET(
         "/api/v1/catalog/properties/",
-        { params: { query } },
+        { params: { query }, signal },
       );
       if (!data) throw new CatalogSearchError(response.status);
-      return data;
+      return { ...data, requestSearchParams };
     },
   });
 }

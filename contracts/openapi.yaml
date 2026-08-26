@@ -588,6 +588,36 @@ paths:
         description: |-
           * `present` - present
           * `absent` - absent
+      - in: query
+        name: viewport_east
+        schema:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,6})?$
+      - in: query
+        name: viewport_north
+        schema:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,6})?$
+      - in: query
+        name: viewport_south
+        schema:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,6})?$
+      - in: query
+        name: viewport_west
+        schema:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,6})?$
+      - in: query
+        name: viewport_zoom
+        schema:
+          type: integer
+          maximum: 22
+          minimum: 0
       tags:
       - v1
       security:
@@ -2013,6 +2043,28 @@ components:
       - bedroom_counts
       - features
       - property_types
+    CatalogMap:
+      type: object
+      properties:
+        total_property_count:
+          type: integer
+          minimum: 0
+        mappable_property_count:
+          type: integer
+          minimum: 0
+        clusters:
+          type: array
+          items:
+            $ref: '#/components/schemas/MapCluster'
+        markers:
+          type: array
+          items:
+            $ref: '#/components/schemas/PropertySummary'
+      required:
+      - clusters
+      - mappable_property_count
+      - markers
+      - total_property_count
     CatalogStatistics:
       type: object
       properties:
@@ -2527,6 +2579,33 @@ components:
       required:
       - email
       - password
+    MapCluster:
+      type: object
+      properties:
+        id:
+          type: string
+        latitude:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,6})?$
+        longitude:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,6})?$
+        property_count:
+          type: integer
+          minimum: 2
+        property_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+      required:
+      - id
+      - latitude
+      - longitude
+      - property_count
+      - property_ids
     NormalizedCorrectionsAudit:
       type: object
       properties:
@@ -3053,9 +3132,12 @@ components:
             $ref: '#/components/schemas/PropertySummary'
         facets:
           $ref: '#/components/schemas/CatalogFacets'
+        map:
+          $ref: '#/components/schemas/CatalogMap'
       required:
       - count
       - facets
+      - map
       - next
       - previous
       - results

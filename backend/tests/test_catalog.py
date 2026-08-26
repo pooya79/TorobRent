@@ -590,6 +590,104 @@ def test_public_location_uses_lower_precision_fallback_and_keeps_unmapped_proper
 
 
 @pytest.mark.django_db
+def test_catalog_viewport_filters_properties_facets_and_map_counts(api_client: APIClient):
+    call_command("loaddata", "catalog_seed", verbosity=0)
+    neighborhood = Neighborhood.objects.get(name_fa="سعادت‌آباد")
+    source = Source.objects.get(is_builtin=True)
+
+    def create_searchable_property(
+        *, latitude: str | None, longitude: str | None, parking: FeatureState
+    ) -> Property:
+        property_ = Property.objects.create(
+            city=neighborhood.district.city,
+            district=neighborhood.district,
+            neighborhood=neighborhood,
+            property_type=PropertyType.APARTMENT,
+            area_sqm=90,
+            room_count=1,
+            parking=parking,
+        )
+        listing = Listing.objects.create(
+            property=property_,
+            source=source,
+            terms=RentalTerms.objects.create(
+                deposit_rial=5_000_000_000,
+                monthly_rent_rial=100_000_000,
+            ),
+            direct_phone="۰۹۱۲۱۲۳۴۵۶۷",
+        )
+        publish_listing(listing)
+        property_.approximate_latitude = latitude
+        property_.approximate_longitude = longitude
+        property_.save(update_fields=("approximate_latitude", "approximate_longitude"))
+        return property_
+
+    inside = create_searchable_property(
+        latitude="35.750000", longitude="51.400000", parking=FeatureState.PRESENT
+    )
+    create_searchable_property(
+        latitude="35.790000", longitude="51.450000", parking=FeatureState.ABSENT
+    )
+    create_searchable_property(latitude=None, longitude=None, parking=FeatureState.UNKNOWN)
+
+    citywide = api_client.get("/api/v1/catalog/properties/")
+    response = api_client.get(
+        "/api/v1/catalog/properties/",
+        {
+            "viewport_north": "35.76",
+            "viewport_east": "51.41",
+            "viewport_south": "35.74",
+            "viewport_west": "51.39",
+            "viewport_zoom": "15",
+        },
+    )
+
+    assert citywide.status_code == 200
+    assert citywide.data["map"]["total_property_count"] == 3
+    assert citywide.data["map"]["mappable_property_count"] == 2
+    assert citywide.data["map"]["markers"] == []
+    assert len(citywide.data["map"]["clusters"]) == 1
+    assert citywide.data["map"]["clusters"][0]["property_count"] == 2
+    assert response.status_code == 200
+    assert response.data["count"] == 1
+    assert response.data["results"][0]["id"] == str(inside.id)
+    assert response.data["facets"]["features"]["parking"] == {
+        "present": 1,
+        "absent": 0,
+        "unknown": 0,
+    }
+    assert response.data["map"]["total_property_count"] == 1
+    assert response.data["map"]["mappable_property_count"] == 1
+    assert response.data["map"]["clusters"] == []
+    assert [marker["id"] for marker in response.data["map"]["markers"]] == [str(inside.id)]
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    "parameters",
+    [
+        {"viewport_north": "35.8"},
+        {
+            "viewport_north": "35.7",
+            "viewport_east": "51.4",
+            "viewport_south": "35.8",
+            "viewport_west": "51.3",
+        },
+        {
+            "viewport_north": "91",
+            "viewport_east": "51.4",
+            "viewport_south": "35.7",
+            "viewport_west": "51.3",
+        },
+    ],
+)
+def test_catalog_rejects_invalid_viewport_bounds(api_client: APIClient, parameters: dict[str, str]):
+    response = api_client.get("/api/v1/catalog/properties/", parameters)
+
+    assert response.status_code == 400
+
+
+@pytest.mark.django_db
 def test_rental_terms_ordering_selects_one_complete_active_listing_pair(
     api_client: APIClient,
 ):

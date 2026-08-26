@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { SlidersHorizontal, X } from "lucide-react";
-import { useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 
 import { PageMain } from "@/components/layout/PageMain";
@@ -46,9 +46,14 @@ import {
   summarizePropertyTypes,
 } from "@/features/catalog/property-type-selection";
 import { SearchToolbar } from "@/features/catalog/SearchToolbar";
-import type { MapAdapter, MapMarker } from "@/features/map/adapter";
+import type {
+  MapAdapter,
+  MapCluster,
+  MapMarker,
+  MapViewport,
+} from "@/features/map/adapter";
 import { configuredMapAdapter } from "@/features/map/configured-adapter";
-import { SearchMapPanel } from "@/features/map/SearchMapPanel";
+import { SearchMapPanel, tehranViewport } from "@/features/map/SearchMapPanel";
 import type { components } from "@/lib/api/schema";
 
 type PropertySummary = components["schemas"]["PropertySummary"];
@@ -170,6 +175,42 @@ function toMapMarker(
   };
 }
 
+const viewportParameterNames = [
+  "viewport_north",
+  "viewport_east",
+  "viewport_south",
+  "viewport_west",
+  "viewport_zoom",
+] as const;
+
+function viewportFromSearchParams(searchParams: URLSearchParams): MapViewport {
+  const values = viewportParameterNames.map((name) =>
+    Number(searchParams.get(name)),
+  );
+  if (
+    viewportParameterNames.every((name) => searchParams.has(name)) &&
+    values.every(Number.isFinite)
+  ) {
+    const [north, east, south, west, zoom] = values;
+    if (
+      north !== undefined &&
+      east !== undefined &&
+      south !== undefined &&
+      west !== undefined &&
+      zoom !== undefined &&
+      north > south &&
+      east > west
+    ) {
+      return { north, east, south, west, zoom };
+    }
+  }
+  return tehranViewport;
+}
+
+function viewportValue(value: number) {
+  return String(Number(value.toFixed(6)));
+}
+
 function ResultsLoading() {
   return (
     <section
@@ -192,33 +233,78 @@ export function ResultsPage({ mapAdapter }: { mapAdapter?: MapAdapter }) {
   const [searchParams, setSearchParams] = useSearchParams();
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [mapAvailable, setMapAvailable] = useState(true);
+  const viewportTimer = useRef<number | undefined>(undefined);
   const search = useQuery(propertySearchQueryOptions(searchParams));
+  const latestSearchParamsRef = useRef(searchParams);
+  useEffect(() => {
+    latestSearchParamsRef.current = searchParams;
+  }, [searchParams]);
+  const resultSearchParams = useMemo(
+    () =>
+      new URLSearchParams(
+        search.data?.requestSearchParams ?? searchParams.toString(),
+      ),
+    [search.data?.requestSearchParams, searchParams],
+  );
   const MapAdapterComponent = mapAdapter ?? configuredMapAdapter;
-  const currentPage = Number(searchParams.get("page") ?? "1");
+  const currentPage = Number(resultSearchParams.get("page") ?? "1");
   const location =
-    searchParams.get("location_label") ||
-    searchParams.get("location") ||
+    resultSearchParams.get("location_label") ||
+    resultSearchParams.get("location") ||
     "تهران";
-  const resultsCopy = resultsPageCopy(selectedPropertyTypes(searchParams));
+  const resultsCopy = resultsPageCopy(
+    selectedPropertyTypes(resultSearchParams),
+  );
   const hrefForPage = (page: number) => {
-    const next = new URLSearchParams(searchParams);
+    const next = new URLSearchParams(resultSearchParams);
     next.set("page", String(page));
     return `/search?${next.toString()}`;
   };
   const count = search.data?.count ?? 0;
   const pageCount = Math.ceil(count / 25);
+  const initialViewport = useMemo(
+    () => viewportFromSearchParams(searchParams),
+    [searchParams],
+  );
   const mapMarkers =
-    search.data?.results
-      .map((property) => toMapMarker(property, searchParams))
+    search.data?.map.markers
+      .map((property) => toMapMarker(property, resultSearchParams))
       .filter((marker): marker is MapMarker => marker !== null) ?? [];
+  const mapClusters: MapCluster[] =
+    search.data?.map.clusters.map((cluster) => ({
+      id: cluster.id,
+      center: {
+        latitude: Number(cluster.latitude),
+        longitude: Number(cluster.longitude),
+      },
+      propertyCount: cluster.property_count,
+      propertyIds: cluster.property_ids,
+    })) ?? [];
+  const handleViewportChange = useCallback(
+    (viewport: MapViewport) => {
+      window.clearTimeout(viewportTimer.current);
+      viewportTimer.current = window.setTimeout(() => {
+        const next = new URLSearchParams(latestSearchParamsRef.current);
+        next.set("viewport_north", viewportValue(viewport.north));
+        next.set("viewport_east", viewportValue(viewport.east));
+        next.set("viewport_south", viewportValue(viewport.south));
+        next.set("viewport_west", viewportValue(viewport.west));
+        next.set("viewport_zoom", viewportValue(viewport.zoom));
+        next.delete("page");
+        setSearchParams(next, { replace: true });
+      }, 500);
+    },
+    [setSearchParams],
+  );
+  useEffect(() => () => window.clearTimeout(viewportTimer.current), []);
   const activeFilters = Object.entries(filterLabels).filter(([name]) =>
-    searchParams.has(name),
+    resultSearchParams.has(name),
   ) as [FilterName, string][];
   const displayFilterValue = (name: FilterName) => {
     if (name === "property_type") {
-      return summarizePropertyTypes(selectedPropertyTypes(searchParams));
+      return summarizePropertyTypes(selectedPropertyTypes(resultSearchParams));
     }
-    const value = searchParams.get(name) ?? "";
+    const value = resultSearchParams.get(name) ?? "";
     if (value in filterChoiceLabels) {
       return filterChoiceLabels[value as keyof typeof filterChoiceLabels];
     }
@@ -238,7 +324,7 @@ export function ResultsPage({ mapAdapter }: { mapAdapter?: MapAdapter }) {
         <SearchToolbar
           searchParams={searchParams}
           setSearchParams={setSearchParams}
-          facets={search.data?.facets}
+          facets={search.isPlaceholderData ? undefined : search.data?.facets}
         />
         <h1 className="sr-only">
           {resultsCopy.heading} در {location}
@@ -266,7 +352,12 @@ export function ResultsPage({ mapAdapter }: { mapAdapter?: MapAdapter }) {
                 key={`mobile-${searchParams.toString()}`}
                 prefix="mobile"
                 searchParams={searchParams}
-                facets={search.data?.facets}
+                facets={
+                  search.isPlaceholderData ? undefined : search.data?.facets
+                }
+                resultCount={
+                  search.isPlaceholderData ? undefined : search.data?.count
+                }
                 setSearchParams={(next) => {
                   setSearchParams(next);
                   setFiltersOpen(false);
@@ -326,31 +417,57 @@ export function ResultsPage({ mapAdapter }: { mapAdapter?: MapAdapter }) {
               key={`desktop-${searchParams.toString()}`}
               prefix="desktop"
               searchParams={searchParams}
-              facets={search.data?.facets}
+              facets={
+                search.isPlaceholderData ? undefined : search.data?.facets
+              }
+              resultCount={
+                search.isPlaceholderData ? undefined : search.data?.count
+              }
               setSearchParams={setSearchParams}
             />
           </div>
         </aside>
         <div>
           <p className="text-muted-foreground mb-5 text-sm" aria-live="polite">
-            {search.data
-              ? `${formatNumber(count)} ملک پیدا شد`
-              : "جست‌وجوی ملک‌ها"}
+            {search.data ? (
+              resultSearchParams.has("viewport_north") ? (
+                `${formatNumber(count)} ملک در این محدوده پیدا شد`
+              ) : (
+                <>
+                  <span>{formatNumber(count)} ملک پیدا شد</span>
+                  <span className="ms-1">
+                    از این تعداد،{" "}
+                    {formatNumber(search.data.map.mappable_property_count)} ملک
+                    روی نقشه است
+                  </span>
+                </>
+              )
+            ) : (
+              "جست‌وجوی ملک‌ها"
+            )}
           </p>
           <div
-            className={
+            role="region"
+            aria-label="نتایج و نقشه جاری"
+            aria-busy={search.isFetching && !search.isPending}
+            className={`${
               mapAvailable
                 ? "grid gap-8 xl:grid-cols-[minmax(20rem,0.85fr)_minmax(0,1.4fr)]"
                 : "space-y-5"
-            }
+            } ${search.isFetching && !search.isPending ? "opacity-60" : ""}`}
           >
             <div
               className={mapAvailable ? "xl:sticky xl:top-6 xl:self-start" : ""}
             >
               <SearchMapPanel
+                key={
+                  searchParams.has("viewport_north") ? "viewport" : "citywide"
+                }
                 adapter={MapAdapterComponent}
                 markers={mapMarkers}
-                clusters={[]}
+                clusters={mapClusters}
+                initialViewport={initialViewport}
+                onViewportChange={handleViewportChange}
                 onAvailabilityChange={setMapAvailable}
               />
             </div>
@@ -392,9 +509,39 @@ export function ResultsPage({ mapAdapter }: { mapAdapter?: MapAdapter }) {
                   <p className="text-muted-foreground mt-3 max-w-md text-sm leading-7">
                     نام شهر، منطقه یا محله دیگری را جست‌وجو کنید.
                   </p>
-                  <Button asChild className="mt-5" variant="outline">
-                    <Link to="/">جست‌وجوی دوباره</Link>
-                  </Button>
+                  <div className="mt-5 flex flex-wrap justify-center gap-3">
+                    <Button asChild variant="outline">
+                      <Link to="/">جست‌وجوی دوباره</Link>
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => {
+                        const next = new URLSearchParams(searchParams);
+                        for (const name of Object.keys(filterLabels)) {
+                          next.delete(name);
+                        }
+                        next.delete("page");
+                        setSearchParams(next);
+                      }}
+                    >
+                      پاک کردن فیلترها
+                    </Button>
+                    <Button
+                      type="button"
+                      onClick={() => {
+                        window.clearTimeout(viewportTimer.current);
+                        const next = new URLSearchParams(searchParams);
+                        for (const name of viewportParameterNames) {
+                          next.delete(name);
+                        }
+                        next.delete("page");
+                        setSearchParams(next);
+                      }}
+                    >
+                      بازنشانی به تهران
+                    </Button>
+                  </div>
                 </section>
               ) : (
                 <section
@@ -408,7 +555,7 @@ export function ResultsPage({ mapAdapter }: { mapAdapter?: MapAdapter }) {
                   {search.data.results.map((property) => (
                     <PropertyCard
                       key={property.id}
-                      property={toCardData(property, searchParams)}
+                      property={toCardData(property, resultSearchParams)}
                     />
                   ))}
                 </section>

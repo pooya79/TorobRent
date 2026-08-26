@@ -11,7 +11,7 @@ import {
   type MapViewport,
 } from "./adapter";
 
-const tehranViewport: MapViewport = {
+export const tehranViewport: MapViewport = {
   north: 35.82,
   east: 51.52,
   south: 35.65,
@@ -90,7 +90,9 @@ export function SearchMapPanel({
     [onSelectCluster],
   );
   const handleViewportChange = useCallback(
-    (viewport: MapViewport) => onViewportChange?.(viewport),
+    (viewport: MapViewport, origin: "user" | "programmatic") => {
+      if (origin === "user") onViewportChange?.(viewport);
+    },
     [onViewportChange],
   );
 

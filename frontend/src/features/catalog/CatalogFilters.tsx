@@ -132,11 +132,13 @@ export function CatalogFilters({
   searchParams,
   setSearchParams,
   facets,
+  resultCount,
 }: {
   prefix: string;
   searchParams: URLSearchParams;
   setSearchParams: SetURLSearchParams;
   facets?: CatalogFacetData;
+  resultCount?: number;
 }) {
   const propertyCategory = selectedPropertyCategory(searchParams);
   const applyFilters = (event: FormEvent<HTMLFormElement>) => {
@@ -250,7 +252,9 @@ export function CatalogFilters({
         ]}
       />
       <Button className="w-full" type="submit">
-        اعمال فیلترها
+        {resultCount === undefined
+          ? "اعمال فیلترها"
+          : `نمایش ${persianDigits(String(resultCount))} ملک`}
       </Button>
     </form>
   );

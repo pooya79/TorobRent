@@ -132,37 +132,50 @@ export const propertyDetail: components["schemas"]["PropertyDetail"] = {
   ],
 };
 
+const reviewedPrimaryImage = {
+  url: "/media/reviewed-media/property-primary.webp",
+  width: 960,
+  height: 720,
+};
+
+function searchSummary(
+  detail: components["schemas"]["PropertyDetail"],
+): components["schemas"]["PropertySummary"] {
+  return {
+    id: detail.id,
+    title: detail.title,
+    canonical_slug: detail.canonical_slug,
+    location: detail.location,
+    approximate_location: detail.approximate_location,
+    property_category: detail.property_category,
+    property_category_label: detail.property_category_label,
+    property_type: detail.property_type,
+    property_type_label: detail.property_type_label,
+    area_sqm: detail.area_sqm,
+    room_count: detail.room_count,
+    construction_year: detail.construction_year,
+    primary_image: reviewedPrimaryImage,
+    listing_count: 2,
+    is_favorite: false,
+    rental_terms: detail.listings[0]!.rental_terms,
+    availability_confirmed_at: detail.listings[0]!.availability_confirmed_at,
+  };
+}
+
+const residentialPropertySummary = searchSummary(propertyDetail);
+
 export const propertySearchPage: components["schemas"]["PropertySearchPage"] = {
   count: 1,
   next: null,
   previous: null,
   facets: residentialFacets,
-  results: [
-    {
-      id: propertyDetail.id,
-      title: propertyDetail.title,
-      canonical_slug: propertyDetail.canonical_slug,
-      location: propertyDetail.location,
-      approximate_location: propertyDetail.approximate_location,
-      property_category: propertyDetail.property_category,
-      property_category_label: propertyDetail.property_category_label,
-      property_type: propertyDetail.property_type,
-      property_type_label: propertyDetail.property_type_label,
-      area_sqm: propertyDetail.area_sqm,
-      room_count: propertyDetail.room_count,
-      construction_year: propertyDetail.construction_year,
-      primary_image: {
-        url: "/media/reviewed-media/property-primary.webp",
-        width: 960,
-        height: 720,
-      },
-      listing_count: 2,
-      is_favorite: false,
-      rental_terms: propertyDetail.listings[0]!.rental_terms,
-      availability_confirmed_at:
-        propertyDetail.listings[0]!.availability_confirmed_at,
-    },
-  ],
+  map: {
+    total_property_count: 1,
+    mappable_property_count: 1,
+    clusters: [],
+    markers: [residentialPropertySummary],
+  },
+  results: [residentialPropertySummary],
 };
 
 export const officePropertyDetail: components["schemas"]["PropertyDetail"] = {
@@ -181,32 +194,19 @@ export const officePropertyDetail: components["schemas"]["PropertyDetail"] = {
   })),
 };
 
+const officePropertySummary = searchSummary(officePropertyDetail);
+
 export const officePropertySearchPage: components["schemas"]["PropertySearchPage"] =
   {
     count: 1,
     next: null,
     previous: null,
     facets: commercialFacets,
-    results: [
-      {
-        id: officePropertyDetail.id,
-        title: officePropertyDetail.title,
-        canonical_slug: officePropertyDetail.canonical_slug,
-        location: officePropertyDetail.location,
-        approximate_location: officePropertyDetail.approximate_location,
-        property_category: officePropertyDetail.property_category,
-        property_category_label: officePropertyDetail.property_category_label,
-        property_type: officePropertyDetail.property_type,
-        property_type_label: officePropertyDetail.property_type_label,
-        area_sqm: officePropertyDetail.area_sqm,
-        room_count: officePropertyDetail.room_count,
-        construction_year: officePropertyDetail.construction_year,
-        primary_image: propertySearchPage.results[0]!.primary_image,
-        listing_count: 2,
-        is_favorite: false,
-        rental_terms: officePropertyDetail.listings[0]!.rental_terms,
-        availability_confirmed_at:
-          officePropertyDetail.listings[0]!.availability_confirmed_at,
-      },
-    ],
+    map: {
+      total_property_count: 1,
+      mappable_property_count: 1,
+      clusters: [],
+      markers: [officePropertySummary],
+    },
+    results: [officePropertySummary],
   };
