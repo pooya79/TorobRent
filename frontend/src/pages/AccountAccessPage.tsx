@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { DevelopmentMailHint } from "@/features/session/DevelopmentMailHint";
 import { sessionQuery } from "@/features/session/queries";
 import { api } from "@/lib/api/client";
 import { apiError, errorMessage } from "@/lib/api/errors";
@@ -149,9 +150,12 @@ export function AccountAccessPage({ mode }: { mode: AccountAccessMode }) {
               </div>
             ) : null}
             {result ? (
-              <Alert>
-                <AlertDescription>{result}</AlertDescription>
-              </Alert>
+              <div className="grid gap-3">
+                <Alert>
+                  <AlertDescription>{result}</AlertDescription>
+                </Alert>
+                <DevelopmentMailHint />
+              </div>
             ) : null}
             {mutation.error ? (
               <Alert variant="destructive">

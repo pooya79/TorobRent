@@ -2,10 +2,18 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router";
-import { expect, test } from "vitest";
+import { afterEach, beforeEach, expect, test, vi } from "vitest";
 
 import { ProtectedSubmitterRoute } from "@/features/session/ProtectedSubmitterRoute";
 import { server } from "./server";
+
+beforeEach(() => {
+  vi.stubEnv("VITE_MAILPIT_URL", "http://localhost:8025");
+});
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
 
 function LoginDestination() {
   const location = useLocation();
@@ -71,6 +79,9 @@ test("prevents an authenticated but unverified account from beginning a Submissi
   expect(
     await screen.findByText("برای ثبت آگهی، ابتدا ایمیل خود را تأیید کنید."),
   ).toBeVisible();
+  expect(
+    screen.getByRole("link", { name: "صندوق ایمیل Mailpit" }),
+  ).toHaveAttribute("href", "http://localhost:8025");
   expect(
     screen.queryByRole("heading", { name: "ثبت آگهی" }),
   ).not.toBeInTheDocument();

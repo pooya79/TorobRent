@@ -3,10 +3,32 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { MemoryRouter, Route, Routes } from "react-router";
-import { expect, test } from "vitest";
+import { afterEach, beforeEach, expect, test, vi } from "vitest";
 
 import { AccountAccessPage } from "@/pages/AccountAccessPage";
 import { server } from "./server";
+
+beforeEach(() => {
+  vi.stubEnv("VITE_MAILPIT_URL", "http://localhost:8025");
+});
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
+
+function renderAccessPage(mode: "login" | "register" | "recovery") {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+
+  render(
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter>
+        <AccountAccessPage mode={mode} />
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+}
 
 test("allows a simple password when creating a demo account", async () => {
   const user = userEvent.setup();
@@ -17,22 +39,7 @@ test("allows a simple password when creating a demo account", async () => {
       return HttpResponse.json({ detail: "حساب ساخته شد." }, { status: 201 });
     }),
   );
-  const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false } },
-  });
-
-  render(
-    <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={["/register"]}>
-        <Routes>
-          <Route
-            path="register"
-            element={<AccountAccessPage mode="register" />}
-          />
-        </Routes>
-      </MemoryRouter>
-    </QueryClientProvider>,
-  );
+  renderAccessPage("register");
 
   await user.type(screen.getByLabelText("ایمیل"), "demo@example.com");
   await user.type(screen.getByLabelText("گذرواژه"), "123");
@@ -85,4 +92,45 @@ test("logs in a verified Submitter and preserves the protected destination", asy
   expect(
     await screen.findByRole("heading", { name: "مقصد محافظت‌شده" }),
   ).toBeVisible();
+});
+
+test("links to the development inbox after Submitter registration", async () => {
+  const user = userEvent.setup();
+  server.use(
+    http.post("*/api/v1/auth/register/", () =>
+      HttpResponse.json(
+        { detail: "حساب ساخته شد. ایمیل خود را بررسی کنید." },
+        { status: 201 },
+      ),
+    ),
+  );
+  renderAccessPage("register");
+
+  await user.type(screen.getByLabelText("ایمیل"), "person@example.com");
+  await user.type(screen.getByLabelText("گذرواژه"), "correct-horse-battery");
+  await user.click(screen.getByRole("button", { name: "ساخت حساب" }));
+
+  expect(
+    await screen.findByRole("link", { name: "صندوق ایمیل Mailpit" }),
+  ).toHaveAttribute("href", "http://localhost:8025");
+});
+
+test("links to the development inbox after a password-reset request", async () => {
+  const user = userEvent.setup();
+  server.use(
+    http.post("*/api/v1/auth/password-reset/", () =>
+      HttpResponse.json(
+        { detail: "اگر حساب وجود داشته باشد، پیوند بازیابی ارسال می‌شود." },
+        { status: 202 },
+      ),
+    ),
+  );
+  renderAccessPage("recovery");
+
+  await user.type(screen.getByLabelText("ایمیل"), "person@example.com");
+  await user.click(screen.getByRole("button", { name: "ارسال پیوند بازیابی" }));
+
+  expect(
+    await screen.findByRole("link", { name: "صندوق ایمیل Mailpit" }),
+  ).toHaveAttribute("href", "http://localhost:8025");
 });

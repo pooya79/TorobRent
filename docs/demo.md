@@ -58,8 +58,9 @@ These weak passwords and the Operator superuser status are local-only demo conve
 4. Sign out, sign in as the Operator, and open `/operator/submissions`. Filter the queue, inspect the
    prepared submission history, then open `/admin/` to inspect all workflow and Listing states.
 5. Register a separate account at `/register`. Open Mailpit to follow its verification link. Use
-   `/forgot-password` to confirm password-reset mail is also captured locally and never delivered
-   to an external SMTP server.
+   the development-only inbox link shown by the application, find the message addressed to the
+   email you entered, and follow its verification link. Use `/forgot-password` to confirm
+   password-reset mail is also captured locally and never delivered to an external SMTP server.
 6. Open `/guide` and `/contact` to review the alpha guidance and Operator-managed contact flow.
 
 ## Troubleshooting

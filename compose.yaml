@@ -128,6 +128,7 @@ services:
       VITE_MAP_ADAPTER: ${VITE_MAP_ADAPTER:-openstreetmap}
       VITE_NESHAN_MAP_KEY: ${VITE_NESHAN_MAP_KEY:-}
       VITE_OPENSTREETMAP_TILE_URL: ${VITE_OPENSTREETMAP_TILE_URL:-}
+      VITE_MAILPIT_URL: http://localhost:${MAILPIT_PORT:-8025}
     volumes:
       - ./frontend:/app/frontend
       - frontend-node-modules:/app/frontend/node_modules

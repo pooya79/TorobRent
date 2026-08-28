@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { Navigate, useLocation } from "react-router";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { DevelopmentMailHint } from "@/features/session/DevelopmentMailHint";
 import { currentUserQuery, sessionQuery } from "@/features/session/queries";
 
 export function ProtectedSubmitterRoute({ children }: { children: ReactNode }) {
@@ -51,6 +52,7 @@ export function ProtectedSubmitterRoute({ children }: { children: ReactNode }) {
             برای ثبت آگهی، ابتدا ایمیل خود را تأیید کنید.
           </AlertDescription>
         </Alert>
+        <DevelopmentMailHint />
       </main>
     );
   }
