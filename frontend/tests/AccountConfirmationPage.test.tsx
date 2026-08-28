@@ -51,16 +51,13 @@ test("sets a new password with the reset token", async () => {
   );
   renderPage("reset", "/reset-password?token=signed-reset-token");
 
-  await user.type(
-    screen.getByLabelText("گذرواژه جدید"),
-    "a-new-correct-horse-battery",
-  );
+  await user.type(screen.getByLabelText("گذرواژه جدید"), "123");
   await user.click(screen.getByRole("button", { name: "تغییر گذرواژه" }));
 
   expect(await screen.findByText("گذرواژه شما تغییر کرد.")).toBeVisible();
   expect(submitted).toEqual({
     token: "signed-reset-token",
-    new_password: "a-new-correct-horse-battery",
+    new_password: "123",
   });
 });
 

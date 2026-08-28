@@ -144,7 +144,6 @@ export function AccountAccessPage({ mode }: { mode: AccountAccessMode }) {
                   autoComplete={
                     mode === "login" ? "current-password" : "new-password"
                   }
-                  minLength={8}
                   required
                 />
               </div>

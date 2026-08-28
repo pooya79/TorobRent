@@ -1,6 +1,5 @@
 from typing import Any
 
-from django.contrib.auth.password_validation import validate_password
 from rest_framework import serializers
 
 from .capabilities import OperatorCapability
@@ -59,10 +58,6 @@ class RegistrationSerializer(serializers.Serializer[Any]):
             raise serializers.ValidationError("حسابی با این ایمیل از قبل وجود دارد.")
         return email
 
-    def validate_password(self, value: str) -> str:
-        validate_password(value)
-        return value
-
 
 class TokenSerializer(serializers.Serializer[Any]):
     token = serializers.CharField(trim_whitespace=False, error_messages=TOKEN_ERROR_MESSAGES)
@@ -86,7 +81,3 @@ class PasswordResetRequestSerializer(serializers.Serializer[Any]):
 class PasswordResetConfirmSerializer(serializers.Serializer[Any]):
     token = serializers.CharField(trim_whitespace=False, error_messages=TOKEN_ERROR_MESSAGES)
     new_password = serializers.CharField(write_only=True, trim_whitespace=False)
-
-    def validate_new_password(self, value: str) -> str:
-        validate_password(value)
-        return value

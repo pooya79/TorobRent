@@ -137,7 +137,6 @@ function AccessForm({
           name="password"
           type="password"
           autoComplete={content.passwordAutocomplete}
-          minLength={8}
           aria-describedby={
             fieldErrors.password ? `renter-${mode}-password-error` : undefined
           }

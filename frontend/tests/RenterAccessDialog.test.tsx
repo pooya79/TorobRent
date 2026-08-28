@@ -98,7 +98,7 @@ test("registers a Renter, updates the session in place, and resumes pending inte
   await user.click(screen.getByRole("button", { name: "علاقه‌مندی‌ها" }));
   await user.click(screen.getByRole("button", { name: "ساخت حساب" }));
   await user.type(screen.getByLabelText("ایمیل"), "renter@example.com");
-  await user.type(screen.getByLabelText("گذرواژه"), "correct-horse-battery");
+  await user.type(screen.getByLabelText("گذرواژه"), "123");
   await user.click(screen.getByRole("button", { name: "ساخت حساب و ادامه" }));
 
   expect(await screen.findByRole("status")).toHaveTextContent(
@@ -108,7 +108,7 @@ test("registers a Renter, updates the session in place, and resumes pending inte
   expect(screen.getByRole("button", { name: "علاقه‌مندی‌ها" })).toHaveFocus();
   expect(submitted).toEqual({
     email: "renter@example.com",
-    password: "correct-horse-battery",
+    password: "123",
   });
   expect(queryClient.getQueryData(["session"])).toMatchObject({
     authenticated: true,

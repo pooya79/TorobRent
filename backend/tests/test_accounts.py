@@ -92,6 +92,29 @@ def test_submitter_registers_and_verifies_email(api_client: APIClient):
 
 
 @pytest.mark.django_db
+@pytest.mark.parametrize(
+    ("endpoint", "email", "is_submitter"),
+    [
+        ("/api/v1/auth/register/", "simple-submitter@example.com", True),
+        ("/api/v1/auth/renter-register/", "simple-renter@example.com", False),
+    ],
+)
+def test_demo_registration_accepts_a_simple_password(
+    api_client: APIClient, endpoint: str, email: str, is_submitter: bool
+):
+    response = csrf_client(api_client).post(
+        endpoint,
+        {"email": email, "password": "123"},
+        format="json",
+    )
+
+    assert response.status_code == 201
+    user = User.objects.get(email=email)
+    assert user.check_password("123")
+    assert user.is_submitter is is_submitter
+
+
+@pytest.mark.django_db
 def test_renter_registers_without_submitter_status_and_starts_session(api_client: APIClient):
     client = csrf_client(api_client)
 
@@ -179,13 +202,13 @@ def test_password_recovery_is_private_and_reset_token_is_one_time(
 
     reset_response = client.post(
         "/api/v1/auth/password-reset/confirm/",
-        {"token": token, "new_password": "a-new-correct-horse-battery"},
+        {"token": token, "new_password": "password"},
         format="json",
     )
 
     assert reset_response.status_code == 200
     user.refresh_from_db()
-    assert user.check_password("a-new-correct-horse-battery")
+    assert user.check_password("password")
 
     reused_response = client.post(
         "/api/v1/auth/password-reset/confirm/",

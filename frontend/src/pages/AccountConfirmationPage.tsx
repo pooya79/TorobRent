@@ -82,7 +82,6 @@ export function AccountConfirmationPage({
                   name="new_password"
                   type="password"
                   autoComplete="new-password"
-                  minLength={8}
                   required
                 />
               </div>
