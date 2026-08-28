@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { MemoryRouter } from "react-router";
@@ -10,11 +10,9 @@ import {
   AboutPage,
   AdvertisePage,
   GuidePage,
-  PhotoCreditsPage,
   PrivacyPage,
   TermsPage,
 } from "@/pages/PublicGuidancePages";
-import cities from "@/features/cities/cities.json";
 import { server } from "./server";
 import routerConfig from "../react-router.config";
 import { meta as advertiseMeta } from "@/routes/advertise";
@@ -23,7 +21,6 @@ import { meta as guideMeta } from "@/routes/guide";
 import { meta as privacyMeta } from "@/routes/privacy";
 import { meta as termsMeta } from "@/routes/terms";
 import { meta as aboutMeta } from "@/routes/about";
-import { meta as photoCreditsMeta } from "@/routes/photo-credits";
 
 function renderPage(page: React.ReactNode) {
   const queryClient = new QueryClient({
@@ -90,22 +87,6 @@ test("explains TorobRent genuinely without unsupported marketplace claims", () =
   expect(screen.getByText(/فقط تهران/)).toBeVisible();
   expect(screen.getByText(/هر آگهی با منبع/)).toBeVisible();
   expect(screen.queryByText(/بزرگ‌ترین|بهترین|تضمین می‌کند/)).toBeNull();
-});
-
-test("publishes source and license links for every shipped city image", () => {
-  renderPage(<PhotoCreditsPage />);
-
-  expect(screen.getByRole("heading", { name: "اعتبار تصویرها" })).toBeVisible();
-  for (const city of cities) {
-    const credit = screen.getByRole("article", { name: city.name });
-    expect(within(credit).getByText(city.creator)).toBeVisible();
-    expect(
-      within(credit).getByRole("link", { name: "منبع تصویر" }),
-    ).toHaveAttribute("href", city.sourceUrl);
-    expect(
-      within(credit).getByRole("link", { name: city.licenseName }),
-    ).toHaveAttribute("href", city.licenseUrl);
-  }
 });
 
 test("submits an accessible Persian Contact form and reports success", async () => {
@@ -213,7 +194,6 @@ test("pre-renders public guidance with Persian metadata", () => {
     "/advertise",
     "/privacy",
     "/terms",
-    "/photo-credits",
   ]);
   const routeMetadata = [
     [aboutMeta(), "معرفی فارسی ترب‌رنت"],
@@ -222,7 +202,6 @@ test("pre-renders public guidance with Persian metadata", () => {
     [advertiseMeta(), "ثبت‌نام تلفنی مالک و نمایندهٔ مجاز"],
     [privacyMeta(), "سیاست حریم خصوصی فارسی"],
     [termsMeta(), "شرایط استفاده فارسی"],
-    [photoCreditsMeta(), "منبع، سازنده و مجوز تصویرهای شهرها"],
   ] as const;
   for (const [metadata, expectedDescription] of routeMetadata) {
     const title = metadata.find((item) => "title" in item)?.title;

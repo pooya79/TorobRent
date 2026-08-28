@@ -102,7 +102,6 @@ const footerLinks = [
   { label: "تماس با پشتیبانی", to: "/contact" },
   { label: "حریم خصوصی", to: "/privacy" },
   { label: "شرایط استفاده", to: "/terms" },
-  { label: "اعتبار تصویرها", to: "/photo-credits" },
 ] as const;
 
 const socialPlaceholders = [

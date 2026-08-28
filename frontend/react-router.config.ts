@@ -10,6 +10,5 @@ export default {
     "/advertise",
     "/privacy",
     "/terms",
-    "/photo-credits",
   ],
 } satisfies Config;

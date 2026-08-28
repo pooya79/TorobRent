@@ -15,7 +15,6 @@ const publicRoutes = [
   "/contact",
   "/privacy",
   "/terms",
-  "/photo-credits",
   "/advertise",
 ] as const;
 const demoSeedAvailable = Boolean(process.env.E2E_SEED_DEMO);

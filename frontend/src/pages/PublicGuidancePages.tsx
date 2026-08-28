@@ -2,7 +2,6 @@ import type { ReactNode } from "react";
 import { Link } from "react-router";
 
 import { AlphaNotice } from "@/components/guidance/AlphaNotice";
-import cities from "@/features/cities/cities.json";
 
 function GuidanceLayout({
   eyebrow,
@@ -128,54 +127,6 @@ export function AboutPage() {
           یک درخواست پشتیبانی ثبت کنید.
         </p>
       </Section>
-    </GuidanceLayout>
-  );
-}
-
-export function PhotoCreditsPage() {
-  return (
-    <GuidanceLayout
-      eyebrow="منبع و مجوز"
-      title="اعتبار تصویرها"
-      intro="منبع، سازنده و مجوز هر تصویر شهر در این صفحه ثبت شده است."
-    >
-      <div className="grid gap-5 sm:grid-cols-2">
-        {cities.map((city) => (
-          <article
-            key={city.slug}
-            aria-label={city.name}
-            className="border-border rounded-xl border p-6"
-          >
-            <h2 className="text-xl font-semibold">{city.name}</h2>
-            <div className="text-muted-foreground mt-4 grid gap-3 text-sm">
-              <div>
-                <p className="font-semibold">سازنده</p>
-                <p dir="ltr" className="mt-1 text-start">
-                  {city.creator}
-                </p>
-              </div>
-              <div className="flex flex-wrap gap-x-5 gap-y-2">
-                <a
-                  className="text-primary min-h-11 content-center underline"
-                  href={city.sourceUrl}
-                  rel="noreferrer"
-                  target="_blank"
-                >
-                  منبع تصویر
-                </a>
-                <a
-                  className="text-primary min-h-11 content-center underline"
-                  href={city.licenseUrl}
-                  rel="noreferrer"
-                  target="_blank"
-                >
-                  {city.licenseName}
-                </a>
-              </div>
-            </div>
-          </article>
-        ))}
-      </div>
     </GuidanceLayout>
   );
 }

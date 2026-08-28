@@ -159,7 +159,6 @@ test("publishes complete footer navigation and honest social placeholders", asyn
     ["تماس با پشتیبانی", "/contact"],
     ["حریم خصوصی", "/privacy"],
     ["شرایط استفاده", "/terms"],
-    ["اعتبار تصویرها", "/photo-credits"],
   ]) {
     expect(within(information).getByRole("link", { name })).toHaveAttribute(
       "href",
