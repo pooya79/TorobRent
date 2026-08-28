@@ -482,7 +482,7 @@ export function ProductShell({ children }: { children: ReactNode }) {
         aria-label="راهبری عمومی"
         className="border-border bg-background/95 sticky top-0 z-30 shrink-0 border-b backdrop-blur"
       >
-        <div className="mx-auto flex min-h-18 w-full max-w-360 items-center justify-between gap-3 px-4 sm:px-6 lg:px-10">
+        <div className="mx-auto flex min-h-18 w-full max-w-432 items-center justify-between gap-3 px-4 sm:px-6 lg:px-10">
           <Brand />
           <div className="flex items-center gap-2">
             <div className="hidden xl:block">
@@ -539,7 +539,7 @@ export function ProductShell({ children }: { children: ReactNode }) {
       <div className={isSearchPage ? "min-h-0 flex-1 overflow-hidden" : ""}>
         {children}
         {!isSearchPage && (
-          <footer className="border-border mx-auto mt-16 grid w-full max-w-360 gap-8 border-t px-4 py-10 text-sm sm:px-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)] lg:px-10">
+          <footer className="border-border mx-auto mt-16 grid w-full max-w-432 gap-8 border-t px-4 py-10 text-sm sm:px-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)] lg:px-10">
             <div>
               <p className="font-semibold">ترب‌رنت</p>
               <p className="text-muted-foreground mt-2 max-w-md leading-7">

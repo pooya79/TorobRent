@@ -58,7 +58,7 @@ function CityCard({ city }: { city: (typeof cities)[number] }) {
 export function PopularCities() {
   return (
     <section
-      className="mx-auto w-full max-w-360 px-4 py-14 sm:px-6 lg:px-10"
+      className="mx-auto w-full max-w-432 px-4 py-14 sm:px-6 lg:px-10"
       aria-labelledby="popular-cities-title"
     >
       <header className="mb-7 max-w-2xl">

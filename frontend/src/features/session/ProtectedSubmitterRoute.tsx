@@ -20,7 +20,7 @@ export function ProtectedSubmitterRoute({ children }: { children: ReactNode }) {
     return (
       <main
         id="main-content"
-        className="mx-auto w-full max-w-360 px-4 py-12"
+        className="mx-auto w-full max-w-432 px-4 py-12"
         tabIndex={-1}
       >
         <p>در حال بررسی حساب…</p>
@@ -42,7 +42,7 @@ export function ProtectedSubmitterRoute({ children }: { children: ReactNode }) {
     return (
       <main
         id="main-content"
-        className="mx-auto w-full max-w-360 px-4 py-12"
+        className="mx-auto w-full max-w-432 px-4 py-12"
         tabIndex={-1}
       >
         <Alert>
@@ -59,7 +59,7 @@ export function ProtectedSubmitterRoute({ children }: { children: ReactNode }) {
     return (
       <main
         id="main-content"
-        className="mx-auto w-full max-w-360 px-4 py-12"
+        className="mx-auto w-full max-w-432 px-4 py-12"
         tabIndex={-1}
       >
         <Alert>

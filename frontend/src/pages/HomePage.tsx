@@ -36,7 +36,7 @@ export function HomePage() {
           className="bg-primary/10 pointer-events-none absolute start-1/4 -top-40 -z-10 size-96 rounded-full blur-3xl"
           aria-hidden="true"
         />
-        <div className="mx-auto w-full max-w-360 px-4 pt-10 pb-16 sm:px-6 sm:pt-16 lg:px-10 lg:pt-24">
+        <div className="mx-auto w-full max-w-432 px-4 pt-10 pb-16 sm:px-6 sm:pt-16 lg:px-10 lg:pt-24">
           <div className="mx-auto max-w-4xl text-center">
             <p className="text-muted-foreground mb-4 text-sm font-medium">
               آگهی‌های چند منبع، یک‌جا و قابل مقایسه
@@ -140,7 +140,7 @@ const trustClaims = [
 function TrustSection() {
   return (
     <section
-      className="mx-auto w-full max-w-360 px-4 py-16 sm:px-6 lg:px-10"
+      className="mx-auto w-full max-w-432 px-4 py-16 sm:px-6 lg:px-10"
       aria-labelledby="trust-title"
     >
       <div className="mx-auto max-w-2xl text-center">
@@ -177,7 +177,7 @@ function CatalogStatisticsSection() {
       className="bg-muted/70 border-border border-y"
       aria-labelledby="statistics-title"
     >
-      <div className="mx-auto w-full max-w-360 px-4 py-16 sm:px-6 lg:px-10">
+      <div className="mx-auto w-full max-w-432 px-4 py-16 sm:px-6 lg:px-10">
         <div className="mx-auto max-w-2xl text-center">
           <p className="text-primary mb-2 text-sm font-semibold">
             نمای کلی بازار

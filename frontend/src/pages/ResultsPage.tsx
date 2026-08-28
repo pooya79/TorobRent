@@ -470,7 +470,7 @@ export function ResultsPage({ mapAdapter }: { mapAdapter?: MapAdapter }) {
   };
 
   return (
-    <PageMain className="flex h-full min-h-0 flex-col">
+    <PageMain className="flex h-full min-h-0 flex-col py-3 sm:py-4">
       <header className="shrink-0">
         <SearchToolbar
           searchParams={searchParams}
@@ -481,23 +481,15 @@ export function ResultsPage({ mapAdapter }: { mapAdapter?: MapAdapter }) {
           {resultsCopy.heading} در {location}
         </h1>
       </header>
-      <div className="mb-6 flex shrink-0 justify-end">
-        <AdvancedFiltersSheet
-          open={filtersOpen}
-          onOpenChange={setFiltersOpen}
-          searchParams={searchParams}
-          setSearchParams={setSearchParams}
-        />
-      </div>
-
       {activeFilters.length > 0 && (
         <div
-          className="mb-6 flex shrink-0 flex-wrap gap-2"
+          className="mb-3 flex shrink-0 flex-nowrap gap-2 overflow-x-auto pb-1"
           aria-label="فیلترهای اعمال‌شده"
         >
           {activeFilters.map(([name, label]) => (
             <Button
               key={name}
+              className="shrink-0"
               type="button"
               size="sm"
               variant="outline"
@@ -509,6 +501,7 @@ export function ResultsPage({ mapAdapter }: { mapAdapter?: MapAdapter }) {
             </Button>
           ))}
           <Button
+            className="shrink-0"
             type="button"
             size="sm"
             variant="ghost"
@@ -521,57 +514,64 @@ export function ResultsPage({ mapAdapter }: { mapAdapter?: MapAdapter }) {
       )}
 
       <div className="flex min-h-0 flex-1 flex-col">
-        <p
-          className="text-muted-foreground mb-5 shrink-0 text-sm"
-          aria-live="polite"
-        >
-          {searchData ? (
-            resultSearchParams.has("viewport_north") ? (
-              `${formatNumber(count)} ملک در این محدوده پیدا شد`
+        <div className="mb-3 flex shrink-0 flex-wrap items-center justify-between gap-2">
+          <p className="text-muted-foreground text-sm" aria-live="polite">
+            {searchData ? (
+              resultSearchParams.has("viewport_north") ? (
+                `${formatNumber(count)} ملک در این محدوده پیدا شد`
+              ) : (
+                <>
+                  <span>{formatNumber(count)} ملک پیدا شد</span>
+                  <span className="ms-1 hidden sm:inline">
+                    از این تعداد،{" "}
+                    {formatNumber(searchData.map.mappable_property_count)} ملک
+                    روی نقشه است
+                  </span>
+                </>
+              )
             ) : (
-              <>
-                <span>{formatNumber(count)} ملک پیدا شد</span>
-                <span className="ms-1">
-                  از این تعداد،{" "}
-                  {formatNumber(searchData.map.mappable_property_count)} ملک روی
-                  نقشه است
-                </span>
-              </>
-            )
-          ) : (
-            "جست‌وجوی ملک‌ها"
-          )}
-        </p>
-        {mapAvailable && search.data ? (
-          <Sheet open={mobileMapOpen} onOpenChange={setMobileMapOpen}>
-            <SheetTrigger asChild>
-              <Button className="mb-5 w-full xl:hidden" size="lg">
-                <MapIcon aria-hidden="true" /> نمایش نقشه تمام‌صفحه
-              </Button>
-            </SheetTrigger>
-            <SheetContent
-              side="bottom"
-              className="inset-0 h-dvh w-full max-w-none p-0 xl:hidden"
-            >
-              <SheetHeader className="sr-only">
-                <SheetTitle>نقشه تمام‌صفحه ملک‌ها</SheetTitle>
-                <SheetDescription>
-                  انتخاب ملک‌ها از روی موقعیت تقریبی آن‌ها
-                </SheetDescription>
-              </SheetHeader>
-              <div className="h-full pt-16">
-                <SearchMapPanel {...mapPanelProps} />
-              </div>
-            </SheetContent>
-          </Sheet>
-        ) : null}
+              "جست‌وجوی ملک‌ها"
+            )}
+          </p>
+          <div className="flex items-center gap-2">
+            {mapAvailable && search.data ? (
+              <Sheet open={mobileMapOpen} onOpenChange={setMobileMapOpen}>
+                <SheetTrigger asChild>
+                  <Button className="xl:hidden" size="sm">
+                    <MapIcon aria-hidden="true" /> نمایش نقشه تمام‌صفحه
+                  </Button>
+                </SheetTrigger>
+                <SheetContent
+                  side="bottom"
+                  className="inset-0 h-dvh w-full max-w-none p-0 xl:hidden"
+                >
+                  <SheetHeader className="sr-only">
+                    <SheetTitle>نقشه تمام‌صفحه ملک‌ها</SheetTitle>
+                    <SheetDescription>
+                      انتخاب ملک‌ها از روی موقعیت تقریبی آن‌ها
+                    </SheetDescription>
+                  </SheetHeader>
+                  <div className="h-full pt-16">
+                    <SearchMapPanel {...mapPanelProps} />
+                  </div>
+                </SheetContent>
+              </Sheet>
+            ) : null}
+            <AdvancedFiltersSheet
+              open={filtersOpen}
+              onOpenChange={setFiltersOpen}
+              searchParams={searchParams}
+              setSearchParams={setSearchParams}
+            />
+          </div>
+        </div>
         <div
           role="region"
           aria-label="نتایج و نقشه جاری"
           aria-busy={isReplacingResults}
           className={`min-h-0 flex-1 ${
             mapAvailable
-              ? "grid gap-8 xl:grid-cols-2 xl:[direction:ltr]"
+              ? "grid gap-5 xl:grid-cols-2 xl:[direction:ltr]"
               : "block"
           } ${isReplacingResults ? "opacity-60" : ""}`}
         >
@@ -663,7 +663,7 @@ export function ResultsPage({ mapAdapter }: { mapAdapter?: MapAdapter }) {
               <section
                 className={
                   mapAvailable
-                    ? "grid gap-x-4 gap-y-7 sm:grid-cols-[repeat(auto-fit,minmax(min(100%,16rem),1fr))]"
+                    ? "grid gap-x-4 gap-y-7 sm:grid-cols-[repeat(auto-fit,minmax(min(100%,15rem),1fr))]"
                     : "grid gap-x-4 gap-y-7 sm:grid-cols-2 xl:grid-cols-3"
                 }
                 aria-label="ملک‌های پیدا شده"

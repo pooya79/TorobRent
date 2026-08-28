@@ -101,7 +101,7 @@ export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
   return (
     <main
       id="main-content"
-      className="mx-auto flex min-h-screen w-full max-w-360 items-center px-4 py-16 sm:px-6 lg:px-10"
+      className="mx-auto flex min-h-screen w-full max-w-432 items-center px-4 py-16 sm:px-6 lg:px-10"
       tabIndex={-1}
     >
       <section className="border-border mx-auto w-full max-w-xl rounded-xl border p-8 text-center">

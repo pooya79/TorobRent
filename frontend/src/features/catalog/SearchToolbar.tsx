@@ -45,12 +45,12 @@ export function SearchToolbar({
 
   return (
     <section
-      className="border-border bg-background/95 sticky top-[4.75rem] z-20 -mx-4 mb-8 border-y px-4 py-3 shadow-sm backdrop-blur sm:-mx-6 sm:px-6 lg:-mx-10 lg:px-10"
+      className="border-border bg-background/95 sticky top-[4.75rem] z-20 -mx-4 mb-3 border-y px-4 py-2 shadow-sm backdrop-blur sm:-mx-6 sm:px-6 lg:-mx-10 lg:px-10"
       role="search"
       aria-label="نوار جست‌وجوی ملک"
     >
-      <div className="grid gap-3 md:grid-cols-[minmax(12rem,1fr)_auto_minmax(13rem,1fr)] md:items-end">
-        <div className="border-border relative flex min-h-14 items-center gap-3 rounded-xl border px-4">
+      <div className="grid gap-2 md:grid-cols-[minmax(12rem,1fr)_auto_minmax(13rem,1fr)] md:items-center">
+        <div className="border-border relative flex min-h-12 items-center gap-3 rounded-xl border px-3">
           <MapPin
             className="text-muted-foreground size-5 shrink-0"
             aria-hidden="true"
@@ -74,7 +74,7 @@ export function SearchToolbar({
         </div>
 
         <fieldset>
-          <legend className="mb-1 text-xs font-semibold">دسته‌بندی ملک</legend>
+          <legend className="sr-only">دسته‌بندی ملک</legend>
           <div className="bg-muted grid grid-cols-2 rounded-xl p-1">
             {propertyTypeGroups.map((group) => (
               <Button
@@ -95,7 +95,7 @@ export function SearchToolbar({
           </div>
         </fieldset>
 
-        <div className="border-border flex min-h-14 items-center gap-3 rounded-xl border px-4">
+        <div className="border-border flex min-h-12 items-center gap-3 rounded-xl border px-3">
           <Building2
             className="text-muted-foreground size-5 shrink-0"
             aria-hidden="true"

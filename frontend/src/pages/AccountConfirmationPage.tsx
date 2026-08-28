@@ -65,7 +65,7 @@ export function AccountConfirmationPage({
   return (
     <main
       id="main-content"
-      className="mx-auto flex w-full max-w-360 items-center px-4 py-12 sm:px-6 lg:px-10"
+      className="mx-auto flex w-full max-w-432 items-center px-4 py-12 sm:px-6 lg:px-10"
       tabIndex={-1}
     >
       <Card className="mx-auto w-full max-w-lg shadow-none">

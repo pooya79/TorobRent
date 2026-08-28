@@ -35,7 +35,7 @@ export function QuickFilters({
   };
 
   return (
-    <fieldset className="mt-3 flex flex-wrap items-center gap-2">
+    <fieldset className="mt-2 flex items-center gap-2 overflow-x-auto pb-1">
       <legend className="sr-only">فیلترهای سریع</legend>
       {quickFilterOptions[category].map((filter) => {
         const selectedValue =
@@ -49,6 +49,7 @@ export function QuickFilters({
           <Button
             key={`${filter.parameter}-${filter.value}`}
             className={cn(
+              "shrink-0",
               selected && "border-primary bg-primary/10 text-primary",
             )}
             type="button"
