@@ -1640,7 +1640,7 @@ test("accumulates the server-provided next page through an accessible Load More 
     screen.getByRole("heading", { name: "آپارتمان در سعادت‌آباد" }),
   ).toBeVisible();
   expect(requestedUrls).toContain(
-    "http://localhost/api/v1/catalog/properties/?location=%D8%AA%D9%87%D8%B1%D8%A7%D9%86&page=2",
+    `${window.location.origin}/api/v1/catalog/properties/?location=%D8%AA%D9%87%D8%B1%D8%A7%D9%86&page=2`,
   );
   expect(screen.getByLabelText("وضعیت جست‌وجو")).toHaveTextContent("page=2");
   expect(screen.getByRole("link", { name: "خانه در ونک" })).toHaveAttribute(

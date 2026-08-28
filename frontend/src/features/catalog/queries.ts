@@ -210,7 +210,12 @@ export function propertySearchInfiniteQueryOptions(
       const baseUrl =
         typeof window === "undefined" ? "" : window.location.origin;
       if (pageParam) {
-        const response = await fetch(new URL(pageParam, baseUrl), {
+        const serverContinuation = new URL(pageParam, baseUrl);
+        const sameOriginContinuation = new URL(
+          `${serverContinuation.pathname}${serverContinuation.search}`,
+          baseUrl,
+        );
+        const response = await fetch(sameOriginContinuation, {
           credentials: "include",
           signal,
         });

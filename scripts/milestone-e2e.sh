@@ -39,3 +39,5 @@ E2E_REQUIRE_MAILPIT=1 \
 FRONTEND_ORIGIN=http://127.0.0.1:5173 \
 CSRF_TRUSTED_ORIGINS=http://127.0.0.1:5173 \
 pnpm exec playwright test --grep @milestone "$@"
+E2E_SEED_DEMO=1 pnpm exec playwright test \
+  tests/e2e/property-discovery.spec.ts --project=chromium "$@"
