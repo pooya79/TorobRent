@@ -4,21 +4,15 @@ import {
   BriefcaseBusiness,
   Camera,
   Check,
-  CircleHelp,
   Heart,
-  Home,
-  LogIn,
   LogOut,
-  Mail,
   Menu,
   MessageCircle,
-  Plus,
-  Search,
   Send,
   UserRound,
 } from "lucide-react";
 import { useState, type ReactNode } from "react";
-import { NavLink, useLocation, useNavigate } from "react-router";
+import { NavLink, useLocation } from "react-router";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -41,7 +35,6 @@ import {
 import { api } from "@/lib/api/client";
 import { apiError } from "@/lib/api/errors";
 import { currentUserQuery, sessionQuery } from "@/features/session/queries";
-import { useRenterAccess } from "@/features/session/RenterAccessDialog";
 import {
   mapPropertySearchPages,
   type PropertySearchData,
@@ -67,10 +60,10 @@ function withoutFavorites(data: PropertySearchData | undefined) {
 }
 
 const navigation = [
-  { label: "خانه", to: "/", icon: Home },
-  { label: "جست‌وجو", to: "/search", icon: Search },
-  { label: "راهنما", to: "/guide", icon: CircleHelp },
-  { label: "تماس", to: "/contact", icon: Mail },
+  { label: "خانه", to: "/" },
+  { label: "جست‌وجو", to: "/search" },
+  { label: "راهنما", to: "/guide" },
+  { label: "تماس", to: "/contact" },
 ] as const;
 
 const navigationClass = ({ isActive }: { isActive: boolean }) =>
@@ -115,21 +108,18 @@ function PrimaryNavigation({
   authenticated,
   currentUser,
   logout,
-  openFavorites,
   mobile = false,
   onNavigate,
 }: {
   authenticated: boolean;
   currentUser?: CurrentUser;
   logout: () => void;
-  openFavorites: () => void;
   mobile?: boolean;
   onNavigate?: () => void;
 }) {
   const links = (
     <>
       {navigation.map((item) => {
-        const Icon = item.icon;
         const link = (
           <NavLink
             className={navigationClass}
@@ -137,7 +127,6 @@ function PrimaryNavigation({
             end={item.to === "/"}
             onClick={onNavigate}
           >
-            <Icon className="size-5" aria-hidden="true" />
             {item.label}
           </NavLink>
         );
@@ -149,18 +138,10 @@ function PrimaryNavigation({
           onClick={onNavigate}
           to="/favorites"
         >
-          <Heart className="size-5" aria-hidden="true" /> علاقه‌مندی‌ها
+          <Heart className="size-5" aria-hidden="true" />
+          <span className={cn(!mobile && "sr-only")}>علاقه‌مندی‌ها</span>
         </NavLink>
-      ) : (
-        <Button
-          className="min-h-11 justify-start px-3"
-          onClick={openFavorites}
-          type="button"
-          variant="ghost"
-        >
-          <Heart aria-hidden="true" /> علاقه‌مندی‌ها
-        </Button>
-      )}
+      ) : null}
       {authenticated ? (
         currentUser ? (
           <AuthenticatedControls
@@ -177,7 +158,7 @@ function PrimaryNavigation({
       ) : (
         <>
           <NavLink className={navigationClass} onClick={onNavigate} to="/login">
-            <LogIn className="size-5" aria-hidden="true" /> ورود
+            ورود
           </NavLink>
           <NavLink
             className={navigationClass}
@@ -199,7 +180,7 @@ function PrimaryNavigation({
       {links}
       <Button asChild className={cn("min-h-11 rounded-full", mobile && "mt-4")}>
         <NavLink onClick={onNavigate} to="/advertise">
-          <Plus aria-hidden="true" /> می‌خواهم آگهی ثبت کنم
+          می‌خواهم آگهی ثبت کنم
         </NavLink>
       </Button>
     </nav>
@@ -277,18 +258,18 @@ function MobileAccountPanel({
       <ComingSoonControl label="پیام‌ها" icon={MessageCircle} />
       <Button asChild className="justify-start px-3" variant="ghost">
         <NavLink onClick={onNavigate} to="/guide">
-          <CircleHelp aria-hidden="true" /> راهنما
+          راهنما
         </NavLink>
       </Button>
       <Button asChild className="justify-start px-3" variant="ghost">
         <NavLink onClick={onNavigate} to="/contact">
-          <Mail aria-hidden="true" /> تماس با پشتیبانی
+          تماس با پشتیبانی
         </NavLink>
       </Button>
       {isOperator ? (
         <Button asChild className="justify-start px-3" variant="ghost">
           <NavLink onClick={onNavigate} to="/operator">
-            <BriefcaseBusiness aria-hidden="true" /> فضای کاری اپراتور
+            فضای کاری اپراتور
           </NavLink>
         </Button>
       ) : null}
@@ -357,7 +338,8 @@ function AccountMenu({
           type="button"
           variant="ghost"
         >
-          <UserRound aria-hidden="true" /> حساب
+          <UserRound aria-hidden="true" />
+          <span className="sr-only">حساب</span>
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent
@@ -372,20 +354,14 @@ function AccountMenu({
         <ComingSoonMenuItem label="نمایه" icon={UserRound} />
         <ComingSoonMenuItem label="پیام‌ها" icon={MessageCircle} />
         <DropdownMenuItem asChild>
-          <NavLink to="/guide">
-            <CircleHelp aria-hidden="true" /> راهنما
-          </NavLink>
+          <NavLink to="/guide">راهنما</NavLink>
         </DropdownMenuItem>
         <DropdownMenuItem asChild>
-          <NavLink to="/contact">
-            <Mail aria-hidden="true" /> تماس با پشتیبانی
-          </NavLink>
+          <NavLink to="/contact">تماس با پشتیبانی</NavLink>
         </DropdownMenuItem>
         {isOperator ? (
           <DropdownMenuItem asChild>
-            <NavLink to="/operator">
-              <BriefcaseBusiness aria-hidden="true" /> فضای کاری اپراتور
-            </NavLink>
+            <NavLink to="/operator">فضای کاری اپراتور</NavLink>
           </DropdownMenuItem>
         ) : null}
         <DropdownMenuItem onSelect={logout}>
@@ -420,9 +396,7 @@ function ComingSoonMenuItem({
 export function ProductShell({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
   const { pathname } = useLocation();
-  const navigate = useNavigate();
   const isSearchPage = pathname === "/search";
-  const { requestRenterAccess } = useRenterAccess();
   const session = useQuery(sessionQuery);
   const authenticated = session.data?.authenticated === true;
   const currentUser = useQuery({
@@ -430,13 +404,6 @@ export function ProductShell({ children }: { children: ReactNode }) {
     enabled: authenticated,
   });
   const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false);
-  const openFavorites = () =>
-    requestRenterAccess(() => void navigate("/favorites"));
-  const openMobileFavorites = () =>
-    requestRenterAccess(() => {
-      setMobileNavigationOpen(false);
-      void navigate("/favorites");
-    });
   const logout = useMutation({
     mutationFn: async () => {
       const { data, error } = await api.POST("/api/v1/auth/logout/");
@@ -490,7 +457,6 @@ export function ProductShell({ children }: { children: ReactNode }) {
                 authenticated={authenticated}
                 currentUser={currentUser.data}
                 logout={() => logout.mutate()}
-                openFavorites={openFavorites}
               />
             </div>
             <ThemeSwitcher />
@@ -520,7 +486,6 @@ export function ProductShell({ children }: { children: ReactNode }) {
                     <PrimaryNavigation
                       authenticated={authenticated}
                       currentUser={currentUser.data}
-                      openFavorites={openMobileFavorites}
                       logout={() => {
                         setMobileNavigationOpen(false);
                         logout.mutate();

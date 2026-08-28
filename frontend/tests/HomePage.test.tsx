@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { delay, http, HttpResponse } from "msw";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router";
@@ -69,77 +69,30 @@ test("presents the anonymous public navbar and real advertisement introduction",
   expect(
     within(navigation).getByRole("link", { name: "ثبت‌نام" }),
   ).toHaveAttribute("href", "/register");
-  expect(
-    within(navigation).getByRole("button", { name: "علاقه‌مندی‌ها" }),
-  ).toBeVisible();
+  expect(within(navigation).queryByText("علاقه‌مندی‌ها")).toBeNull();
   expect(
     within(navigation).getByRole("link", {
       name: "می‌خواهم آگهی ثبت کنم",
     }),
   ).toHaveAttribute("href", "/advertise");
+  for (const name of [
+    "خانه",
+    "جست‌وجو",
+    "راهنما",
+    "تماس",
+    "ورود",
+    "ثبت‌نام",
+    "می‌خواهم آگهی ثبت کنم",
+  ]) {
+    expect(
+      within(navigation).getByRole("link", { name }).querySelector("svg"),
+    ).toBeNull();
+  }
   expect(
     within(navbar).getByRole("combobox", { name: /پوسته نمایش/ }),
   ).toBeVisible();
   expect(within(navbar).queryByText("آگهی‌های من")).not.toBeInTheDocument();
   expect(await screen.findByText("سامانه در دسترس است")).toBeVisible();
-});
-
-test("resumes anonymous Favorites navigation after login and closes mobile navigation", async () => {
-  const user = userEvent.setup();
-  let authenticated = false;
-  server.use(
-    http.get("*/api/v1/auth/session/", () =>
-      HttpResponse.json({
-        authenticated,
-        csrf_token: authenticated ? "rotated-token" : "test-token",
-      }),
-    ),
-    http.post("*/api/v1/auth/login/", () => {
-      authenticated = true;
-      return HttpResponse.json({
-        id: "10000000-0000-4000-8000-000000000056",
-        email: "renter@example.com",
-        first_name: "",
-        last_name: "",
-        email_verified: true,
-        is_submitter: false,
-      });
-    }),
-    http.get("*/api/v1/users/me/", () =>
-      HttpResponse.json({
-        id: "10000000-0000-4000-8000-000000000056",
-        email: "renter@example.com",
-        first_name: "",
-        last_name: "",
-        email_verified: true,
-        is_submitter: false,
-        operator_capabilities: [],
-      }),
-    ),
-  );
-  const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false } },
-  });
-  renderHomeShell(queryClient);
-
-  await user.click(
-    screen.getByRole("button", { name: "باز کردن فهرست راهبری" }),
-  );
-  const mobileNavigation = screen.getByRole("dialog", {
-    name: "راهبری ترب‌رنت",
-  });
-  await user.click(
-    within(mobileNavigation).getByRole("button", { name: "علاقه‌مندی‌ها" }),
-  );
-  await user.type(screen.getByLabelText("ایمیل"), "renter@example.com");
-  await user.type(screen.getByLabelText("گذرواژه"), "correct-horse-battery");
-  await user.click(screen.getByRole("button", { name: "ورود و ادامه" }));
-
-  await waitFor(() =>
-    expect(screen.getByLabelText("مسیر جاری")).toHaveTextContent("/favorites"),
-  );
-  expect(screen.queryByRole("dialog", { name: "راهبری ترب‌رنت" })).toBeNull();
-  expect(screen.queryByRole("dialog", { name: "ورود به ترب‌رنت" })).toBeNull();
 });
 
 test("publishes complete footer navigation and honest social placeholders", async () => {
@@ -324,18 +277,25 @@ test("shows Renter controls and honest placeholders in the authenticated account
   renderHomeShell(queryClient);
 
   const navbar = screen.getByRole("banner", { name: "راهبری عمومی" });
-  expect(
-    await within(navbar).findByRole("button", {
-      name: "پیام‌ها — به‌زودی",
-    }),
-  ).toHaveAttribute("aria-disabled", "true");
-  expect(
-    within(navbar).getByRole("link", { name: "علاقه‌مندی‌ها" }),
-  ).toHaveAttribute("href", "/favorites");
+  const messages = await within(navbar).findByRole("button", {
+    name: "پیام‌ها — به‌زودی",
+  });
+  expect(messages).toHaveAttribute("aria-disabled", "true");
+  expect(messages.querySelector("svg")).not.toBeNull();
+  const favorites = within(navbar).getByRole("link", {
+    name: "علاقه‌مندی‌ها",
+  });
+  expect(favorites).toHaveAttribute("href", "/favorites");
+  expect(favorites.querySelector("svg")).not.toBeNull();
+  expect(within(favorites).getByText("علاقه‌مندی‌ها")).toHaveClass("sr-only");
   expect(within(navbar).queryByRole("link", { name: "ورود" })).toBeNull();
   expect(within(navbar).queryByRole("link", { name: "ثبت‌نام" })).toBeNull();
 
-  await user.click(within(navbar).getByRole("button", { name: "حساب کاربری" }));
+  const accountButton = within(navbar).getByRole("button", {
+    name: "حساب کاربری",
+  });
+  expect(within(accountButton).getByText("حساب")).toHaveClass("sr-only");
+  await user.click(accountButton);
   const account = screen.getByRole("menu", { name: "حساب کاربری" });
   expect(within(account).getByText("پویا اجاره‌جو")).toBeVisible();
   expect(within(account).getByText("renter@example.com")).toBeVisible();
