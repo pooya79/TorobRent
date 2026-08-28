@@ -8,7 +8,7 @@ test("@milestone @cross-browser serves a meaningful Persian document before hydr
 
   expect(response.ok()).toBe(true);
   expect(html).toContain('<html lang="fa" dir="rtl"');
-  expect(html).toContain("اجارهٔ ملک مسکونی و تجاری در تهران");
+  expect(html).toContain("اجاره ملک مسکونی و تجاری در تهران");
   expect(html).toContain("شهر");
 });
 
@@ -32,7 +32,7 @@ test("@milestone @cross-browser hydrates the application shell and reports API h
   await page.goto("/");
   await expect(
     page.getByRole("heading", {
-      name: "اجارهٔ ملک مسکونی و تجاری در تهران",
+      name: "اجاره ملک مسکونی و تجاری در تهران",
     }),
   ).toBeVisible();
   await expect(page.getByText("سامانه در دسترس است")).toBeVisible({
@@ -110,7 +110,7 @@ test("@milestone @cross-browser exposes the public fixture-backed prototype rout
   page,
 }) => {
   const routes = [
-    ["/", "اجارهٔ ملک مسکونی و تجاری در تهران"],
+    ["/", "اجاره ملک مسکونی و تجاری در تهران"],
     ["/search", "ملک‌های اجاره‌ای در تهران"],
     ["/advertise", "ثبت آگهی در ترب‌رنت"],
   ] as const;

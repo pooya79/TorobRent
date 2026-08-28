@@ -54,7 +54,7 @@ test("presents the anonymous public navbar and real advertisement introduction",
 
   expect(
     screen.getByRole("heading", {
-      name: "اجارهٔ ملک مسکونی و تجاری در تهران",
+      name: "اجاره ملک مسکونی و تجاری در تهران",
     }),
   ).toBeVisible();
   expect(screen.getByRole("combobox", { name: "شهر" })).toBeVisible();
@@ -78,7 +78,7 @@ test("presents the anonymous public navbar and real advertisement introduction",
     }),
   ).toHaveAttribute("href", "/advertise");
   expect(
-    within(navbar).getByRole("combobox", { name: /پوستهٔ نمایش/ }),
+    within(navbar).getByRole("combobox", { name: /پوسته نمایش/ }),
   ).toBeVisible();
   expect(within(navbar).queryByText("آگهی‌های من")).not.toBeInTheDocument();
   expect(await screen.findByText("سامانه در دسترس است")).toBeVisible();
@@ -228,7 +228,7 @@ test("presents ordered Popular Cities with Tehran as the only discovery action",
     cards.map((card) => within(card).getByRole("heading").textContent),
   ).toEqual(cityNames);
   const tehranLink = within(cards[0]!).getByRole("link", {
-    name: /مشاهدهٔ ملک‌های تهران/,
+    name: /مشاهده ملک‌های تهران/,
   });
   expect(tehranLink).toHaveAttribute(
     "href",
@@ -749,7 +749,7 @@ test("shows only domain-grounded trust claims and live catalog statistics", asyn
   expect(within(statistics).getByText("۵")).toBeVisible();
   expect(within(statistics).getByText("ملک قابل جست‌وجو")).toBeVisible();
   expect(within(statistics).getByText("آگهی فعال")).toBeVisible();
-  expect(within(statistics).getByText("محلهٔ تحت پوشش")).toBeVisible();
+  expect(within(statistics).getByText("محله تحت پوشش")).toBeVisible();
 
   expect(screen.queryByText("ملک‌های به‌روزشده در تهران")).toBeNull();
   expect(screen.queryByText("نمونه‌های تازه")).toBeNull();
@@ -764,7 +764,7 @@ test("keeps the final homepage sections in the agreed public order", () => {
   const main = screen.getByRole("main");
   const orderedSections = [
     within(main).getByRole("heading", {
-      name: "اجارهٔ ملک مسکونی و تجاری در تهران",
+      name: "اجاره ملک مسکونی و تجاری در تهران",
     }),
     within(main).getByRole("heading", { name: "شهرهای محبوب" }),
     within(main).getByRole("heading", {

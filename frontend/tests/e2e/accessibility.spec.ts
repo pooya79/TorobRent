@@ -50,7 +50,7 @@ test("@a11y public home interactions are keyboard operable", async ({
   await expect(page.getByRole("link", { name: "ترب‌رنت، خانه" })).toBeFocused();
   await page.keyboard.press("Tab");
   await expect(
-    page.getByRole("combobox", { name: /پوستهٔ نمایش/ }),
+    page.getByRole("combobox", { name: /پوسته نمایش/ }),
   ).toBeFocused();
   await page.keyboard.press("Tab");
   await expectVisibleKeyboardFocus(navigationTrigger);
@@ -84,7 +84,7 @@ test("@a11y public home interactions are keyboard operable", async ({
   await expect(apartment).toBeChecked();
 
   const tehranLink = page.getByRole("link", {
-    name: "مشاهدهٔ ملک‌های تهران",
+    name: "مشاهده ملک‌های تهران",
   });
   await tehranLink.focus();
   await expectVisibleKeyboardFocus(tehranLink);

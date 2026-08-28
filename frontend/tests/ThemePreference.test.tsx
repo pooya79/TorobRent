@@ -51,7 +51,7 @@ test("user can choose a device-local dark theme", async () => {
   );
 
   const switcher = screen.getByRole("combobox", {
-    name: "پوستهٔ نمایش: سیستم",
+    name: "پوسته نمایش: سیستم",
   });
 
   await user.click(switcher);
@@ -62,7 +62,7 @@ test("user can choose a device-local dark theme", async () => {
   });
   expect(window.localStorage.getItem(THEME_STORAGE_KEY)).toBe("dark");
   expect(
-    screen.getByRole("combobox", { name: "پوستهٔ نمایش: تیره" }),
+    screen.getByRole("combobox", { name: "پوسته نمایش: تیره" }),
   ).toBeVisible();
 });
 
@@ -78,7 +78,7 @@ test("stored preference is restored and reacts to browser storage changes", asyn
     expect(document.documentElement).toHaveAttribute("data-theme", "light");
   });
   expect(
-    screen.getByRole("combobox", { name: "پوستهٔ نمایش: روشن" }),
+    screen.getByRole("combobox", { name: "پوسته نمایش: روشن" }),
   ).toBeVisible();
 
   window.localStorage.setItem(THEME_STORAGE_KEY, "dark");
@@ -94,7 +94,7 @@ test("stored preference is restored and reacts to browser storage changes", asyn
     expect(document.documentElement).toHaveAttribute("data-theme", "dark");
   });
   expect(
-    screen.getByRole("combobox", { name: "پوستهٔ نمایش: تیره" }),
+    screen.getByRole("combobox", { name: "پوسته نمایش: تیره" }),
   ).toBeVisible();
 });
 
@@ -106,7 +106,7 @@ test("System preference follows operating-system theme changes", async () => {
   );
 
   const switcher = screen.getByRole("combobox", {
-    name: "پوستهٔ نمایش: سیستم",
+    name: "پوسته نمایش: سیستم",
   });
   const themeColor = document.querySelector<HTMLMetaElement>(
     'meta[name="theme-color"]',

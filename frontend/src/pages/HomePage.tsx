@@ -42,7 +42,7 @@ export function HomePage() {
               آگهی‌های چند منبع، یک‌جا و قابل مقایسه
             </p>
             <h1 className="text-4xl leading-tight font-semibold tracking-tight sm:text-5xl">
-              اجارهٔ ملک مسکونی و تجاری در تهران
+              اجاره ملک مسکونی و تجاری در تهران
             </h1>
             <p className="text-muted-foreground mx-auto mt-5 max-w-2xl leading-8">
               آپارتمان، خانه، ویلا و فضای تجاری را با اطلاعات یکدست جست‌وجو کنید
@@ -223,7 +223,7 @@ function CatalogStatisticsSection() {
               {[
                 [statistics.data.searchable_property_count, "ملک قابل جست‌وجو"],
                 [statistics.data.active_listing_count, "آگهی فعال"],
-                [statistics.data.covered_neighborhood_count, "محلهٔ تحت پوشش"],
+                [statistics.data.covered_neighborhood_count, "محله تحت پوشش"],
               ].map(([value, label]) => (
                 <div
                   key={label}
@@ -258,8 +258,8 @@ const faqItems = [
     question: "چطور ملک جست‌وجو کنم؟",
     answer: (
       <>
-        شهر و نوع ملک را در بالای همین صفحه انتخاب کنید و دکمهٔ جست‌وجو را
-        بزنید. در صفحهٔ نتایج می‌توانید فیلترهای دقیق‌تری اعمال کنید. جزئیات در
+        شهر و نوع ملک را در بالای همین صفحه انتخاب کنید و دکمه جست‌وجو را
+        بزنید. در صفحه نتایج می‌توانید فیلترهای دقیق‌تری اعمال کنید. جزئیات در
         <Link className="text-primary mx-1 underline" to="/guide">
           راهنمای جست‌وجو
         </Link>
@@ -285,7 +285,7 @@ const faqItems = [
   {
     question: "چرا ممکن است یک ملک چند آگهی داشته باشد؟",
     answer:
-      "چند منبع می‌توانند همان ملک را با شرایط اجارهٔ متفاوت آگهی کنند. ترب‌رنت آگهی‌های منابع را یکی نمی‌کند تا منبع و ادعای هرکدام شفاف بماند.",
+      "چند منبع می‌توانند همان ملک را با شرایط اجاره متفاوت آگهی کنند. ترب‌رنت آگهی‌های منابع را یکی نمی‌کند تا منبع و ادعای هرکدام شفاف بماند.",
   },
   {
     question: "چطور اطلاعات نادرست را گزارش کنم؟",

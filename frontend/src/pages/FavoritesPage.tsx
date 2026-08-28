@@ -65,7 +65,7 @@ export function FavoritesPage() {
     >
       <h1 className="text-3xl font-semibold">علاقه‌مندی‌ها</h1>
       <p className="text-muted-foreground mt-4 leading-7">
-        ملک‌های ذخیره‌شدهٔ شما با موجودی فعلی‌شان نمایش داده می‌شوند.
+        ملک‌های ذخیره‌شده شما با موجودی فعلی‌شان نمایش داده می‌شوند.
       </p>
       {favorites.isPending ? (
         <p className="text-muted-foreground mt-8" role="status">
@@ -124,7 +124,7 @@ export function FavoritesPage() {
               </div>
             ) : (
               <p className="text-muted-foreground mt-4">
-                ملک ذخیره‌شدهٔ ناموجودی ندارید.
+                ملک ذخیره‌شده ناموجودی ندارید.
               </p>
             )}
           </section>

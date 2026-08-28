@@ -199,7 +199,7 @@ test("pre-renders public guidance with Persian metadata", () => {
     [aboutMeta(), "معرفی فارسی ترب‌رنت"],
     [guideMeta(), "راهنمای فارسی جست‌وجو"],
     [contactMeta(), "ارسال پیام فارسی"],
-    [advertiseMeta(), "ثبت‌نام تلفنی مالک و نمایندهٔ مجاز"],
+    [advertiseMeta(), "ثبت‌نام تلفنی مالک و نماینده مجاز"],
     [privacyMeta(), "سیاست حریم خصوصی فارسی"],
     [termsMeta(), "شرایط استفاده فارسی"],
   ] as const;

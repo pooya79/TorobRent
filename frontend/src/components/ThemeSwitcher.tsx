@@ -26,7 +26,7 @@ export function ThemeSwitcher() {
       onValueChange={(value) => setPreference(value as ThemePreference)}
     >
       <SelectTrigger
-        aria-label={`پوستهٔ نمایش: ${selected.label}`}
+        aria-label={`پوسته نمایش: ${selected.label}`}
         className="size-11 w-11 justify-center p-0 [&>svg]:hidden"
       >
         <span className="flex items-center justify-center">

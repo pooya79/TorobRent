@@ -26,6 +26,7 @@ Python targets 3.14, uses four-space indentation, a 100-character line limit, Ru
 linting, and strict mypy. Use `snake_case` for functions/modules and `PascalCase` for classes.
 TypeScript/TSX is formatted by Prettier and checked by ESLint with type-aware and React Hooks rules.
 Use `PascalCase.tsx` for React components/pages and descriptive lowercase filenames for utilities.
+Persian copy must use plain `ه` at word endings; never use the hamza forms `هٔ` or `ۀ`.
 Run `make format`, `make lint`, and `make typecheck`; pre-commit hooks enforce the main checks.
 
 ## Testing Guidelines

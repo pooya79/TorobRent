@@ -12,7 +12,7 @@ async function chooseTheme(
   nextLabel: string,
 ) {
   await page
-    .getByRole("combobox", { name: `پوستهٔ نمایش: ${currentLabel}` })
+    .getByRole("combobox", { name: `پوسته نمایش: ${currentLabel}` })
     .click();
   await page.getByRole("option", { name: nextLabel }).click();
 }
@@ -39,7 +39,7 @@ test("@milestone restores explicit dark styling before hydration", async ({
     .toBe("rgb(18, 18, 20)");
   await expect(
     page.getByRole("heading", {
-      name: "اجارهٔ ملک مسکونی و تجاری در تهران",
+      name: "اجاره ملک مسکونی و تجاری در تهران",
     }),
   ).toBeVisible();
 });
@@ -55,7 +55,7 @@ test("@milestone explicit preference survives a real page reload", async ({
 
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
   await expect(
-    page.getByRole("combobox", { name: "پوستهٔ نمایش: تیره" }),
+    page.getByRole("combobox", { name: "پوسته نمایش: تیره" }),
   ).toBeVisible();
 });
 
@@ -74,7 +74,7 @@ test("@milestone explicit preference synchronizes across real tabs", async ({
     "dark",
   );
   await expect(
-    secondPage.getByRole("combobox", { name: "پوستهٔ نمایش: تیره" }),
+    secondPage.getByRole("combobox", { name: "پوسته نمایش: تیره" }),
   ).toBeVisible();
   await secondPage.close();
 });
@@ -133,7 +133,7 @@ test("invalid stored preference falls back to System", async ({ page }) => {
 
   await expect(page.locator("html")).not.toHaveAttribute("data-theme");
   await expect(
-    page.getByRole("combobox", { name: "پوستهٔ نمایش: سیستم" }),
+    page.getByRole("combobox", { name: "پوسته نمایش: سیستم" }),
   ).toBeVisible();
   await expect
     .poll(() =>

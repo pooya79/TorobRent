@@ -81,7 +81,7 @@ test("separates active and unavailable Favorites and removes either without reop
     }),
   );
   expect(
-    await screen.findByText("ملک ذخیره‌شدهٔ ناموجودی ندارید."),
+    await screen.findByText("ملک ذخیره‌شده ناموجودی ندارید."),
   ).toBeInTheDocument();
 
   await user.click(

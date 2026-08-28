@@ -116,7 +116,7 @@ test("@milestone Operator publishes a curated Property that a Renter opens throu
   await publishDirectListing(page, {
     propertyId: residentialPropertyId,
     termsId: residentialTermsId,
-    description: "آپارتمان دوخوابهٔ روشن",
+    description: "آپارتمان دوخوابه روشن",
     rowName: /منبع مستقیم ترب‌رنت: آپارتمان در سعادت‌آباد/,
   });
 
@@ -134,7 +134,7 @@ test("@milestone Operator publishes a curated Property that a Renter opens throu
   await publishDirectListing(page, {
     propertyId: excludedPropertyId,
     termsId: excludedTermsId,
-    description: "ویلای سه‌خوابهٔ محوطه‌دار",
+    description: "ویلای سه‌خوابه محوطه‌دار",
     rowName: /منبع مستقیم ترب‌رنت: ویلا در سعادت‌آباد/,
   });
 

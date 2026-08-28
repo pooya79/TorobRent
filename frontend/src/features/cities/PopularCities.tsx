@@ -44,7 +44,7 @@ function CityCard({ city }: { city: (typeof cities)[number] }) {
         <Link
           className="focus-visible:ring-ring block rounded-2xl focus-visible:ring-2 focus-visible:outline-none"
           to={tehranResults}
-          aria-label={`مشاهدهٔ ملک‌های ${city.name}`}
+          aria-label={`مشاهده ملک‌های ${city.name}`}
         >
           {content}
         </Link>
