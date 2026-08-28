@@ -125,7 +125,9 @@ services:
     command: sh -c "pnpm install --frozen-lockfile && pnpm dev"
     environment:
       VITE_PROXY_TARGET: http://backend:8000
+      VITE_MAP_ADAPTER: ${VITE_MAP_ADAPTER:-openstreetmap}
       VITE_NESHAN_MAP_KEY: ${VITE_NESHAN_MAP_KEY:-}
+      VITE_OPENSTREETMAP_TILE_URL: ${VITE_OPENSTREETMAP_TILE_URL:-}
     volumes:
       - ./frontend:/app/frontend
       - frontend-node-modules:/app/frontend/node_modules
