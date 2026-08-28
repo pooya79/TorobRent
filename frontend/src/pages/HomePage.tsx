@@ -27,7 +27,7 @@ export function HomePage() {
 
   return (
     <main id="main-content" tabIndex={-1}>
-      <section className="via-primary/5 relative isolate overflow-hidden bg-gradient-to-b from-transparent to-transparent">
+      <section className="via-primary/5 relative isolate z-10 overflow-visible bg-gradient-to-b from-transparent to-transparent">
         <div
           className="pointer-events-none absolute inset-0 -z-20 [background-image:linear-gradient(to_right,var(--border)_1px,transparent_1px),linear-gradient(to_bottom,var(--border)_1px,transparent_1px)] [mask-image:linear-gradient(to_bottom,black,transparent)] [background-size:3rem_3rem] opacity-35"
           aria-hidden="true"
@@ -73,14 +73,17 @@ export function HomePage() {
               );
             }}
           >
-            <label className="focus-within:ring-ring relative flex min-h-15 items-center gap-3 rounded-full px-4 focus-within:ring-2">
+            <label className="relative flex min-h-15 items-center gap-3 rounded-full px-4">
               <MapPin
                 className="text-muted-foreground size-5 shrink-0"
                 aria-hidden="true"
               />
               <span className="min-w-0 flex-1 text-start">
                 <span className="block text-xs font-semibold">شهر</span>
-                <SupportedCityCombobox onSelectionChange={setSelectedCity} />
+                <SupportedCityCombobox
+                  onSelectionChange={setSelectedCity}
+                  showPopularCities
+                />
               </span>
             </label>
             <div className="border-border flex min-h-15 items-center gap-3 rounded-full border-t px-4 sm:border-s sm:border-t-0">
@@ -177,13 +180,13 @@ function CatalogStatisticsSection() {
       <div className="mx-auto w-full max-w-360 px-4 py-16 sm:px-6 lg:px-10">
         <div className="mx-auto max-w-2xl text-center">
           <p className="text-primary mb-2 text-sm font-semibold">
-            بدون عددسازی
+            نمای کلی بازار
           </p>
           <h2
             id="statistics-title"
             className="text-2xl font-semibold sm:text-3xl"
           >
-            آمار زندهٔ کاتالوگ
+            آمار زنده کاتالوگ
           </h2>
           <p className="text-muted-foreground mt-3 leading-7">
             این عددها مستقیم از ملک‌ها و آگهی‌های فعال قابل جست‌وجو در تهران
@@ -339,10 +342,19 @@ function FaqSection() {
               </h3>
               <div
                 id={panelId}
-                className="text-muted-foreground px-5 pb-5 text-sm leading-7"
-                hidden={!isOpen}
+                aria-hidden={!isOpen}
+                className={`grid transition-[grid-template-rows,opacity] duration-300 ease-out motion-reduce:transition-none ${
+                  isOpen
+                    ? "grid-rows-[1fr] opacity-100"
+                    : "grid-rows-[0fr] opacity-0"
+                }`}
+                inert={!isOpen}
               >
-                {item.answer}
+                <div className="min-h-0 overflow-hidden">
+                  <div className="text-muted-foreground px-5 pb-5 text-sm leading-7">
+                    {item.answer}
+                  </div>
+                </div>
               </div>
             </article>
           );

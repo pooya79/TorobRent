@@ -89,7 +89,7 @@ test("@a11y public home interactions are keyboard operable", async ({
   await tehranLink.focus();
   await expectVisibleKeyboardFocus(tehranLink);
   await expect(
-    page.getByRole("region", { name: "آمار زندهٔ کاتالوگ" }),
+    page.getByRole("region", { name: "آمار زنده کاتالوگ" }),
   ).toBeVisible();
 
   const firstQuestion = page.getByRole("button", {
@@ -105,10 +105,10 @@ test("@a11y public home interactions are keyboard operable", async ({
     page.getByRole("status", { name: "وضعیت آمادگی سامانه" }),
   ).toBeVisible();
   await expect(
-    page.getByRole("group", { name: "شبکه‌های اجتماعی — به‌زودی" }),
+    page.getByRole("group", { name: "شبکه‌های اجتماعی" }),
   ).toBeVisible();
   const instagram = page.getByRole("button", {
-    name: "Instagram — به‌زودی",
+    name: "Instagram",
   });
   const currentUrl = page.url();
   await instagram.focus();

@@ -534,7 +534,7 @@ export function ProductShell({ children }: { children: ReactNode }) {
           <div>
             <p className="font-semibold">ترب‌رنت</p>
             <p className="text-muted-foreground mt-2 max-w-md leading-7">
-              جست‌وجو و مقایسهٔ شفاف‌تر ملک‌های مسکونی و تجاری برای اجاره
+              جست‌وجو و مقایسه شفاف‌تر ملک‌های مسکونی و تجاری برای اجاره
             </p>
           </div>
           <div className="grid gap-7 sm:grid-cols-2">
@@ -555,7 +555,7 @@ export function ProductShell({ children }: { children: ReactNode }) {
             <div>
               <p className="font-semibold">دنبال کردن ترب‌رنت</p>
               <div
-                aria-label="شبکه‌های اجتماعی — به‌زودی"
+                aria-label="شبکه‌های اجتماعی"
                 className="mt-3 flex flex-wrap gap-2"
                 role="group"
               >
@@ -563,8 +563,9 @@ export function ProductShell({ children }: { children: ReactNode }) {
                   <Button
                     key={label}
                     aria-disabled="true"
-                    aria-label={`${label} — به‌زودی`}
-                    className="min-h-11"
+                    aria-label={label}
+                    className="size-11"
+                    title={label}
                     type="button"
                     variant="outline"
                   >
@@ -575,10 +576,6 @@ export function ProductShell({ children }: { children: ReactNode }) {
                         X
                       </span>
                     )}
-                    <span>{label}</span>
-                    <span className="text-muted-foreground text-xs">
-                      به‌زودی
-                    </span>
                   </Button>
                 ))}
               </div>

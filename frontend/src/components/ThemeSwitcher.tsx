@@ -21,6 +21,7 @@ export function ThemeSwitcher() {
 
   return (
     <Select
+      dir="rtl"
       value={preference}
       onValueChange={(value) => setPreference(value as ThemePreference)}
     >

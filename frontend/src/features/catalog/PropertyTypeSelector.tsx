@@ -75,6 +75,7 @@ export function PropertyTypeSelector({
   onSelectionChange?: (types: readonly PropertyType[]) => void;
   facetCounts?: Partial<Record<PropertyType, number>>;
 }) {
+  const detailsRef = useRef<HTMLDetailsElement>(null);
   const visibleGroups = category
     ? propertyTypeGroups.filter((group) => group.category === category)
     : propertyTypeGroups;
@@ -113,8 +114,25 @@ export function PropertyTypeSelector({
       : selectedTypes.map((type) => propertyTypeLabels[type]).join("، ")
     : summarizePropertyTypes(selectedTypes);
 
+  useEffect(() => {
+    const closeOnOutsidePointer = (event: PointerEvent) => {
+      const details = detailsRef.current;
+      if (
+        details?.open &&
+        event.target instanceof Node &&
+        !details.contains(event.target)
+      ) {
+        details.open = false;
+      }
+    };
+
+    document.addEventListener("pointerdown", closeOnOutsidePointer);
+    return () =>
+      document.removeEventListener("pointerdown", closeOnOutsidePointer);
+  }, []);
+
   return (
-    <details className="relative">
+    <details ref={detailsRef} className="relative">
       <summary
         role="button"
         aria-label={summary}

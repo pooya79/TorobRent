@@ -171,18 +171,18 @@ test("publishes complete footer navigation and honest social placeholders", asyn
   ).toBeVisible();
 
   const social = within(footer).getByRole("group", {
-    name: "شبکه‌های اجتماعی — به‌زودی",
+    name: "شبکه‌های اجتماعی",
   });
   for (const name of ["Instagram", "Telegram", "LinkedIn", "X"]) {
     const placeholder = within(social).getByRole("button", {
-      name: `${name} — به‌زودی`,
+      name,
     });
     expect(placeholder).toHaveAttribute("aria-disabled", "true");
     expect(placeholder).not.toHaveAttribute("href");
   }
 
   const instagram = within(social).getByRole("button", {
-    name: "Instagram — به‌زودی",
+    name: "Instagram",
   });
   instagram.focus();
   expect(instagram).toHaveFocus();
@@ -549,6 +549,22 @@ test("selects Tehran with the keyboard from the city-only listbox", async () => 
   expect(city).toHaveAttribute("aria-expanded", "false");
 });
 
+test("keeps the city empty after clearing a selected city", async () => {
+  const user = userEvent.setup();
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  renderHomeShell(queryClient);
+
+  const city = screen.getByRole("combobox", { name: "شهر" });
+  await user.click(city);
+  await user.click(await screen.findByRole("option", { name: "تهران" }));
+  await user.clear(city);
+  await user.click(screen.getByRole("button", { name: "همه ملک‌ها" }));
+
+  expect(city).toHaveValue("");
+});
+
 test.each(["", "تهران"])(
   "searches Tehran explicitly when the unselected city input is %j",
   async (cityInput) => {
@@ -727,7 +743,7 @@ test("shows only domain-grounded trust claims and live catalog statistics", asyn
   expect(within(trust).getByText("موجودی جاری")).toBeVisible();
   expect(within(trust).getByText("منابع شفاف و جدا")).toBeVisible();
 
-  const statistics = screen.getByRole("region", { name: "آمار زندهٔ کاتالوگ" });
+  const statistics = screen.getByRole("region", { name: "آمار زنده کاتالوگ" });
   expect(await within(statistics).findByText("۱۲")).toBeVisible();
   expect(within(statistics).getByText("۱۸")).toBeVisible();
   expect(within(statistics).getByText("۵")).toBeVisible();
@@ -754,7 +770,7 @@ test("keeps the final homepage sections in the agreed public order", () => {
     within(main).getByRole("heading", {
       name: "چرا به اطلاعات اعتماد کنیم؟",
     }),
-    within(main).getByRole("heading", { name: "آمار زندهٔ کاتالوگ" }),
+    within(main).getByRole("heading", { name: "آمار زنده کاتالوگ" }),
     within(main).getByRole("heading", { name: "پرسش‌های پرتکرار" }),
   ];
 
