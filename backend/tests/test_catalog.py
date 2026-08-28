@@ -22,6 +22,7 @@ from apps.catalog.models import (
     FeatureState,
     Listing,
     ListingState,
+    LocationPrecision,
     Neighborhood,
     Property,
     PropertyCategory,
@@ -619,7 +620,20 @@ def test_catalog_viewport_filters_properties_facets_and_map_counts(api_client: A
         publish_listing(listing)
         property_.approximate_latitude = latitude
         property_.approximate_longitude = longitude
-        property_.save(update_fields=("approximate_latitude", "approximate_longitude"))
+        property_.location_precision = (
+            LocationPrecision.APPROXIMATE if latitude is not None and longitude is not None else ""
+        )
+        property_.location_radius_meters = (
+            500 if latitude is not None and longitude is not None else None
+        )
+        property_.save(
+            update_fields=(
+                "approximate_latitude",
+                "approximate_longitude",
+                "location_precision",
+                "location_radius_meters",
+            )
+        )
         return property_
 
     inside = create_searchable_property(
@@ -628,7 +642,12 @@ def test_catalog_viewport_filters_properties_facets_and_map_counts(api_client: A
     create_searchable_property(
         latitude="35.790000", longitude="51.450000", parking=FeatureState.ABSENT
     )
-    create_searchable_property(latitude=None, longitude=None, parking=FeatureState.UNKNOWN)
+    malformed = create_searchable_property(
+        latitude=None, longitude=None, parking=FeatureState.UNKNOWN
+    )
+    malformed.approximate_latitude = "35.810000"
+    malformed.approximate_longitude = "51.500000"
+    malformed.save(update_fields=("approximate_latitude", "approximate_longitude"))
 
     citywide = api_client.get("/api/v1/catalog/properties/")
     response = api_client.get(

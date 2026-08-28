@@ -1,11 +1,13 @@
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from decimal import Decimal
 
 from django.conf import settings
 from django.core.management import call_command
 
 from apps.common.demo import DemoFixtureKind, demo_id
 
+from .locations import derive_public_location
 from .models import (
     TEHRAN_CITY_ID,
     City,
@@ -23,6 +25,9 @@ from .models import (
 
 ACTIVE_UNTIL = datetime(2099, 12, 31, tzinfo=UTC)
 PUBLISHED_AT = datetime(2026, 1, 1, tzinfo=UTC)
+DEMO_LATITUDE_ORIGIN = Decimal("35.650000")
+DEMO_LONGITUDE_ORIGIN = Decimal("51.300000")
+DEMO_LOCATION_STEP = Decimal("0.025000")
 
 
 @dataclass(frozen=True)
@@ -80,6 +85,9 @@ def _seed_properties() -> list[Property]:
     for index, neighborhood in enumerate(neighborhoods, start=1):
         property_type = property_types[(index - 1) % len(property_types)]
         room_count = (index - 1) % 5 if property_type_requires_room_count(property_type) else None
+        row, column = divmod(index - 1, 10)
+        latitude = DEMO_LATITUDE_ORIGIN + row * DEMO_LOCATION_STEP
+        longitude = DEMO_LONGITUDE_ORIGIN + column * DEMO_LOCATION_STEP
         property_, created = Property.objects.get_or_create(
             id=demo_id(DemoFixtureKind.PROPERTY, index),
             defaults={
@@ -100,16 +108,30 @@ def _seed_properties() -> list[Property]:
                 "furnished": feature_states[(index + 3) % len(feature_states)],
                 "heating": "پکیج",
                 "cooling": "کولر آبی",
+                "latitude": latitude,
+                "longitude": longitude,
                 "provenance_note": "داده ساختگی و محلی برای نمایش TorobRent",
                 "normalized_at": PUBLISHED_AT,
             },
         )
+        update_fields = {
+            "approximate_latitude",
+            "approximate_longitude",
+            "location_precision",
+            "location_radius_meters",
+        }
         if not created and (
             property_.property_type != property_type or property_.room_count != room_count
         ):
             property_.property_type = property_type
             property_.room_count = room_count
-            property_.save(update_fields=("property_type", "room_count"))
+            update_fields.update(("property_type", "room_count"))
+        if property_.latitude is None or property_.longitude is None:
+            property_.latitude = latitude
+            property_.longitude = longitude
+            update_fields.update(("latitude", "longitude"))
+        derive_public_location(property_)
+        property_.save(update_fields=tuple(sorted(update_fields)))
         properties.append(property_)
     return properties
 

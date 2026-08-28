@@ -568,14 +568,14 @@ export function ResultsPage({ mapAdapter }: { mapAdapter?: MapAdapter }) {
           aria-busy={isReplacingResults}
           className={`${
             mapAvailable
-              ? "grid gap-8 xl:grid-cols-[minmax(20rem,0.85fr)_minmax(0,1.4fr)] xl:[direction:ltr]"
+              ? "grid gap-8 xl:grid-cols-2 xl:[direction:ltr]"
               : "space-y-5"
           } ${isReplacingResults ? "opacity-60" : ""}`}
         >
           <div
             className={
               mapAvailable
-                ? "hidden xl:sticky xl:top-6 xl:block xl:self-start xl:[direction:rtl]"
+                ? "hidden xl:sticky xl:top-24 xl:block xl:h-[calc(100dvh-7.5rem)] xl:self-start xl:[direction:rtl]"
                 : ""
             }
           >

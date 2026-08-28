@@ -41,6 +41,16 @@ def test_seed_demo_creates_catalog_and_prepared_personas():
 
     assert Property.objects.count() == 60
     assert Listing.objects.count() == 80
+    assert (
+        Property.objects.filter(
+            approximate_latitude__isnull=False,
+            approximate_longitude__isnull=False,
+            location_radius_meters__isnull=False,
+        )
+        .exclude(location_precision="")
+        .count()
+        == 60
+    )
     assert User.objects.get(email="submitter@torobrent.local").check_password("demo-submitter")
     operator = User.objects.get(email="operator@torobrent.local")
     assert operator.check_password("demo-operator")

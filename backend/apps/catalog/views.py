@@ -196,10 +196,13 @@ class PropertySearchView(ListAPIView[Property]):
         response = self.get_paginated_response(self.get_serializer(page, many=True).data)
         response.data["facets"] = CatalogFacetsSerializer(catalog_facets(filters)).data
         mappable_properties = list(
-            search_properties(filters, favorite_account_id=account_id).filter(
+            search_properties(filters, favorite_account_id=account_id)
+            .filter(
                 approximate_latitude__isnull=False,
                 approximate_longitude__isnull=False,
+                location_radius_meters__isnull=False,
             )
+            .exclude(location_precision="")
         )
         zoom = filters.viewport.zoom if filters.viewport is not None else 11
         response.data["map"] = CatalogMapSerializer(

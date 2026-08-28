@@ -930,6 +930,25 @@ test("keeps mobile list-first and restores focus after the full-screen map close
   expect(openMap).toHaveFocus();
 });
 
+test("uses an equal sticky viewport-height split for the desktop map", async () => {
+  renderResults("/search", createFakeMapAdapter());
+
+  await screen.findByRole("heading", { name: "آپارتمان در سعادت‌آباد" });
+  const resultsAndMap = screen.getByRole("region", {
+    name: "نتایج و نقشه جاری",
+  });
+  const desktopMap = within(resultsAndMap).getByRole("region", {
+    name: "نقشه ملک‌ها",
+  }).parentElement;
+
+  expect(resultsAndMap).toHaveClass("xl:grid-cols-2");
+  expect(desktopMap).toHaveClass(
+    "xl:sticky",
+    "xl:top-24",
+    "xl:h-[calc(100dvh-7.5rem)]",
+  );
+});
+
 test("keeps a marker preview useful when its result card is not loaded", async () => {
   const user = userEvent.setup();
   const loadedProperty = propertySearchPage.results[0]!;
