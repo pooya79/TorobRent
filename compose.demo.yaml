@@ -183,6 +183,7 @@ services:
       target: production
       args:
         VITE_MAP_ADAPTER: fake
+        VITE_MAILPIT_URL: http://localhost:${DEMO_MAILPIT_PORT:-8025}
     restart: unless-stopped
     expose:
       - "3000"

@@ -35,6 +35,10 @@ The default `compose.yaml` is development-only: it bind-mounts source and runs t
 development runtime plus Uvicorn with reload enabled, behind nginx on port 5173.
 Mailpit captures local registration and recovery email; its inbox is available at
 `http://localhost:8025`, and captured links return to the frontend at `http://localhost:5173`.
+After registration, a password-reset request, or an unverified login, the frontend shows a
+development-only link to that inbox. Find the message addressed to the email you entered and open
+the verification or reset link inside it. Set `VITE_MAILPIT_URL` if the browser-facing inbox URL
+differs; production builds leave it unset and do not show this guidance.
 `compose.prod.yaml` builds immutable production targets, keeps data services private, runs
 migrations as a one-shot service, and uses the React Node runtime, Uvicorn, and nginx. Copy
 `.env.production.example` to `.env.production` and replace all placeholder credentials before
