@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { delay, http, HttpResponse } from "msw";
+import { useEffect } from "react";
 import {
   createMemoryRouter,
   MemoryRouter,
@@ -16,7 +17,11 @@ import { expect, test, vi } from "vitest";
 import { meta, ResultsPage } from "@/pages/ResultsPage";
 import { ProductShell } from "@/app/ProductShell";
 import { ThemeProvider } from "@/app/ThemeProvider";
-import { createFakeMapAdapter, type MapAdapter } from "@/features/map/adapter";
+import {
+  createFakeMapAdapter,
+  type MapAdapter,
+  type MapAdapterProps,
+} from "@/features/map/adapter";
 import { RenterAccessProvider } from "@/features/session/RenterAccessDialog";
 import {
   officePropertySearchPage,
@@ -930,7 +935,7 @@ test("keeps mobile list-first and restores focus after the full-screen map close
   expect(openMap).toHaveFocus();
 });
 
-test("uses an equal sticky viewport-height split for the desktop map", async () => {
+test("uses an equal fixed-height split with scrolling confined to results", async () => {
   renderResults("/search", createFakeMapAdapter());
 
   await screen.findByRole("heading", { name: "آپارتمان در سعادت‌آباد" });
@@ -940,12 +945,18 @@ test("uses an equal sticky viewport-height split for the desktop map", async () 
   const desktopMap = within(resultsAndMap).getByRole("region", {
     name: "نقشه ملک‌ها",
   }).parentElement;
+  const propertyList = within(resultsAndMap).getByRole("region", {
+    name: "ملک‌های پیدا شده",
+  }).parentElement;
 
-  expect(resultsAndMap).toHaveClass("xl:grid-cols-2");
-  expect(desktopMap).toHaveClass(
-    "xl:sticky",
-    "xl:top-24",
-    "xl:h-[calc(100dvh-7.5rem)]",
+  expect(resultsAndMap).toHaveClass("min-h-0", "flex-1", "xl:grid-cols-2");
+  expect(desktopMap).toHaveClass("xl:h-full", "xl:min-h-0");
+  expect(desktopMap).not.toHaveClass("xl:sticky");
+  expect(propertyList).toHaveClass(
+    "h-full",
+    "min-h-0",
+    "overflow-y-auto",
+    "overscroll-contain",
   );
 });
 
@@ -1236,6 +1247,37 @@ test("settles user map movement into a shareable replacement viewport query", as
   expect(screen.getByLabelText("وضعیت جست‌وجو")).toHaveTextContent(
     "location=previous",
   );
+});
+
+test("keeps the existing map mounted when the first viewport query is added", async () => {
+  const user = userEvent.setup();
+  const FakeMapAdapter = createFakeMapAdapter();
+  let mountCount = 0;
+  let unmountCount = 0;
+  function MountTrackingMapAdapter(props: MapAdapterProps) {
+    useEffect(() => {
+      mountCount += 1;
+      return () => {
+        unmountCount += 1;
+      };
+    }, []);
+    return <FakeMapAdapter {...props} />;
+  }
+
+  renderResults("/search", MountTrackingMapAdapter);
+
+  await screen.findByRole("heading", { name: "آپارتمان در سعادت‌آباد" });
+  await user.click(
+    screen.getByRole("button", { name: "تغییر محدوده آزمایشی" }),
+  );
+  await waitFor(() =>
+    expect(screen.getByLabelText("وضعیت جست‌وجو")).toHaveTextContent(
+      "viewport_north=35.82",
+    ),
+  );
+
+  expect(mountCount).toBe(1);
+  expect(unmountCount).toBe(0);
 });
 
 test("preserves a newer filter when a pending viewport debounce settles", async () => {

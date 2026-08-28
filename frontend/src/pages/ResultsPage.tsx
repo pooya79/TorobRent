@@ -470,8 +470,8 @@ export function ResultsPage({ mapAdapter }: { mapAdapter?: MapAdapter }) {
   };
 
   return (
-    <PageMain>
-      <header>
+    <PageMain className="flex h-full min-h-0 flex-col">
+      <header className="shrink-0">
         <SearchToolbar
           searchParams={searchParams}
           setSearchParams={setSearchParams}
@@ -481,7 +481,7 @@ export function ResultsPage({ mapAdapter }: { mapAdapter?: MapAdapter }) {
           {resultsCopy.heading} در {location}
         </h1>
       </header>
-      <div className="mb-6 flex justify-end">
+      <div className="mb-6 flex shrink-0 justify-end">
         <AdvancedFiltersSheet
           open={filtersOpen}
           onOpenChange={setFiltersOpen}
@@ -492,7 +492,7 @@ export function ResultsPage({ mapAdapter }: { mapAdapter?: MapAdapter }) {
 
       {activeFilters.length > 0 && (
         <div
-          className="mb-6 flex flex-wrap gap-2"
+          className="mb-6 flex shrink-0 flex-wrap gap-2"
           aria-label="فیلترهای اعمال‌شده"
         >
           {activeFilters.map(([name, label]) => (
@@ -520,8 +520,11 @@ export function ResultsPage({ mapAdapter }: { mapAdapter?: MapAdapter }) {
         </div>
       )}
 
-      <div>
-        <p className="text-muted-foreground mb-5 text-sm" aria-live="polite">
+      <div className="flex min-h-0 flex-1 flex-col">
+        <p
+          className="text-muted-foreground mb-5 shrink-0 text-sm"
+          aria-live="polite"
+        >
           {searchData ? (
             resultSearchParams.has("viewport_north") ? (
               `${formatNumber(count)} ملک در این محدوده پیدا شد`
@@ -566,26 +569,25 @@ export function ResultsPage({ mapAdapter }: { mapAdapter?: MapAdapter }) {
           role="region"
           aria-label="نتایج و نقشه جاری"
           aria-busy={isReplacingResults}
-          className={`${
+          className={`min-h-0 flex-1 ${
             mapAvailable
               ? "grid gap-8 xl:grid-cols-2 xl:[direction:ltr]"
-              : "space-y-5"
+              : "block"
           } ${isReplacingResults ? "opacity-60" : ""}`}
         >
           <div
             className={
               mapAvailable
-                ? "hidden xl:sticky xl:top-24 xl:block xl:h-[calc(100dvh-7.5rem)] xl:self-start xl:[direction:rtl]"
+                ? "hidden xl:block xl:h-full xl:min-h-0 xl:[direction:rtl]"
                 : ""
             }
           >
             <SearchMapPanel
-              key={searchParams.has("viewport_north") ? "viewport" : "citywide"}
               {...mapPanelProps}
               onAvailabilityChange={setMapAvailable}
             />
           </div>
-          <div className="xl:[direction:rtl]">
+          <div className="h-full min-h-0 overflow-y-auto overscroll-contain pe-1 pb-8 xl:[direction:rtl]">
             {search.isPending ? (
               <ResultsLoading />
             ) : search.isError && !searchData ? (

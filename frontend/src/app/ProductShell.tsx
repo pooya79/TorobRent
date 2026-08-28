@@ -18,7 +18,7 @@ import {
   UserRound,
 } from "lucide-react";
 import { useState, type ReactNode } from "react";
-import { NavLink, useNavigate } from "react-router";
+import { NavLink, useLocation, useNavigate } from "react-router";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -419,7 +419,9 @@ function ComingSoonMenuItem({
 
 export function ProductShell({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
+  const { pathname } = useLocation();
   const navigate = useNavigate();
+  const isSearchPage = pathname === "/search";
   const { requestRenterAccess } = useRenterAccess();
   const session = useQuery(sessionQuery);
   const authenticated = session.data?.authenticated === true;
@@ -457,6 +459,7 @@ export function ProductShell({ children }: { children: ReactNode }) {
   });
   const health = useQuery({
     queryKey: ["health"],
+    enabled: !isSearchPage,
     refetchInterval: (query) =>
       query.state.status === "error" ? 1_000 : false,
     queryFn: async () => {
@@ -469,10 +472,15 @@ export function ProductShell({ children }: { children: ReactNode }) {
   });
 
   return (
-    <div className="min-h-screen overflow-x-clip">
+    <div
+      className={cn(
+        "overflow-x-clip",
+        isSearchPage ? "flex h-dvh flex-col overflow-y-hidden" : "min-h-screen",
+      )}
+    >
       <header
         aria-label="راهبری عمومی"
-        className="border-border bg-background/95 sticky top-0 z-30 border-b backdrop-blur"
+        className="border-border bg-background/95 sticky top-0 z-30 shrink-0 border-b backdrop-blur"
       >
         <div className="mx-auto flex min-h-18 w-full max-w-360 items-center justify-between gap-3 px-4 sm:px-6 lg:px-10">
           <Brand />
@@ -528,77 +536,79 @@ export function ProductShell({ children }: { children: ReactNode }) {
         </div>
       </header>
 
-      <div>
+      <div className={isSearchPage ? "min-h-0 flex-1 overflow-hidden" : ""}>
         {children}
-        <footer className="border-border mx-auto mt-16 grid w-full max-w-360 gap-8 border-t px-4 py-10 text-sm sm:px-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)] lg:px-10">
-          <div>
-            <p className="font-semibold">ترب‌رنت</p>
-            <p className="text-muted-foreground mt-2 max-w-md leading-7">
-              جست‌وجو و مقایسه شفاف‌تر ملک‌های مسکونی و تجاری برای اجاره
-            </p>
-          </div>
-          <div className="grid gap-7 sm:grid-cols-2">
-            <nav aria-label="اطلاعات ترب‌رنت">
-              <p className="font-semibold">اطلاعات</p>
-              <div className="text-muted-foreground mt-2 grid grid-cols-2 gap-x-5">
-                {footerLinks.map((link) => (
-                  <NavLink
-                    key={link.to}
-                    className="hover:text-foreground inline-flex min-h-11 items-center rounded-md focus-visible:ring-2 focus-visible:outline-none"
-                    to={link.to}
-                  >
-                    {link.label}
-                  </NavLink>
-                ))}
-              </div>
-            </nav>
+        {!isSearchPage && (
+          <footer className="border-border mx-auto mt-16 grid w-full max-w-360 gap-8 border-t px-4 py-10 text-sm sm:px-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)] lg:px-10">
             <div>
-              <p className="font-semibold">دنبال کردن ترب‌رنت</p>
-              <div
-                aria-label="شبکه‌های اجتماعی"
-                className="mt-3 flex flex-wrap gap-2"
-                role="group"
-              >
-                {socialPlaceholders.map(({ label, icon: Icon }) => (
-                  <Button
-                    key={label}
-                    aria-disabled="true"
-                    aria-label={label}
-                    className="size-11"
-                    title={label}
-                    type="button"
-                    variant="outline"
-                  >
-                    {Icon ? (
-                      <Icon aria-hidden="true" />
-                    ) : (
-                      <span aria-hidden="true" className="font-semibold">
-                        X
-                      </span>
-                    )}
-                  </Button>
-                ))}
+              <p className="font-semibold">ترب‌رنت</p>
+              <p className="text-muted-foreground mt-2 max-w-md leading-7">
+                جست‌وجو و مقایسه شفاف‌تر ملک‌های مسکونی و تجاری برای اجاره
+              </p>
+            </div>
+            <div className="grid gap-7 sm:grid-cols-2">
+              <nav aria-label="اطلاعات ترب‌رنت">
+                <p className="font-semibold">اطلاعات</p>
+                <div className="text-muted-foreground mt-2 grid grid-cols-2 gap-x-5">
+                  {footerLinks.map((link) => (
+                    <NavLink
+                      key={link.to}
+                      className="hover:text-foreground inline-flex min-h-11 items-center rounded-md focus-visible:ring-2 focus-visible:outline-none"
+                      to={link.to}
+                    >
+                      {link.label}
+                    </NavLink>
+                  ))}
+                </div>
+              </nav>
+              <div>
+                <p className="font-semibold">دنبال کردن ترب‌رنت</p>
+                <div
+                  aria-label="شبکه‌های اجتماعی"
+                  className="mt-3 flex flex-wrap gap-2"
+                  role="group"
+                >
+                  {socialPlaceholders.map(({ label, icon: Icon }) => (
+                    <Button
+                      key={label}
+                      aria-disabled="true"
+                      aria-label={label}
+                      className="size-11"
+                      title={label}
+                      type="button"
+                      variant="outline"
+                    >
+                      {Icon ? (
+                        <Icon aria-hidden="true" />
+                      ) : (
+                        <span aria-hidden="true" className="font-semibold">
+                          X
+                        </span>
+                      )}
+                    </Button>
+                  ))}
+                </div>
               </div>
             </div>
-          </div>
-          <div
-            aria-label="وضعیت آمادگی سامانه"
-            className="text-muted-foreground flex items-center gap-2 text-xs lg:col-span-2"
-            role="status"
-            aria-live="polite"
-          >
-            {health.data?.status === "ok" ? (
-              <>
-                <Check className="size-3" aria-hidden="true" /> سامانه در دسترس
-                است
-              </>
-            ) : health.isPending ? (
-              "در حال بررسی سامانه…"
-            ) : (
-              "سامانه موقتاً در دسترس نیست"
-            )}
-          </div>
-        </footer>
+            <div
+              aria-label="وضعیت آمادگی سامانه"
+              className="text-muted-foreground flex items-center gap-2 text-xs lg:col-span-2"
+              role="status"
+              aria-live="polite"
+            >
+              {health.data?.status === "ok" ? (
+                <>
+                  <Check className="size-3" aria-hidden="true" /> سامانه در
+                  دسترس است
+                </>
+              ) : health.isPending ? (
+                "در حال بررسی سامانه…"
+              ) : (
+                "سامانه موقتاً در دسترس نیست"
+              )}
+            </div>
+          </footer>
+        )}
       </div>
     </div>
   );

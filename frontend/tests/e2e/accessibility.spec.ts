@@ -155,15 +155,19 @@ for (const viewport of [
       await expect(page.locator("#main-content")).toBeVisible();
       await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
       await expect(page.locator("main h1")).toHaveCount(1);
-      const landmarkOrder = await page.evaluate(() => {
-        const main = document.querySelector("main")!;
-        const footer = document.querySelector("footer")!;
-        return Boolean(
-          main.compareDocumentPosition(footer) &
-          Node.DOCUMENT_POSITION_FOLLOWING,
-        );
-      });
-      expect(landmarkOrder, `${route} exposes main before footer`).toBe(true);
+      if (route === "/search") {
+        await expect(page.locator("footer")).toHaveCount(0);
+      } else {
+        const landmarkOrder = await page.evaluate(() => {
+          const main = document.querySelector("main")!;
+          const footer = document.querySelector("footer")!;
+          return Boolean(
+            main.compareDocumentPosition(footer) &
+            Node.DOCUMENT_POSITION_FOLLOWING,
+          );
+        });
+        expect(landmarkOrder, `${route} exposes main before footer`).toBe(true);
+      }
       const results = await new AxeBuilder({ page })
         .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
         .analyze();

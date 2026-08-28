@@ -4,6 +4,7 @@ import Map from "ol/Map.js";
 import View from "ol/View.js";
 import { defaults as defaultControls } from "ol/control/defaults.js";
 import CircleGeometry from "ol/geom/Circle.js";
+import { defaults as defaultInteractions } from "ol/interaction/defaults.js";
 import Point from "ol/geom/Point.js";
 import TileLayer from "ol/layer/Tile.js";
 import VectorLayer from "ol/layer/Vector.js";
@@ -162,6 +163,7 @@ export function OpenStreetMapAdapter({
         target,
         keyboardEventTarget: target,
         controls: defaultControls({ attribution: false }),
+        interactions: defaultInteractions({ onFocusOnly: false }),
         layers: [new TileLayer({ source: tileSource })],
         view: new View({ center, zoom: initialViewportRef.current.zoom }),
       });

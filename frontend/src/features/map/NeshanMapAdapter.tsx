@@ -1,6 +1,7 @@
 import Feature from "@neshan-maps-platform/ol/Feature";
 import CircleGeometry from "@neshan-maps-platform/ol/geom/Circle";
 import Point from "@neshan-maps-platform/ol/geom/Point";
+import MouseWheelZoom from "@neshan-maps-platform/ol/interaction/MouseWheelZoom";
 import VectorLayer from "@neshan-maps-platform/ol/layer/Vector";
 import type ProviderMap from "@neshan-maps-platform/ol/Map";
 import ProviderMapConstructor from "@neshan-maps-platform/ol/Map";
@@ -170,6 +171,14 @@ export function NeshanMapAdapter({
         keyboardEventTarget: target,
         view: new View({ center, zoom: initialViewportRef.current.zoom }),
       });
+      const focusOnlyWheelZoom = initializedMap
+        .getInteractions()
+        .getArray()
+        .find((interaction) => interaction instanceof MouseWheelZoom);
+      if (focusOnlyWheelZoom) {
+        initializedMap.removeInteraction(focusOnlyWheelZoom);
+      }
+      initializedMap.addInteraction(new MouseWheelZoom({ onFocusOnly: false }));
       setMap(initializedMap);
       onReady();
       return () => {
