@@ -13,6 +13,10 @@ const LazyNeshanMapAdapter = lazy(async () => {
   const module = await import("./NeshanMapAdapter");
   return { default: module.NeshanMapAdapter };
 });
+const LazyOpenStreetMapAdapter = lazy(async () => {
+  const module = await import("./OpenStreetMapAdapter");
+  return { default: module.OpenStreetMapAdapter };
+});
 
 function MissingNeshanConfiguration({ onError, retryToken }: MapAdapterProps) {
   useEffect(() => {
@@ -28,6 +32,8 @@ function MissingNeshanConfiguration({ onError, retryToken }: MapAdapterProps) {
 export const configuredMapAdapter: MapAdapter =
   configuredMapAdapterName === "fake"
     ? deterministicFakeMapAdapter
-    : neshanMapKey
-      ? LazyNeshanMapAdapter
-      : MissingNeshanConfiguration;
+    : configuredMapAdapterName === "openstreetmap"
+      ? LazyOpenStreetMapAdapter
+      : neshanMapKey
+        ? LazyNeshanMapAdapter
+        : MissingNeshanConfiguration;

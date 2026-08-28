@@ -50,12 +50,21 @@ If PostgreSQL or Redis already occupies the default host port, change `POSTGRES_
 `REDIS_PORT` in `.env` and update the corresponding host-based connection URL. Containerized
 backend services continue to use the internal ports.
 
-The production search map reads `VITE_NESHAN_MAP_KEY` at frontend build time. Use a
-domain-restricted map key from the Neshan panel; never commit a real key. With no key, search stays
-available in its degraded full-width layout. Automated browser tests and the deterministic demo set
-`VITE_MAP_ADAPTER=fake`, so they never contact Neshan. For the minimal non-CI provider check, set a
-valid key, run the frontend, open `/search`, verify Persian/RTL map labels and visible Neshan
-attribution, pan once with the mouse, and confirm that the map remains keyboard-focusable.
+The frontend selects its map adapter at build time with `VITE_MAP_ADAPTER`. Supported values are
+`neshan` (the default), `openstreetmap`, and the test-only `fake` adapter. Neshan reads
+`VITE_NESHAN_MAP_KEY`; use a domain-restricted key from the Neshan panel and never commit a real
+key. With no Neshan key, search stays available in its degraded full-width layout.
+
+The independent OpenStreetMap adapter uses upstream OpenLayers and needs no key. It defaults to
+`https://tile.openstreetmap.org/{z}/{x}/{y}.png`; set `VITE_OPENSTREETMAP_TILE_URL` to an
+OpenStreetMap-compatible tile service for production traffic. The public OpenStreetMap tile service
+is donation-funded and must not be treated as an unlimited production CDN. Preserve the visible
+OpenStreetMap attribution when changing the tile source.
+
+Automated browser tests and the deterministic demo set `VITE_MAP_ADAPTER=fake`, so they never
+contact a map service. For a minimal non-CI provider check, select the adapter, run the frontend,
+open `/search`, verify Persian/RTL map controls and the selected provider's visible attribution,
+pan once with the mouse, and confirm that the map remains keyboard-focusable.
 
 The default test suite uses SQLite for fast unit tests. CI sets `TEST_DATABASE_URL` to run the same
 suite against PostgreSQL. Any query, constraint, locking, JSON, or transaction behavior should have
