@@ -14,11 +14,11 @@ test("selects the independent OpenStreetMap adapter from build configuration", a
   expect(configuredMapAdapterName).toBe("openstreetmap");
 });
 
-test("keeps Neshan as the safe default for unknown adapter settings", async () => {
-  vi.stubEnv("VITE_MAP_ADAPTER", "unknown");
+test("defaults to OpenStreetMap when no supported adapter is configured", async () => {
+  vi.stubEnv("VITE_MAP_ADAPTER", "");
 
   const { configuredMapAdapterName } =
     await import("@/features/map/environment");
 
-  expect(configuredMapAdapterName).toBe("neshan");
+  expect(configuredMapAdapterName).toBe("openstreetmap");
 });

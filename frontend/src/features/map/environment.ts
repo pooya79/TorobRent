@@ -4,9 +4,9 @@ const openStreetMapTileUrlSetting: unknown = import.meta.env
   .VITE_OPENSTREETMAP_TILE_URL;
 
 export const configuredMapAdapterName =
-  adapterSetting === "fake" || adapterSetting === "openstreetmap"
+  adapterSetting === "fake" || adapterSetting === "neshan"
     ? adapterSetting
-    : "neshan";
+    : "openstreetmap";
 
 export const neshanMapKey =
   typeof neshanMapKeySetting === "string" ? neshanMapKeySetting.trim() : "";

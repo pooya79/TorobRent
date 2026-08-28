@@ -109,7 +109,7 @@ services:
       dockerfile: frontend/Dockerfile
       target: production
       args:
-        VITE_MAP_ADAPTER: ${VITE_MAP_ADAPTER:-neshan}
+        VITE_MAP_ADAPTER: ${VITE_MAP_ADAPTER:-openstreetmap}
         VITE_NESHAN_MAP_KEY: ${VITE_NESHAN_MAP_KEY}
         VITE_OPENSTREETMAP_TILE_URL: ${VITE_OPENSTREETMAP_TILE_URL:-}
     restart: unless-stopped

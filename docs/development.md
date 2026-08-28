@@ -51,7 +51,7 @@ If PostgreSQL or Redis already occupies the default host port, change `POSTGRES_
 backend services continue to use the internal ports.
 
 The frontend selects its map adapter at build time with `VITE_MAP_ADAPTER`. Supported values are
-`neshan` (the default), `openstreetmap`, and the test-only `fake` adapter. Neshan reads
+`openstreetmap` (the default), `neshan`, and the test-only `fake` adapter. Neshan reads
 `VITE_NESHAN_MAP_KEY`; use a domain-restricted key from the Neshan panel and never commit a real
 key. With no Neshan key, search stays available in its degraded full-width layout.
 
