@@ -19,17 +19,11 @@ test("@milestone registers, verifies through Mailpit, logs in, and enters protec
 
   await expect(page).toHaveURL(/\/dashboard$/);
   await expect(
-    page.getByRole("heading", { name: "پیشنهادهای من" }),
+    page.getByRole("heading", { name: "پیشنهادهای من", exact: true }),
   ).toBeVisible();
 
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto("/submitter/get-started");
-  const phone = `09${String(Date.now()).slice(-9)}`;
-  await page.getByLabel("شماره تلفن").fill(phone);
-  await page.getByRole("button", { name: "ارسال کد تأیید" }).click();
-  const demoOtp = await page.getByText(/کد نمایشی:/).textContent();
-  await page.getByLabel("کد تأیید").fill(demoOtp?.match(/\d{6}/)?.[0] ?? "");
-  await page.getByRole("button", { name: "تأیید و ادامه" }).click();
   await page.getByRole("button", { name: /ثبت یک ملک/ }).click();
   await expect(page).toHaveURL(/\/add-submission$/);
   await page.getByRole("button", { name: "ساخت یا ادامه Submission" }).click();
@@ -106,6 +100,6 @@ test("@milestone registers, verifies through Mailpit, logs in, and enters protec
   ).toBeVisible();
   await page.goto("/dashboard");
   await expect(
-    page.getByRole("heading", { name: "پیشنهادهای من" }),
+    page.getByRole("heading", { name: "پیشنهادهای من", exact: true }),
   ).toBeVisible();
 });

@@ -1645,7 +1645,9 @@ test("accumulates the server-provided next page through an accessible Load More 
   expect(requestedUrls).toContain(
     `${window.location.origin}/api/v1/catalog/properties/?location=%D8%AA%D9%87%D8%B1%D8%A7%D9%86&page=2`,
   );
-  expect(screen.getByLabelText("وضعیت جست‌وجو")).toHaveTextContent("page=2");
+  await waitFor(() =>
+    expect(screen.getByLabelText("وضعیت جست‌وجو")).toHaveTextContent("page=2"),
+  );
   expect(screen.getByRole("link", { name: "خانه در ونک" })).toHaveAttribute(
     "href",
     expect.stringContaining("page%3D2"),

@@ -86,7 +86,6 @@ export function SupportedCityCombobox({
         value={query}
         onInput={(event) => {
           setQuery(event.currentTarget.value);
-          setCommittedCity(null);
           setOpen(true);
           setActiveIndex(null);
           onSelectionChange(null);
@@ -94,7 +93,11 @@ export function SupportedCityCombobox({
         onFocus={() => setOpen(true)}
         onBlur={() => {
           setOpen(false);
-          setQuery(committedCity?.name ?? "");
+          if (query.trim()) {
+            setQuery(committedCity?.name ?? "");
+          } else {
+            setCommittedCity(null);
+          }
         }}
         onKeyDown={(event) => {
           if (event.key === "Escape") {
@@ -157,7 +160,7 @@ export function SupportedCityCombobox({
           )}
           {cities.isSuccess &&
             matchingCities.length === 0 &&
-            !showingPopularCities &&
+            (!showingPopularCities || !popularSupportedCity) &&
             (!showUpcoming || upcomingCities.length === 0) && (
               <p
                 className="text-muted-foreground px-3 py-2 text-sm"

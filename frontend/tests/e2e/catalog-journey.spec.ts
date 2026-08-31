@@ -191,7 +191,7 @@ test("@milestone Operator publishes a curated Property that a Renter opens throu
   await expect(desktopFilters).toBeVisible();
   await desktopFilters
     .getByRole("group", { name: "پارکینگ" })
-    .getByRole("radio", { name: "ضروری" })
+    .getByText("ضروری", { exact: true })
     .click();
   await desktopFilters.getByRole("button", { name: /نمایش .* ملک/ }).click();
   await expect(page).toHaveURL(/parking=present/);
@@ -214,7 +214,9 @@ test("@milestone Operator publishes a curated Property that a Renter opens throu
       .getByRole("radio", { name: "ضروری" }),
   ).toBeChecked();
 
-  await desktopFilters.getByLabel("حداکثر متراژ").fill("۱۰۰");
+  await desktopFilters
+    .getByRole("textbox", { name: "حداکثر متراژ" })
+    .fill("۱۰۰");
   await desktopFilters.getByRole("button", { name: /نمایش .* ملک/ }).click();
   await expect(page).toHaveURL(/area_max=100/);
   await expect(
@@ -227,7 +229,7 @@ test("@milestone Operator publishes a curated Property that a Renter opens throu
   const mobileFilters = page.getByRole("dialog", {
     name: "فیلترهای پیشرفته",
   });
-  await mobileFilters.getByLabel("حداکثر متراژ").fill("90");
+  await mobileFilters.getByRole("textbox", { name: "حداکثر متراژ" }).fill("90");
   await mobileFilters.getByRole("button", { name: /نمایش .* ملک/ }).click();
   await expect(page).toHaveURL(/area_max=90/);
   await expect(

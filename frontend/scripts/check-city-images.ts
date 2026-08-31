@@ -24,8 +24,8 @@ const requiredCreditFields = [
   "licenseUrl",
   "attribution",
 ] as const;
-const expectedWidth = 720;
-const expectedHeight = 480;
+const expectedWidth = 640;
+const expectedHeight = 427;
 const perImageBudget = 130 * 1024;
 const totalImageBudget = 600 * 1024;
 

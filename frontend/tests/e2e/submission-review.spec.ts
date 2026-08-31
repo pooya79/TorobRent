@@ -147,6 +147,26 @@ async function submitFromReview(page: Page, submissionId: string) {
 }
 
 async function claimSelectedSubmission(page: Page, submissionId: string) {
+  const queueResponse = await page
+    .context()
+    .request.get(
+      "/api/v1/operator/submissions/?state=pending&ordering=oldest&page_size=100",
+    );
+  expect(queueResponse.ok()).toBe(true);
+  const queue = (await queueResponse.json()) as {
+    results: { id: string }[];
+  };
+  const queueIndex = queue.results.findIndex(({ id }) => id === submissionId);
+  expect(queueIndex).toBeGreaterThanOrEqual(0);
+  await page
+    .getByRole("region", { name: "صف ارسال‌ها" })
+    .getByRole("button")
+    .nth(queueIndex)
+    .click();
+  await expect(
+    page.getByRole("button", { name: "پذیرفتن مسئولیت بررسی" }),
+  ).toBeVisible();
+
   const claim = page.waitForResponse(
     (response) =>
       response.url().includes(`/operator/submissions/${submissionId}/claim/`) &&
@@ -257,7 +277,7 @@ test("@milestone browser covers changes, resubmit, reject, group, publish, and p
   await endSession(page);
   await loginSubmitter(page, submitter);
   await expect(
-    page.getByRole("heading", { name: "آگهی‌های من" }),
+    page.getByRole("heading", { name: "پیشنهادهای من", exact: true }),
   ).toBeVisible();
   await expect(
     page.getByRole("alert").getByText("محتوای نامعتبر"),
@@ -268,8 +288,7 @@ test("@milestone browser covers changes, resubmit, reject, group, publish, and p
   await expect(page.getByText("آپارتمان روشن و آرام ۱")).toBeVisible();
   const publicDocument = await page.context().request.get(page.url());
   const publicHtml = await publicDocument.text();
-  expect(publicHtml).not.toContain("۰۹۱۲۰۰۰۰۰۰۰");
-  expect(publicHtml).not.toContain("۰۹۱۲۱۲۳۴۵۶۷");
+  expect(publicHtml).not.toContain(submitter.phone);
 
   await page.setViewportSize({ width: 390, height: 844 });
   const revisedListing = page.getByRole("article").filter({
@@ -279,8 +298,10 @@ test("@milestone browser covers changes, resubmit, reject, group, publish, and p
     .getByRole("button", { name: "نمایش شماره تماس" })
     .click();
   await expect(
-    revisedListing.getByRole("link", { name: "تماس با ۰۹۱۲۰۰۰۰۰۰۰" }),
-  ).toHaveAttribute("href", "tel:۰۹۱۲۰۰۰۰۰۰۰");
+    revisedListing.getByRole("link", {
+      name: `تماس با ${submitter.phone}`,
+    }),
+  ).toHaveAttribute("href", `tel:${submitter.phone}`);
 
   await endSession(page);
   await loginOperator(page);
@@ -352,13 +373,7 @@ test("@milestone browser covers capability-aware Support privacy routing and fin
 
   await loginOperator(page);
   await page.goto(`/admin/accounts/user/${generalOperatorId}/change/`);
-  const supportGroup = page
-    .locator("#id_groups_from option")
-    .filter({ hasText: "Support Operator" });
-  const supportGroupId = await supportGroup.getAttribute("value");
-  expect(supportGroupId).toBeTruthy();
-  await page.locator("#id_groups_from").selectOption(supportGroupId);
-  await page.getByRole("button", { name: "Choose selected groups" }).click();
+  await page.locator("#id_groups").selectOption({ label: "Support Operator" });
   await page.getByRole("button", { name: "Save", exact: true }).click();
   await expect(page).toHaveURL(/\/admin\/accounts\/user\/$/);
   await endSession(page);

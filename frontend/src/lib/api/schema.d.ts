@@ -1789,7 +1789,6 @@ export interface components {
       readonly operator_id: string;
       /** Format: email */
       readonly operator_email: string;
-      /** Format: int64 */
       revision: number;
       /** Format: date-time */
       expires_at: string;
@@ -1985,7 +1984,6 @@ export interface components {
       /** Format: uuid */
       readonly id: string;
       status?: components["schemas"]["SubmissionDecisionNotificationStatusEnum"];
-      /** Format: int64 */
       attempt_count?: number;
       readonly failure_reason: string | null;
       /** Format: date-time */
@@ -2010,7 +2008,6 @@ export interface components {
       readonly actor_label: string;
       /** Format: email */
       readonly actor_email: string | null;
-      /** Format: int64 */
       revision: number;
       readonly reviewed_revision: number;
       /** Format: uuid */
@@ -2039,7 +2036,6 @@ export interface components {
       readonly id: string;
       status?: components["schemas"]["SubmissionImageStatusEnum"];
       failure_reason?: string;
-      /** Format: int64 */
       position: number;
       is_primary?: boolean;
       readonly variants: components["schemas"]["SubmissionImageVariant"][];
@@ -2063,11 +2059,8 @@ export interface components {
     SubmissionImageVariant: {
       kind: components["schemas"]["SubmissionImageVariantKindEnum"];
       readonly url: string;
-      /** Format: int64 */
       width: number;
-      /** Format: int64 */
       height: number;
-      /** Format: int64 */
       byte_size: number;
     };
     /**

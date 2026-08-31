@@ -307,6 +307,7 @@ export function ResultsPage({ mapAdapter }: { mapAdapter?: MapAdapter }) {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [mobileMapOpen, setMobileMapOpen] = useState(false);
   const [mapAvailable, setMapAvailable] = useState(true);
+  const [desktopMapEnabled, setDesktopMapEnabled] = useState(false);
   const [selectedPropertyId, setSelectedPropertyId] = useState<string | null>(
     null,
   );
@@ -324,6 +325,14 @@ export function ResultsPage({ mapAdapter }: { mapAdapter?: MapAdapter }) {
     return [...byId.values()];
   }, [search.data?.pages]);
   const latestSearchParamsRef = useRef(searchParams);
+  useEffect(() => {
+    if (!window.matchMedia) return;
+    const media = window.matchMedia("(min-width: 1280px)");
+    const sync = () => setDesktopMapEnabled(media.matches);
+    sync();
+    media.addEventListener("change", sync);
+    return () => media.removeEventListener("change", sync);
+  }, []);
   useEffect(() => {
     latestSearchParamsRef.current = searchParams;
   }, [searchParams]);
@@ -477,7 +486,7 @@ export function ResultsPage({ mapAdapter }: { mapAdapter?: MapAdapter }) {
           setSearchParams={setSearchParams}
           facets={searchData?.facets}
         />
-        <h1 className="sr-only">
+        <h1 className="mb-3 text-2xl font-semibold tracking-tight">
           {resultsCopy.heading} در {location}
         </h1>
       </header>
@@ -534,28 +543,34 @@ export function ResultsPage({ mapAdapter }: { mapAdapter?: MapAdapter }) {
             )}
           </p>
           <div className="flex items-center gap-2">
-            {mapAvailable && search.data ? (
-              <Sheet open={mobileMapOpen} onOpenChange={setMobileMapOpen}>
-                <SheetTrigger asChild>
-                  <Button className="xl:hidden" size="sm">
-                    <MapIcon aria-hidden="true" /> نمایش نقشه تمام‌صفحه
-                  </Button>
-                </SheetTrigger>
-                <SheetContent
-                  side="bottom"
-                  className="inset-0 h-dvh w-full max-w-none p-0 xl:hidden"
-                >
-                  <SheetHeader className="sr-only">
-                    <SheetTitle>نقشه تمام‌صفحه ملک‌ها</SheetTitle>
-                    <SheetDescription>
-                      انتخاب ملک‌ها از روی موقعیت تقریبی آن‌ها
-                    </SheetDescription>
-                  </SheetHeader>
-                  <div className="h-full pt-16">
-                    <SearchMapPanel {...mapPanelProps} />
-                  </div>
-                </SheetContent>
-              </Sheet>
+            {mapAvailable ? (
+              search.data ? (
+                <Sheet open={mobileMapOpen} onOpenChange={setMobileMapOpen}>
+                  <SheetTrigger asChild>
+                    <Button className="xl:hidden" size="sm">
+                      <MapIcon aria-hidden="true" /> نمایش نقشه تمام‌صفحه
+                    </Button>
+                  </SheetTrigger>
+                  <SheetContent
+                    side="bottom"
+                    className="inset-0 h-dvh w-full max-w-none p-0 xl:hidden"
+                  >
+                    <SheetHeader className="sr-only">
+                      <SheetTitle>نقشه تمام‌صفحه ملک‌ها</SheetTitle>
+                      <SheetDescription>
+                        انتخاب ملک‌ها از روی موقعیت تقریبی آن‌ها
+                      </SheetDescription>
+                    </SheetHeader>
+                    <div className="h-full pt-16">
+                      <SearchMapPanel {...mapPanelProps} />
+                    </div>
+                  </SheetContent>
+                </Sheet>
+              ) : (
+                <Button className="xl:hidden" size="sm" disabled>
+                  <MapIcon aria-hidden="true" /> نمایش نقشه تمام‌صفحه
+                </Button>
+              )
             ) : null}
             <AdvancedFiltersSheet
               open={filtersOpen}
@@ -582,10 +597,12 @@ export function ResultsPage({ mapAdapter }: { mapAdapter?: MapAdapter }) {
                 : ""
             }
           >
-            <SearchMapPanel
-              {...mapPanelProps}
-              onAvailabilityChange={setMapAvailable}
-            />
+            {(mapAdapter || desktopMapEnabled) && (
+              <SearchMapPanel
+                {...mapPanelProps}
+                onAvailabilityChange={setMapAvailable}
+              />
+            )}
           </div>
           <div className="h-full min-h-0 overflow-y-auto overscroll-contain pe-1 pb-8 xl:[direction:rtl]">
             {search.isPending ? (

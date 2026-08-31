@@ -1,5 +1,6 @@
 import { MapPin } from "lucide-react";
 import {
+  Suspense,
   useCallback,
   useRef,
   useState,
@@ -111,19 +112,21 @@ export function ExactLocationPicker({
         onDragOver={(event) => event.preventDefault()}
       >
         <div className="absolute inset-0">
-          <MapAdapterComponent
-            initialViewport={viewport}
-            markers={[]}
-            clusters={[]}
-            selectedPropertyId={null}
-            retryToken={0}
-            onReady={onReady}
-            onError={onProviderError}
-            onViewportChange={setViewport}
-            onSelectProperty={ignoreProperty}
-            onPreviewProperty={ignoreProperty}
-            onSelectCluster={ignoreProperty}
-          />
+          <Suspense fallback={null}>
+            <MapAdapterComponent
+              initialViewport={viewport}
+              markers={[]}
+              clusters={[]}
+              selectedPropertyId={null}
+              retryToken={0}
+              onReady={onReady}
+              onError={onProviderError}
+              onViewportChange={setViewport}
+              onSelectProperty={ignoreProperty}
+              onPreviewProperty={ignoreProperty}
+              onSelectCluster={ignoreProperty}
+            />
+          </Suspense>
         </div>
         <button
           type="button"

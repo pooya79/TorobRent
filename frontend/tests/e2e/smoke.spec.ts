@@ -152,9 +152,9 @@ test("@milestone @cross-browser keeps focus inside the mobile filter Sheet and r
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/search");
-  await expect(page.getByText("سامانه در دسترس است")).toBeVisible({
-    timeout: 10_000,
-  });
+  await expect(
+    page.getByRole("heading", { name: "ملک‌های اجاره‌ای در تهران" }),
+  ).toBeVisible({ timeout: 10_000 });
 
   const trigger = page.getByRole("button", { name: "فیلترهای پیشرفته" });
   const restingIndicator = await trigger.evaluate((element) => {

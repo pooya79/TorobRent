@@ -37,7 +37,7 @@ export async function registerVerifiedSubmitter(
   );
   const message = (await messageResponse.json()) as { Text: string };
   const verificationUrl = message.Text.match(
-    /http:\/\/(?:localhost|127\.0\.0\.1):5173\/verify-email\?token=\S+/,
+    /http:\/\/(?:localhost|127\.0\.0\.1):\d+\/verify-email\?token=\S+/,
   )?.[0];
   expect(verificationUrl).toBeTruthy();
 
@@ -47,9 +47,21 @@ export async function registerVerifiedSubmitter(
   await page.getByLabel("ایمیل").fill(email);
   await page.getByLabel("گذرواژه").fill(password);
   await page.getByRole("button", { name: "ورود" }).click();
+  await expect(page).toHaveURL(
+    /\/submitter\/get-started\?returnTo=%2Fdashboard$/,
+  );
+
+  const phone = `09${String(Date.now()).slice(-9)}`;
+  await page.getByLabel("شماره تلفن").fill(phone);
+  await page.getByRole("button", { name: "ارسال کد تأیید" }).click();
+  const demoOtp = await page.getByText(/کد نمایشی:/).textContent();
+  await page.getByLabel("کد تأیید").fill(demoOtp?.match(/\d{6}/)?.[0] ?? "");
+  await page.getByRole("button", { name: "تأیید و ادامه" }).click();
+
+  await page.goto("/dashboard");
   await expect(page).toHaveURL(/\/dashboard$/);
 
-  return { email, password };
+  return { email, password, phone };
 }
 
 export async function endSession(page: Page) {

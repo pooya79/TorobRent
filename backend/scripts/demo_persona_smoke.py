@@ -11,12 +11,12 @@ def request_json(opener, request: Request) -> object:
         return json.load(response)
 
 
-def authenticated_opener(base_url: str, *, email: str, password: str):
+def authenticated_opener(base_url: str, *, identifier: str, password: str):
     opener = build_opener(HTTPCookieProcessor(CookieJar()))
     session = request_json(opener, Request(f"{base_url}/api/v1/auth/session/"))
     if not isinstance(session, dict) or not isinstance(session.get("csrf_token"), str):
         raise RuntimeError("Demo session did not return a CSRF token")
-    body = json.dumps({"email": email, "password": password}).encode()
+    body = json.dumps({"identifier": identifier, "password": password}).encode()
     login = Request(
         f"{base_url}/api/v1/auth/login/",
         data=body,
@@ -31,7 +31,7 @@ def main() -> None:
     base_url = sys.argv[1].rstrip("/") if len(sys.argv) > 1 else "http://nginx"
     submitter = authenticated_opener(
         base_url,
-        email="submitter@torobrent.local",
+        identifier="submitter@torobrent.local",
         password="demo-submitter",
     )
     submissions = request_json(submitter, Request(f"{base_url}/api/v1/submissions/"))
@@ -40,7 +40,7 @@ def main() -> None:
 
     operator = authenticated_opener(
         base_url,
-        email="operator@torobrent.local",
+        identifier="operator@torobrent.local",
         password="demo-operator",
     )
     review_queue = request_json(

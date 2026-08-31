@@ -14,6 +14,7 @@ import {
 import { normalizeNumericEntry } from "./numeric-entry";
 import {
   selectedPropertyCategory,
+  selectedPropertyTypes,
   selectedPropertyTypesForCategory,
 } from "./property-type-selection";
 
@@ -36,8 +37,8 @@ export class CatalogSearchError extends Error {
 async function fetchPropertySearchPage(
   query: PropertySearchQuery,
   signal: AbortSignal,
+  baseUrl = typeof window === "undefined" ? "" : window.location.origin,
 ) {
-  const baseUrl = typeof window === "undefined" ? "" : window.location.origin;
   const { data, response } = await createApiClient(baseUrl).GET(
     "/api/v1/catalog/properties/",
     { params: { query }, signal },
@@ -113,6 +114,11 @@ export function favoritesQueryOptions() {
 
 function propertySearchRequest(searchParams: URLSearchParams) {
   const propertyCategory = selectedPropertyCategory(searchParams);
+  const propertyTypes = selectedPropertyTypes(searchParams);
+  const hasSelectedPropertyTypes = propertyTypes.length > 0;
+  const requestedCategory = searchParams.get("property_category");
+  const hasExplicitPropertyCategory =
+    requestedCategory === "residential" || requestedCategory === "commercial";
   const integerParameter = (name: string) => {
     const rawValue = searchParams.get(name);
     if (rawValue === null || rawValue === "") return undefined;
@@ -134,7 +140,10 @@ function propertySearchRequest(searchParams: URLSearchParams) {
     neighborhood: searchParams.has("neighborhood")
       ? searchParams.getAll("neighborhood")
       : undefined,
-    property_category: propertyCategory,
+    property_category:
+      !hasSelectedPropertyTypes || hasExplicitPropertyCategory
+        ? propertyCategory
+        : undefined,
     page: integerParameter("page"),
     deposit_min_toman: integerParameter("deposit_min_toman"),
     deposit_max_toman: integerParameter("deposit_max_toman"),
@@ -148,8 +157,10 @@ function propertySearchRequest(searchParams: URLSearchParams) {
     room_count: searchParams.has(BEDROOM_COUNT_PARAMETER)
       ? undefined
       : bedroomCountParameter(LEGACY_BEDROOM_COUNT_PARAMETER),
-    property_type: searchParams.has("property_type")
-      ? selectedPropertyTypesForCategory(searchParams, propertyCategory)
+    property_type: hasSelectedPropertyTypes
+      ? hasExplicitPropertyCategory
+        ? selectedPropertyTypesForCategory(searchParams, propertyCategory)
+        : propertyTypes
       : undefined,
     parking:
       (searchParams.get("parking") as PropertySearchQuery["parking"]) ??
@@ -197,6 +208,7 @@ export function propertySearchQueryOptions(
 
 export function propertySearchInfiniteQueryOptions(
   searchParams: URLSearchParams,
+  baseUrl?: string,
 ) {
   const firstPageSearchParams = new URLSearchParams(searchParams);
   firstPageSearchParams.delete("page");
@@ -207,13 +219,14 @@ export function propertySearchInfiniteQueryOptions(
     initialPageParam: null as string | null,
     staleTime: 30_000,
     queryFn: async ({ pageParam, signal }) => {
-      const baseUrl =
-        typeof window === "undefined" ? "" : window.location.origin;
+      const requestBaseUrl =
+        baseUrl ??
+        (typeof window === "undefined" ? "" : window.location.origin);
       if (pageParam) {
-        const serverContinuation = new URL(pageParam, baseUrl);
+        const serverContinuation = new URL(pageParam, requestBaseUrl);
         const sameOriginContinuation = new URL(
           `${serverContinuation.pathname}${serverContinuation.search}`,
-          baseUrl,
+          requestBaseUrl,
         );
         const response = await fetch(sameOriginContinuation, {
           credentials: "include",
@@ -225,7 +238,7 @@ export function propertySearchInfiniteQueryOptions(
         return { ...data, requestSearchParams };
       }
       return {
-        ...(await fetchPropertySearchPage(query, signal)),
+        ...(await fetchPropertySearchPage(query, signal, requestBaseUrl)),
         requestSearchParams,
       };
     },

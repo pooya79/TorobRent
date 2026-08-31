@@ -26,6 +26,8 @@ jobs:
       REDIS_URL: redis://localhost:6379/0
       ALLOWED_HOSTS: example.com
       CSRF_TRUSTED_ORIGINS: https://example.com
+      SMS_GATEWAY_URL: https://sms.example.com/send
+      SMS_GATEWAY_TOKEN: ci-only-sms-gateway-token
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v10.0.1

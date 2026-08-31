@@ -3974,9 +3974,8 @@ components:
           readOnly: true
         revision:
           type: integer
-          maximum: 9223372036854775807
+          maximum: 2147483647
           minimum: 0
-          format: int64
         expires_at:
           type: string
           format: date-time
@@ -4431,9 +4430,8 @@ components:
           $ref: '#/components/schemas/SubmissionDecisionNotificationStatusEnum'
         attempt_count:
           type: integer
-          maximum: 9223372036854775807
+          maximum: 2147483647
           minimum: 0
-          format: int64
         failure_reason:
           type:
           - string
@@ -4486,9 +4484,8 @@ components:
           readOnly: true
         revision:
           type: integer
-          maximum: 9223372036854775807
+          maximum: 2147483647
           minimum: 0
-          format: int64
         reviewed_revision:
           type: integer
           readOnly: true
@@ -4569,9 +4566,8 @@ components:
           maxLength: 500
         position:
           type: integer
-          maximum: 9223372036854775807
+          maximum: 32767
           minimum: 0
-          format: int64
         is_primary:
           type: boolean
         variants:
@@ -4623,19 +4619,16 @@ components:
           readOnly: true
         width:
           type: integer
-          maximum: 9223372036854775807
+          maximum: 2147483647
           minimum: 0
-          format: int64
         height:
           type: integer
-          maximum: 9223372036854775807
+          maximum: 2147483647
           minimum: 0
-          format: int64
         byte_size:
           type: integer
-          maximum: 9223372036854775807
+          maximum: 2147483647
           minimum: 0
-          format: int64
       required:
       - byte_size
       - height

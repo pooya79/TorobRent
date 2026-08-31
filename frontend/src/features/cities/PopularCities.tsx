@@ -14,8 +14,8 @@ function CityCard({ city }: { city: (typeof cities)[number] }) {
           className="size-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
           src={city.image}
           alt={city.alt}
-          width="720"
-          height="480"
+          width="640"
+          height="427"
           loading="lazy"
         />
       </div>

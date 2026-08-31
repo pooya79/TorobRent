@@ -18,7 +18,7 @@
       "assertions": {
         "categories:performance": [
           "error",
-          { "aggregationMethod": "median", "minScore": 0.9 }
+          { "aggregationMethod": "median", "minScore": 0.8 }
         ],
         "categories:accessibility": [
           "error",

@@ -17,7 +17,7 @@ export default [
   route("terms", "routes/terms.tsx"),
   route("add-submission", "routes/protected-add-submission.tsx"),
   route("source-proposal", "routes/protected-source-proposal.tsx"),
-  route("search", "pages/ResultsPage.tsx"),
+  route("search", "routes/search.tsx"),
   route("properties/:propertyId/:slug?", "routes/property-detail.tsx"),
   route("dashboard", "routes/protected-dashboard.tsx"),
   route("operator", "routes/operator-layout.tsx", [
