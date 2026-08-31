@@ -8,6 +8,10 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { sessionQuery } from "@/features/session/queries";
+import {
+  safeInternalReturnTo,
+  withReturnTo,
+} from "@/features/session/return-destination";
 import { api } from "@/lib/api/client";
 import { apiError, errorMessage } from "@/lib/api/errors";
 
@@ -19,6 +23,7 @@ export function AccountConfirmationPage({
   const session = useQuery(sessionQuery);
   const [searchParams] = useSearchParams();
   const token = searchParams.get("token") ?? "";
+  const returnTo = safeInternalReturnTo(searchParams.get("returnTo"));
   const startedVerification = useRef(false);
   const mutation = useMutation({
     mutationFn: async (newPassword?: string) => {
@@ -110,7 +115,7 @@ export function AccountConfirmationPage({
           ) : null}
           {mutation.data ? (
             <Button asChild>
-              <Link to="/login">ورود</Link>
+              <Link to={withReturnTo("/login", returnTo)}>ورود</Link>
             </Button>
           ) : null}
         </CardContent>

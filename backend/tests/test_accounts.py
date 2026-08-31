@@ -63,6 +63,63 @@ def test_current_user_returns_authenticated_user(api_client: APIClient, user):
 
 
 @pytest.mark.django_db
+def test_verified_phone_renter_can_become_an_eligible_submitter_without_creating_work(
+    api_client: APIClient,
+):
+    renter = User.objects.create_user(
+        email="renter@example.com",
+        phone="09123456789",
+        phone_verified_at=timezone.now(),
+        password="correct-horse-battery",
+    )
+    csrf_client(api_client)
+    api_client.force_login(renter)
+
+    response = api_client.post("/api/v1/users/me/submitter-onboarding/", {}, format="json")
+
+    assert response.status_code == 200
+    assert response.data == {
+        "eligible": True,
+        "phone_verified": True,
+        "selected_path": None,
+    }
+    renter.refresh_from_db()
+    assert renter.is_submitter is True
+    assert renter.submissions.count() == 0
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("selected_path", ["submission", "source_proposal"])
+def test_submitter_onboarding_path_survives_a_new_session(
+    api_client: APIClient, selected_path: str
+):
+    submitter = User.objects.create_user(
+        email="submitter@example.com",
+        phone="09123456789",
+        phone_verified_at=timezone.now(),
+        is_submitter=True,
+        password="correct-horse-battery",
+    )
+    csrf_client(api_client)
+    api_client.force_login(submitter)
+
+    selected = api_client.post(
+        "/api/v1/users/me/submitter-onboarding/",
+        {"selected_path": selected_path},
+        format="json",
+    )
+    api_client.logout()
+    csrf_client(api_client)
+    api_client.force_login(submitter)
+    resumed = api_client.get("/api/v1/users/me/submitter-onboarding/")
+
+    assert selected.status_code == 200
+    assert resumed.status_code == 200
+    assert resumed.data["selected_path"] == selected_path
+    assert submitter.submissions.count() == 0
+
+
+@pytest.mark.django_db
 def test_session_reports_authenticated_session(api_client: APIClient, user):
     api_client.force_login(user)
     response = api_client.get("/api/v1/auth/session/")
@@ -108,6 +165,41 @@ def test_submitter_registers_and_verifies_email(api_client: APIClient):
     assert "نامعتبر" in reused_response.data["errors"]["token"][0]["message"]
 
 
+@pytest.mark.django_db
+def test_email_registration_preserves_only_a_safe_return_destination(
+    api_client: APIClient,
+):
+    client = csrf_client(api_client)
+
+    response = client.post(
+        "/api/v1/auth/register/",
+        {
+            "identifier": "new@example.com",
+            "password": "correct-horse-battery",
+            "return_to": "/submitter/get-started?returnTo=%2Fadd-submission",
+        },
+        format="json",
+    )
+
+    assert response.status_code == 201
+    assert (
+        "&returnTo=%2Fsubmitter%2Fget-started%3FreturnTo%3D%252Fadd-submission"
+        in mail.outbox[-1].body
+    )
+
+    for index, return_to in enumerate(("//attacker.example/steal", "/\\attacker.example/steal")):
+        unsafe = client.post(
+            "/api/v1/auth/register/",
+            {
+                "identifier": f"unsafe{index}@example.com",
+                "password": "correct-horse-battery",
+                "return_to": return_to,
+            },
+            format="json",
+        )
+        assert unsafe.status_code == 400
+
+
 @override_settings(DEMO_OTP_DISCLOSURE=True)
 @pytest.mark.django_db
 def test_phone_registration_requires_otp_before_normalized_identifier_can_log_in(
@@ -131,6 +223,7 @@ def test_phone_registration_requires_otp_before_normalized_identifier_can_log_in
     user = User.objects.get(phone="09123456789")
     assert user.email is None
     assert user.phone_verified_at is None
+    assert user.is_submitter is True
 
     unverified_login = client.post(
         "/api/v1/auth/login/",
@@ -163,6 +256,28 @@ def test_phone_registration_requires_otp_before_normalized_identifier_can_log_in
     assert login.status_code == 200
     assert login.data["phone"] == "09123456789"
     assert login.data["phone_verified"] is True
+
+
+@override_settings(DEMO_OTP_DISCLOSURE=True)
+@pytest.mark.django_db
+def test_phone_verification_does_not_promote_a_renter_registration(api_client: APIClient):
+    client = csrf_client(api_client)
+    registration = client.post(
+        "/api/v1/auth/renter-register/",
+        {"identifier": "09351234567", "password": "correct-horse-battery"},
+        format="json",
+    )
+
+    verification = client.post(
+        "/api/v1/auth/verify-phone/",
+        {"identifier": "09351234567", "otp": registration.data["demo_otp"]},
+        format="json",
+    )
+
+    assert verification.status_code == 200
+    renter = User.objects.get(phone="09351234567")
+    assert renter.phone_verified is True
+    assert renter.is_submitter is False
 
 
 @pytest.mark.django_db
@@ -268,6 +383,8 @@ def test_verified_email_account_can_add_phone_and_use_both_identifiers(
         format="json",
     )
     assert verified.status_code == 200
+    user.refresh_from_db()
+    assert user.is_submitter is False
 
     client.logout()
     for identifier in ("person@example.com", "09351234567"):
@@ -279,6 +396,68 @@ def test_verified_email_account_can_add_phone_and_use_both_identifiers(
         )
         assert login.status_code == 200
         client.logout()
+
+
+@pytest.mark.django_db
+def test_submitter_phone_conflict_is_support_oriented_and_does_not_reveal_the_other_account(
+    api_client: APIClient, user: User
+):
+    user.email_verified_at = timezone.now()
+    user.save(update_fields=["email_verified_at"])
+    User.objects.create_user(
+        email="other@example.com",
+        phone="09123456789",
+        phone_verified_at=timezone.now(),
+        password="correct-horse-battery",
+    )
+    client = csrf_client(api_client)
+    client.force_login(user)
+
+    response = client.post(
+        "/api/v1/auth/phone-verification/request/",
+        {"identifier": "09123456789"},
+        format="json",
+    )
+
+    assert response.status_code == 409
+    assert response.data["code"] == "phone_ownership_conflict"
+    assert "پشتیبانی" in response.data["detail"]
+    assert "other@example.com" not in str(response.data)
+    user.refresh_from_db()
+    assert user.phone is None
+
+
+@override_settings(DEMO_OTP_DISCLOSURE=True)
+@pytest.mark.django_db
+def test_email_authenticated_renter_verifies_phone_then_gains_submitter_eligibility(
+    api_client: APIClient, user: User
+):
+    user.email_verified_at = timezone.now()
+    user.save(update_fields=["email_verified_at"])
+    client = csrf_client(api_client)
+    client.force_login(user)
+
+    requested = client.post(
+        "/api/v1/auth/phone-verification/request/",
+        {"identifier": "09351234567", "purpose": "submitter_onboarding"},
+        format="json",
+    )
+    verified = client.post(
+        "/api/v1/auth/verify-phone/",
+        {"identifier": "09351234567", "otp": requested.data["demo_otp"]},
+        format="json",
+    )
+    eligible = client.get("/api/v1/users/me/submitter-onboarding/")
+
+    assert requested.status_code == 202
+    assert verified.status_code == 200
+    assert eligible.status_code == 200
+    assert eligible.data["eligible"] is True
+    user.refresh_from_db()
+    assert user.phone == "09351234567"
+    assert user.phone_verified is True
+    assert user.is_submitter is True
+    assert user.submissions.count() == 0
 
 
 @pytest.mark.django_db

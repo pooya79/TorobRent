@@ -159,6 +159,54 @@ test("logs in a verified Submitter and preserves the protected destination", asy
   ).toBeVisible();
 });
 
+test("carries a safe onboarding destination through registration", async () => {
+  const user = userEvent.setup();
+  let submitted: unknown;
+  server.use(
+    http.post("*/api/v1/auth/register/", async ({ request }) => {
+      submitted = await request.json();
+      return HttpResponse.json(
+        {
+          detail: "حساب ساخته شد. ایمیل خود را بررسی کنید.",
+          verification_method: "email",
+        },
+        { status: 201 },
+      );
+    }),
+  );
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  render(
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter
+        initialEntries={[
+          "/register?returnTo=%2Fsubmitter%2Fget-started%3FreturnTo%3D%252Fadd-submission",
+        ]}
+      >
+        <AccountAccessPage mode="register" />
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+
+  await user.type(
+    screen.getByLabelText("ایمیل یا شماره تلفن"),
+    "person@example.com",
+  );
+  await user.type(screen.getByLabelText("گذرواژه"), "123");
+  await user.click(screen.getByRole("button", { name: "ساخت حساب" }));
+
+  expect(submitted).toEqual({
+    identifier: "person@example.com",
+    password: "123",
+    return_to: "/submitter/get-started?returnTo=%2Fadd-submission",
+  });
+  expect(screen.getByRole("link", { name: "ورود" })).toHaveAttribute(
+    "href",
+    "/login?returnTo=%2Fsubmitter%2Fget-started%3FreturnTo%3D%252Fadd-submission",
+  );
+});
+
 test("links to the development inbox after Submitter registration", async () => {
   const user = userEvent.setup();
   server.use(

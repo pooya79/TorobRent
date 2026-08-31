@@ -12,6 +12,11 @@ if TYPE_CHECKING:
     from .capabilities import OperatorCapability
 
 
+class SubmitterOnboardingPath(models.TextChoices):
+    SUBMISSION = "submission", "Submission"
+    SOURCE_PROPOSAL = "source_proposal", "Source Proposal"
+
+
 class User(AbstractUser):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     username = None  # type: ignore[assignment]
@@ -20,6 +25,12 @@ class User(AbstractUser):
     phone = models.CharField(max_length=11, unique=True, null=True, blank=True)
     phone_verified_at = models.DateTimeField(null=True, blank=True)
     is_submitter = models.BooleanField(default=False, db_default=False)
+    submitter_onboarding_path = models.CharField(
+        max_length=16,
+        choices=SubmitterOnboardingPath.choices,
+        null=True,
+        blank=True,
+    )
     anonymized_at = models.DateTimeField(null=True, blank=True, editable=False)
 
     USERNAME_FIELD: ClassVar[str] = "email"  # type: ignore[misc]
@@ -73,6 +84,7 @@ class PhoneVerificationChallenge(models.Model):
     expires_at = models.DateTimeField()
     attempts = models.PositiveSmallIntegerField(default=0)
     consumed_at = models.DateTimeField(null=True, blank=True)
+    grants_submitter_eligibility = models.BooleanField(default=False)
 
     class Meta:
         indexes = [models.Index(fields=("phone", "-created_at"))]

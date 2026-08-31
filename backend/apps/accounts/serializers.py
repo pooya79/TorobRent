@@ -4,7 +4,7 @@ from rest_framework import serializers
 
 from .capabilities import OperatorCapability
 from .identifiers import AccountIdentifier, normalize_account_identifier
-from .models import User
+from .models import SubmitterOnboardingPath, User
 
 TOKEN_ERROR_MESSAGES: dict[str, Any] = {
     "required": "پیوند ناقص است.",
@@ -68,6 +68,18 @@ class CurrentUserSerializer(UserSerializer):
         read_only_fields = fields
 
 
+class SubmitterOnboardingStateSerializer(serializers.Serializer[Any]):
+    eligible = serializers.BooleanField()
+    phone_verified = serializers.BooleanField()
+    selected_path = serializers.ChoiceField(
+        choices=SubmitterOnboardingPath.choices, allow_null=True
+    )
+
+
+class SubmitterOnboardingUpdateSerializer(serializers.Serializer[Any]):
+    selected_path = serializers.ChoiceField(choices=SubmitterOnboardingPath.choices, required=False)
+
+
 class SessionSerializer(serializers.Serializer[Any]):
     authenticated = serializers.BooleanField()
     csrf_token = serializers.CharField()
@@ -80,10 +92,19 @@ class DetailSerializer(serializers.Serializer[Any]):
 class RegistrationSerializer(serializers.Serializer[Any]):
     identifier = AccountIdentifierField()
     password = serializers.CharField(write_only=True, trim_whitespace=False)
+    return_to = serializers.CharField(required=False, max_length=1000)
 
     def validate_identifier(self, value: AccountIdentifier) -> AccountIdentifier:
         if User.objects.filter(**{value.kind: value.value}).exists():
             raise serializers.ValidationError("این شناسه قابل استفاده نیست.")
+        return value
+
+    def validate_return_to(self, value: str) -> str:
+        unsafe_character = "\\" in value or any(
+            ord(character) < 32 or ord(character) == 127 for character in value
+        )
+        if not value.startswith("/") or value.startswith("//") or unsafe_character:
+            raise serializers.ValidationError("مقصد بازگشت معتبر نیست.")
         return value
 
 
@@ -103,6 +124,7 @@ class PhoneVerificationSerializer(serializers.Serializer[Any]):
 
 class PhoneVerificationRequestSerializer(serializers.Serializer[Any]):
     identifier = IranianMobileField()
+    purpose = serializers.ChoiceField(choices=("submitter_onboarding",), required=False)
 
 
 class PhoneOtpResponseSerializer(DetailSerializer):

@@ -9,6 +9,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { DevelopmentMailHint } from "@/features/session/DevelopmentMailHint";
 import { sessionQuery } from "@/features/session/queries";
+import {
+  safeInternalReturnTo,
+  withReturnTo,
+} from "@/features/session/return-destination";
 import { api } from "@/lib/api/client";
 import { apiError, errorMessage } from "@/lib/api/errors";
 
@@ -33,18 +37,13 @@ const content = {
   },
 } as const;
 
-function safeReturnTo(value: string | null) {
-  return value?.startsWith("/") && !value.startsWith("//")
-    ? value
-    : "/dashboard";
-}
-
 export function AccountAccessPage({ mode }: { mode: AccountAccessMode }) {
   const copy = content[mode];
   const session = useQuery(sessionQuery);
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const requestedReturnTo = safeInternalReturnTo(searchParams.get("returnTo"));
   const [result, setResult] = useState<string>();
   const [pendingPhone, setPendingPhone] = useState<{
     identifier: string;
@@ -67,7 +66,11 @@ export function AccountAccessPage({ mode }: { mode: AccountAccessMode }) {
       }
       if (mode === "register") {
         const { data, error } = await api.POST("/api/v1/auth/register/", {
-          body: { identifier, password: password ?? "" },
+          body: {
+            identifier,
+            password: password ?? "",
+            ...(requestedReturnTo ? { return_to: requestedReturnTo } : {}),
+          },
         });
         if (error || !data) throw apiError(error);
         return data;
@@ -81,7 +84,7 @@ export function AccountAccessPage({ mode }: { mode: AccountAccessMode }) {
     onSuccess: async (data, variables) => {
       if (mode === "login" && "email_verified" in data) {
         await queryClient.invalidateQueries({ queryKey: ["session"] });
-        void navigate(safeReturnTo(searchParams.get("returnTo")), {
+        void navigate(requestedReturnTo ?? "/dashboard", {
           replace: true,
         });
         return;
@@ -111,7 +114,12 @@ export function AccountAccessPage({ mode }: { mode: AccountAccessMode }) {
       if (error || !data) throw apiError(error);
       return data;
     },
-    onSuccess: (data) => setResult(data.detail),
+    onSuccess: (data) => {
+      setResult(data.detail);
+      void navigate(withReturnTo("/login", requestedReturnTo), {
+        replace: true,
+      });
+    },
   });
   const resend = useMutation({
     mutationFn: async () => {
@@ -277,8 +285,14 @@ export function AccountAccessPage({ mode }: { mode: AccountAccessMode }) {
             </form>
           )}
           <div className="text-muted-foreground mt-6 flex flex-wrap gap-x-4 gap-y-2 text-sm">
-            {mode !== "login" ? <Link to="/login">ورود</Link> : null}
-            {mode !== "register" ? <Link to="/register">ساخت حساب</Link> : null}
+            {mode !== "login" ? (
+              <Link to={withReturnTo("/login", requestedReturnTo)}>ورود</Link>
+            ) : null}
+            {mode !== "register" ? (
+              <Link to={withReturnTo("/register", requestedReturnTo)}>
+                ساخت حساب
+              </Link>
+            ) : null}
             {mode !== "recovery" ? (
               <Link to="/forgot-password">فراموشی گذرواژه</Link>
             ) : null}

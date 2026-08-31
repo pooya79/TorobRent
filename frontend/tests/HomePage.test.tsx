@@ -74,7 +74,7 @@ test("presents the anonymous public navbar and real advertisement introduction",
     within(navigation).getByRole("link", {
       name: "می‌خواهم آگهی ثبت کنم",
     }),
-  ).toHaveAttribute("href", "/advertise");
+  ).toHaveAttribute("href", "/submitter/get-started");
   for (const name of [
     "خانه",
     "جست‌وجو",
@@ -226,7 +226,7 @@ test("closes the mobile navigation after choosing the advertisement introduction
 
   expect(screen.queryByRole("dialog", { name: "راهبری ترب‌رنت" })).toBeNull();
   expect(screen.getByRole("status", { name: "مسیر جاری" })).toHaveTextContent(
-    "/advertise",
+    "/submitter/get-started",
   );
 });
 

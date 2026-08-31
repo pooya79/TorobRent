@@ -30,13 +30,16 @@ test("verifies the email token from the followed link", async () => {
     }),
   );
 
-  renderPage("verify", "/verify-email?token=signed-email-token");
+  renderPage(
+    "verify",
+    "/verify-email?token=signed-email-token&returnTo=%2Fsubmitter%2Fget-started",
+  );
 
   expect(await screen.findByText("ایمیل شما تأیید شد.")).toBeVisible();
   expect(submitted).toEqual({ token: "signed-email-token" });
   expect(screen.getByRole("link", { name: "ورود" })).toHaveAttribute(
     "href",
-    "/login",
+    "/login?returnTo=%2Fsubmitter%2Fget-started",
   );
 });
 

@@ -47,7 +47,7 @@ test("redirects an anonymous Submitter to login with the intended destination", 
   ).toBeVisible();
 });
 
-test("prevents an authenticated account without a verified phone from beginning a Submission", async () => {
+test("sends an authenticated account without a verified phone into onboarding", async () => {
   server.use(
     http.get("*/api/v1/auth/session/", () =>
       HttpResponse.json({ authenticated: true, csrf_token: "test-token" }),
@@ -70,24 +70,30 @@ test("prevents an authenticated account without a verified phone from beginning 
   render(
     <QueryClientProvider client={queryClient}>
       <MemoryRouter initialEntries={["/add-submission"]}>
-        <ProtectedSubmitterRoute>
-          <h1>ثبت آگهی</h1>
-        </ProtectedSubmitterRoute>
+        <Routes>
+          <Route
+            path="add-submission"
+            element={
+              <ProtectedSubmitterRoute>
+                <h1>ثبت آگهی</h1>
+              </ProtectedSubmitterRoute>
+            }
+          />
+          <Route path="submitter/get-started" element={<LoginDestination />} />
+        </Routes>
       </MemoryRouter>
     </QueryClientProvider>,
   );
 
   expect(
-    await screen.findByText(
-      "برای ثبت آگهی، ابتدا شماره تلفن خود را تأیید کنید.",
-    ),
+    await screen.findByText("ورود: ?returnTo=%2Fadd-submission"),
   ).toBeVisible();
   expect(
     screen.queryByRole("heading", { name: "ثبت آگهی" }),
   ).not.toBeInTheDocument();
 });
 
-test("prevents a verified Renter from entering a Submitter route", async () => {
+test("sends a verified Renter into Submitter onboarding with the intended destination", async () => {
   server.use(
     http.get("*/api/v1/auth/session/", () =>
       HttpResponse.json({ authenticated: true, csrf_token: "test-token" }),
@@ -112,17 +118,23 @@ test("prevents a verified Renter from entering a Submitter route", async () => {
   render(
     <QueryClientProvider client={queryClient}>
       <MemoryRouter initialEntries={["/add-submission"]}>
-        <ProtectedSubmitterRoute>
-          <h1>ثبت آگهی</h1>
-        </ProtectedSubmitterRoute>
+        <Routes>
+          <Route
+            path="add-submission"
+            element={
+              <ProtectedSubmitterRoute>
+                <h1>ثبت آگهی</h1>
+              </ProtectedSubmitterRoute>
+            }
+          />
+          <Route path="submitter/get-started" element={<LoginDestination />} />
+        </Routes>
       </MemoryRouter>
     </QueryClientProvider>,
   );
 
   expect(
-    await screen.findByText(
-      "برای ثبت آگهی باید ابتدا مسیر ارسال‌کننده را آغاز کنید.",
-    ),
+    await screen.findByText("ورود: ?returnTo=%2Fadd-submission"),
   ).toBeVisible();
   expect(screen.queryByRole("heading", { name: "ثبت آگهی" })).toBeNull();
 });

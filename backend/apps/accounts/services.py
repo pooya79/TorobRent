@@ -2,6 +2,7 @@ import secrets
 from collections.abc import Iterable
 from datetime import timedelta
 from enum import StrEnum
+from urllib.parse import quote
 
 from django.conf import settings
 from django.contrib.auth import login, logout
@@ -16,7 +17,7 @@ from django.utils import timezone
 
 from .capabilities import CAPABILITY_PERMISSIONS, MANAGED_OPERATOR_GROUPS
 from .identifiers import AccountIdentifier
-from .models import PhoneVerificationChallenge, User
+from .models import PhoneVerificationChallenge, SubmitterOnboardingPath, User
 from .sms import send_verification_code
 from .tokens import (
     make_email_verification_token,
@@ -118,7 +119,9 @@ def can_delete_operator_group(*, actor: User, group: Group) -> bool:
     )
 
 
-def _issue_phone_otp(*, user: User, phone: str) -> str | None:
+def _issue_phone_otp(
+    *, user: User, phone: str, grants_submitter_eligibility: bool = False
+) -> str | None:
     latest = (
         PhoneVerificationChallenge.objects
         .filter(user=user, phone=phone)
@@ -136,26 +139,46 @@ def _issue_phone_otp(*, user: User, phone: str) -> str | None:
         phone=phone,
         secret_hash=make_password(code),
         expires_at=timezone.now() + timedelta(minutes=5),
+        grants_submitter_eligibility=grants_submitter_eligibility,
     )
     send_verification_code(recipient=phone, code=code)
     return code
 
 
-def request_phone_verification(*, phone: str, requesting_user: User | None = None) -> str | None:
+class PhoneOwnershipConflict(Exception):
+    pass
+
+
+def request_phone_verification(
+    *,
+    phone: str,
+    requesting_user: User | None = None,
+    grants_submitter_eligibility: bool = False,
+) -> str | None:
     if requesting_user is None:
         user = User.objects.filter(phone=phone, phone_verified_at__isnull=True).first()
     else:
         conflict = User.objects.filter(phone=phone).exclude(pk=requesting_user.pk).exists()
-        if conflict or requesting_user.phone_verified:
+        if conflict:
+            raise PhoneOwnershipConflict
+        if requesting_user.phone_verified:
             return None
         user = requesting_user
     if user is None:
         return None
-    return _issue_phone_otp(user=user, phone=phone)
+    return _issue_phone_otp(
+        user=user,
+        phone=phone,
+        grants_submitter_eligibility=grants_submitter_eligibility,
+    )
 
 
 def _register_account(
-    *, identifier: AccountIdentifier, password: str, is_submitter: bool
+    *,
+    identifier: AccountIdentifier,
+    password: str,
+    is_submitter: bool,
+    return_to: str | None = None,
 ) -> tuple[User, str | None]:
     user = User.objects.create_user(
         email=identifier.value if identifier.kind == "email" else None,
@@ -169,6 +192,8 @@ def _register_account(
         return user, otp
     token = make_email_verification_token(user)
     verification_url = f"{settings.FRONTEND_ORIGIN}/verify-email?token={token}"
+    if return_to is not None:
+        verification_url = f"{verification_url}&returnTo={quote(return_to, safe='')}"
     send_mail(
         "تأیید ایمیل ترب‌رنت",
         f"برای تأیید ایمیل خود این پیوند را باز کنید:\n{verification_url}",
@@ -178,12 +203,26 @@ def _register_account(
     return user, None
 
 
-def register_submitter(*, identifier: AccountIdentifier, password: str) -> tuple[User, str | None]:
-    return _register_account(identifier=identifier, password=password, is_submitter=True)
+def register_submitter(
+    *, identifier: AccountIdentifier, password: str, return_to: str | None = None
+) -> tuple[User, str | None]:
+    return _register_account(
+        identifier=identifier,
+        password=password,
+        is_submitter=True,
+        return_to=return_to,
+    )
 
 
-def register_renter(*, identifier: AccountIdentifier, password: str) -> tuple[User, str | None]:
-    return _register_account(identifier=identifier, password=password, is_submitter=False)
+def register_renter(
+    *, identifier: AccountIdentifier, password: str, return_to: str | None = None
+) -> tuple[User, str | None]:
+    return _register_account(
+        identifier=identifier,
+        password=password,
+        is_submitter=False,
+        return_to=return_to,
+    )
 
 
 def verify_email(token: str) -> bool:
@@ -252,7 +291,26 @@ def verify_phone(*, identifier: str, otp: str) -> PhoneVerificationResult:
         user.phone = identifier
         user.phone_verified_at = timezone.now()
         user.save(update_fields=["phone", "phone_verified_at"])
+        if challenge.grants_submitter_eligibility:
+            grant_submitter_eligibility(user=user)
     return PhoneVerificationResult.SUCCESS
+
+
+def grant_submitter_eligibility(
+    *, user: User, selected_path: SubmitterOnboardingPath | None = None
+) -> User:
+    if not user.phone_verified:
+        raise ValidationError("Submitter eligibility requires a verified phone number.")
+    update_fields: list[str] = []
+    if not user.is_submitter:
+        user.is_submitter = True
+        update_fields.append("is_submitter")
+    if selected_path is not None and user.submitter_onboarding_path != selected_path:
+        user.submitter_onboarding_path = selected_path
+        update_fields.append("submitter_onboarding_path")
+    if update_fields:
+        user.save(update_fields=update_fields)
+    return user
 
 
 def start_session(

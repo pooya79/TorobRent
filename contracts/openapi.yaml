@@ -244,6 +244,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/PhoneOtpResponse'
           description: ''
+        '409':
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Request conflicts
         '400':
           content:
             application/problem+json:
@@ -2098,6 +2104,64 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: Authentication is required
+  /api/v1/users/me/submitter-onboarding/:
+    get:
+      operationId: v1_users_me_submitter_onboarding_retrieve
+      summary: Inspect Submitter onboarding progress
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubmitterOnboardingState'
+          description: ''
+    post:
+      operationId: v1_users_me_submitter_onboarding_create
+      summary: Complete or resume Submitter onboarding
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubmitterOnboardingUpdate'
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubmitterOnboardingState'
+          description: ''
+        '400':
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Request validation failed
+        '403':
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Authentication or CSRF verification failed
+        '415':
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Only JSON request bodies are supported
+        '429':
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Request was throttled
 components:
   schemas:
     ActiveFavoriteSummary:
@@ -3183,6 +3247,8 @@ components:
       properties:
         identifier:
           type: string
+        purpose:
+          $ref: '#/components/schemas/PurposeEnum'
       required:
       - identifier
     PrecisionEnum:
@@ -3579,6 +3645,11 @@ components:
         * `rejected` - ردشده
         * `unavailable` - ناموجود
         * `archived` - بایگانی‌شده
+    PurposeEnum:
+      enum:
+      - submitter_onboarding
+      type: string
+      description: '* `submitter_onboarding` - submitter_onboarding'
     Registration:
       type: object
       properties:
@@ -3587,6 +3658,9 @@ components:
         password:
           type: string
           writeOnly: true
+        return_to:
+          type: string
+          maxLength: 1000
       required:
       - identifier
       - password
@@ -3728,6 +3802,14 @@ components:
       description: |-
         * `owner` - مالک
         * `agent` - نماینده مالک
+    SelectedPathEnum:
+      enum:
+      - submission
+      - source_proposal
+      type: string
+      description: |-
+        * `submission` - Submission
+        * `source_proposal` - Source Proposal
     Session:
       type: object
       properties:
@@ -4205,6 +4287,26 @@ components:
       - aging_count
       - assigned_to_me_count
       - unclaimed_count
+    SubmitterOnboardingState:
+      type: object
+      properties:
+        eligible:
+          type: boolean
+        phone_verified:
+          type: boolean
+        selected_path:
+          oneOf:
+          - $ref: '#/components/schemas/SelectedPathEnum'
+          - $ref: '#/components/schemas/NullEnum'
+      required:
+      - eligible
+      - phone_verified
+      - selected_path
+    SubmitterOnboardingUpdate:
+      type: object
+      properties:
+        selected_path:
+          $ref: '#/components/schemas/SelectedPathEnum'
     SupportClassificationEnum:
       enum:
       - unclassified

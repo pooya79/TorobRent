@@ -8,6 +8,7 @@ export default [
   route("login", "routes/login.tsx"),
   route("register", "routes/register.tsx"),
   route("advertise", "routes/advertise.tsx"),
+  route("submitter/get-started", "routes/submitter-get-started.tsx"),
   route("forgot-password", "routes/forgot-password.tsx"),
   route("favorites", "pages/FavoritesPage.tsx"),
   route("verify-email", "routes/verify-email.tsx"),

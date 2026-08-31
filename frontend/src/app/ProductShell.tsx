@@ -179,7 +179,7 @@ function PrimaryNavigation({
     >
       {links}
       <Button asChild className={cn("min-h-11 rounded-full", mobile && "mt-4")}>
-        <NavLink onClick={onNavigate} to="/advertise">
+        <NavLink onClick={onNavigate} to="/submitter/get-started">
           می‌خواهم آگهی ثبت کنم
         </NavLink>
       </Button>

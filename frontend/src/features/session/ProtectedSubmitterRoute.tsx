@@ -2,7 +2,6 @@ import { useQuery } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { Navigate, useLocation } from "react-router";
 
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { currentUserQuery, sessionQuery } from "@/features/session/queries";
 
 export function ProtectedSubmitterRoute({ children }: { children: ReactNode }) {
@@ -38,37 +37,13 @@ export function ProtectedSubmitterRoute({ children }: { children: ReactNode }) {
     );
   }
 
-  if (!currentUser.data?.phone_verified) {
+  if (!currentUser.data?.phone_verified || !currentUser.data.is_submitter) {
+    const returnTo = `${location.pathname}${location.search}${location.hash}`;
     return (
-      <main
-        id="main-content"
-        className="mx-auto w-full max-w-432 px-4 py-12"
-        tabIndex={-1}
-      >
-        <Alert>
-          <AlertTitle>تأیید شماره تلفن لازم است</AlertTitle>
-          <AlertDescription>
-            برای ثبت آگهی، ابتدا شماره تلفن خود را تأیید کنید.
-          </AlertDescription>
-        </Alert>
-      </main>
-    );
-  }
-
-  if (!currentUser.data.is_submitter) {
-    return (
-      <main
-        id="main-content"
-        className="mx-auto w-full max-w-432 px-4 py-12"
-        tabIndex={-1}
-      >
-        <Alert>
-          <AlertTitle>حساب ارسال‌کننده لازم است</AlertTitle>
-          <AlertDescription>
-            برای ثبت آگهی باید ابتدا مسیر ارسال‌کننده را آغاز کنید.
-          </AlertDescription>
-        </Alert>
-      </main>
+      <Navigate
+        to={`/submitter/get-started?returnTo=${encodeURIComponent(returnTo)}`}
+        replace
+      />
     );
   }
 

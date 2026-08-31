@@ -979,6 +979,24 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/v1/users/me/submitter-onboarding/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Inspect Submitter onboarding progress */
+    get: operations["v1_users_me_submitter_onboarding_retrieve"];
+    put?: never;
+    /** Complete or resume Submitter onboarding */
+    post: operations["v1_users_me_submitter_onboarding_create"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1467,6 +1485,7 @@ export interface components {
     };
     PhoneVerificationRequest: {
       identifier: string;
+      purpose?: components["schemas"]["PurposeEnum"];
     };
     /**
      * @description * `approximate` - Approximate
@@ -1632,9 +1651,15 @@ export interface components {
       | "rejected"
       | "unavailable"
       | "archived";
+    /**
+     * @description * `submitter_onboarding` - submitter_onboarding
+     * @enum {string}
+     */
+    PurposeEnum: "submitter_onboarding";
     Registration: {
       identifier: string;
       password: string;
+      return_to?: string;
     };
     RegistrationResponse: {
       detail: string;
@@ -1692,6 +1717,12 @@ export interface components {
      * @enum {string}
      */
     RoleEnum: "owner" | "agent";
+    /**
+     * @description * `submission` - Submission
+     *     * `source_proposal` - Source Proposal
+     * @enum {string}
+     */
+    SelectedPathEnum: "submission" | "source_proposal";
     Session: {
       authenticated: boolean;
       csrf_token: string;
@@ -1873,6 +1904,16 @@ export interface components {
       assigned_to_me_count: number;
       aging_count: number;
       aging_after_hours: number;
+    };
+    SubmitterOnboardingState: {
+      eligible: boolean;
+      phone_verified: boolean;
+      selected_path:
+        | components["schemas"]["SelectedPathEnum"]
+        | components["schemas"]["NullEnum"];
+    };
+    SubmitterOnboardingUpdate: {
+      selected_path?: components["schemas"]["SelectedPathEnum"];
     };
     /**
      * @description * `unclassified` - دسته‌بندی‌نشده
@@ -2555,6 +2596,15 @@ export interface operations {
       };
       /** @description Authentication or CSRF verification failed */
       403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+      /** @description Request conflicts */
+      409: {
         headers: {
           [name: string]: unknown;
         };
@@ -4183,6 +4233,84 @@ export interface operations {
       };
       /** @description Authentication is required */
       401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  v1_users_me_submitter_onboarding_retrieve: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SubmitterOnboardingState"];
+        };
+      };
+    };
+  };
+  v1_users_me_submitter_onboarding_create: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: {
+      content: {
+        "application/json": components["schemas"]["SubmitterOnboardingUpdate"];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SubmitterOnboardingState"];
+        };
+      };
+      /** @description Request validation failed */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+      /** @description Authentication or CSRF verification failed */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+      /** @description Only JSON request bodies are supported */
+      415: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+      /** @description Request was throttled */
+      429: {
         headers: {
           [name: string]: unknown;
         };

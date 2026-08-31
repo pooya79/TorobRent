@@ -1,13 +1,14 @@
 from typing import cast
 
 from django.conf import settings
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.middleware.csrf import get_token
 from django.utils.decorators import method_decorator
 from django.views.decorators.cache import never_cache
 from django.views.decorators.csrf import csrf_protect, ensure_csrf_cookie
 from drf_spectacular.utils import OpenApiResponse, extend_schema
 from rest_framework import status
-from rest_framework.exceptions import AuthenticationFailed, ValidationError
+from rest_framework.exceptions import APIException, AuthenticationFailed, ValidationError
 from rest_framework.permissions import AllowAny
 from rest_framework.request import Request
 from rest_framework.response import Response
@@ -29,12 +30,16 @@ from .serializers import (
     RegistrationResponseSerializer,
     RegistrationSerializer,
     SessionSerializer,
+    SubmitterOnboardingStateSerializer,
+    SubmitterOnboardingUpdateSerializer,
     TokenSerializer,
     UserSerializer,
 )
 from .services import (
+    PhoneOwnershipConflict,
     PhoneVerificationResult,
     end_session,
+    grant_submitter_eligibility,
     register_renter,
     register_submitter,
     request_email_verification,
@@ -60,12 +65,19 @@ UNSUPPORTED_MEDIA_ERROR = OpenApiResponse(
     response=ProblemSerializer, description="Only JSON request bodies are supported"
 )
 THROTTLED_ERROR = OpenApiResponse(response=ProblemSerializer, description="Request was throttled")
+CONFLICT_ERROR = OpenApiResponse(response=ProblemSerializer, description="Request conflicts")
 PUBLIC_MUTATION_ERRORS = {
     (400, PROBLEM_MEDIA_TYPE): VALIDATION_ERROR,
     (403, PROBLEM_MEDIA_TYPE): PERMISSION_ERROR,
     (415, PROBLEM_MEDIA_TYPE): UNSUPPORTED_MEDIA_ERROR,
     (429, PROBLEM_MEDIA_TYPE): THROTTLED_ERROR,
 }
+
+
+class PhoneOwnershipConflictResponse(APIException):
+    status_code = status.HTTP_409_CONFLICT
+    default_code = "phone_ownership_conflict"
+    default_detail = "این شماره به حساب دیگری متصل است. برای بررسی مالکیت با پشتیبانی تماس بگیرید."
 
 
 def registration_response(identifier_kind: str, otp: str | None) -> Response:
@@ -112,6 +124,39 @@ class CurrentUserView(APIView):
     )
     def get(self, request: Request) -> Response:
         return Response(CurrentUserSerializer(cast(User, request.user)).data)
+
+
+@method_decorator(csrf_protect, name="dispatch")
+class SubmitterOnboardingView(APIView):
+    @staticmethod
+    def response_data(user: User) -> dict[str, object]:
+        return {
+            "eligible": user.is_submitter and user.phone_verified,
+            "phone_verified": user.phone_verified,
+            "selected_path": user.submitter_onboarding_path,
+        }
+
+    @extend_schema(
+        summary="Inspect Submitter onboarding progress",
+        responses={200: SubmitterOnboardingStateSerializer},
+    )
+    def get(self, request: Request) -> Response:
+        return Response(self.response_data(cast(User, request.user)))
+
+    @extend_schema(
+        summary="Complete or resume Submitter onboarding",
+        request=SubmitterOnboardingUpdateSerializer,
+        responses={200: SubmitterOnboardingStateSerializer, **PUBLIC_MUTATION_ERRORS},
+    )
+    def post(self, request: Request) -> Response:
+        user = cast(User, request.user)
+        serializer = SubmitterOnboardingUpdateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            grant_submitter_eligibility(user=user, **serializer.validated_data)
+        except DjangoValidationError as exc:
+            raise ValidationError({"phone": exc.messages[0]}) from exc
+        return Response(self.response_data(user))
 
 
 @method_decorator(csrf_protect, name="dispatch")
@@ -226,15 +271,27 @@ class PhoneVerificationRequestView(APIView):
     @extend_schema(
         summary="Request a phone verification code",
         request=PhoneVerificationRequestSerializer,
-        responses={202: PhoneOtpResponseSerializer, **PUBLIC_MUTATION_ERRORS},
+        responses={
+            202: PhoneOtpResponseSerializer,
+            (409, PROBLEM_MEDIA_TYPE): CONFLICT_ERROR,
+            **PUBLIC_MUTATION_ERRORS,
+        },
     )
     def post(self, request: Request) -> Response:
         serializer = PhoneVerificationRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         requesting_user = request.user if request.user.is_authenticated else None
-        otp = request_phone_verification(
-            phone=serializer.validated_data["identifier"], requesting_user=requesting_user
-        )
+        try:
+            otp = request_phone_verification(
+                phone=serializer.validated_data["identifier"],
+                requesting_user=requesting_user,
+                grants_submitter_eligibility=(
+                    requesting_user is not None
+                    and serializer.validated_data.get("purpose") == "submitter_onboarding"
+                ),
+            )
+        except PhoneOwnershipConflict as exc:
+            raise PhoneOwnershipConflictResponse from exc
         data = {"detail": "اگر شماره قابل تأیید باشد، کد تأیید ارسال می‌شود."}
         if settings.DEMO_OTP_DISCLOSURE and otp is not None:
             data["demo_otp"] = otp
