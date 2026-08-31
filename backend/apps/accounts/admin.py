@@ -71,12 +71,26 @@ class OperatorAwareGroupChangeForm(forms.ModelForm):  # type: ignore[type-arg]
 class UserAdmin(DjangoUserAdmin):  # type: ignore[type-arg]
     form = OperatorAwareUserChangeForm
     ordering = ("email",)
-    list_display = ("email", "email_verified_at", "anonymized_at", "is_staff", "is_active")
-    search_fields = ("email",)
-    readonly_fields = ("email_verified_at", "anonymized_at", "last_login", "date_joined")
+    list_display = (
+        "email",
+        "phone",
+        "email_verified_at",
+        "phone_verified_at",
+        "anonymized_at",
+        "is_staff",
+        "is_active",
+    )
+    search_fields = ("email", "phone")
+    readonly_fields = (
+        "email_verified_at",
+        "phone_verified_at",
+        "anonymized_at",
+        "last_login",
+        "date_joined",
+    )
     actions = ("anonymize_selected_accounts",)
     fieldsets = (
-        (None, {"fields": ("email", "password")}),
+        (None, {"fields": ("email", "phone", "password")}),
         ("Personal info", {"fields": ("first_name", "last_name")}),
         (
             "Permissions",
@@ -84,7 +98,15 @@ class UserAdmin(DjangoUserAdmin):  # type: ignore[type-arg]
         ),
         (
             "Important dates",
-            {"fields": ("email_verified_at", "anonymized_at", "last_login", "date_joined")},
+            {
+                "fields": (
+                    "email_verified_at",
+                    "phone_verified_at",
+                    "anonymized_at",
+                    "last_login",
+                    "date_joined",
+                )
+            },
         ),
     )
     add_fieldsets = (

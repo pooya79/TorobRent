@@ -60,6 +60,7 @@ def _ensure_operator_may_handle(*, support_request: SupportRequest, actor: User)
     owns_request = support_request.submitter_id == actor.id
     email_matches = (
         support_request.submitter_id is None
+        and actor.email is not None
         and support_request.email.casefold() == actor.email.casefold()
     )
     if owns_request or email_matches:

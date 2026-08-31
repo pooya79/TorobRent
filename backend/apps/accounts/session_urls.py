@@ -5,10 +5,12 @@ from .views import (
     LogoutView,
     PasswordResetConfirmView,
     PasswordResetRequestView,
+    PhoneVerificationRequestView,
     RegistrationView,
     RenterRegistrationView,
     SessionView,
     VerifyEmailView,
+    VerifyPhoneView,
 )
 
 urlpatterns = [
@@ -16,6 +18,12 @@ urlpatterns = [
     path("register/", RegistrationView.as_view(), name="register"),
     path("renter-register/", RenterRegistrationView.as_view(), name="renter-register"),
     path("verify-email/", VerifyEmailView.as_view(), name="verify-email"),
+    path("verify-phone/", VerifyPhoneView.as_view(), name="verify-phone"),
+    path(
+        "phone-verification/request/",
+        PhoneVerificationRequestView.as_view(),
+        name="phone-verification-request",
+    ),
     path("login/", LoginView.as_view(), name="login"),
     path("logout/", LogoutView.as_view(), name="logout"),
     path("password-reset/", PasswordResetRequestView.as_view(), name="password-reset"),

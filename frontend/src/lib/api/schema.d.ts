@@ -13,7 +13,7 @@ export interface paths {
     };
     get?: never;
     put?: never;
-    /** Log in with an email and password */
+    /** Log in with an email or Iranian mobile number and password */
     post: operations["v1_auth_login_create"];
     delete?: never;
     options?: never;
@@ -72,6 +72,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/v1/auth/phone-verification/request/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Request a phone verification code */
+    post: operations["v1_auth_phone_verification_request_create"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/v1/auth/register/": {
     parameters: {
       query?: never;
@@ -98,7 +115,7 @@ export interface paths {
     };
     get?: never;
     put?: never;
-    /** Register and sign in a Renter */
+    /** Register a Renter */
     post: operations["v1_auth_renter_register_create"];
     delete?: never;
     options?: never;
@@ -132,8 +149,25 @@ export interface paths {
     };
     get?: never;
     put?: never;
-    /** Verify a Submitter email address */
+    /** Verify an email address */
     post: operations["v1_auth_verify_email_create"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/auth/verify-phone/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Verify an Iranian mobile number */
+    post: operations["v1_auth_verify_phone_create"];
     delete?: never;
     options?: never;
     head?: never;
@@ -1096,10 +1130,12 @@ export interface components {
       /** Format: uuid */
       readonly id: string;
       /** Format: email */
-      readonly email: string;
+      readonly email: string | null;
+      readonly phone: string | null;
       readonly first_name: string;
       readonly last_name: string;
       readonly email_verified: boolean;
+      readonly phone_verified: boolean;
       readonly is_submitter: boolean;
       readonly operator_capabilities: components["schemas"]["OperatorCapabilitiesEnum"][];
     };
@@ -1261,8 +1297,7 @@ export interface components {
      */
     LocationSuggestionKindEnum: "city" | "district" | "neighborhood";
     Login: {
-      /** Format: email */
-      email: string;
+      identifier: string;
       password: string;
     };
     MapCluster: {
@@ -1398,8 +1433,19 @@ export interface components {
         | components["schemas"]["BlankEnum"];
       reason?: string;
     };
+    PhoneOtpResponse: {
+      detail: string;
+      demo_otp?: string;
+    };
     PhoneReveal: {
       phone: string;
+    };
+    PhoneVerification: {
+      identifier: string;
+      otp: string;
+    };
+    PhoneVerificationRequest: {
+      identifier: string;
     };
     /**
      * @description * `approximate` - Approximate
@@ -1566,8 +1612,7 @@ export interface components {
       | "unavailable"
       | "archived";
     Registration: {
-      /** Format: email */
-      email: string;
+      identifier: string;
       password: string;
     };
     RentalTermsInput: {
@@ -2147,10 +2192,12 @@ export interface components {
       /** Format: uuid */
       readonly id: string;
       /** Format: email */
-      readonly email: string;
+      readonly email: string | null;
+      readonly phone: string | null;
       readonly first_name: string;
       readonly last_name: string;
       readonly email_verified: boolean;
+      readonly phone_verified: boolean;
       readonly is_submitter: boolean;
     };
   };
@@ -2385,6 +2432,65 @@ export interface operations {
       };
     };
   };
+  v1_auth_phone_verification_request_create: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["PhoneVerificationRequest"];
+      };
+    };
+    responses: {
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PhoneOtpResponse"];
+        };
+      };
+      /** @description Request validation failed */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+      /** @description Authentication or CSRF verification failed */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+      /** @description Only JSON request bodies are supported */
+      415: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+      /** @description Request was throttled */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
   v1_auth_register_create: {
     parameters: {
       query?: never;
@@ -2403,7 +2509,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["Detail"];
+          "application/json": components["schemas"]["PhoneOtpResponse"];
         };
       };
       /** @description Request validation failed */
@@ -2462,7 +2568,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["User"];
+          "application/json": components["schemas"]["PhoneOtpResponse"];
         };
       };
       /** @description Request validation failed */
@@ -2532,6 +2638,65 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": components["schemas"]["Token"];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Detail"];
+        };
+      };
+      /** @description Request validation failed */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+      /** @description Authentication or CSRF verification failed */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+      /** @description Only JSON request bodies are supported */
+      415: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+      /** @description Request was throttled */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  v1_auth_verify_phone_create: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["PhoneVerification"];
       };
     };
     responses: {

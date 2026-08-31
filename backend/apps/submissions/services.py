@@ -237,6 +237,8 @@ def deliver_decision_notification(notification_id: str) -> bool:
         submission = notification.decision.submission
         dashboard_url = f"{settings.FRONTEND_ORIGIN}/dashboard#submission-{submission.id}"
         try:
+            if submission.submitter.email is None:
+                raise ValueError("The Submitter account has no email delivery address.")
             sent_count = EmailMessage(
                 subject="به‌روزرسانی وضعیت پیشنهاد در ترب‌رنت",
                 body=(

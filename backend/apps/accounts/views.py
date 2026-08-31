@@ -1,5 +1,6 @@
 from typing import cast
 
+from django.conf import settings
 from django.middleware.csrf import get_token
 from django.utils.decorators import method_decorator
 from django.views.decorators.cache import never_cache
@@ -21,19 +22,25 @@ from .serializers import (
     LoginSerializer,
     PasswordResetConfirmSerializer,
     PasswordResetRequestSerializer,
+    PhoneOtpResponseSerializer,
+    PhoneVerificationRequestSerializer,
+    PhoneVerificationSerializer,
     RegistrationSerializer,
     SessionSerializer,
     TokenSerializer,
     UserSerializer,
 )
 from .services import (
+    PhoneVerificationResult,
     end_session,
     register_renter,
     register_submitter,
     request_password_reset,
+    request_phone_verification,
     reset_password,
     start_session,
-    verify_submitter_email,
+    verify_email,
+    verify_phone,
 )
 
 PROBLEM_MEDIA_TYPE = "application/problem+json"
@@ -56,6 +63,19 @@ PUBLIC_MUTATION_ERRORS = {
     (415, PROBLEM_MEDIA_TYPE): UNSUPPORTED_MEDIA_ERROR,
     (429, PROBLEM_MEDIA_TYPE): THROTTLED_ERROR,
 }
+
+
+def registration_response(identifier_kind: str, otp: str | None) -> Response:
+    if identifier_kind == "phone":
+        data = {"detail": "کد تأیید برای شماره تلفن ارسال شد."}
+        if settings.DEMO_OTP_DISCLOSURE:
+            assert otp is not None
+            data["demo_otp"] = otp
+        return Response(data, status=status.HTTP_201_CREATED)
+    return Response(
+        {"detail": "حساب ساخته شد. برای تأیید ایمیل، پیام ارسال‌شده را بررسی کنید."},
+        status=status.HTTP_201_CREATED,
+    )
 
 
 @method_decorator(never_cache, name="dispatch")
@@ -94,18 +114,16 @@ class RegistrationView(APIView):
         summary="Register a Submitter",
         request=RegistrationSerializer,
         responses={
-            201: DetailSerializer,
+            201: PhoneOtpResponseSerializer,
             **PUBLIC_MUTATION_ERRORS,
         },
     )
     def post(self, request: Request) -> Response:
         serializer = RegistrationSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        register_submitter(**serializer.validated_data)
-        return Response(
-            {"detail": "حساب ساخته شد. برای تأیید ایمیل، پیام ارسال‌شده را بررسی کنید."},
-            status=status.HTTP_201_CREATED,
-        )
+        identifier = serializer.validated_data["identifier"]
+        _, otp = register_submitter(**serializer.validated_data)
+        return registration_response(identifier.kind, otp)
 
 
 @method_decorator(csrf_protect, name="dispatch")
@@ -114,18 +132,19 @@ class RenterRegistrationView(APIView):
     throttle_scope = "registration"
 
     @extend_schema(
-        summary="Register and sign in a Renter",
+        summary="Register a Renter",
         request=RegistrationSerializer,
         responses={
-            201: UserSerializer,
+            201: PhoneOtpResponseSerializer,
             **PUBLIC_MUTATION_ERRORS,
         },
     )
     def post(self, request: Request) -> Response:
         serializer = RegistrationSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        user = register_renter(request._request, **serializer.validated_data)
-        return Response(UserSerializer(user).data, status=status.HTTP_201_CREATED)
+        identifier = serializer.validated_data["identifier"]
+        _, otp = register_renter(**serializer.validated_data)
+        return registration_response(identifier.kind, otp)
 
 
 @method_decorator(csrf_protect, name="dispatch")
@@ -134,7 +153,7 @@ class VerifyEmailView(APIView):
     throttle_scope = "email_verification"
 
     @extend_schema(
-        summary="Verify a Submitter email address",
+        summary="Verify an email address",
         request=TokenSerializer,
         responses={
             200: DetailSerializer,
@@ -144,9 +163,58 @@ class VerifyEmailView(APIView):
     def post(self, request: Request) -> Response:
         serializer = TokenSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        if not verify_submitter_email(serializer.validated_data["token"]):
+        if not verify_email(serializer.validated_data["token"]):
             raise ValidationError({"token": "پیوند تأیید نامعتبر است یا اعتبار آن تمام شده است."})
         return Response({"detail": "ایمیل شما تأیید شد. اکنون می‌توانید وارد شوید."})
+
+
+@method_decorator(csrf_protect, name="dispatch")
+class VerifyPhoneView(APIView):
+    permission_classes = [AllowAny]
+    throttle_scope = "phone_verification"
+
+    @extend_schema(
+        summary="Verify an Iranian mobile number",
+        request=PhoneVerificationSerializer,
+        responses={200: DetailSerializer, **PUBLIC_MUTATION_ERRORS},
+    )
+    def post(self, request: Request) -> Response:
+        serializer = PhoneVerificationSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        result = verify_phone(**serializer.validated_data)
+        error_messages = {
+            PhoneVerificationResult.INVALID: "کد تأیید نادرست است.",
+            PhoneVerificationResult.EXPIRED: ("اعتبار کد تمام شده است. کد تازه‌ای درخواست کنید."),
+            PhoneVerificationResult.EXHAUSTED: (
+                "تعداد تلاش‌ها بیش از حد مجاز است. کد تازه‌ای درخواست کنید."
+            ),
+        }
+        if result is not PhoneVerificationResult.SUCCESS:
+            raise ValidationError({"otp": error_messages[result]})
+        return Response({"detail": "شماره تلفن تأیید شد. اکنون می‌توانید وارد شوید."})
+
+
+@method_decorator(csrf_protect, name="dispatch")
+class PhoneVerificationRequestView(APIView):
+    permission_classes = [AllowAny]
+    throttle_scope = "phone_verification_request"
+
+    @extend_schema(
+        summary="Request a phone verification code",
+        request=PhoneVerificationRequestSerializer,
+        responses={202: PhoneOtpResponseSerializer, **PUBLIC_MUTATION_ERRORS},
+    )
+    def post(self, request: Request) -> Response:
+        serializer = PhoneVerificationRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        requesting_user = request.user if request.user.is_authenticated else None
+        otp = request_phone_verification(
+            phone=serializer.validated_data["identifier"], requesting_user=requesting_user
+        )
+        data = {"detail": "اگر شماره قابل تأیید باشد، کد تأیید ارسال می‌شود."}
+        if settings.DEMO_OTP_DISCLOSURE and otp is not None:
+            data["demo_otp"] = otp
+        return Response(data, status=status.HTTP_202_ACCEPTED)
 
 
 @method_decorator(csrf_protect, name="dispatch")
@@ -155,7 +223,7 @@ class LoginView(APIView):
     throttle_scope = "login"
 
     @extend_schema(
-        summary="Log in with an email and password",
+        summary="Log in with an email or Iranian mobile number and password",
         request=LoginSerializer,
         responses={
             200: UserSerializer,
@@ -168,7 +236,7 @@ class LoginView(APIView):
         serializer.is_valid(raise_exception=True)
         user = start_session(request._request, **serializer.validated_data)
         if user is None:
-            raise AuthenticationFailed("ایمیل یا گذرواژه نادرست است.")
+            raise AuthenticationFailed("شناسه یا گذرواژه نادرست است.")
         return Response(UserSerializer(user).data)
 
 

@@ -1,4 +1,5 @@
 from concurrent.futures import ThreadPoolExecutor
+from datetime import timedelta
 from threading import Barrier
 
 import pytest
@@ -7,9 +8,15 @@ from django.core import mail
 from django.core.cache import cache
 from django.db import connection
 from django.test import override_settings
+from django.utils import timezone
 from rest_framework.test import APIClient
 
-from apps.accounts.models import User
+from apps.accounts.models import PhoneVerificationChallenge, User
+
+
+@pytest.fixture(autouse=True)
+def clear_account_throttles():
+    cache.clear()
 
 
 def csrf_client(api_client: APIClient) -> APIClient:
@@ -65,7 +72,7 @@ def test_session_reports_authenticated_session(api_client: APIClient, user):
 def test_submitter_registers_and_verifies_email(api_client: APIClient):
     response = csrf_client(api_client).post(
         "/api/v1/auth/register/",
-        {"email": "NEW@example.com", "password": "correct-horse-battery"},
+        {"identifier": "NEW@example.com", "password": "correct-horse-battery"},
         format="json",
     )
 
@@ -79,6 +86,13 @@ def test_submitter_registers_and_verifies_email(api_client: APIClient):
     assert len(mail.outbox) == 1
     token = mail.outbox[0].body.rsplit("/verify-email?token=", 1)[1].strip()
 
+    unverified_login = api_client.post(
+        "/api/v1/auth/login/",
+        {"identifier": "new@example.com", "password": "correct-horse-battery"},
+        format="json",
+    )
+    assert unverified_login.status_code == 401
+
     verify_response = api_client.post("/api/v1/auth/verify-email/", {"token": token}, format="json")
 
     assert verify_response.status_code == 200
@@ -89,6 +103,172 @@ def test_submitter_registers_and_verifies_email(api_client: APIClient):
     reused_response = api_client.post("/api/v1/auth/verify-email/", {"token": token}, format="json")
     assert reused_response.status_code == 400
     assert "نامعتبر" in reused_response.data["errors"]["token"][0]["message"]
+
+
+@override_settings(DEMO_OTP_DISCLOSURE=True)
+@pytest.mark.django_db
+def test_phone_registration_requires_otp_before_normalized_identifier_can_log_in(
+    api_client: APIClient,
+):
+    client = csrf_client(api_client)
+
+    registration = client.post(
+        "/api/v1/auth/register/",
+        {"identifier": "+98 912 345 6789", "password": "correct-horse-battery"},
+        format="json",
+    )
+
+    assert registration.status_code == 201
+    assert registration.data["detail"] == "کد تأیید برای شماره تلفن ارسال شد."
+    assert registration.data["demo_otp"].isdigit()
+    assert len(registration.data["demo_otp"]) == 6
+    user = User.objects.get(phone="09123456789")
+    assert user.email is None
+    assert user.phone_verified_at is None
+
+    unverified_login = client.post(
+        "/api/v1/auth/login/",
+        {"identifier": "09123456789", "password": "correct-horse-battery"},
+        format="json",
+    )
+    assert unverified_login.status_code == 401
+
+    verification = client.post(
+        "/api/v1/auth/verify-phone/",
+        {"identifier": "۰۹۱۲۳۴۵۶۷۸۹", "otp": registration.data["demo_otp"]},
+        format="json",
+    )
+    assert verification.status_code == 200
+    user.refresh_from_db()
+    assert user.phone_verified_at is not None
+
+    reused = client.post(
+        "/api/v1/auth/verify-phone/",
+        {"identifier": "09123456789", "otp": registration.data["demo_otp"]},
+        format="json",
+    )
+    assert reused.status_code == 400
+
+    login = client.post(
+        "/api/v1/auth/login/",
+        {"identifier": "+989123456789", "password": "correct-horse-battery"},
+        format="json",
+    )
+    assert login.status_code == 200
+    assert login.data["phone"] == "09123456789"
+    assert login.data["phone_verified"] is True
+
+
+@pytest.mark.django_db
+def test_phone_otp_requests_are_private_and_enforce_the_resend_delay(api_client: APIClient):
+    client = csrf_client(api_client)
+    User.objects.create_user(phone="09123456789", password="correct-horse-battery")
+    expected = {"detail": "اگر شماره قابل تأیید باشد، کد تأیید ارسال می‌شود."}
+
+    first = client.post(
+        "/api/v1/auth/phone-verification/request/",
+        {"identifier": "+989123456789"},
+        format="json",
+    )
+    missing = client.post(
+        "/api/v1/auth/phone-verification/request/",
+        {"identifier": "09999999999"},
+        format="json",
+    )
+    delayed = client.post(
+        "/api/v1/auth/phone-verification/request/",
+        {"identifier": "09123456789"},
+        format="json",
+    )
+
+    assert first.status_code == missing.status_code == delayed.status_code == 202
+    assert first.data == missing.data == delayed.data == expected
+    assert User.objects.get(phone="09123456789").phone_challenges.count() == 1
+
+
+@override_settings(DEMO_OTP_DISCLOSURE=True)
+@pytest.mark.django_db
+def test_phone_otp_reports_expiry_and_attempt_exhaustion(api_client: APIClient):
+    client = csrf_client(api_client)
+    expired_registration = client.post(
+        "/api/v1/auth/register/",
+        {"identifier": "09123456789", "password": "correct-horse-battery"},
+        format="json",
+    )
+    expired_otp = expired_registration.data["demo_otp"]
+    PhoneVerificationChallenge.objects.filter(phone="09123456789").update(
+        expires_at=timezone.now() - timedelta(seconds=1)
+    )
+
+    expired = client.post(
+        "/api/v1/auth/verify-phone/",
+        {"identifier": "09123456789", "otp": expired_otp},
+        format="json",
+    )
+    assert expired.status_code == 400
+    assert expired.data["errors"]["otp"][0]["message"] == (
+        "اعتبار کد تمام شده است. کد تازه‌ای درخواست کنید."
+    )
+
+    attempts_registration = client.post(
+        "/api/v1/auth/register/",
+        {"identifier": "09351234567", "password": "correct-horse-battery"},
+        format="json",
+    )
+    wrong_otp = "999999" if attempts_registration.data["demo_otp"] == "000000" else "000000"
+    for _ in range(5):
+        invalid = client.post(
+            "/api/v1/auth/verify-phone/",
+            {"identifier": "09351234567", "otp": wrong_otp},
+            format="json",
+        )
+        assert invalid.status_code == 400
+
+    exhausted = client.post(
+        "/api/v1/auth/verify-phone/",
+        {"identifier": "09351234567", "otp": attempts_registration.data["demo_otp"]},
+        format="json",
+    )
+    assert exhausted.data["errors"]["otp"][0]["message"] == (
+        "تعداد تلاش‌ها بیش از حد مجاز است. کد تازه‌ای درخواست کنید."
+    )
+
+
+@override_settings(DEMO_OTP_DISCLOSURE=True)
+@pytest.mark.django_db
+def test_verified_email_account_can_add_phone_and_use_both_identifiers(
+    api_client: APIClient, user: User
+):
+    user.email_verified_at = timezone.now()
+    user.save(update_fields=["email_verified_at"])
+    client = csrf_client(api_client)
+    client.force_login(user)
+
+    requested = client.post(
+        "/api/v1/auth/phone-verification/request/",
+        {"identifier": "+98 935 123 4567"},
+        format="json",
+    )
+    assert requested.status_code == 202
+    assert requested.data["demo_otp"].isdigit()
+
+    verified = client.post(
+        "/api/v1/auth/verify-phone/",
+        {"identifier": "09351234567", "otp": requested.data["demo_otp"]},
+        format="json",
+    )
+    assert verified.status_code == 200
+
+    client.logout()
+    for identifier in ("person@example.com", "09351234567"):
+        csrf_client(client)
+        login = client.post(
+            "/api/v1/auth/login/",
+            {"identifier": identifier, "password": "correct-horse-battery"},
+            format="json",
+        )
+        assert login.status_code == 200
+        client.logout()
 
 
 @pytest.mark.django_db
@@ -104,7 +284,7 @@ def test_demo_registration_accepts_a_simple_password(
 ):
     response = csrf_client(api_client).post(
         endpoint,
-        {"email": email, "password": "123"},
+        {"identifier": email, "password": "123"},
         format="json",
     )
 
@@ -115,23 +295,23 @@ def test_demo_registration_accepts_a_simple_password(
 
 
 @pytest.mark.django_db
-def test_renter_registers_without_submitter_status_and_starts_session(api_client: APIClient):
+def test_renter_registers_without_submitter_status_and_waits_for_verification(
+    api_client: APIClient,
+):
     client = csrf_client(api_client)
 
     response = client.post(
         "/api/v1/auth/renter-register/",
-        {"email": "RENTER@example.com", "password": "correct-horse-battery"},
+        {"identifier": "RENTER@example.com", "password": "correct-horse-battery"},
         format="json",
     )
 
     assert response.status_code == 201
-    assert response.data["email"] == "renter@example.com"
-    assert response.data["email_verified"] is False
-    assert response.data["is_submitter"] is False
+    assert response.data["detail"].startswith("حساب ساخته شد")
     renter = User.objects.get(email="renter@example.com")
     assert renter.is_submitter is False
-    assert client.get("/api/v1/auth/session/").data["authenticated"] is True
-    assert client.get("/api/v1/users/me/").data["is_submitter"] is False
+    assert client.get("/api/v1/auth/session/").data["authenticated"] is False
+    assert client.get("/api/v1/users/me/").status_code == 401
 
 
 @pytest.mark.django_db
@@ -153,7 +333,7 @@ def test_submitter_logs_in_and_logs_out_with_same_origin_session(api_client: API
 
     login_response = client.post(
         "/api/v1/auth/login/",
-        {"email": "PERSON@example.com", "password": "correct-horse-battery"},
+        {"identifier": "PERSON@example.com", "password": "correct-horse-battery"},
         format="json",
     )
 
@@ -275,7 +455,7 @@ def test_expired_verification_token_has_safe_persian_error(api_client: APIClient
     client = csrf_client(api_client)
     client.post(
         "/api/v1/auth/register/",
-        {"email": "new@example.com", "password": "correct-horse-battery"},
+        {"identifier": "new@example.com", "password": "correct-horse-battery"},
         format="json",
     )
     token = mail.outbox[0].body.rsplit("/verify-email?token=", 1)[1].strip()
@@ -291,7 +471,7 @@ def test_expired_verification_token_has_safe_persian_error(api_client: APIClient
 def test_login_is_throttled(api_client: APIClient):
     cache.clear()
     client = csrf_client(api_client)
-    credentials = {"email": "missing@example.com", "password": "incorrect-password"}
+    credentials = {"identifier": "missing@example.com", "password": "incorrect-password"}
 
     for _ in range(10):
         assert client.post("/api/v1/auth/login/", credentials, format="json").status_code == 401
@@ -301,13 +481,51 @@ def test_login_is_throttled(api_client: APIClient):
     assert throttled.data["code"] == "throttled"
 
 
+@pytest.mark.django_db
+def test_phone_otp_request_and_verification_are_throttled(api_client: APIClient):
+    client = csrf_client(api_client)
+
+    for index in range(5):
+        response = client.post(
+            "/api/v1/auth/phone-verification/request/",
+            {"identifier": f"0912000000{index}"},
+            format="json",
+        )
+        assert response.status_code == 202
+    assert (
+        client.post(
+            "/api/v1/auth/phone-verification/request/",
+            {"identifier": "09120000005"},
+            format="json",
+        ).status_code
+        == 429
+    )
+
+    cache.clear()
+    for _ in range(20):
+        response = client.post(
+            "/api/v1/auth/verify-phone/",
+            {"identifier": "09120000000", "otp": "000000"},
+            format="json",
+        )
+        assert response.status_code == 400
+    assert (
+        client.post(
+            "/api/v1/auth/verify-phone/",
+            {"identifier": "09120000000", "otp": "000000"},
+            format="json",
+        ).status_code
+        == 429
+    )
+
+
 @pytest.mark.skipif(connection.vendor != "postgresql", reason="PostgreSQL locking behavior")
 @pytest.mark.django_db(transaction=True)
 def test_verification_token_succeeds_only_once_under_concurrent_use():
     registration_client = csrf_client(APIClient(enforce_csrf_checks=True))
     registration_client.post(
         "/api/v1/auth/register/",
-        {"email": "concurrent@example.com", "password": "correct-horse-battery"},
+        {"identifier": "concurrent@example.com", "password": "correct-horse-battery"},
         format="json",
     )
     token = mail.outbox[0].body.rsplit("/verify-email?token=", 1)[1].strip()

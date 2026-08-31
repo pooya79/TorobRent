@@ -3,6 +3,7 @@ from typing import Any
 from rest_framework import serializers
 
 from .capabilities import OperatorCapability
+from .identifiers import AccountIdentifier, normalize_account_identifier
 from .models import User
 
 TOKEN_ERROR_MESSAGES: dict[str, Any] = {
@@ -12,17 +13,45 @@ TOKEN_ERROR_MESSAGES: dict[str, Any] = {
 }
 
 
+class AccountIdentifierField(serializers.CharField):
+    default_error_messages = {"invalid": "ایمیل یا شماره تلفن معتبر نیست."}
+
+    def to_internal_value(self, data: Any) -> Any:
+        value = super().to_internal_value(data)
+        try:
+            return normalize_account_identifier(value)
+        except ValueError:
+            self.fail("invalid")
+
+
+class IranianMobileField(serializers.CharField):
+    default_error_messages = {"invalid": "شماره تلفن معتبر نیست."}
+
+    def to_internal_value(self, data: Any) -> str:
+        value = super().to_internal_value(data)
+        try:
+            identifier = normalize_account_identifier(value)
+        except ValueError:
+            self.fail("invalid")
+        if identifier.kind != "phone":
+            self.fail("invalid")
+        return identifier.value
+
+
 class UserSerializer(serializers.ModelSerializer[User]):
     email_verified = serializers.BooleanField(read_only=True)
+    phone_verified = serializers.BooleanField(read_only=True)
 
     class Meta:
         model = User
         fields: tuple[str, ...] = (
             "id",
             "email",
+            "phone",
             "first_name",
             "last_name",
             "email_verified",
+            "phone_verified",
             "is_submitter",
         )
         read_only_fields: tuple[str, ...] = fields
@@ -49,14 +78,13 @@ class DetailSerializer(serializers.Serializer[Any]):
 
 
 class RegistrationSerializer(serializers.Serializer[Any]):
-    email = serializers.EmailField()
+    identifier = AccountIdentifierField()
     password = serializers.CharField(write_only=True, trim_whitespace=False)
 
-    def validate_email(self, value: str) -> str:
-        email = value.lower()
-        if User.objects.filter(email=email).exists():
-            raise serializers.ValidationError("حسابی با این ایمیل از قبل وجود دارد.")
-        return email
+    def validate_identifier(self, value: AccountIdentifier) -> AccountIdentifier:
+        if User.objects.filter(**{value.kind: value.value}).exists():
+            raise serializers.ValidationError("این شناسه قابل استفاده نیست.")
+        return value
 
 
 class TokenSerializer(serializers.Serializer[Any]):
@@ -64,11 +92,21 @@ class TokenSerializer(serializers.Serializer[Any]):
 
 
 class LoginSerializer(serializers.Serializer[Any]):
-    email = serializers.EmailField()
+    identifier = AccountIdentifierField()
     password = serializers.CharField(write_only=True, trim_whitespace=False)
 
-    def validate_email(self, value: str) -> str:
-        return value.lower()
+
+class PhoneVerificationSerializer(serializers.Serializer[Any]):
+    identifier = IranianMobileField()
+    otp = serializers.RegexField(r"^\d{6}$")
+
+
+class PhoneVerificationRequestSerializer(serializers.Serializer[Any]):
+    identifier = IranianMobileField()
+
+
+class PhoneOtpResponseSerializer(DetailSerializer):
+    demo_otp = serializers.RegexField(r"^\d{6}$", required=False)
 
 
 class PasswordResetRequestSerializer(serializers.Serializer[Any]):

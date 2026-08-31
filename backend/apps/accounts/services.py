@@ -1,7 +1,11 @@
+import secrets
 from collections.abc import Iterable
+from datetime import timedelta
+from enum import StrEnum
 
 from django.conf import settings
-from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth import login, logout
+from django.contrib.auth.hashers import check_password, make_password
 from django.contrib.auth.models import Group, Permission
 from django.contrib.auth.tokens import default_token_generator
 from django.core.exceptions import ValidationError
@@ -11,7 +15,8 @@ from django.http import HttpRequest
 from django.utils import timezone
 
 from .capabilities import CAPABILITY_PERMISSIONS, MANAGED_OPERATOR_GROUPS
-from .models import User
+from .identifiers import AccountIdentifier
+from .models import PhoneVerificationChallenge, User
 from .tokens import (
     make_email_verification_token,
     make_password_reset_token,
@@ -112,34 +117,74 @@ def can_delete_operator_group(*, actor: User, group: Group) -> bool:
     )
 
 
-def _register_account(*, email: str, password: str, is_submitter: bool) -> User:
+def _issue_phone_otp(*, user: User, phone: str) -> str | None:
+    latest = (
+        PhoneVerificationChallenge.objects
+        .filter(user=user, phone=phone)
+        .order_by("-created_at")
+        .first()
+    )
+    if latest is not None and latest.created_at > timezone.now() - timedelta(seconds=60):
+        return None
+    code = f"{secrets.randbelow(1_000_000):06d}"
+    PhoneVerificationChallenge.objects.filter(
+        user=user, phone=phone, consumed_at__isnull=True
+    ).update(consumed_at=timezone.now())
+    PhoneVerificationChallenge.objects.create(
+        user=user,
+        phone=phone,
+        secret_hash=make_password(code),
+        expires_at=timezone.now() + timedelta(minutes=5),
+    )
+    return code
+
+
+def request_phone_verification(*, phone: str, requesting_user: User | None = None) -> str | None:
+    if requesting_user is None:
+        user = User.objects.filter(phone=phone, phone_verified_at__isnull=True).first()
+    else:
+        conflict = User.objects.filter(phone=phone).exclude(pk=requesting_user.pk).exists()
+        if conflict or requesting_user.phone_verified:
+            return None
+        user = requesting_user
+    if user is None:
+        return None
+    return _issue_phone_otp(user=user, phone=phone)
+
+
+def _register_account(
+    *, identifier: AccountIdentifier, password: str, is_submitter: bool
+) -> tuple[User, str | None]:
     user = User.objects.create_user(
-        email=email,
+        email=identifier.value if identifier.kind == "email" else None,
+        phone=identifier.value if identifier.kind == "phone" else None,
         password=password,
         is_submitter=is_submitter,
     )
+    if identifier.kind == "phone":
+        otp = _issue_phone_otp(user=user, phone=identifier.value)
+        assert otp is not None
+        return user, otp
     token = make_email_verification_token(user)
     verification_url = f"{settings.FRONTEND_ORIGIN}/verify-email?token={token}"
     send_mail(
         "تأیید ایمیل ترب‌رنت",
         f"برای تأیید ایمیل خود این پیوند را باز کنید:\n{verification_url}",
         settings.DEFAULT_FROM_EMAIL,
-        [user.email],
+        [identifier.value],
     )
-    return user
+    return user, None
 
 
-def register_submitter(*, email: str, password: str) -> User:
-    return _register_account(email=email, password=password, is_submitter=True)
+def register_submitter(*, identifier: AccountIdentifier, password: str) -> tuple[User, str | None]:
+    return _register_account(identifier=identifier, password=password, is_submitter=True)
 
 
-def register_renter(request: HttpRequest, *, email: str, password: str) -> User:
-    user = _register_account(email=email, password=password, is_submitter=False)
-    login(request, user, backend="django.contrib.auth.backends.ModelBackend")
-    return user
+def register_renter(*, identifier: AccountIdentifier, password: str) -> tuple[User, str | None]:
+    return _register_account(identifier=identifier, password=password, is_submitter=False)
 
 
-def verify_submitter_email(token: str) -> bool:
+def verify_email(token: str) -> bool:
     user_id = read_email_verification_token(token, settings.EMAIL_VERIFICATION_TIMEOUT)
     if user_id is None:
         return False
@@ -153,11 +198,49 @@ def verify_submitter_email(token: str) -> bool:
     return True
 
 
-def start_session(request: HttpRequest, *, email: str, password: str) -> User | None:
-    user = authenticate(request=request, email=email, password=password)
-    if not isinstance(user, User):
+class PhoneVerificationResult(StrEnum):
+    SUCCESS = "success"
+    INVALID = "invalid"
+    EXPIRED = "expired"
+    EXHAUSTED = "exhausted"
+
+
+def verify_phone(*, identifier: str, otp: str) -> PhoneVerificationResult:
+    with transaction.atomic():
+        challenge = (
+            PhoneVerificationChallenge.objects
+            .select_for_update()
+            .filter(phone=identifier, consumed_at__isnull=True)
+            .order_by("-created_at")
+            .first()
+        )
+        if challenge is None:
+            return PhoneVerificationResult.INVALID
+        if challenge.expires_at <= timezone.now():
+            return PhoneVerificationResult.EXPIRED
+        if challenge.attempts >= 5:
+            return PhoneVerificationResult.EXHAUSTED
+        challenge.attempts += 1
+        if not check_password(otp, challenge.secret_hash):
+            challenge.save(update_fields=["attempts"])
+            return PhoneVerificationResult.INVALID
+        challenge.consumed_at = timezone.now()
+        challenge.save(update_fields=["attempts", "consumed_at"])
+        user = User.objects.select_for_update().get(pk=challenge.user_id)
+        user.phone = identifier
+        user.phone_verified_at = timezone.now()
+        user.save(update_fields=["phone", "phone_verified_at"])
+    return PhoneVerificationResult.SUCCESS
+
+
+def start_session(
+    request: HttpRequest, *, identifier: AccountIdentifier, password: str
+) -> User | None:
+    user = User.objects.filter(**{identifier.kind: identifier.value}, is_active=True).first()
+    verified = user and (user.email_verified if identifier.kind == "email" else user.phone_verified)
+    if not isinstance(user, User) or not verified or not user.check_password(password):
         return None
-    login(request, user)
+    login(request, user, backend="django.contrib.auth.backends.ModelBackend")
     return user
 
 
@@ -167,7 +250,7 @@ def end_session(request: HttpRequest) -> None:
 
 def request_password_reset(email: str) -> None:
     user = User.objects.filter(email=email, is_active=True).first()
-    if user is None:
+    if user is None or user.email is None:
         return
     token = make_password_reset_token(user)
     reset_url = f"{settings.FRONTEND_ORIGIN}/reset-password?token={token}"

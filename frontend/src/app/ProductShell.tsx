@@ -228,7 +228,7 @@ function AccountIdentity({ currentUser }: { currentUser: CurrentUser }) {
     <>
       {name ? <p className="font-semibold">{name}</p> : null}
       <p className="text-muted-foreground text-sm font-normal" dir="ltr">
-        {currentUser.email}
+        {currentUser.email ?? currentUser.phone}
       </p>
     </>
   );

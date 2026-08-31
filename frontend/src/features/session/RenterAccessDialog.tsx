@@ -55,41 +55,82 @@ function AccessForm({
 }) {
   const queryClient = useQueryClient();
   const content = accessContent[mode];
+  const [pendingPhone, setPendingPhone] = useState<{
+    identifier: string;
+    password: string;
+    demoOtp?: string;
+  }>();
+  const [registrationResult, setRegistrationResult] = useState<string>();
+
+  async function finishAuthentication(user: User) {
+    queryClient.setQueryData(
+      ["session"],
+      (
+        current: { authenticated: boolean; csrf_token: string } | undefined,
+      ) => ({
+        authenticated: true,
+        csrf_token: current?.csrf_token ?? "",
+      }),
+    );
+    await queryClient.invalidateQueries({ queryKey: ["session"] });
+    await queryClient.fetchQuery(sessionQuery);
+    void queryClient.invalidateQueries({ queryKey: ["current-user"] });
+    await queryClient.invalidateQueries({
+      queryKey: ["catalog", "properties"],
+    });
+    onAuthenticated(user);
+  }
+
   const mutation = useMutation({
     mutationFn: async ({
-      email,
+      identifier,
       password,
     }: {
-      email: string;
+      identifier: string;
       password: string;
     }) => {
       const response =
         mode === "login"
-          ? await api.POST("/api/v1/auth/login/", { body: { email, password } })
+          ? await api.POST("/api/v1/auth/login/", {
+              body: { identifier, password },
+            })
           : await api.POST("/api/v1/auth/renter-register/", {
-              body: { email, password },
+              body: { identifier, password },
             });
       if (response.error || !response.data) throw apiError(response.error);
       return response.data;
     },
-    onSuccess: async (user) => {
-      queryClient.setQueryData(
-        ["session"],
-        (
-          current: { authenticated: boolean; csrf_token: string } | undefined,
-        ) => ({
-          authenticated: true,
-          csrf_token: current?.csrf_token ?? "",
-        }),
-      );
-      await queryClient.invalidateQueries({ queryKey: ["session"] });
-      await queryClient.fetchQuery(sessionQuery);
-      void queryClient.invalidateQueries({ queryKey: ["current-user"] });
-      await queryClient.invalidateQueries({
-        queryKey: ["catalog", "properties"],
-      });
-      onAuthenticated(user);
+    onSuccess: async (data, variables) => {
+      if ("id" in data) {
+        await finishAuthentication(data);
+        return;
+      }
+      setRegistrationResult(data.detail);
+      if (!variables.identifier.includes("@")) {
+        setPendingPhone({
+          ...variables,
+          demoOtp: data.demo_otp,
+        });
+      }
     },
+  });
+  const verification = useMutation({
+    mutationFn: async (otp: string) => {
+      if (!pendingPhone) throw new Error("شماره تلفن در دسترس نیست.");
+      const verified = await api.POST("/api/v1/auth/verify-phone/", {
+        body: { identifier: pendingPhone.identifier, otp },
+      });
+      if (verified.error || !verified.data) throw apiError(verified.error);
+      const login = await api.POST("/api/v1/auth/login/", {
+        body: {
+          identifier: pendingPhone.identifier,
+          password: pendingPhone.password,
+        },
+      });
+      if (login.error || !login.data) throw apiError(login.error);
+      return login.data;
+    },
+    onSuccess: finishAuthentication,
   });
   const fieldErrors =
     mutation.error instanceof ApiError ? mutation.error.fields : {};
@@ -97,36 +138,75 @@ function AccessForm({
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
-    const email = form.get("email");
+    const identifier = form.get("identifier");
     const password = form.get("password");
     mutation.mutate({
-      email: typeof email === "string" ? email : "",
+      identifier: typeof identifier === "string" ? identifier : "",
       password: typeof password === "string" ? password : "",
     });
+  }
+
+  function submitOtp(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const otp = new FormData(event.currentTarget).get("otp");
+    verification.mutate(typeof otp === "string" ? otp : "");
+  }
+
+  if (pendingPhone) {
+    return (
+      <form key="renter-phone-otp" className="grid gap-5" onSubmit={submitOtp}>
+        <div className="grid gap-2">
+          <Label htmlFor="renter-phone-otp">کد تأیید</Label>
+          <Input
+            id="renter-phone-otp"
+            name="otp"
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            maxLength={6}
+            required
+          />
+          {pendingPhone.demoOtp ? (
+            <p className="text-muted-foreground text-sm">
+              کد نمایشی: {pendingPhone.demoOtp}
+            </p>
+          ) : null}
+        </div>
+        {verification.error ? (
+          <Alert variant="destructive">
+            <AlertDescription>{verification.error.message}</AlertDescription>
+          </Alert>
+        ) : null}
+        <Button disabled={verification.isPending} type="submit">
+          {verification.isPending ? "در حال تأیید…" : "تأیید و ادامه"}
+        </Button>
+      </form>
+    );
   }
 
   return (
     <form className="grid gap-5" onSubmit={submit}>
       <div className="grid gap-2">
-        <Label htmlFor={`renter-${mode}-email`}>ایمیل</Label>
+        <Label htmlFor={`renter-${mode}-identifier`}>ایمیل یا شماره تلفن</Label>
         <Input
-          id={`renter-${mode}-email`}
-          name="email"
-          type="email"
-          autoComplete="email"
+          id={`renter-${mode}-identifier`}
+          name="identifier"
+          type="text"
+          autoComplete="username"
           aria-describedby={
-            fieldErrors.email ? `renter-${mode}-email-error` : undefined
+            fieldErrors.identifier
+              ? `renter-${mode}-identifier-error`
+              : undefined
           }
-          aria-invalid={fieldErrors.email ? true : undefined}
+          aria-invalid={fieldErrors.identifier ? true : undefined}
           required
         />
-        {fieldErrors.email ? (
+        {fieldErrors.identifier ? (
           <p
-            id={`renter-${mode}-email-error`}
+            id={`renter-${mode}-identifier-error`}
             className="text-destructive text-sm"
             role="alert"
           >
-            {fieldErrors.email}
+            {fieldErrors.identifier}
           </p>
         ) : null}
       </div>
@@ -156,6 +236,11 @@ function AccessForm({
       {mutation.error && Object.keys(fieldErrors).length === 0 ? (
         <Alert variant="destructive">
           <AlertDescription>{mutation.error.message}</AlertDescription>
+        </Alert>
+      ) : null}
+      {registrationResult ? (
+        <Alert>
+          <AlertDescription>{registrationResult}</AlertDescription>
         </Alert>
       ) : null}
       <Button disabled={mutation.isPending} type="submit">

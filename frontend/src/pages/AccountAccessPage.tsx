@@ -22,7 +22,8 @@ const content = {
   },
   register: {
     title: "ساخت حساب ارسال‌کننده",
-    description: "پس از ثبت‌نام، ایمیل خود را تأیید کنید.",
+    description:
+      "با ایمیل یا شماره تلفن حساب بسازید و شناسه خود را تأیید کنید.",
     submit: "ساخت حساب",
   },
   recovery: {
@@ -45,49 +46,89 @@ export function AccountAccessPage({ mode }: { mode: AccountAccessMode }) {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [result, setResult] = useState<string>();
+  const [pendingPhone, setPendingPhone] = useState<{
+    identifier: string;
+    demoOtp?: string;
+  }>();
   const mutation = useMutation({
     mutationFn: async ({
-      email,
+      identifier,
       password,
     }: {
-      email: string;
+      identifier: string;
       password?: string;
     }) => {
       if (mode === "login") {
         const { data, error } = await api.POST("/api/v1/auth/login/", {
-          body: { email, password: password ?? "" },
+          body: { identifier, password: password ?? "" },
         });
         if (error || !data) throw apiError(error);
         return data;
       }
       if (mode === "register") {
         const { data, error } = await api.POST("/api/v1/auth/register/", {
-          body: { email, password: password ?? "" },
+          body: { identifier, password: password ?? "" },
         });
         if (error || !data) throw apiError(error);
         return data;
       }
       const { data, error } = await api.POST("/api/v1/auth/password-reset/", {
-        body: { email },
+        body: { email: identifier },
       });
       if (error || !data) throw apiError(error);
       return data;
     },
-    onSuccess: async (data) => {
+    onSuccess: async (data, variables) => {
       if (mode === "login" && "email_verified" in data) {
         await queryClient.invalidateQueries({ queryKey: ["session"] });
-        if (!data.email_verified) {
-          setResult(
-            "برای ادامه، ابتدا ایمیل خود را از طریق پیام ارسال‌شده تأیید کنید.",
-          );
-          return;
-        }
         void navigate(safeReturnTo(searchParams.get("returnTo")), {
           replace: true,
         });
         return;
       }
+      if (mode === "register" && !variables.identifier.includes("@")) {
+        setPendingPhone({
+          identifier: variables.identifier,
+          demoOtp:
+            "demo_otp" in data && typeof data.demo_otp === "string"
+              ? data.demo_otp
+              : undefined,
+        });
+      }
       if ("detail" in data) setResult(data.detail);
+    },
+  });
+  const verification = useMutation({
+    mutationFn: async (otp: string) => {
+      if (!pendingPhone) throw new Error("شماره تلفن در دسترس نیست.");
+      const { data, error } = await api.POST("/api/v1/auth/verify-phone/", {
+        body: { identifier: pendingPhone.identifier, otp },
+      });
+      if (error || !data) throw apiError(error);
+      return data;
+    },
+    onSuccess: (data) => setResult(data.detail),
+  });
+  const resend = useMutation({
+    mutationFn: async () => {
+      if (!pendingPhone) throw new Error("شماره تلفن در دسترس نیست.");
+      const { data, error } = await api.POST(
+        "/api/v1/auth/phone-verification/request/",
+        { body: { identifier: pendingPhone.identifier } },
+      );
+      if (error || !data) throw apiError(error);
+      return data;
+    },
+    onSuccess: (data) => {
+      setPendingPhone((current) =>
+        current
+          ? {
+              ...current,
+              demoOtp: data.demo_otp,
+            }
+          : current,
+      );
+      setResult(data.detail);
     },
   });
 
@@ -95,10 +136,10 @@ export function AccountAccessPage({ mode }: { mode: AccountAccessMode }) {
     event.preventDefault();
     setResult(undefined);
     const form = new FormData(event.currentTarget);
-    const email = form.get("email");
+    const identifier = form.get("identifier");
     const password = form.get("password");
     mutation.mutate({
-      email: typeof email === "string" ? email : "",
+      identifier: typeof identifier === "string" ? identifier : "",
       password:
         mode === "recovery"
           ? undefined
@@ -106,6 +147,13 @@ export function AccountAccessPage({ mode }: { mode: AccountAccessMode }) {
             ? password
             : "",
     });
+  }
+
+  function submitOtp(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setResult(undefined);
+    const otp = new FormData(event.currentTarget).get("otp");
+    verification.mutate(typeof otp === "string" ? otp : "");
   }
 
   return (
@@ -124,56 +172,106 @@ export function AccountAccessPage({ mode }: { mode: AccountAccessMode }) {
           </p>
         </CardHeader>
         <CardContent>
-          <form className="grid gap-5" onSubmit={submit}>
-            <div className="grid gap-2">
-              <Label htmlFor={`${mode}-email`}>ایمیل</Label>
-              <Input
-                id={`${mode}-email`}
-                name="email"
-                type="email"
-                autoComplete="email"
-                required
-              />
-            </div>
-            {mode !== "recovery" ? (
+          {pendingPhone ? (
+            <form key="phone-otp" className="grid gap-5" onSubmit={submitOtp}>
               <div className="grid gap-2">
-                <Label htmlFor={`${mode}-password`}>گذرواژه</Label>
+                <Label htmlFor="phone-otp">کد تأیید</Label>
                 <Input
-                  id={`${mode}-password`}
-                  name="password"
-                  type="password"
-                  autoComplete={
-                    mode === "login" ? "current-password" : "new-password"
-                  }
+                  id="phone-otp"
+                  name="otp"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  maxLength={6}
                   required
                 />
+                {pendingPhone.demoOtp ? (
+                  <p className="text-muted-foreground text-sm">
+                    کد نمایشی: {pendingPhone.demoOtp}
+                  </p>
+                ) : null}
+                <p className="text-muted-foreground text-sm">
+                  کد پس از ۵ دقیقه منقضی می‌شود. درخواست دوباره پس از ۶۰ ثانیه
+                  ممکن است.
+                </p>
               </div>
-            ) : null}
-            {result ? (
-              <div className="grid gap-3">
+              {result ? (
                 <Alert>
                   <AlertDescription>{result}</AlertDescription>
                 </Alert>
-                <DevelopmentMailHint />
+              ) : null}
+              {verification.error ? (
+                <Alert variant="destructive">
+                  <AlertDescription>
+                    {errorMessage(verification.error, "کد تأیید پذیرفته نشد.")}
+                  </AlertDescription>
+                </Alert>
+              ) : null}
+              <Button type="submit" disabled={verification.isPending}>
+                {verification.isPending ? "در حال تأیید…" : "تأیید شماره"}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={resend.isPending}
+                onClick={() => resend.mutate()}
+              >
+                ارسال دوباره کد
+              </Button>
+            </form>
+          ) : (
+            <form key="account-access" className="grid gap-5" onSubmit={submit}>
+              <div className="grid gap-2">
+                <Label htmlFor={`${mode}-identifier`}>
+                  {mode === "recovery" ? "ایمیل" : "ایمیل یا شماره تلفن"}
+                </Label>
+                <Input
+                  id={`${mode}-identifier`}
+                  name="identifier"
+                  type={mode === "recovery" ? "email" : "text"}
+                  autoComplete={mode === "recovery" ? "email" : "username"}
+                  required
+                />
               </div>
-            ) : null}
-            {mutation.error ? (
-              <Alert variant="destructive">
-                <AlertDescription>
-                  {errorMessage(
-                    mutation.error,
-                    "در انجام درخواست مشکلی پیش آمد. دوباره تلاش کنید.",
-                  )}
-                </AlertDescription>
-              </Alert>
-            ) : null}
-            <Button
-              type="submit"
-              disabled={session.isPending || mutation.isPending}
-            >
-              {mutation.isPending ? "در حال ارسال…" : copy.submit}
-            </Button>
-          </form>
+              {mode !== "recovery" ? (
+                <div className="grid gap-2">
+                  <Label htmlFor={`${mode}-password`}>گذرواژه</Label>
+                  <Input
+                    id={`${mode}-password`}
+                    name="password"
+                    type="password"
+                    autoComplete={
+                      mode === "login" ? "current-password" : "new-password"
+                    }
+                    required
+                  />
+                </div>
+              ) : null}
+              {result ? (
+                <div className="grid gap-3">
+                  <Alert>
+                    <AlertDescription>{result}</AlertDescription>
+                  </Alert>
+                  <DevelopmentMailHint />
+                </div>
+              ) : null}
+              {mutation.error ? (
+                <Alert variant="destructive">
+                  <AlertDescription>
+                    {errorMessage(
+                      mutation.error,
+                      "در انجام درخواست مشکلی پیش آمد. دوباره تلاش کنید.",
+                    )}
+                  </AlertDescription>
+                </Alert>
+              ) : null}
+              <Button
+                type="submit"
+                disabled={session.isPending || mutation.isPending}
+              >
+                {mutation.isPending ? "در حال ارسال…" : copy.submit}
+              </Button>
+            </form>
+          )}
           <div className="text-muted-foreground mt-6 flex flex-wrap gap-x-4 gap-y-2 text-sm">
             {mode !== "login" ? <Link to="/login">ورود</Link> : null}
             {mode !== "register" ? <Link to="/register">ساخت حساب</Link> : null}

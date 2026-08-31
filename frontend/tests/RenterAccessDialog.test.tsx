@@ -70,7 +70,7 @@ test("keeps discovery state in place and restores focus when dismissed", async (
     Object.defineProperty(window, "scrollY", scrollDescriptor);
 });
 
-test("registers a Renter, updates the session in place, and resumes pending intent", async () => {
+test("verifies a phone Renter, updates the session, and resumes pending intent", async () => {
   const user = userEvent.setup();
   let submitted: unknown;
   server.use(
@@ -81,33 +81,43 @@ test("registers a Renter, updates the session in place, and resumes pending inte
       submitted = await request.json();
       await delay(100);
       return HttpResponse.json(
-        {
-          id: "10000000-0000-4000-8000-000000000056",
-          email: "renter@example.com",
-          first_name: "",
-          last_name: "",
-          email_verified: false,
-          is_submitter: false,
-        },
+        { detail: "کد تأیید ارسال شد.", demo_otp: "314159" },
         { status: 201 },
       );
     }),
+    http.post("*/api/v1/auth/verify-phone/", () =>
+      HttpResponse.json({ detail: "شماره تأیید شد." }),
+    ),
+    http.post("*/api/v1/auth/login/", () =>
+      HttpResponse.json({
+        id: "10000000-0000-4000-8000-000000000056",
+        email: null,
+        phone: "09123456789",
+        first_name: "",
+        last_name: "",
+        email_verified: false,
+        phone_verified: true,
+        is_submitter: false,
+      }),
+    ),
   );
   const { onResume, queryClient } = renderAccess();
 
   await user.click(screen.getByRole("button", { name: "علاقه‌مندی‌ها" }));
   await user.click(screen.getByRole("button", { name: "ساخت حساب" }));
-  await user.type(screen.getByLabelText("ایمیل"), "renter@example.com");
+  await user.type(screen.getByLabelText("ایمیل یا شماره تلفن"), "09123456789");
   await user.type(screen.getByLabelText("گذرواژه"), "123");
   await user.click(screen.getByRole("button", { name: "ساخت حساب و ادامه" }));
 
   expect(await screen.findByRole("status")).toHaveTextContent(
     "در حال ساخت حساب…",
   );
+  await user.type(await screen.findByLabelText("کد تأیید"), "314159");
+  await user.click(screen.getByRole("button", { name: "تأیید و ادامه" }));
   await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   expect(screen.getByRole("button", { name: "علاقه‌مندی‌ها" })).toHaveFocus();
   expect(submitted).toEqual({
-    email: "renter@example.com",
+    identifier: "09123456789",
     password: "123",
   });
   expect(queryClient.getQueryData(["session"])).toMatchObject({
@@ -133,7 +143,7 @@ test("announces field validation errors without closing the login dialog", async
           code: "validation_error",
           request_id: "10000000-0000-4000-8000-000000000057",
           errors: {
-            email: [{ message: "ایمیل معتبر نیست.", code: "invalid" }],
+            identifier: [{ message: "شناسه معتبر نیست.", code: "invalid" }],
           },
         },
         { status: 400 },
@@ -143,15 +153,18 @@ test("announces field validation errors without closing the login dialog", async
   renderAccess();
 
   await user.click(screen.getByRole("button", { name: "علاقه‌مندی‌ها" }));
-  await user.type(screen.getByLabelText("ایمیل"), "renter@example.com");
+  await user.type(
+    screen.getByLabelText("ایمیل یا شماره تلفن"),
+    "renter@example.com",
+  );
   await user.type(screen.getByLabelText("گذرواژه"), "incorrect-password");
   await user.click(screen.getByRole("button", { name: "ورود و ادامه" }));
 
-  expect(await screen.findByText("ایمیل معتبر نیست.")).toHaveAttribute(
+  expect(await screen.findByText("شناسه معتبر نیست.")).toHaveAttribute(
     "role",
     "alert",
   );
-  expect(screen.getByLabelText("ایمیل")).toHaveAttribute(
+  expect(screen.getByLabelText("ایمیل یا شماره تلفن")).toHaveAttribute(
     "aria-invalid",
     "true",
   );

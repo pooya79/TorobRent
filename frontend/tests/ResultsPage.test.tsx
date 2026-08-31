@@ -223,7 +223,10 @@ test("resumes an anonymous Favorite intent after embedded login", async () => {
     "?parking=present",
   );
 
-  await user.type(screen.getByLabelText("ایمیل"), "renter@example.com");
+  await user.type(
+    screen.getByLabelText("ایمیل یا شماره تلفن"),
+    "renter@example.com",
+  );
   await user.type(screen.getByLabelText("گذرواژه"), "correct-horse-battery");
   await user.click(screen.getByRole("button", { name: "ورود و ادامه" }));
 

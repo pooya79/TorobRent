@@ -41,12 +41,67 @@ test("allows a simple password when creating a demo account", async () => {
   );
   renderAccessPage("register");
 
-  await user.type(screen.getByLabelText("ایمیل"), "demo@example.com");
+  await user.type(
+    screen.getByLabelText("ایمیل یا شماره تلفن"),
+    "demo@example.com",
+  );
   await user.type(screen.getByLabelText("گذرواژه"), "123");
   await user.click(screen.getByRole("button", { name: "ساخت حساب" }));
 
-  expect(submitted).toEqual({ email: "demo@example.com", password: "123" });
+  expect(submitted).toEqual({
+    identifier: "demo@example.com",
+    password: "123",
+  });
   expect(await screen.findByText("حساب ساخته شد.")).toBeVisible();
+});
+
+test("verifies a phone registration with a demo OTP", async () => {
+  const user = userEvent.setup();
+  let verification: unknown;
+  server.use(
+    http.post("*/api/v1/auth/register/", () =>
+      HttpResponse.json(
+        { detail: "کد تأیید ارسال شد.", demo_otp: "314159" },
+        { status: 201 },
+      ),
+    ),
+    http.post("*/api/v1/auth/verify-phone/", async ({ request }) => {
+      verification = await request.json();
+      return HttpResponse.json({ detail: "شماره تلفن تأیید شد." });
+    }),
+  );
+  renderAccessPage("register");
+
+  await user.type(screen.getByLabelText("ایمیل یا شماره تلفن"), "۰۹۱۲۳۴۵۶۷۸۹");
+  await user.type(screen.getByLabelText("گذرواژه"), "123");
+  await user.click(screen.getByRole("button", { name: "ساخت حساب" }));
+
+  expect(await screen.findByText("کد نمایشی: 314159")).toBeVisible();
+  await user.type(screen.getByLabelText("کد تأیید"), "314159");
+  await user.click(screen.getByRole("button", { name: "تأیید شماره" }));
+
+  expect(await screen.findByText("شماره تلفن تأیید شد.")).toBeVisible();
+  expect(verification).toEqual({
+    identifier: "۰۹۱۲۳۴۵۶۷۸۹",
+    otp: "314159",
+  });
+});
+
+test("does not render an OTP secret when the server omits demo disclosure", async () => {
+  const user = userEvent.setup();
+  server.use(
+    http.post("*/api/v1/auth/register/", () =>
+      HttpResponse.json({ detail: "کد تأیید ارسال شد." }, { status: 201 }),
+    ),
+  );
+  renderAccessPage("register");
+
+  await user.type(screen.getByLabelText("ایمیل یا شماره تلفن"), "09123456789");
+  await user.type(screen.getByLabelText("گذرواژه"), "123");
+  await user.click(screen.getByRole("button", { name: "ساخت حساب" }));
+
+  expect(await screen.findByLabelText("کد تأیید")).toBeVisible();
+  expect(screen.queryByText(/کد نمایشی/)).toBeNull();
 });
 
 test("logs in a verified Submitter and preserves the protected destination", async () => {
@@ -81,12 +136,15 @@ test("logs in a verified Submitter and preserves the protected destination", asy
     </QueryClientProvider>,
   );
 
-  await user.type(screen.getByLabelText("ایمیل"), "person@example.com");
+  await user.type(
+    screen.getByLabelText("ایمیل یا شماره تلفن"),
+    "person@example.com",
+  );
   await user.type(screen.getByLabelText("گذرواژه"), "correct-horse-battery");
   await user.click(screen.getByRole("button", { name: "ورود" }));
 
   expect(submitted).toEqual({
-    email: "person@example.com",
+    identifier: "person@example.com",
     password: "correct-horse-battery",
   });
   expect(
@@ -106,7 +164,10 @@ test("links to the development inbox after Submitter registration", async () => 
   );
   renderAccessPage("register");
 
-  await user.type(screen.getByLabelText("ایمیل"), "person@example.com");
+  await user.type(
+    screen.getByLabelText("ایمیل یا شماره تلفن"),
+    "person@example.com",
+  );
   await user.type(screen.getByLabelText("گذرواژه"), "correct-horse-battery");
   await user.click(screen.getByRole("button", { name: "ساخت حساب" }));
 

@@ -121,6 +121,8 @@ REST_FRAMEWORK = {
     "DEFAULT_THROTTLE_RATES": {
         "registration": "5/hour",
         "email_verification": "20/hour",
+        "phone_verification": "20/hour",
+        "phone_verification_request": "5/hour",
         "login": "10/minute",
         "password_reset_request": "5/hour",
         "password_reset_confirm": "10/hour",
@@ -205,6 +207,7 @@ MAILERS = build_mailer_config("django.core.mail.backends.console.EmailBackend")
 DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="noreply@example.com")
 FRONTEND_ORIGIN = env("FRONTEND_ORIGIN", default="http://localhost:5173")
 EMAIL_VERIFICATION_TIMEOUT = 60 * 60 * 24
+DEMO_OTP_DISCLOSURE = env.bool("DEMO_OTP_DISCLOSURE", default=False)
 
 LOGGING = {
     "version": 1,

@@ -167,51 +167,48 @@ export function SupportedCityCombobox({
                 شهری پیدا نشد.
               </p>
             )}
-          {cities.isSuccess &&
-            showingPopularCities && (
-              <div>
-                <p className="px-3 py-2 text-sm font-semibold">
-                  شهرهای محبوب
-                </p>
-                <div className="border-border mx-2 border-t" />
-                <ul
-                  id={listboxId}
-                  role="listbox"
-                  aria-label="شهرهای محبوب"
-                  className="pt-1"
-                >
-                  {popularSupportedCity && (
-                    <li key={popularSupportedCity.id} role="none">
-                      <button
-                        id={`${listboxId}-option-0`}
-                        className="hover:bg-accent focus-visible:bg-accent min-h-11 w-full rounded-lg px-3 text-start text-sm"
-                        type="button"
-                        role="option"
-                        aria-selected="false"
-                        onMouseDown={(event) => event.preventDefault()}
-                        onClick={() => selectCity(popularSupportedCity)}
-                      >
-                        {popularSupportedCity.label}
-                      </button>
-                    </li>
-                  )}
-                  {popularUpcomingCities.map((city) => (
-                    <li key={city} role="none">
-                      <button
-                        className="text-muted-foreground min-h-11 w-full cursor-not-allowed rounded-lg px-3 text-start text-sm"
-                        type="button"
-                        role="option"
-                        aria-disabled="true"
-                        aria-selected="false"
-                        disabled
-                      >
-                        {city} (به‌زودی)
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
+          {cities.isSuccess && showingPopularCities && (
+            <div>
+              <p className="px-3 py-2 text-sm font-semibold">شهرهای محبوب</p>
+              <div className="border-border mx-2 border-t" />
+              <ul
+                id={listboxId}
+                role="listbox"
+                aria-label="شهرهای محبوب"
+                className="pt-1"
+              >
+                {popularSupportedCity && (
+                  <li key={popularSupportedCity.id} role="none">
+                    <button
+                      id={`${listboxId}-option-0`}
+                      className="hover:bg-accent focus-visible:bg-accent min-h-11 w-full rounded-lg px-3 text-start text-sm"
+                      type="button"
+                      role="option"
+                      aria-selected="false"
+                      onMouseDown={(event) => event.preventDefault()}
+                      onClick={() => selectCity(popularSupportedCity)}
+                    >
+                      {popularSupportedCity.label}
+                    </button>
+                  </li>
+                )}
+                {popularUpcomingCities.map((city) => (
+                  <li key={city} role="none">
+                    <button
+                      className="text-muted-foreground min-h-11 w-full cursor-not-allowed rounded-lg px-3 text-start text-sm"
+                      type="button"
+                      role="option"
+                      aria-disabled="true"
+                      aria-selected="false"
+                      disabled
+                    >
+                      {city} (به‌زودی)
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           {cities.isSuccess &&
             !showingPopularCities &&
             (matchingCities.length > 0 ||

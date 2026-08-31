@@ -27,7 +27,7 @@ def login(email: str, password: str) -> APIClient:
     session = client.get("/api/v1/auth/session/")
     client.credentials(HTTP_X_CSRFTOKEN=session.data["csrf_token"])
     response = client.post(
-        "/api/v1/auth/login/", {"email": email, "password": password}, format="json"
+        "/api/v1/auth/login/", {"identifier": email, "password": password}, format="json"
     )
     assert response.status_code == 200
     return client
@@ -42,7 +42,8 @@ def test_seed_demo_creates_catalog_and_prepared_personas():
     assert Property.objects.count() == 60
     assert Listing.objects.count() == 80
     assert (
-        Property.objects.filter(
+        Property.objects
+        .filter(
             approximate_latitude__isnull=False,
             approximate_longitude__isnull=False,
             location_radius_meters__isnull=False,
