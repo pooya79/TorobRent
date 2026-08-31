@@ -58,13 +58,41 @@ test("preserves Submitter onboarding through access and restores either selected
   await expect(property).toBeVisible();
   await expect(website).toBeVisible();
   await website.click();
-  await expect(website).toHaveAttribute("aria-pressed", "true");
+  await expect(page).toHaveURL(/\/source-proposal$/);
+  await expect(
+    page.getByRole("heading", { name: "Source Proposal وب‌سایت اجاره" }),
+  ).toBeVisible();
+
+  await page.getByLabel("نام وب‌سایت").fill("خانه‌یاب آزمایشی");
+  await page.getByLabel("نشانی صفحه اصلی یا کاتالوگ").focus();
+  await expect(page.getByText("پیش‌نویس ذخیره شد.")).toBeVisible();
+  await page.reload();
+  await expect(page.getByLabel("نام وب‌سایت")).toHaveValue("خانه‌یاب آزمایشی");
+  await page
+    .getByLabel("نشانی صفحه اصلی یا کاتالوگ")
+    .fill("https://source-proposal.example/rentals");
+  await page.getByLabel("رابطه شما با وب‌سایت").selectOption("website_manager");
+  await page.getByLabel("تعداد تقریبی ملک‌ها").selectOption("unknown");
+  await page.getByLabel(/اختیار معرفی این وب‌سایت/).check();
+  await page.getByRole("button", { name: "ذخیره و مشاهده پیش‌نمایش" }).click();
+  await expect(
+    page.getByRole("heading", { name: "پیش‌نمایش شبیه‌سازی‌شده" }),
+  ).toBeVisible();
+  await expect(page.getByText(/هیچ درخواست زنده‌ای/)).toBeVisible();
 
   await page.reload();
-  await expect(website).toHaveAttribute("aria-pressed", "true");
-  await property.click();
-  await expect(page).toHaveURL(/\/add-submission$/);
   await expect(
-    page.getByRole("heading", { name: "نقش شما در این ثبت چیست؟" }),
+    page.getByRole("heading", { name: "پیش‌نمایش شبیه‌سازی‌شده" }),
   ).toBeVisible();
+  await page.getByLabel(/این پیش‌نمایش شبیه‌سازی‌شده را بررسی کردم/).check();
+  await page.getByRole("button", { name: "ارسال برای بررسی" }).click();
+  await expect(page.getByText("در انتظار بررسی اپراتور")).toBeVisible();
+  await page.reload();
+  await expect(page.getByText("در انتظار بررسی اپراتور")).toBeVisible();
+
+  await page.getByRole("link", { name: "مشاهده وضعیت در داشبورد" }).click();
+  await expect(
+    page.getByRole("heading", { name: "پیشنهادهای منبع" }),
+  ).toBeVisible();
+  await expect(page.getByText("خانه‌یاب آزمایشی")).toBeVisible();
 });

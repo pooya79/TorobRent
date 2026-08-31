@@ -19,7 +19,7 @@ test("@milestone registers, verifies through Mailpit, logs in, and enters protec
 
   await expect(page).toHaveURL(/\/dashboard$/);
   await expect(
-    page.getByRole("heading", { name: "آگهی‌های من" }),
+    page.getByRole("heading", { name: "پیشنهادهای من" }),
   ).toBeVisible();
 
   await page.setViewportSize({ width: 1280, height: 900 });
@@ -106,6 +106,6 @@ test("@milestone registers, verifies through Mailpit, logs in, and enters protec
   ).toBeVisible();
   await page.goto("/dashboard");
   await expect(
-    page.getByRole("heading", { name: "آگهی‌های من" }),
+    page.getByRole("heading", { name: "پیشنهادهای من" }),
   ).toBeVisible();
 });

@@ -1720,6 +1720,173 @@ paths:
               schema:
                 $ref: '#/components/schemas/SupportWorkloadSummary'
           description: ''
+  /api/v1/source-proposals/:
+    get:
+      operationId: v1_source_proposals_list
+      summary: List the current Submitter's Source Proposals
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SourceProposal'
+          description: ''
+    post:
+      operationId: v1_source_proposals_create
+      summary: Create or resume a Source Proposal draft
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SourceProposalCreate'
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SourceProposal'
+          description: ''
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SourceProposal'
+          description: ''
+  /api/v1/source-proposals/{proposal_id}/:
+    get:
+      operationId: v1_source_proposals_retrieve
+      summary: Resume a Source Proposal
+      parameters:
+      - in: path
+        name: proposal_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SourceProposal'
+          description: ''
+    patch:
+      operationId: v1_source_proposals_partial_update
+      summary: Save Source Proposal website and authority details
+      parameters:
+      - in: path
+        name: proposal_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedSourceProposalDetails'
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SourceProposal'
+          description: ''
+  /api/v1/source-proposals/{proposal_id}/draft/:
+    patch:
+      operationId: v1_source_proposals_draft_partial_update
+      summary: Autosave Source Proposal draft fields
+      parameters:
+      - in: path
+        name: proposal_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedSourceProposalDraft'
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SourceProposal'
+          description: ''
+  /api/v1/source-proposals/{proposal_id}/preview/:
+    post:
+      operationId: v1_source_proposals_preview_create
+      summary: Generate the deterministic simulated Source Proposal preview
+      parameters:
+      - in: path
+        name: proposal_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SourceProposal'
+          description: ''
+  /api/v1/source-proposals/{proposal_id}/submit/:
+    post:
+      operationId: v1_source_proposals_submit_create
+      summary: Confirm the simulated preview and submit for Operator review
+      parameters:
+      - in: path
+        name: proposal_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SourceProposalSubmit'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SourceProposal'
+          description: ''
   /api/v1/submissions/:
     get:
       operationId: v1_submissions_list
@@ -2500,24 +2667,6 @@ components:
       - IRR
       type: string
       description: '* `IRR` - IRR'
-    CurrentStepEnum:
-      enum:
-      - location
-      - property_facts
-      - rental_terms
-      - features_description
-      - images
-      - contact
-      - review
-      type: string
-      description: |-
-        * `location` - نشانی ملک
-        * `property_facts` - مشخصات ملک
-        * `rental_terms` - شرایط اجاره
-        * `features_description` - امکانات و توضیحات
-        * `images` - تصاویر
-        * `contact` - اطلاعات تماس
-        * `review` - بازبینی
     CurrentUser:
       type: object
       properties:
@@ -3166,6 +3315,65 @@ components:
           format: email
       required:
       - email
+    PatchedSourceProposalDetails:
+      type: object
+      properties:
+        website_name:
+          type: string
+          maxLength: 200
+        website_url:
+          type: string
+          format: uri
+          maxLength: 1000
+        relationship:
+          $ref: '#/components/schemas/SourceProposalRelationshipEnum'
+        inventory_range:
+          $ref: '#/components/schemas/SourceProposalInventoryRangeEnum'
+        sitemap_url:
+          oneOf:
+          - type: string
+            format: uri
+            maxLength: 1000
+          - type: string
+            maxLength: 0
+        operator_note:
+          type: string
+          maxLength: 5000
+        authority_declared:
+          type: boolean
+    PatchedSourceProposalDraft:
+      type: object
+      properties:
+        website_name:
+          type: string
+          maxLength: 200
+        website_url:
+          oneOf:
+          - type: string
+            format: uri
+            maxLength: 1000
+          - type: string
+            maxLength: 0
+        relationship:
+          oneOf:
+          - $ref: '#/components/schemas/SourceProposalRelationshipEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+        inventory_range:
+          oneOf:
+          - $ref: '#/components/schemas/SourceProposalInventoryRangeEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+        sitemap_url:
+          oneOf:
+          - type: string
+            format: uri
+            maxLength: 1000
+          - type: string
+            maxLength: 0
+        operator_note:
+          type: string
+          maxLength: 5000
+        authority_declared:
+          type: boolean
     PatchedSubmissionImageOrder:
       type: object
       properties:
@@ -3826,6 +4034,42 @@ components:
       required:
       - authenticated
       - csrf_token
+    SimulatedPreviewExample:
+      type: object
+      properties:
+        title:
+          type: string
+        status:
+          type: string
+      required:
+      - status
+      - title
+    SimulatedSourceProposalPreview:
+      type: object
+      properties:
+        simulated:
+          type: boolean
+        title:
+          type: string
+        disclaimer:
+          type: string
+        estimated_count:
+          type:
+          - integer
+          - 'null'
+        inventory_range:
+          $ref: '#/components/schemas/SourceProposalInventoryRangeEnum'
+        examples:
+          type: array
+          items:
+            $ref: '#/components/schemas/SimulatedPreviewExample'
+      required:
+      - disclaimer
+      - estimated_count
+      - examples
+      - inventory_range
+      - simulated
+      - title
     SourceDisagreement:
       type: object
       properties:
@@ -3846,6 +4090,133 @@ components:
         source_claims: {}
         provenance_note:
           type: string
+    SourceProposal:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        state:
+          $ref: '#/components/schemas/SourceProposalStateEnum'
+        current_step:
+          $ref: '#/components/schemas/SourceProposalStepEnum'
+        website_name:
+          type: string
+          maxLength: 200
+        website_url:
+          oneOf:
+          - type: string
+            format: uri
+            maxLength: 1000
+          - type: string
+            maxLength: 0
+        relationship:
+          oneOf:
+          - $ref: '#/components/schemas/SourceProposalRelationshipEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+        inventory_range:
+          oneOf:
+          - $ref: '#/components/schemas/SourceProposalInventoryRangeEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+        sitemap_url:
+          oneOf:
+          - type: string
+            format: uri
+            maxLength: 1000
+          - type: string
+            maxLength: 0
+        operator_note:
+          type: string
+          maxLength: 5000
+        authority_declared:
+          type: boolean
+        preview:
+          oneOf:
+          - $ref: '#/components/schemas/SimulatedSourceProposalPreview'
+          - type: 'null'
+          readOnly: true
+        preview_confirmed:
+          type: boolean
+        pending_since:
+          type:
+          - string
+          - 'null'
+          format: date-time
+          readOnly: true
+        available_actions:
+          type: array
+          items:
+            type: string
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - available_actions
+      - created_at
+      - id
+      - pending_since
+      - preview
+      - updated_at
+    SourceProposalCreate:
+      type: object
+      properties:
+        start_new:
+          type: boolean
+          default: false
+    SourceProposalInventoryRangeEnum:
+      enum:
+      - '1_10'
+      - '11_50'
+      - '51_200'
+      - more_than_200
+      - unknown
+      type: string
+      description: |-
+        * `1_10` - ۱ تا ۱۰
+        * `11_50` - ۱۱ تا ۵۰
+        * `51_200` - ۵۱ تا ۲۰۰
+        * `more_than_200` - بیش از ۲۰۰
+        * `unknown` - نمی‌دانم
+    SourceProposalRelationshipEnum:
+      enum:
+      - website_owner
+      - website_manager
+      - authorized_representative
+      type: string
+      description: |-
+        * `website_owner` - مالک وب‌سایت
+        * `website_manager` - مدیر وب‌سایت
+        * `authorized_representative` - نماینده مجاز
+    SourceProposalStateEnum:
+      enum:
+      - draft
+      - pending
+      type: string
+      description: |-
+        * `draft` - پیش‌نویس
+        * `pending` - در انتظار بررسی
+    SourceProposalStepEnum:
+      enum:
+      - details
+      - preview
+      type: string
+      description: |-
+        * `details` - اطلاعات وب‌سایت
+        * `preview` - پیش‌نمایش شبیه‌سازی‌شده
+    SourceProposalSubmit:
+      type: object
+      properties:
+        preview_confirmed:
+          type: boolean
+      required:
+      - preview_confirmed
     SourcePublic:
       type: object
       properties:
@@ -3896,7 +4267,7 @@ components:
           format: uuid
           readOnly: true
         current_step:
-          $ref: '#/components/schemas/CurrentStepEnum'
+          $ref: '#/components/schemas/SubmissionCurrentStepEnum'
         media_complete:
           type: boolean
           readOnly: true
@@ -4031,6 +4402,24 @@ components:
           default: false
       required:
       - role
+    SubmissionCurrentStepEnum:
+      enum:
+      - location
+      - property_facts
+      - rental_terms
+      - features_description
+      - images
+      - contact
+      - review
+      type: string
+      description: |-
+        * `location` - نشانی ملک
+        * `property_facts` - مشخصات ملک
+        * `rental_terms` - شرایط اجاره
+        * `features_description` - امکانات و توضیحات
+        * `images` - تصاویر
+        * `contact` - اطلاعات تماس
+        * `review` - بازبینی
     SubmissionDecisionNotification:
       type: object
       properties:

@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Clock3, Plus } from "lucide-react";
+import { ArrowLeft, Clock3, Globe2, Plus } from "lucide-react";
 import { Link } from "react-router";
 
 import { PageMain } from "@/components/layout/PageMain";
@@ -7,6 +7,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { sourceProposalsQueryOptions } from "@/features/source-proposals/queries";
 import {
   archiveListing,
   confirmListingAvailability,
@@ -26,6 +27,7 @@ import { errorMessage } from "@/lib/api/errors";
 
 export function SubmitterDashboardPage() {
   const submissions = useQuery(submissionsQueryOptions);
+  const sourceProposals = useQuery(sourceProposalsQueryOptions);
   const queryClient = useQueryClient();
   const availabilityAction = useMutation({
     mutationFn: ({
@@ -53,9 +55,12 @@ export function SubmitterDashboardPage() {
       <header className="mb-8 flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="text-muted-foreground mb-2 text-sm">پنل ثبت‌کننده</p>
-          <h1 className="text-3xl font-semibold tracking-tight">آگهی‌های من</h1>
+          <h1 className="text-3xl font-semibold tracking-tight">
+            پیشنهادهای من
+          </h1>
           <p className="text-muted-foreground mt-2">
-            وضعیت Submissionها و اقدام بعدی را یک‌جا دنبال کنید.
+            وضعیت Property Submissionها و Source Proposalها را جداگانه دنبال
+            کنید.
           </p>
         </div>
         <Button asChild className="rounded-full">
@@ -64,6 +69,80 @@ export function SubmitterDashboardPage() {
           </Link>
         </Button>
       </header>
+
+      <section className="mb-10" aria-labelledby="source-proposals-heading">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 id="source-proposals-heading" className="text-xl font-semibold">
+              پیشنهادهای منبع
+            </h2>
+            <p className="text-muted-foreground mt-1 text-sm">
+              وب‌سایت‌هایی که برای اعتبارسنجی اپراتور معرفی کرده‌اید.
+            </p>
+          </div>
+          <Button asChild variant="outline">
+            <Link to="/source-proposal?new=1">
+              <Globe2 aria-hidden="true" /> معرفی وب‌سایت
+            </Link>
+          </Button>
+        </div>
+        {sourceProposals.isError && (
+          <Alert variant="destructive">
+            <AlertDescription>
+              Source Proposalها بارگذاری نشدند.
+            </AlertDescription>
+          </Alert>
+        )}
+        {sourceProposals.isPending && <p>در حال بارگذاری پیشنهادهای منبع…</p>}
+        {sourceProposals.data?.length === 0 && (
+          <Card className="shadow-none">
+            <CardContent>
+              <p>هنوز وب‌سایتی معرفی نکرده‌اید.</p>
+            </CardContent>
+          </Card>
+        )}
+        <div className="grid gap-4">
+          {sourceProposals.data?.map((proposal) => {
+            const title = proposal.website_name || "Source Proposal تازه";
+            return (
+              <Card className="shadow-none" key={proposal.id}>
+                <CardContent className="flex flex-col gap-4 sm:flex-row sm:items-center">
+                  <span className="bg-muted flex size-12 shrink-0 items-center justify-center rounded-full">
+                    <Globe2 className="size-5" aria-hidden="true" />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-3">
+                      <h3 className="font-semibold">{title}</h3>
+                      <Badge variant="secondary">
+                        {proposal.state === "pending"
+                          ? "در انتظار بررسی"
+                          : "پیش‌نویس"}
+                      </Badge>
+                    </div>
+                    <p className="text-muted-foreground mt-2 text-sm">
+                      {proposal.state === "pending"
+                        ? "اقدام بعدی: منتظر بررسی اپراتور بمانید."
+                        : "اقدام بعدی: اطلاعات و پیش‌نمایش را تکمیل و تأیید کنید."}
+                    </p>
+                  </div>
+                  {proposal.state === "draft" && (
+                    <Button asChild variant="outline">
+                      <Link
+                        to="/source-proposal"
+                        aria-label={`ادامه Source Proposal ${title}`}
+                      >
+                        ادامه <ArrowLeft aria-hidden="true" />
+                      </Link>
+                    </Button>
+                  )}
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      </section>
+
+      <h2 className="mb-4 text-xl font-semibold">Property Submissionها</h2>
 
       {submissions.isError && (
         <Alert variant="destructive">

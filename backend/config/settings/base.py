@@ -30,6 +30,7 @@ INSTALLED_APPS = [
     "apps.accounts",
     "apps.catalog",
     "apps.contact",
+    "apps.source_proposals",
     "apps.submissions",
     "apps.system",
 ]
@@ -154,6 +155,12 @@ SPECTACULAR_SETTINGS = {
         "PropertyTypeEnum": "apps.catalog.models.PropertyType.choices",
         "PrivacyActionTypeEnum": "apps.contact.models.PrivacyActionType.choices",
         "SubmissionStateEnum": "apps.submissions.models.SubmissionState.choices",
+        "SourceProposalInventoryRangeEnum": ("apps.source_proposals.models.InventoryRange.choices"),
+        "SourceProposalRelationshipEnum": (
+            "apps.source_proposals.models.SourceRepresentativeRelationship.choices"
+        ),
+        "SourceProposalStateEnum": "apps.source_proposals.models.SourceProposalState.choices",
+        "SourceProposalStepEnum": "apps.source_proposals.models.SourceProposalStep.choices",
         "SupportClassificationEnum": "apps.contact.models.SupportClassification.choices",
         "SupportPriorityEnum": "apps.contact.models.SupportPriority.choices",
         "SupportRequiredCapabilityEnum": ("apps.contact.models.SupportRequiredCapability.choices"),

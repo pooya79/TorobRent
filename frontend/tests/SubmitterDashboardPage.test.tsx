@@ -8,6 +8,53 @@ import { expect, test } from "vitest";
 import { SubmitterDashboardPage } from "@/pages/SubmitterDashboardPage";
 import { server } from "./server";
 
+test("shows Source Proposals separately with status and next action", async () => {
+  server.use(
+    http.get("*/api/v1/submissions/", () => HttpResponse.json([])),
+    http.get("*/api/v1/source-proposals/", () =>
+      HttpResponse.json([
+        {
+          id: "10000000-0000-4000-8000-000000000087",
+          state: "draft",
+          current_step: "preview",
+          website_name: "خانه‌یاب",
+          website_url: "https://khaneh.example/rentals",
+          relationship: "website_manager",
+          inventory_range: "51_200",
+          sitemap_url: "",
+          operator_note: "",
+          authority_declared: true,
+          preview: { simulated: true },
+          preview_confirmed: false,
+          pending_since: null,
+          available_actions: ["edit"],
+          created_at: "2026-08-31T08:00:00Z",
+          updated_at: "2026-08-31T09:00:00Z",
+        },
+      ]),
+    ),
+  );
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  render(
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter>
+        <SubmitterDashboardPage />
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+
+  expect(
+    await screen.findByRole("heading", { name: "پیشنهادهای منبع" }),
+  ).toBeVisible();
+  expect(await screen.findByText("خانه‌یاب")).toBeVisible();
+  expect(screen.getByText("پیش‌نویس")).toBeVisible();
+  expect(
+    screen.getByRole("link", { name: "ادامه Source Proposal خانه‌یاب" }),
+  ).toHaveAttribute("href", "/source-proposal");
+});
+
 test("lists the Submitter's draft state and server-backed resume action", async () => {
   server.use(
     http.get("*/api/v1/submissions/", () =>

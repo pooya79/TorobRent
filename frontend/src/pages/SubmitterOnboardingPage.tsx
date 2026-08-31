@@ -65,7 +65,10 @@ export function SubmitterOnboardingPage() {
     },
     onSuccess: (data, selectedPath) => {
       queryClient.setQueryData(onboardingQueryKey, data);
-      const destination = onboardingDestination(selectedPath, returnTo);
+      const destination =
+        selectedPath === "source_proposal"
+          ? (returnTo ?? "/source-proposal")
+          : onboardingDestination(selectedPath, returnTo);
       if (destination) void navigate(destination, { replace: true });
     },
   });
