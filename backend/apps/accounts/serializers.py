@@ -109,6 +109,17 @@ class PhoneOtpResponseSerializer(DetailSerializer):
     demo_otp = serializers.RegexField(r"^\d{6}$", required=False)
 
 
+class RegistrationResponseSerializer(PhoneOtpResponseSerializer):
+    verification_method = serializers.ChoiceField(choices=("email", "phone"))
+
+
+class EmailVerificationRequestSerializer(serializers.Serializer[Any]):
+    email = serializers.EmailField()
+
+    def validate_email(self, value: str) -> str:
+        return value.lower()
+
+
 class PasswordResetRequestSerializer(serializers.Serializer[Any]):
     email = serializers.EmailField()
 

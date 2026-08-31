@@ -17,6 +17,11 @@ for name in required_names:
 
 DEBUG = False
 MAILERS = build_mailer_config("django.core.mail.backends.smtp.EmailBackend")
+if not DEMO_OTP_DISCLOSURE:  # noqa: F405 - the local demo discloses the code in its own UI
+    SMS_BACKEND = "apps.accounts.sms.WebhookSmsBackend"
+    for name in ("SMS_GATEWAY_URL", "SMS_GATEWAY_TOKEN"):
+        if not globals()[name]:
+            raise ImproperlyConfigured(f"{name} must be configured in production")
 SESSION_COOKIE_SECURE = True
 CSRF_COOKIE_SECURE = True
 SECURE_SSL_REDIRECT = env.bool("SECURE_SSL_REDIRECT", default=True)  # noqa: F405

@@ -208,6 +208,10 @@ DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="noreply@example.com")
 FRONTEND_ORIGIN = env("FRONTEND_ORIGIN", default="http://localhost:5173")
 EMAIL_VERIFICATION_TIMEOUT = 60 * 60 * 24
 DEMO_OTP_DISCLOSURE = env.bool("DEMO_OTP_DISCLOSURE", default=False)
+SMS_BACKEND = env("SMS_BACKEND", default="apps.accounts.sms.LocmemSmsBackend")
+SMS_GATEWAY_URL = env("SMS_GATEWAY_URL", default="")
+SMS_GATEWAY_TOKEN = env("SMS_GATEWAY_TOKEN", default="")
+SMS_GATEWAY_TIMEOUT_SECONDS = env.int("SMS_GATEWAY_TIMEOUT_SECONDS", default=5)
 
 LOGGING = {
     "version": 1,

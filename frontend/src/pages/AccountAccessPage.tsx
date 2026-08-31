@@ -86,7 +86,11 @@ export function AccountAccessPage({ mode }: { mode: AccountAccessMode }) {
         });
         return;
       }
-      if (mode === "register" && !variables.identifier.includes("@")) {
+      if (
+        mode === "register" &&
+        "verification_method" in data &&
+        data.verification_method === "phone"
+      ) {
         setPendingPhone({
           identifier: variables.identifier,
           demoOtp:

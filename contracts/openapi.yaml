@@ -5,6 +5,52 @@ info:
   description: TorobRent — a smart rental search platform that aggregates, normalizes,
     and ranks property listings from multiple sources.
 paths:
+  /api/v1/auth/email-verification/request/:
+    post:
+      operationId: v1_auth_email_verification_request_create
+      summary: Add or replace the current account email and send its verification
+        link
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmailVerificationRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '202':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Detail'
+          description: ''
+        '400':
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Request validation failed
+        '403':
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Authentication or CSRF verification failed
+        '415':
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Only JSON request bodies are supported
+        '429':
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Request was throttled
   /api/v1/auth/login/:
     post:
       operationId: v1_auth_login_create
@@ -242,7 +288,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PhoneOtpResponse'
+                $ref: '#/components/schemas/RegistrationResponse'
           description: ''
         '400':
           content:
@@ -288,7 +334,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PhoneOtpResponse'
+                $ref: '#/components/schemas/RegistrationResponse'
           description: ''
         '400':
           content:
@@ -2466,6 +2512,14 @@ components:
           type: string
       required:
       - detail
+    EmailVerificationRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+      required:
+      - email
     ExactLocation:
       type: object
       properties:
@@ -3536,6 +3590,19 @@ components:
       required:
       - identifier
       - password
+    RegistrationResponse:
+      type: object
+      properties:
+        detail:
+          type: string
+        demo_otp:
+          type: string
+          pattern: ^\d{6}$
+        verification_method:
+          $ref: '#/components/schemas/VerificationMethodEnum'
+      required:
+      - detail
+      - verification_method
     RentalTermsInput:
       type: object
       properties:
@@ -4974,6 +5041,14 @@ components:
       - last_name
       - phone
       - phone_verified
+    VerificationMethodEnum:
+      enum:
+      - email
+      - phone
+      type: string
+      description: |-
+        * `email` - email
+        * `phone` - phone
   securitySchemes:
     cookieAuth:
       type: apiKey

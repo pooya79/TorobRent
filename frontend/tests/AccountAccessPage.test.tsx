@@ -61,7 +61,11 @@ test("verifies a phone registration with a demo OTP", async () => {
   server.use(
     http.post("*/api/v1/auth/register/", () =>
       HttpResponse.json(
-        { detail: "کد تأیید ارسال شد.", demo_otp: "314159" },
+        {
+          detail: "کد تأیید ارسال شد.",
+          verification_method: "phone",
+          demo_otp: "314159",
+        },
         { status: 201 },
       ),
     ),
@@ -91,7 +95,10 @@ test("does not render an OTP secret when the server omits demo disclosure", asyn
   const user = userEvent.setup();
   server.use(
     http.post("*/api/v1/auth/register/", () =>
-      HttpResponse.json({ detail: "کد تأیید ارسال شد." }, { status: 201 }),
+      HttpResponse.json(
+        { detail: "کد تأیید ارسال شد.", verification_method: "phone" },
+        { status: 201 },
+      ),
     ),
   );
   renderAccessPage("register");

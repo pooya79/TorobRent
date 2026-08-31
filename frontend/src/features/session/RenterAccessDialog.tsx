@@ -106,7 +106,7 @@ function AccessForm({
         return;
       }
       setRegistrationResult(data.detail);
-      if (!variables.identifier.includes("@")) {
+      if (data.verification_method === "phone") {
         setPendingPhone({
           ...variables,
           demoOtp: data.demo_otp,

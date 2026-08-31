@@ -81,7 +81,11 @@ test("verifies a phone Renter, updates the session, and resumes pending intent",
       submitted = await request.json();
       await delay(100);
       return HttpResponse.json(
-        { detail: "کد تأیید ارسال شد.", demo_otp: "314159" },
+        {
+          detail: "کد تأیید ارسال شد.",
+          verification_method: "phone",
+          demo_otp: "314159",
+        },
         { status: 201 },
       );
     }),

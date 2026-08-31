@@ -57,7 +57,8 @@ def image_upload(
 
 def create_draft(api_client: APIClient, submitter: User) -> str:
     submitter.is_submitter = True
-    submitter.save(update_fields=("is_submitter",))
+    submitter.phone_verified_at = timezone.now()
+    submitter.save(update_fields=("is_submitter", "phone_verified_at"))
     api_client.force_authenticate(submitter)
     response = api_client.post("/api/v1/submissions/", {"role": "owner"}, format="json")
     assert response.status_code == 201
@@ -74,6 +75,8 @@ def test_verified_submitter_can_create_an_owner_draft(api_client: APIClient):
         email="owner@example.com",
         password="correct-horse-battery",
         email_verified_at=timezone.now(),
+        phone="09123456789",
+        phone_verified_at=timezone.now(),
         is_submitter=True,
     )
     api_client.force_authenticate(submitter)
@@ -89,6 +92,36 @@ def test_verified_submitter_can_create_an_owner_draft(api_client: APIClient):
     assert response.data["state"] == "draft"
     assert response.data["current_step"] == "location"
     assert response.data["media_complete"] is False
+
+
+@pytest.mark.django_db
+def test_email_only_submitter_cannot_begin_a_submission(api_client: APIClient):
+    submitter = User.objects.create_user(
+        email="email-only@example.com",
+        password="correct-horse-battery",
+        email_verified_at=timezone.now(),
+        is_submitter=True,
+    )
+    api_client.force_authenticate(submitter)
+
+    response = api_client.post("/api/v1/submissions/", {"role": "owner"}, format="json")
+
+    assert response.status_code == 403
+
+
+@pytest.mark.django_db
+def test_phone_only_submitter_can_begin_a_submission(api_client: APIClient):
+    submitter = User.objects.create_user(
+        phone="09351234567",
+        password="correct-horse-battery",
+        phone_verified_at=timezone.now(),
+        is_submitter=True,
+    )
+    api_client.force_authenticate(submitter)
+
+    response = api_client.post("/api/v1/submissions/", {"role": "owner"}, format="json")
+
+    assert response.status_code == 201
 
 
 @pytest.mark.django_db
@@ -203,6 +236,7 @@ def test_submitter_can_save_and_resume_the_complete_draft_flow(
         email="agent@example.com",
         password="correct-horse-battery",
         email_verified_at=timezone.now(),
+        phone_verified_at=timezone.now(),
         is_submitter=True,
     )
     city = City.objects.create(
@@ -357,6 +391,7 @@ def test_unverified_or_different_submitter_cannot_mutate_a_draft(api_client: API
         email="draft-owner@example.com",
         password="correct-horse-battery",
         email_verified_at=timezone.now(),
+        phone_verified_at=timezone.now(),
         is_submitter=True,
     )
     api_client.force_authenticate(owner)
@@ -398,6 +433,7 @@ def test_exact_location_is_visible_only_to_responsible_submitter_and_review_oper
         email="located-owner@example.com",
         password="correct-horse-battery",
         email_verified_at=timezone.now(),
+        phone_verified_at=timezone.now(),
         is_submitter=True,
     )
     submission_id = create_draft(api_client, submitter)
@@ -502,6 +538,7 @@ def test_invalid_rental_terms_preserve_the_last_valid_toman_values(api_client: A
         email="terms@example.com",
         password="correct-horse-battery",
         email_verified_at=timezone.now(),
+        phone_verified_at=timezone.now(),
         is_submitter=True,
     )
     api_client.force_authenticate(submitter)

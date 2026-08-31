@@ -19,12 +19,14 @@ from .models import User
 from .serializers import (
     CurrentUserSerializer,
     DetailSerializer,
+    EmailVerificationRequestSerializer,
     LoginSerializer,
     PasswordResetConfirmSerializer,
     PasswordResetRequestSerializer,
     PhoneOtpResponseSerializer,
     PhoneVerificationRequestSerializer,
     PhoneVerificationSerializer,
+    RegistrationResponseSerializer,
     RegistrationSerializer,
     SessionSerializer,
     TokenSerializer,
@@ -35,6 +37,7 @@ from .services import (
     end_session,
     register_renter,
     register_submitter,
+    request_email_verification,
     request_password_reset,
     request_phone_verification,
     reset_password,
@@ -67,13 +70,19 @@ PUBLIC_MUTATION_ERRORS = {
 
 def registration_response(identifier_kind: str, otp: str | None) -> Response:
     if identifier_kind == "phone":
-        data = {"detail": "کد تأیید برای شماره تلفن ارسال شد."}
+        data = {
+            "detail": "کد تأیید برای شماره تلفن ارسال شد.",
+            "verification_method": "phone",
+        }
         if settings.DEMO_OTP_DISCLOSURE:
             assert otp is not None
             data["demo_otp"] = otp
         return Response(data, status=status.HTTP_201_CREATED)
     return Response(
-        {"detail": "حساب ساخته شد. برای تأیید ایمیل، پیام ارسال‌شده را بررسی کنید."},
+        {
+            "detail": "حساب ساخته شد. برای تأیید ایمیل، پیام ارسال‌شده را بررسی کنید.",
+            "verification_method": "email",
+        },
         status=status.HTTP_201_CREATED,
     )
 
@@ -114,7 +123,7 @@ class RegistrationView(APIView):
         summary="Register a Submitter",
         request=RegistrationSerializer,
         responses={
-            201: PhoneOtpResponseSerializer,
+            201: RegistrationResponseSerializer,
             **PUBLIC_MUTATION_ERRORS,
         },
     )
@@ -135,7 +144,7 @@ class RenterRegistrationView(APIView):
         summary="Register a Renter",
         request=RegistrationSerializer,
         responses={
-            201: PhoneOtpResponseSerializer,
+            201: RegistrationResponseSerializer,
             **PUBLIC_MUTATION_ERRORS,
         },
     )
@@ -169,6 +178,28 @@ class VerifyEmailView(APIView):
 
 
 @method_decorator(csrf_protect, name="dispatch")
+class EmailVerificationRequestView(APIView):
+    throttle_scope = "email_verification"
+
+    @extend_schema(
+        summary="Add or replace the current account email and send its verification link",
+        request=EmailVerificationRequestSerializer,
+        responses={202: DetailSerializer, **PUBLIC_MUTATION_ERRORS},
+    )
+    def post(self, request: Request) -> Response:
+        serializer = EmailVerificationRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        request_email_verification(
+            email=serializer.validated_data["email"],
+            requesting_user=cast(User, request.user),
+        )
+        return Response(
+            {"detail": "اگر ایمیل قابل استفاده باشد، پیوند تأیید ارسال می‌شود."},
+            status=status.HTTP_202_ACCEPTED,
+        )
+
+
+@method_decorator(csrf_protect, name="dispatch")
 class VerifyPhoneView(APIView):
     permission_classes = [AllowAny]
     throttle_scope = "phone_verification"
@@ -182,15 +213,8 @@ class VerifyPhoneView(APIView):
         serializer = PhoneVerificationSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         result = verify_phone(**serializer.validated_data)
-        error_messages = {
-            PhoneVerificationResult.INVALID: "کد تأیید نادرست است.",
-            PhoneVerificationResult.EXPIRED: ("اعتبار کد تمام شده است. کد تازه‌ای درخواست کنید."),
-            PhoneVerificationResult.EXHAUSTED: (
-                "تعداد تلاش‌ها بیش از حد مجاز است. کد تازه‌ای درخواست کنید."
-            ),
-        }
         if result is not PhoneVerificationResult.SUCCESS:
-            raise ValidationError({"otp": error_messages[result]})
+            raise ValidationError({"otp": "کد تأیید پذیرفته نشد. کد تازه‌ای درخواست کنید."})
         return Response({"detail": "شماره تلفن تأیید شد. اکنون می‌توانید وارد شوید."})
 
 

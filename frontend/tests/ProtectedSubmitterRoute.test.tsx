@@ -47,7 +47,7 @@ test("redirects an anonymous Submitter to login with the intended destination", 
   ).toBeVisible();
 });
 
-test("prevents an authenticated but unverified account from beginning a Submission", async () => {
+test("prevents an authenticated account without a verified phone from beginning a Submission", async () => {
   server.use(
     http.get("*/api/v1/auth/session/", () =>
       HttpResponse.json({ authenticated: true, csrf_token: "test-token" }),
@@ -59,6 +59,7 @@ test("prevents an authenticated but unverified account from beginning a Submissi
         first_name: "",
         last_name: "",
         email_verified: false,
+        phone_verified: false,
         is_submitter: true,
       }),
     ),
@@ -77,11 +78,10 @@ test("prevents an authenticated but unverified account from beginning a Submissi
   );
 
   expect(
-    await screen.findByText("برای ثبت آگهی، ابتدا ایمیل خود را تأیید کنید."),
+    await screen.findByText(
+      "برای ثبت آگهی، ابتدا شماره تلفن خود را تأیید کنید.",
+    ),
   ).toBeVisible();
-  expect(
-    screen.getByRole("link", { name: "صندوق ایمیل Mailpit" }),
-  ).toHaveAttribute("href", "http://localhost:8025");
   expect(
     screen.queryByRole("heading", { name: "ثبت آگهی" }),
   ).not.toBeInTheDocument();
@@ -99,6 +99,7 @@ test("prevents a verified Renter from entering a Submitter route", async () => {
         first_name: "",
         last_name: "",
         email_verified: true,
+        phone_verified: true,
         is_submitter: false,
         operator_capabilities: [],
       }),

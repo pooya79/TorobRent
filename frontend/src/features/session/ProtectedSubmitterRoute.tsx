@@ -3,7 +3,6 @@ import type { ReactNode } from "react";
 import { Navigate, useLocation } from "react-router";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { DevelopmentMailHint } from "@/features/session/DevelopmentMailHint";
 import { currentUserQuery, sessionQuery } from "@/features/session/queries";
 
 export function ProtectedSubmitterRoute({ children }: { children: ReactNode }) {
@@ -39,7 +38,7 @@ export function ProtectedSubmitterRoute({ children }: { children: ReactNode }) {
     );
   }
 
-  if (!currentUser.data?.email_verified) {
+  if (!currentUser.data?.phone_verified) {
     return (
       <main
         id="main-content"
@@ -47,12 +46,11 @@ export function ProtectedSubmitterRoute({ children }: { children: ReactNode }) {
         tabIndex={-1}
       >
         <Alert>
-          <AlertTitle>تأیید ایمیل لازم است</AlertTitle>
+          <AlertTitle>تأیید شماره تلفن لازم است</AlertTitle>
           <AlertDescription>
-            برای ثبت آگهی، ابتدا ایمیل خود را تأیید کنید.
+            برای ثبت آگهی، ابتدا شماره تلفن خود را تأیید کنید.
           </AlertDescription>
         </Alert>
-        <DevelopmentMailHint />
       </main>
     );
   }

@@ -74,8 +74,8 @@ class SubmissionAccessDenied(Exception):
 def create_submission_draft(*, submitter: User, role: str) -> Submission:
     if not submitter.is_submitter:
         raise SubmissionAccessDenied("برای ثبت Submission باید حساب ارسال‌کننده داشته باشید.")
-    if not submitter.email_verified:
-        raise SubmissionAccessDenied("برای ثبت پیش‌نویس ابتدا ایمیل خود را تأیید کنید.")
+    if not submitter.phone_verified:
+        raise SubmissionAccessDenied("برای ثبت پیش‌نویس ابتدا شماره تلفن خود را تأیید کنید.")
     return Submission.objects.create(submitter=submitter, role=role)
 
 

@@ -12,11 +12,13 @@ from django.utils import timezone
 from rest_framework.test import APIClient
 
 from apps.accounts.models import PhoneVerificationChallenge, User
+from apps.accounts.sms import outbox as sms_outbox
 
 
 @pytest.fixture(autouse=True)
 def clear_account_throttles():
     cache.clear()
+    sms_outbox.clear()
 
 
 def csrf_client(api_client: APIClient) -> APIClient:
@@ -78,7 +80,8 @@ def test_submitter_registers_and_verifies_email(api_client: APIClient):
 
     assert response.status_code == 201
     assert response.data == {
-        "detail": "حساب ساخته شد. برای تأیید ایمیل، پیام ارسال‌شده را بررسی کنید."
+        "detail": "حساب ساخته شد. برای تأیید ایمیل، پیام ارسال‌شده را بررسی کنید.",
+        "verification_method": "email",
     }
     user = User.objects.get(email="new@example.com")
     assert user.is_submitter is True
@@ -120,8 +123,11 @@ def test_phone_registration_requires_otp_before_normalized_identifier_can_log_in
 
     assert registration.status_code == 201
     assert registration.data["detail"] == "کد تأیید برای شماره تلفن ارسال شد."
+    assert registration.data["verification_method"] == "phone"
     assert registration.data["demo_otp"].isdigit()
     assert len(registration.data["demo_otp"]) == 6
+    assert sms_outbox[-1].recipient == "09123456789"
+    assert sms_outbox[-1].code == registration.data["demo_otp"]
     user = User.objects.get(phone="09123456789")
     assert user.email is None
     assert user.phone_verified_at is None
@@ -206,9 +212,8 @@ def test_phone_otp_reports_expiry_and_attempt_exhaustion(api_client: APIClient):
         format="json",
     )
     assert expired.status_code == 400
-    assert expired.data["errors"]["otp"][0]["message"] == (
-        "اعتبار کد تمام شده است. کد تازه‌ای درخواست کنید."
-    )
+    generic_error = "کد تأیید پذیرفته نشد. کد تازه‌ای درخواست کنید."
+    assert expired.data["errors"]["otp"][0]["message"] == generic_error
 
     attempts_registration = client.post(
         "/api/v1/auth/register/",
@@ -229,9 +234,14 @@ def test_phone_otp_reports_expiry_and_attempt_exhaustion(api_client: APIClient):
         {"identifier": "09351234567", "otp": attempts_registration.data["demo_otp"]},
         format="json",
     )
-    assert exhausted.data["errors"]["otp"][0]["message"] == (
-        "تعداد تلاش‌ها بیش از حد مجاز است. کد تازه‌ای درخواست کنید."
+    assert exhausted.data["errors"]["otp"][0]["message"] == generic_error
+
+    missing = client.post(
+        "/api/v1/auth/verify-phone/",
+        {"identifier": "09999999999", "otp": "123456"},
+        format="json",
     )
+    assert missing.data["errors"]["otp"][0]["message"] == generic_error
 
 
 @override_settings(DEMO_OTP_DISCLOSURE=True)
@@ -261,6 +271,43 @@ def test_verified_email_account_can_add_phone_and_use_both_identifiers(
 
     client.logout()
     for identifier in ("person@example.com", "09351234567"):
+        csrf_client(client)
+        login = client.post(
+            "/api/v1/auth/login/",
+            {"identifier": identifier, "password": "correct-horse-battery"},
+            format="json",
+        )
+        assert login.status_code == 200
+        client.logout()
+
+
+@pytest.mark.django_db
+def test_verified_phone_account_can_add_email_and_use_both_identifiers(api_client: APIClient):
+    user = User.objects.create_user(
+        phone="09123456789",
+        password="correct-horse-battery",
+        phone_verified_at=timezone.now(),
+    )
+    client = csrf_client(api_client)
+    client.force_login(user)
+
+    requested = client.post(
+        "/api/v1/auth/email-verification/request/",
+        {"email": "Second@Example.com"},
+        format="json",
+    )
+
+    assert requested.status_code == 202
+    user.refresh_from_db()
+    assert user.email == "second@example.com"
+    assert user.email_verified_at is None
+    token = mail.outbox[-1].body.rsplit("/verify-email?token=", 1)[1].strip()
+
+    verified = client.post("/api/v1/auth/verify-email/", {"token": token}, format="json")
+    assert verified.status_code == 200
+
+    client.logout()
+    for identifier in ("second@example.com", "09123456789"):
         csrf_client(client)
         login = client.post(
             "/api/v1/auth/login/",

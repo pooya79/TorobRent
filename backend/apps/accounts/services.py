@@ -17,6 +17,7 @@ from django.utils import timezone
 from .capabilities import CAPABILITY_PERMISSIONS, MANAGED_OPERATOR_GROUPS
 from .identifiers import AccountIdentifier
 from .models import PhoneVerificationChallenge, User
+from .sms import send_verification_code
 from .tokens import (
     make_email_verification_token,
     make_password_reset_token,
@@ -136,6 +137,7 @@ def _issue_phone_otp(*, user: User, phone: str) -> str | None:
         secret_hash=make_password(code),
         expires_at=timezone.now() + timedelta(minutes=5),
     )
+    send_verification_code(recipient=phone, code=code)
     return code
 
 
@@ -196,6 +198,26 @@ def verify_email(token: str) -> bool:
         user.email_verified_at = timezone.now()
         user.save(update_fields=["email_verified_at"])
     return True
+
+
+def request_email_verification(*, email: str, requesting_user: User) -> None:
+    with transaction.atomic():
+        user = User.objects.select_for_update().get(pk=requesting_user.pk)
+        if User.objects.filter(email=email).exclude(pk=user.pk).exists():
+            return
+        if user.email == email and user.email_verified:
+            return
+        user.email = email
+        user.email_verified_at = None
+        user.save(update_fields=["email", "email_verified_at"])
+        token = make_email_verification_token(user)
+    verification_url = f"{settings.FRONTEND_ORIGIN}/verify-email?token={token}"
+    send_mail(
+        "تأیید ایمیل ترب‌رنت",
+        f"برای تأیید ایمیل خود این پیوند را باز کنید:\n{verification_url}",
+        settings.DEFAULT_FROM_EMAIL,
+        [email],
+    )
 
 
 class PhoneVerificationResult(StrEnum):

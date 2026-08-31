@@ -43,7 +43,7 @@ export default defineConfig({
     ? undefined
     : [
         {
-          command: `cd ../backend && export DJANGO_SETTINGS_MODULE=config.settings.test TEST_DATABASE_URL=${isolatedDatabaseUrl} CSRF_TRUSTED_ORIGINS=${baseURL} DJANGO_SUPERUSER_EMAIL=operator@example.com DJANGO_SUPERUSER_PASSWORD=operator-password && uv run python manage.py migrate --noinput && uv run python manage.py ${seedCommand} && uv run python manage.py createsuperuser --noinput && uv run python manage.py shell -c 'from django.utils import timezone; from apps.accounts.models import User; User.objects.filter(email="operator@example.com").update(email_verified_at=timezone.now())' && exec uv run uvicorn config.asgi:application --host 127.0.0.1 --port ${backendPort}`,
+          command: `cd ../backend && export DJANGO_SETTINGS_MODULE=config.settings.test TEST_DATABASE_URL=${isolatedDatabaseUrl} CSRF_TRUSTED_ORIGINS=${baseURL} DEMO_OTP_DISCLOSURE=true DJANGO_SUPERUSER_EMAIL=operator@example.com DJANGO_SUPERUSER_PASSWORD=operator-password && uv run python manage.py migrate --noinput && uv run python manage.py ${seedCommand} && uv run python manage.py createsuperuser --noinput && uv run python manage.py shell -c 'from django.utils import timezone; from apps.accounts.models import User; User.objects.filter(email="operator@example.com").update(email_verified_at=timezone.now())' && exec uv run uvicorn config.asgi:application --host 127.0.0.1 --port ${backendPort}`,
           url: `${backendUrl}/api/v1/system/ready/`,
           reuseExistingServer: !process.env.CI,
         },
