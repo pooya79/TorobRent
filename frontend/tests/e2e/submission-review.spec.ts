@@ -36,7 +36,10 @@ async function seedCompleteDraft(
     data: { role: "owner" },
   });
   expect(created.ok()).toBe(true);
-  const submission = (await created.json()) as { id: string };
+  const submission = (await created.json()) as {
+    id: string;
+    contact: { phone: string };
+  };
   const detail = `/api/v1/submissions/${submission.id}/`;
   const steps = [
     {
@@ -121,7 +124,7 @@ async function seedCompleteDraft(
           completed_step: "contact",
           contact: {
             name: "سارا احمدی",
-            phone: "۰۹۱۲۱۲۳۴۵۶۷",
+            phone: submission.contact.phone,
             authorization_declared: true,
             phone_publication_consent: true,
           },
@@ -195,7 +198,7 @@ test("@milestone browser covers changes, resubmit, reject, group, publish, and p
     page.getByRole("alert").getByText("شماره تماس را اصلاح کنید."),
   ).toBeVisible();
   await page.goto(`/add-submission?submission=${revisedId}&step=contact`);
-  await page.getByRole("textbox", { name: "شماره تماس" }).fill("۰۹۱۲۰۰۰۰۰۰۰");
+  await expect(page.getByLabel("شماره عمومی تماس")).not.toHaveValue("");
   await page.getByRole("button", { name: "ذخیره و ادامه" }).click();
   await expect(page.getByRole("heading", { name: "بازبینی" })).toBeVisible();
   await page

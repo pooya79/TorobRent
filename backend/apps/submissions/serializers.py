@@ -38,7 +38,7 @@ from .models import (
     SubmissionStep,
     SubmitterRole,
 )
-from .services import STEP_DEFINITIONS
+from .services import STEP_DEFINITIONS, verified_public_contact_phone
 
 MAX_SAFE_TOMAN_FOR_JSON_RIAL = 900_719_925_474_099
 
@@ -55,10 +55,11 @@ class SubmissionCreateSerializer(serializers.ModelSerializer[Submission]):
         choices=SubmitterRole.choices,
         error_messages={"required": REQUIRED_ERROR, "invalid_choice": "نقش انتخاب‌شده نامعتبر است."},
     )
+    resume_existing = serializers.BooleanField(default=False, write_only=True)
 
     class Meta:
         model = Submission
-        fields = ("role",)
+        fields = ("role", "resume_existing")
 
 
 class ExactLocationSerializer(serializers.Serializer[Any]):
@@ -243,6 +244,23 @@ class ContactInputSerializer(serializers.Serializer[Any]):
     def validate_authorization_declared(self, value: bool) -> bool:
         if not value:
             raise serializers.ValidationError("اعلام اختیار ثبت ملک الزامی است.")
+        return value
+
+    def validate_phone(self, value: str) -> str:
+        request = self.context.get("request")
+        user = getattr(request, "user", None)
+        phone = (
+            verified_public_contact_phone(submitter=user, value=value) if user is not None else None
+        )
+        if phone is None:
+            raise serializers.ValidationError(
+                "شماره عمومی تماس باید همان شماره تأییدشده حساب باشد."
+            )
+        return phone
+
+    def validate_phone_publication_consent(self, value: bool) -> bool:
+        if not value:
+            raise serializers.ValidationError("تأیید نمایش عمومی شماره تماس الزامی است.")
         return value
 
 
@@ -674,11 +692,17 @@ class SubmissionSerializer(ClaimStatusMixin, serializers.ModelSerializer[Submiss
 
     @extend_schema_field(ContactOutputSerializer(allow_null=True))
     def get_contact(self, submission: Submission) -> dict[str, Any] | None:
-        if not submission.contact_name:
+        phone = submission.contact_phone
+        if (
+            submission.state in (SubmissionState.DRAFT, SubmissionState.CHANGES_REQUESTED)
+            and submission.submitter.phone_verified
+        ):
+            phone = submission.submitter.phone or ""
+        if not submission.contact_name and not phone:
             return None
         return {
             "name": submission.contact_name,
-            "phone": submission.contact_phone,
+            "phone": phone,
             "authorization_declared": submission.authorization_declared,
             "phone_publication_consent": submission.phone_publication_consent,
         }

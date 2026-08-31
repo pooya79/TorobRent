@@ -1,4 +1,4 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CheckCircle2, Globe2, ShieldCheck } from "lucide-react";
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { Link, useSearchParams } from "react-router";
@@ -58,18 +58,20 @@ function detailsFromProposal(
 export function SourceProposalPage() {
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
-  const startNew = searchParams.get("new") === "1";
-  const [proposal, setProposal] = useState<SourceProposal>();
-  const [details, setDetails] = useState(emptyDetails);
+  const [startNew] = useState(() => searchParams.get("new") === "1");
+  const [proposalOverride, setProposal] = useState<SourceProposal>();
+  const [detailsOverride, setDetails] =
+    useState<Required<SourceProposalDetails>>();
   const [previewConfirmed, setPreviewConfirmed] = useState(false);
-  const resume = useMutation({
-    mutationFn: () => resumeOrCreateSourceProposal(startNew),
-    onSuccess: (data) => {
-      setProposal(data);
-      setDetails(detailsFromProposal(data));
-      if (startNew) setSearchParams({}, { replace: true });
-    },
+  const resume = useQuery({
+    queryKey: ["source-proposal-resume", startNew],
+    queryFn: () => resumeOrCreateSourceProposal(startNew),
+    retry: false,
   });
+  const proposal = proposalOverride ?? resume.data;
+  const details =
+    detailsOverride ??
+    (proposal ? detailsFromProposal(proposal) : emptyDetails);
   const autosave = useMutation({
     mutationFn: (body: SourceProposalDraft) => {
       if (!proposal) throw new Error("Source Proposal هنوز آماده نیست.");
@@ -106,8 +108,8 @@ export function SourceProposalPage() {
   });
 
   useEffect(() => {
-    if (resume.status === "idle") resume.mutate();
-  }, [resume]);
+    if (resume.data && startNew) setSearchParams({}, { replace: true });
+  }, [resume.data, setSearchParams, startNew]);
 
   if (resume.isError) {
     return (
@@ -152,7 +154,7 @@ export function SourceProposalPage() {
   const setField = <K extends keyof typeof details>(
     key: K,
     value: (typeof details)[K],
-  ) => setDetails((current) => ({ ...current, [key]: value }));
+  ) => setDetails((current) => ({ ...(current ?? details), [key]: value }));
   const autosaveField = <K extends keyof SourceProposalDraft>(
     key: K,
     value: SourceProposalDraft[K],

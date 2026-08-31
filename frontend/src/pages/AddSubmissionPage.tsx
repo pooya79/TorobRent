@@ -100,12 +100,14 @@ function reviewAccuracyConfirmed(review: unknown) {
 
 function RoleChooser({
   onCreated,
+  resumeExisting,
 }: {
   onCreated: (draft: Submission) => void;
+  resumeExisting: boolean;
 }) {
   const [role, setRole] = useState<"owner" | "agent">("owner");
   const mutation = useMutation({
-    mutationFn: () => createSubmission(role),
+    mutationFn: () => createSubmission(role, resumeExisting),
     onSuccess: onCreated,
   });
 
@@ -142,7 +144,7 @@ function RoleChooser({
           disabled={mutation.isPending}
           onClick={() => mutation.mutate()}
         >
-          ساخت پیش‌نویس و ادامه
+          ساخت یا ادامه Submission
         </Button>
       </CardContent>
     </Card>
@@ -513,15 +515,20 @@ function ContactFields({
         <FieldError id="contact-name-error" message={nameError} />
       </Label>
       <Label className="space-y-2">
-        <span>شماره تماس</span>
+        <span>شماره عمومی تماس</span>
         <Input
           name="phone"
-          aria-label="شماره تماس"
+          aria-label="شماره عمومی تماس"
           inputMode="tel"
           defaultValue={submission.contact?.phone}
+          readOnly
           aria-invalid={Boolean(phoneError)}
           aria-describedby={phoneError ? "contact-phone-error" : undefined}
         />
+        <p className="text-muted-foreground text-xs">
+          این همان شماره تأییدشده حساب شماست و Renterها آن را در Direct Listing
+          خواهند دید.
+        </p>
         <FieldError id="contact-phone-error" message={phoneError} />
       </Label>
       <Label className="flex min-h-11 items-start gap-3">
@@ -856,7 +863,8 @@ function DraftFlow({ submissionId }: { submissionId: string }) {
       step === "contact" &&
       (!formValue(form, "name").trim() ||
         !formValue(form, "phone").trim() ||
-        !form.has("authorization_declared"))
+        !form.has("authorization_declared") ||
+        !form.has("phone_publication_consent"))
     ) {
       const message = "اطلاعات تماس و اعلام اختیار را کامل کنید.";
       setValidation({
@@ -871,6 +879,10 @@ function DraftFlow({ submissionId }: { submissionId: string }) {
           ...(!form.has("authorization_declared") && {
             "contact.authorization_declared":
               "اعلام اختیار ثبت ملک الزامی است.",
+          }),
+          ...(!form.has("phone_publication_consent") && {
+            "contact.phone_publication_consent":
+              "نمایش عمومی شماره تماس را تأیید کنید.",
           }),
         },
       });
@@ -1008,8 +1020,12 @@ export function AddSubmissionPage() {
             </p>
           </header>
           <RoleChooser
+            resumeExisting={!searchParams.has("new")}
             onCreated={(draft) =>
-              setSearchParams({ submission: draft.id, step: "location" })
+              setSearchParams({
+                submission: draft.id,
+                step: draft.current_step ?? "location",
+              })
             }
           />
         </>

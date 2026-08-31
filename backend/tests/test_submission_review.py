@@ -54,6 +54,8 @@ def make_operator(*, email: str = "operator@example.com", permitted: bool = True
         email=email,
         password="password",
         email_verified_at=timezone.now(),
+        phone=f"09{User.objects.count() + 1:09d}",
+        phone_verified_at=timezone.now(),
     )
     if permitted:
         operator.user_permissions.add(review_permission())
@@ -66,10 +68,14 @@ def make_complete_submission(
     property_type: str = "apartment",
     room_count: int | None = 2,
 ) -> Submission:
+    verified_phone = f"09{User.objects.count() + 1:09d}"
     submitter = User.objects.create_user(
         email=email,
         password="password",
         email_verified_at=timezone.now(),
+        phone=verified_phone,
+        phone_verified_at=timezone.now(),
+        is_submitter=True,
     )
     city, _ = City.objects.get_or_create(
         id=TEHRAN_CITY_ID,
@@ -130,7 +136,7 @@ def make_complete_submission(
         parking="present",
         description="نورگیر و آرام",
         contact_name="سارا احمدی",
-        contact_phone="۰۹۱۲۱۲۳۴۵۶۷",
+        contact_phone=verified_phone,
         authorization_declared=True,
         phone_publication_consent=True,
         review_data={"accuracy_confirmed": True},
@@ -172,6 +178,33 @@ def test_complete_submission_enters_review_once_and_records_the_transition(api_c
 
 
 @pytest.mark.django_db
+@pytest.mark.parametrize(
+    "invalid_contact",
+    ("unverified_account_phone", "different_phone", "missing_publication_acknowledgement"),
+)
+def test_submission_cannot_enter_review_without_the_verified_public_contact(
+    api_client: APIClient, invalid_contact: str
+):
+    submission = make_complete_submission(email=f"{invalid_contact}@example.com")
+    if invalid_contact == "unverified_account_phone":
+        submission.submitter.phone_verified_at = None
+        submission.submitter.save(update_fields=("phone_verified_at",))
+    elif invalid_contact == "different_phone":
+        submission.contact_phone = "09123456789"
+        submission.save(update_fields=("contact_phone",))
+    else:
+        submission.phone_publication_consent = False
+        submission.save(update_fields=("phone_publication_consent",))
+    api_client.force_authenticate(submission.submitter)
+
+    response = api_client.post(f"/api/v1/submissions/{submission.id}/submit/", {}, format="json")
+
+    assert response.status_code == 400
+    submission.refresh_from_db()
+    assert submission.state == "draft"
+
+
+@pytest.mark.django_db
 def test_operator_requests_changes_with_reason_and_submitter_resubmits(api_client: APIClient):
     submission = make_complete_submission()
     submit_for_review(submission=submission, actor=submission.submitter)
@@ -192,7 +225,7 @@ def test_operator_requests_changes_with_reason_and_submitter_resubmits(api_clien
     requested = api_client.post(
         f"/api/v1/operator/submissions/{submission.id}/request-changes/",
         {
-            "reason": "شماره تماس را اصلاح کنید.",
+            "reason": "نام تماس را اصلاح کنید.",
             "reviewed_revision": submission.revision,
         },
         format="json",
@@ -207,8 +240,8 @@ def test_operator_requests_changes_with_reason_and_submitter_resubmits(api_clien
         {
             "completed_step": "contact",
             "contact": {
-                "name": "سارا احمدی",
-                "phone": "۰۹۱۲۰۰۰۰۰۰۰",
+                "name": "سارا محمدی",
+                "phone": submission.contact_phone,
                 "authorization_declared": True,
                 "phone_publication_consent": True,
             },
@@ -1122,7 +1155,8 @@ def test_queue_filters_age_and_assignment_without_counting_self_work(api_client:
     mine = make_complete_submission(email="mine-filter@example.com")
     self_work = make_complete_submission(email="temporary-self-filter@example.com")
     self_work.submitter = operator
-    self_work.save(update_fields=("submitter",))
+    self_work.contact_phone = operator.phone or ""
+    self_work.save(update_fields=("submitter", "contact_phone"))
     for submission in (unclaimed, mine, self_work):
         submit_for_review(submission=submission, actor=submission.submitter)
         Submission.objects.filter(id=submission.id).update(
@@ -1148,7 +1182,8 @@ def test_submission_summary_counts_only_actionable_review_work_visible_to_operat
     recent = make_complete_submission(email="summary-recent@example.com")
     self_work = make_complete_submission(email="summary-self@example.com")
     self_work.submitter = operator
-    self_work.save(update_fields=("submitter",))
+    self_work.contact_phone = operator.phone or ""
+    self_work.save(update_fields=("submitter", "contact_phone"))
     for submission in (unclaimed, mine, recent, self_work):
         submit_for_review(submission=submission, actor=submission.submitter)
     Submission.objects.filter(id__in=(unclaimed.id, mine.id, self_work.id)).update(

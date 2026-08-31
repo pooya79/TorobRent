@@ -53,7 +53,7 @@ from .services import (
     add_submission_image_for_actor,
     approve_submission,
     claim_submission_review,
-    create_submission_draft,
+    create_or_resume_submission_draft,
     force_release_submission_review_claim,
     reject_submission,
     release_submission_review_claim,
@@ -122,22 +122,24 @@ class SubmissionListCreateView(APIView):
         return Response(SubmissionSerializer(submissions, many=True).data)
 
     @extend_schema(
-        summary="Create a Submission draft",
+        summary="Create or resume a Submission draft for the selected relationship",
         request=SubmissionCreateSerializer,
-        responses={201: SubmissionSerializer},
+        responses={200: SubmissionSerializer, 201: SubmissionSerializer},
     )
     def post(self, request: Request) -> Response:
         user = cast(User, request.user)
         serializer = SubmissionCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         try:
-            submission = create_submission_draft(
+            submission, created = create_or_resume_submission_draft(
                 submitter=user,
                 role=serializer.validated_data["role"],
+                resume_existing=serializer.validated_data["resume_existing"],
             )
         except SubmissionAccessDenied as exc:
             raise PermissionDenied(str(exc)) from None
-        return Response(SubmissionSerializer(submission).data, status=status.HTTP_201_CREATED)
+        response_status = status.HTTP_201_CREATED if created else status.HTTP_200_OK
+        return Response(SubmissionSerializer(submission).data, status=response_status)
 
 
 class SubmissionDetailView(APIView):
@@ -165,6 +167,7 @@ class SubmissionDetailView(APIView):
             submission,
             data=request.data,
             partial=True,
+            context={"request": request},
         )
         serializer.is_valid(raise_exception=True)
         completed_step = serializer.validated_data["completed_step"]

@@ -67,9 +67,12 @@ export function submissionQueryOptions(submissionId: string) {
   });
 }
 
-export async function createSubmission(role: "owner" | "agent") {
+export async function createSubmission(
+  role: "owner" | "agent",
+  resumeExisting: boolean,
+) {
   const { data, error } = await api.POST("/api/v1/submissions/", {
-    body: { role },
+    body: { role, resume_existing: resumeExisting },
   });
   if (error || !data) throw apiError(error);
   return data;

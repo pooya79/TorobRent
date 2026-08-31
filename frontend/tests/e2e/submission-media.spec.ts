@@ -23,7 +23,7 @@ test("Submitter completes the media step and sees processed images in final revi
   await expect(page).toHaveURL(/\/admin\/$/);
 
   await page.goto("/add-submission");
-  await page.getByRole("button", { name: "ساخت پیش‌نویس و ادامه" }).click();
+  await page.getByRole("button", { name: "ساخت یا ادامه Submission" }).click();
   await expect(page).toHaveURL(/submission=/);
   const submissionId = new URL(page.url()).searchParams.get("submission");
   expect(submissionId).toBeTruthy();

@@ -26,6 +26,14 @@ type OnboardingState = {
 
 const onboardingQueryKey = ["submitter-onboarding"] as const;
 
+function onboardingDestination(
+  path: SubmitterOnboardingPath | null | undefined,
+  returnTo: string | null | undefined,
+) {
+  if (path === "submission") return returnTo ?? "/add-submission";
+  return path && returnTo ? returnTo : null;
+}
+
 export function SubmitterOnboardingPage() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -57,10 +65,11 @@ export function SubmitterOnboardingPage() {
     },
     onSuccess: (data, selectedPath) => {
       queryClient.setQueryData(onboardingQueryKey, data);
-      if (selectedPath && returnTo) void navigate(returnTo, { replace: true });
-      else if (selectedPath === "source_proposal") {
-        void navigate("/source-proposal", { replace: true });
-      }
+      const destination =
+        selectedPath === "source_proposal"
+          ? (returnTo ?? "/source-proposal")
+          : onboardingDestination(selectedPath, returnTo);
+      if (destination) void navigate(destination, { replace: true });
     },
   });
   useEffect(() => {
@@ -75,9 +84,11 @@ export function SubmitterOnboardingPage() {
   }, [onboarding.data, update]);
 
   useEffect(() => {
-    if (returnTo && onboarding.data?.selected_path) {
-      void navigate(returnTo, { replace: true });
-    }
+    const destination = onboardingDestination(
+      onboarding.data?.selected_path,
+      returnTo,
+    );
+    if (destination) void navigate(destination, { replace: true });
   }, [navigate, onboarding.data?.selected_path, returnTo]);
 
   if (session.isPending) return <LoadingState />;

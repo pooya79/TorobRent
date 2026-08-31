@@ -1906,7 +1906,7 @@ paths:
           description: ''
     post:
       operationId: v1_submissions_create
-      summary: Create a Submission draft
+      summary: Create or resume a Submission draft for the selected relationship
       tags:
       - v1
       requestBody:
@@ -1918,6 +1918,12 @@ paths:
       security:
       - cookieAuth: []
       responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Submission'
+          description: ''
         '201':
           content:
             application/json:
@@ -4390,6 +4396,10 @@ components:
       properties:
         role:
           $ref: '#/components/schemas/RoleEnum'
+        resume_existing:
+          type: boolean
+          writeOnly: true
+          default: false
       required:
       - role
     SubmissionCurrentStepEnum:

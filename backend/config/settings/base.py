@@ -155,9 +155,7 @@ SPECTACULAR_SETTINGS = {
         "PropertyTypeEnum": "apps.catalog.models.PropertyType.choices",
         "PrivacyActionTypeEnum": "apps.contact.models.PrivacyActionType.choices",
         "SubmissionStateEnum": "apps.submissions.models.SubmissionState.choices",
-        "SourceProposalInventoryRangeEnum": (
-            "apps.source_proposals.models.InventoryRange.choices"
-        ),
+        "SourceProposalInventoryRangeEnum": ("apps.source_proposals.models.InventoryRange.choices"),
         "SourceProposalRelationshipEnum": (
             "apps.source_proposals.models.SourceRepresentativeRelationship.choices"
         ),

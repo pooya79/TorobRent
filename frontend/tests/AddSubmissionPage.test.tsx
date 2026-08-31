@@ -56,7 +56,7 @@ test("creates an Owner draft and presents the seven server-backed steps", async 
   renderPage();
 
   await user.click(
-    screen.getByRole("button", { name: "ساخت پیش‌نویس و ادامه" }),
+    screen.getByRole("button", { name: "ساخت یا ادامه Submission" }),
   );
 
   expect(await screen.findByText(/مرحله ۱ از ۷/)).toBeVisible();
@@ -71,6 +71,75 @@ test("creates an Owner draft and presents the seven server-backed steps", async 
   ]) {
     expect(screen.getAllByText(step).length).toBeGreaterThan(0);
   }
+});
+
+test("resumes the matching relationship draft at its saved step", async () => {
+  const user = userEvent.setup();
+  let createBody: unknown;
+  const resumedDraft = {
+    ...draft,
+    current_step: "contact",
+    contact: {
+      name: "",
+      phone: "09123456789",
+      authorization_declared: false,
+      phone_publication_consent: false,
+    },
+  };
+  server.use(
+    http.post("*/api/v1/submissions/", async ({ request }) => {
+      createBody = await request.json();
+      return HttpResponse.json(resumedDraft);
+    }),
+    http.get("*/api/v1/submissions/:id/", () =>
+      HttpResponse.json(resumedDraft),
+    ),
+  );
+  renderPage();
+
+  await user.click(
+    screen.getByRole("button", { name: "ساخت یا ادامه Submission" }),
+  );
+
+  expect(
+    await screen.findByRole("heading", { name: "اطلاعات تماس" }),
+  ).toBeVisible();
+  expect(createBody).toEqual({ role: "owner", resume_existing: true });
+});
+
+test("shows the verified account phone as the mandatory public continuation route", async () => {
+  const user = userEvent.setup();
+  const contactDraft = {
+    ...draft,
+    current_step: "contact",
+    contact: {
+      name: "",
+      phone: "09123456789",
+      authorization_declared: false,
+      phone_publication_consent: false,
+    },
+  };
+  server.use(
+    http.get("*/api/v1/submissions/:id/", () =>
+      HttpResponse.json(contactDraft),
+    ),
+  );
+  renderPage(`/add-submission?submission=${draft.id}&step=contact`);
+
+  const phone = await screen.findByLabelText("شماره عمومی تماس");
+  expect(phone).toHaveValue("09123456789");
+  expect(phone).toHaveAttribute("readonly");
+  expect(screen.getByText(/این همان شماره تأییدشده حساب شماست/)).toBeVisible();
+
+  await user.type(screen.getByLabelText("نام تماس"), "سارا احمدی");
+  await user.click(
+    screen.getByLabelText(/مالک هستم یا از طرف مالک اختیار ثبت/),
+  );
+  await user.click(screen.getByRole("button", { name: "ذخیره و ادامه" }));
+
+  expect(
+    screen.getByText("نمایش عمومی شماره تماس را تأیید کنید."),
+  ).toBeVisible();
 });
 
 test("places an Exact Location with a draggable map pin and saves coordinates without geocoding", async () => {

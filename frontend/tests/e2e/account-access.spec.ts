@@ -52,13 +52,11 @@ test("preserves Submitter onboarding through access and restores either selected
   await page.getByRole("button", { name: "ورود" }).click();
 
   const property = page.getByRole("button", {
-    name: /ارسال پیشنهاد اطلاعات اجاره/,
+    name: /ثبت یک ملک/,
   });
   const website = page.getByRole("button", { name: /معرفی وب‌سایت اجاره/ });
   await expect(property).toBeVisible();
   await expect(website).toBeVisible();
-  await property.click();
-  await expect(property).toHaveAttribute("aria-pressed", "true");
   await website.click();
   await expect(page).toHaveURL(/\/source-proposal$/);
   await expect(
@@ -77,11 +75,15 @@ test("preserves Submitter onboarding through access and restores either selected
   await page.getByLabel("تعداد تقریبی ملک‌ها").selectOption("unknown");
   await page.getByLabel(/اختیار معرفی این وب‌سایت/).check();
   await page.getByRole("button", { name: "ذخیره و مشاهده پیش‌نمایش" }).click();
-  await expect(page.getByText("پیش‌نمایش شبیه‌سازی‌شده")).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "پیش‌نمایش شبیه‌سازی‌شده" }),
+  ).toBeVisible();
   await expect(page.getByText(/هیچ درخواست زنده‌ای/)).toBeVisible();
 
   await page.reload();
-  await expect(page.getByText("پیش‌نمایش شبیه‌سازی‌شده")).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "پیش‌نمایش شبیه‌سازی‌شده" }),
+  ).toBeVisible();
   await page.getByLabel(/این پیش‌نمایش شبیه‌سازی‌شده را بررسی کردم/).check();
   await page.getByRole("button", { name: "ارسال برای بررسی" }).click();
   await expect(page.getByText("در انتظار بررسی اپراتور")).toBeVisible();
