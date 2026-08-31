@@ -23,6 +23,11 @@ _Avoid_: Landlord
 A Submitter who asserts that they are authorized to advertise a Property on an owner's behalf.
 _Avoid_: Broker, realtor
 
+**Source Representative**:
+A Submitter who asserts that they own, manage, or are authorized to introduce an external Source
+through a Source Proposal.
+_Avoid_: Agent, Source owner
+
 **Operator**:
 A verified account holder entrusted with one or more operational responsibilities, such as
 performing Submission Reviews, maintaining published rental information, overseeing Link
@@ -65,6 +70,15 @@ One source's advertisement of a Property, including source-specific rental terms
 continue with that source. Several Listings can refer to the same Property.
 _Avoid_: Property, search result
 
+**Direct Listing**:
+A Listing whose continuation route is a verified contact number approved for public display by the
+Submitter.
+_Avoid_: Direct Submission, phone Listing
+
+**External Listing**:
+A Listing whose continuation route is the original advertisement URL at an external Source.
+_Avoid_: Imported Listing, website Listing
+
 **Active Listing**:
 A published Listing whose stated availability has not expired and which has not been marked
 unavailable. Only Active Listings make a Property eligible for search.
@@ -73,6 +87,11 @@ _Avoid_: Published listing
 **Source**:
 The website or direct TorobRent channel from which a Listing originates.
 _Avoid_: Provider
+
+**Source Proposal**:
+A Submitter's request for TorobRent to validate an external Source and discover its rental
+information. One Source Proposal may yield multiple External Listing candidates.
+_Avoid_: Submission, website Submission, bulk Submission
 
 **Submission**:
 A Submitter's proposal for rental information to become a TorobRent Listing after operator
