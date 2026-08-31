@@ -19,6 +19,7 @@ from django.utils import timezone
 from PIL import Image, ImageOps, UnidentifiedImageError
 
 from apps.accounts.capabilities import OperatorCapability, has_capability
+from apps.accounts.identifiers import normalize_iranian_mobile
 from apps.accounts.models import User
 from apps.catalog.models import (
     Listing,
@@ -71,12 +72,44 @@ class SubmissionAccessDenied(Exception):
     pass
 
 
-def create_submission_draft(*, submitter: User, role: str) -> Submission:
+def verified_public_contact_phone(*, submitter: User, value: str) -> str | None:
+    phone = normalize_iranian_mobile(value)
+    if not submitter.phone_verified or phone is None or phone != submitter.phone:
+        return None
+    return phone
+
+
+@transaction.atomic
+def create_or_resume_submission_draft(
+    *, submitter: User, role: str, resume_existing: bool = False
+) -> tuple[Submission, bool]:
     if not submitter.is_submitter:
         raise SubmissionAccessDenied("برای ثبت Submission باید حساب ارسال‌کننده داشته باشید.")
     if not submitter.phone_verified:
         raise SubmissionAccessDenied("برای ثبت پیش‌نویس ابتدا شماره تلفن خود را تأیید کنید.")
-    return Submission.objects.create(submitter=submitter, role=role)
+    submitter = User.objects.select_for_update().get(id=submitter.id)
+    existing = None
+    if resume_existing:
+        existing = (
+            Submission.objects
+            .filter(
+                submitter=submitter,
+                role=role,
+                state__in=(SubmissionState.DRAFT, SubmissionState.CHANGES_REQUESTED),
+            )
+            .order_by("-updated_at")
+            .first()
+        )
+    if existing is not None:
+        return existing, False
+    return (
+        Submission.objects.create(
+            submitter=submitter,
+            role=role,
+            contact_phone=submitter.phone or "",
+        ),
+        True,
+    )
 
 
 PROPERTY_FIELDS = (
@@ -501,9 +534,18 @@ def _validate_complete_submission(submission: Submission) -> None:
     if (
         missing
         or not submission.authorization_declared
+        or not submission.phone_publication_consent
         or not submission.review_data.get("accuracy_confirmed")
     ):
         raise ValidationError("Submission پیش از ارسال باید کامل و تأیید شده باشد.")
+    if (
+        verified_public_contact_phone(
+            submitter=submission.submitter,
+            value=submission.contact_phone,
+        )
+        is None
+    ):
+        raise ValidationError("شماره عمومی تماس باید همان شماره تأییدشده حساب باشد.")
     ensure_submission_media_complete(submission=submission)
 
 

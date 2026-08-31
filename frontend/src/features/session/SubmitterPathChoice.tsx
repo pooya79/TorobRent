@@ -8,9 +8,9 @@ export type SubmitterOnboardingPath = "submission" | "source_proposal";
 const choices = [
   {
     path: "submission",
-    title: "ارسال پیشنهاد اطلاعات اجاره",
+    title: "ثبت یک ملک",
     description:
-      "اطلاعات پیشنهادی را مرحله‌به‌مرحله در یک Submission تکمیل می‌کنید؛ انتشار تنها پس از بررسی اپراتور انجام می‌شود.",
+      "رابطه مالک یا نماینده را برای این Submission مشخص می‌کنید و اطلاعات ملک را در هفت مرحله ادامه می‌دهید؛ Direct Listing تنها پس از بررسی اپراتور منتشر می‌شود.",
     icon: Building2,
   },
   {

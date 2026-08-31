@@ -765,7 +765,7 @@ export interface paths {
     /** List the current Submitter's Submissions */
     get: operations["v1_submissions_list"];
     put?: never;
-    /** Create a Submission draft */
+    /** Create or resume a Submission draft for the selected relationship */
     post: operations["v1_submissions_create"];
     delete?: never;
     options?: never;
@@ -1792,6 +1792,8 @@ export interface components {
     };
     SubmissionCreate: {
       role: components["schemas"]["RoleEnum"];
+      /** @default false */
+      resume_existing: boolean;
     };
     SubmissionDecisionNotification: {
       /** Format: uuid */
@@ -3905,6 +3907,14 @@ export interface operations {
       };
     };
     responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Submission"];
+        };
+      };
       201: {
         headers: {
           [name: string]: unknown;

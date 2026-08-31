@@ -59,7 +59,7 @@ export function SubmitterDashboardPage() {
           </p>
         </div>
         <Button asChild className="rounded-full">
-          <Link to="/add-submission">
+          <Link to="/add-submission?new=1">
             <Plus aria-hidden="true" /> ثبت آگهی تازه
           </Link>
         </Button>

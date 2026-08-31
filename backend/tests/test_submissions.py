@@ -92,6 +92,86 @@ def test_verified_submitter_can_create_an_owner_draft(api_client: APIClient):
     assert response.data["state"] == "draft"
     assert response.data["current_step"] == "location"
     assert response.data["media_complete"] is False
+    assert response.data["contact"] == {
+        "name": "",
+        "phone": "09123456789",
+        "authorization_declared": False,
+        "phone_publication_consent": False,
+    }
+
+
+@pytest.mark.django_db
+def test_choosing_a_relationship_resumes_the_matching_submission_draft(api_client: APIClient):
+    submitter = User.objects.create_user(
+        phone="09123456789",
+        password="correct-horse-battery",
+        phone_verified_at=timezone.now(),
+        is_submitter=True,
+    )
+    api_client.force_authenticate(submitter)
+
+    owner = api_client.post("/api/v1/submissions/", {"role": "owner"}, format="json")
+    agent = api_client.post("/api/v1/submissions/", {"role": "agent"}, format="json")
+    Submission.objects.filter(id=owner.data["id"]).update(contact_phone="09351234567")
+    resumed = api_client.post(
+        "/api/v1/submissions/",
+        {"role": "owner", "resume_existing": True},
+        format="json",
+    )
+
+    assert owner.status_code == 201
+    assert agent.status_code == 201
+    assert resumed.status_code == 200
+    assert resumed.data["id"] == owner.data["id"]
+    assert resumed.data["id"] != agent.data["id"]
+    assert resumed.data["contact"]["phone"] == submitter.phone
+    assert Submission.objects.filter(submitter=submitter).count() == 2
+
+
+@pytest.mark.django_db
+def test_contact_requires_the_verified_account_phone_and_publication_acknowledgement(
+    api_client: APIClient,
+):
+    submitter = User.objects.create_user(
+        phone="09123456789",
+        password="correct-horse-battery",
+        phone_verified_at=timezone.now(),
+        is_submitter=True,
+    )
+    submission_id = create_draft(api_client, submitter)
+    detail_url = f"/api/v1/submissions/{submission_id}/"
+
+    unverified_phone = api_client.patch(
+        detail_url,
+        {
+            "completed_step": "contact",
+            "contact": {
+                "name": "سارا احمدی",
+                "phone": "09351234567",
+                "authorization_declared": True,
+                "phone_publication_consent": True,
+            },
+        },
+        format="json",
+    )
+    missing_acknowledgement = api_client.patch(
+        detail_url,
+        {
+            "completed_step": "contact",
+            "contact": {
+                "name": "سارا احمدی",
+                "phone": "۰۹۱۲۳۴۵۶۷۸۹",
+                "authorization_declared": True,
+                "phone_publication_consent": False,
+            },
+        },
+        format="json",
+    )
+
+    assert unverified_phone.status_code == 400
+    assert "contact.phone" in unverified_phone.data["errors"]
+    assert missing_acknowledgement.status_code == 400
+    assert "contact.phone_publication_consent" in missing_acknowledgement.data["errors"]
 
 
 @pytest.mark.django_db
@@ -236,6 +316,7 @@ def test_submitter_can_save_and_resume_the_complete_draft_flow(
         email="agent@example.com",
         password="correct-horse-battery",
         email_verified_at=timezone.now(),
+        phone="09121234567",
         phone_verified_at=timezone.now(),
         is_submitter=True,
     )
@@ -318,7 +399,7 @@ def test_submitter_can_save_and_resume_the_complete_draft_flow(
                 "name": "سارا احمدی",
                 "phone": "۰۹۱۲۱۲۳۴۵۶۷",
                 "authorization_declared": True,
-                "phone_publication_consent": False,
+                "phone_publication_consent": True,
             },
         },
         {
@@ -366,7 +447,7 @@ def test_submitter_can_save_and_resume_the_complete_draft_flow(
         "balcony": "present",
         "furnished": "unknown",
     }
-    assert resumed.data["contact"]["phone_publication_consent"] is False
+    assert resumed.data["contact"]["phone_publication_consent"] is True
     assert resumed.data["review"] == {"accuracy_confirmed": True}
     assert resumed.data["state"] == "draft"
     assert resumed.data["media_complete"] is True

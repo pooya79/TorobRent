@@ -52,16 +52,19 @@ test("preserves Submitter onboarding through access and restores either selected
   await page.getByRole("button", { name: "ورود" }).click();
 
   const property = page.getByRole("button", {
-    name: /ارسال پیشنهاد اطلاعات اجاره/,
+    name: /ثبت یک ملک/,
   });
   const website = page.getByRole("button", { name: /معرفی وب‌سایت اجاره/ });
   await expect(property).toBeVisible();
   await expect(website).toBeVisible();
-  await property.click();
-  await expect(property).toHaveAttribute("aria-pressed", "true");
   await website.click();
   await expect(website).toHaveAttribute("aria-pressed", "true");
 
   await page.reload();
   await expect(website).toHaveAttribute("aria-pressed", "true");
+  await property.click();
+  await expect(page).toHaveURL(/\/add-submission$/);
+  await expect(
+    page.getByRole("heading", { name: "نقش شما در این ثبت چیست؟" }),
+  ).toBeVisible();
 });

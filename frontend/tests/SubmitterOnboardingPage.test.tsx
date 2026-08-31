@@ -78,7 +78,7 @@ test("upgrades a verified Renter without another login or phone challenge and sh
   );
 
   expect(
-    await screen.findByRole("button", { name: /ارسال پیشنهاد اطلاعات اجاره/ }),
+    await screen.findByRole("button", { name: /ثبت یک ملک/ }),
   ).toBeVisible();
   expect(
     screen.getByRole("button", { name: /معرفی وب‌سایت اجاره/ }),
@@ -142,7 +142,7 @@ test("adds and verifies a phone on an email-authenticated account before grantin
   await user.click(screen.getByRole("button", { name: "تأیید و ادامه" }));
 
   expect(
-    await screen.findByRole("button", { name: /ارسال پیشنهاد اطلاعات اجاره/ }),
+    await screen.findByRole("button", { name: /ثبت یک ملک/ }),
   ).toBeVisible();
   expect(requested).toEqual({
     identifier: "۰۹۱۲۳۴۵۶۷۸۹",
@@ -151,7 +151,7 @@ test("adds and verifies a phone on an email-authenticated account before grantin
   expect(verified).toEqual({ identifier: "۰۹۱۲۳۴۵۶۷۸۹", otp: "314159" });
 });
 
-test("persists either choice and restores the selected path", async () => {
+test("persists and restores the Source Proposal choice", async () => {
   const user = userEvent.setup();
   const selectedPaths: string[] = [];
   let selectedPath: "submission" | "source_proposal" | null = "source_proposal";
@@ -196,16 +196,54 @@ test("persists either choice and restores the selected path", async () => {
   const website = await screen.findByRole("button", {
     name: /معرفی وب‌سایت اجاره/,
   });
-  const property = screen.getByRole("button", {
-    name: /ارسال پیشنهاد اطلاعات اجاره/,
-  });
   expect(website).toHaveAttribute("aria-pressed", "true");
 
-  await user.click(property);
-  expect(property).toHaveAttribute("aria-pressed", "true");
   await user.click(website);
   expect(website).toHaveAttribute("aria-pressed", "true");
-  expect(selectedPaths).toEqual(["submission", "source_proposal"]);
+  expect(selectedPaths).toEqual(["source_proposal"]);
+});
+
+test("continues the Register one Property choice into the relationship step", async () => {
+  const user = userEvent.setup();
+  server.use(
+    http.get("*/api/v1/auth/session/", () =>
+      HttpResponse.json({ authenticated: true, csrf_token: "test-token" }),
+    ),
+    http.get("*/api/v1/users/me/submitter-onboarding/", () =>
+      HttpResponse.json({
+        eligible: true,
+        phone_verified: true,
+        selected_path: null,
+      }),
+    ),
+    http.post("*/api/v1/users/me/submitter-onboarding/", () =>
+      HttpResponse.json({
+        eligible: true,
+        phone_verified: true,
+        selected_path: "submission",
+      }),
+    ),
+  );
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  render(
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter initialEntries={["/submitter/get-started"]}>
+        <Routes>
+          <Route
+            path="submitter/get-started"
+            element={<SubmitterOnboardingPage />}
+          />
+          <Route path="add-submission" element={<LocationProbe />} />
+        </Routes>
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+
+  await user.click(await screen.findByRole("button", { name: /ثبت یک ملک/ }));
+
+  expect(await screen.findByText("/add-submission")).toBeVisible();
 });
 
 test("resumes a safe protected destination after the path is saved", async () => {
@@ -252,7 +290,7 @@ test("resumes a safe protected destination after the path is saved", async () =>
 
   await user.click(
     await screen.findByRole("button", {
-      name: /ارسال پیشنهاد اطلاعات اجاره/,
+      name: /ثبت یک ملک/,
     }),
   );
 
