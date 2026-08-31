@@ -755,6 +755,93 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/v1/source-proposals/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List the current Submitter's Source Proposals */
+    get: operations["v1_source_proposals_list"];
+    put?: never;
+    /** Create or resume a Source Proposal draft */
+    post: operations["v1_source_proposals_create"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/source-proposals/{proposal_id}/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Resume a Source Proposal */
+    get: operations["v1_source_proposals_retrieve"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /** Save Source Proposal website and authority details */
+    patch: operations["v1_source_proposals_partial_update"];
+    trace?: never;
+  };
+  "/api/v1/source-proposals/{proposal_id}/draft/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /** Autosave Source Proposal draft fields */
+    patch: operations["v1_source_proposals_draft_partial_update"];
+    trace?: never;
+  };
+  "/api/v1/source-proposals/{proposal_id}/preview/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Generate the deterministic simulated Source Proposal preview */
+    post: operations["v1_source_proposals_preview_create"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/source-proposals/{proposal_id}/submit/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Confirm the simulated preview and submit for Operator review */
+    post: operations["v1_source_proposals_submit_create"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/v1/submissions/": {
     parameters: {
       query?: never;
@@ -1143,24 +1230,6 @@ export interface components {
      * @enum {string}
      */
     CurrencyEnum: "IRR";
-    /**
-     * @description * `location` - نشانی ملک
-     *     * `property_facts` - مشخصات ملک
-     *     * `rental_terms` - شرایط اجاره
-     *     * `features_description` - امکانات و توضیحات
-     *     * `images` - تصاویر
-     *     * `contact` - اطلاعات تماس
-     *     * `review` - بازبینی
-     * @enum {string}
-     */
-    CurrentStepEnum:
-      | "location"
-      | "property_facts"
-      | "rental_terms"
-      | "features_description"
-      | "images"
-      | "contact"
-      | "review";
     CurrentUser: {
       /** Format: uuid */
       readonly id: string;
@@ -1447,6 +1516,29 @@ export interface components {
       /** Format: email */
       email: string;
     };
+    PatchedSourceProposalDetails: {
+      website_name?: string;
+      /** Format: uri */
+      website_url?: string;
+      relationship?: components["schemas"]["SourceProposalRelationshipEnum"];
+      inventory_range?: components["schemas"]["SourceProposalInventoryRangeEnum"];
+      sitemap_url?: string;
+      operator_note?: string;
+      authority_declared?: boolean;
+    };
+    PatchedSourceProposalDraft: {
+      website_name?: string;
+      website_url?: string;
+      relationship?:
+        | components["schemas"]["SourceProposalRelationshipEnum"]
+        | components["schemas"]["BlankEnum"];
+      inventory_range?:
+        | components["schemas"]["SourceProposalInventoryRangeEnum"]
+        | components["schemas"]["BlankEnum"];
+      sitemap_url?: string;
+      operator_note?: string;
+      authority_declared?: boolean;
+    };
     PatchedSubmissionImageOrder: {
       image_ids?: string[];
       /** Format: uuid */
@@ -1727,6 +1819,18 @@ export interface components {
       authenticated: boolean;
       csrf_token: string;
     };
+    SimulatedPreviewExample: {
+      title: string;
+      status: string;
+    };
+    SimulatedSourceProposalPreview: {
+      simulated: boolean;
+      title: string;
+      disclaimer: string;
+      estimated_count: number | null;
+      inventory_range: components["schemas"]["SourceProposalInventoryRangeEnum"];
+      examples: components["schemas"]["SimulatedPreviewExample"][];
+    };
     SourceDisagreement: {
       field: string;
       normalized_value: unknown;
@@ -1736,6 +1840,70 @@ export interface components {
       source_reference?: string;
       source_claims?: unknown;
       provenance_note?: string;
+    };
+    SourceProposal: {
+      /** Format: uuid */
+      readonly id: string;
+      state?: components["schemas"]["SourceProposalStateEnum"];
+      current_step?: components["schemas"]["SourceProposalStepEnum"];
+      website_name?: string;
+      website_url?: string;
+      relationship?:
+        | components["schemas"]["SourceProposalRelationshipEnum"]
+        | components["schemas"]["BlankEnum"];
+      inventory_range?:
+        | components["schemas"]["SourceProposalInventoryRangeEnum"]
+        | components["schemas"]["BlankEnum"];
+      sitemap_url?: string;
+      operator_note?: string;
+      authority_declared?: boolean;
+      readonly preview:
+        components["schemas"]["SimulatedSourceProposalPreview"] | null;
+      preview_confirmed?: boolean;
+      /** Format: date-time */
+      readonly pending_since: string | null;
+      readonly available_actions: string[];
+      /** Format: date-time */
+      readonly created_at: string;
+      /** Format: date-time */
+      readonly updated_at: string;
+    };
+    SourceProposalCreate: {
+      /** @default false */
+      start_new: boolean;
+    };
+    /**
+     * @description * `1_10` - ۱ تا ۱۰
+     *     * `11_50` - ۱۱ تا ۵۰
+     *     * `51_200` - ۵۱ تا ۲۰۰
+     *     * `more_than_200` - بیش از ۲۰۰
+     *     * `unknown` - نمی‌دانم
+     * @enum {string}
+     */
+    SourceProposalInventoryRangeEnum:
+      "1_10" | "11_50" | "51_200" | "more_than_200" | "unknown";
+    /**
+     * @description * `website_owner` - مالک وب‌سایت
+     *     * `website_manager` - مدیر وب‌سایت
+     *     * `authorized_representative` - نماینده مجاز
+     * @enum {string}
+     */
+    SourceProposalRelationshipEnum:
+      "website_owner" | "website_manager" | "authorized_representative";
+    /**
+     * @description * `draft` - پیش‌نویس
+     *     * `pending` - در انتظار بررسی
+     * @enum {string}
+     */
+    SourceProposalStateEnum: "draft" | "pending";
+    /**
+     * @description * `details` - اطلاعات وب‌سایت
+     *     * `preview` - پیش‌نمایش شبیه‌سازی‌شده
+     * @enum {string}
+     */
+    SourceProposalStepEnum: "details" | "preview";
+    SourceProposalSubmit: {
+      preview_confirmed: boolean;
     };
     SourcePublic: {
       /** Format: uuid */
@@ -1756,7 +1924,7 @@ export interface components {
       readonly listing_id: string | null;
       /** Format: uuid */
       readonly property_id: string | null;
-      current_step?: components["schemas"]["CurrentStepEnum"];
+      current_step?: components["schemas"]["SubmissionCurrentStepEnum"];
       readonly media_complete: boolean;
       readonly images: components["schemas"]["SubmissionImage"][];
       readonly location: components["schemas"]["LocationOutput"] | null;
@@ -1793,6 +1961,24 @@ export interface components {
     SubmissionCreate: {
       role: components["schemas"]["RoleEnum"];
     };
+    /**
+     * @description * `location` - نشانی ملک
+     *     * `property_facts` - مشخصات ملک
+     *     * `rental_terms` - شرایط اجاره
+     *     * `features_description` - امکانات و توضیحات
+     *     * `images` - تصاویر
+     *     * `contact` - اطلاعات تماس
+     *     * `review` - بازبینی
+     * @enum {string}
+     */
+    SubmissionCurrentStepEnum:
+      | "location"
+      | "property_facts"
+      | "rental_terms"
+      | "features_description"
+      | "images"
+      | "contact"
+      | "review";
     SubmissionDecisionNotification: {
       /** Format: uuid */
       readonly id: string;
@@ -3869,6 +4055,173 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["SupportWorkloadSummary"];
+        };
+      };
+    };
+  };
+  v1_source_proposals_list: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SourceProposal"][];
+        };
+      };
+    };
+  };
+  v1_source_proposals_create: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: {
+      content: {
+        "application/json": components["schemas"]["SourceProposalCreate"];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SourceProposal"];
+        };
+      };
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SourceProposal"];
+        };
+      };
+    };
+  };
+  v1_source_proposals_retrieve: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        proposal_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SourceProposal"];
+        };
+      };
+    };
+  };
+  v1_source_proposals_partial_update: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        proposal_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: {
+      content: {
+        "application/json": components["schemas"]["PatchedSourceProposalDetails"];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SourceProposal"];
+        };
+      };
+    };
+  };
+  v1_source_proposals_draft_partial_update: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        proposal_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: {
+      content: {
+        "application/json": components["schemas"]["PatchedSourceProposalDraft"];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SourceProposal"];
+        };
+      };
+    };
+  };
+  v1_source_proposals_preview_create: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        proposal_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SourceProposal"];
+        };
+      };
+    };
+  };
+  v1_source_proposals_submit_create: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        proposal_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["SourceProposalSubmit"];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SourceProposal"];
         };
       };
     };

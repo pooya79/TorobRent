@@ -58,6 +58,9 @@ export function SubmitterOnboardingPage() {
     onSuccess: (data, selectedPath) => {
       queryClient.setQueryData(onboardingQueryKey, data);
       if (selectedPath && returnTo) void navigate(returnTo, { replace: true });
+      else if (selectedPath === "source_proposal") {
+        void navigate("/source-proposal", { replace: true });
+      }
     },
   });
   useEffect(() => {
