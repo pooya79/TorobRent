@@ -145,7 +145,7 @@ test("publishes complete footer navigation and honest social placeholders", asyn
   );
 });
 
-test("presents ordered Popular Cities with Tehran as the only discovery action", async () => {
+test("presents the postcard runway with Tehran as the only discovery action", async () => {
   const user = userEvent.setup();
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
@@ -163,24 +163,13 @@ test("presents ordered Popular Cities with Tehran as the only discovery action",
 
   const gallery = screen.getByRole("region", { name: "شهرهای محبوب" });
   const cards = within(gallery).getAllByRole("article");
-  const cityNames = [
-    "تهران",
-    "اصفهان",
-    "مشهد",
-    "شیراز",
-    "تبریز",
-    "قم",
-    "اهواز",
-    "رشت",
-    "کرمانشاه",
-    "یزد",
-  ];
+  const cityNames = ["رشت", "اصفهان", "تهران", "شیراز", "مشهد"];
 
   expect(cards).toHaveLength(cityNames.length);
   expect(
     cards.map((card) => within(card).getByRole("heading").textContent),
   ).toEqual(cityNames);
-  const tehranLink = within(cards[0]!).getByRole("link", {
+  const tehranLink = within(cards[2]!).getByRole("link", {
     name: /مشاهده ملک‌های تهران/,
   });
   expect(tehranLink).toHaveAttribute(
@@ -194,7 +183,7 @@ test("presents ordered Popular Cities with Tehran as the only discovery action",
         name: new RegExp(cityName),
       }),
     ).toBeVisible();
-    if (index > 0) {
+    if (cityName !== "تهران") {
       expect(within(cards[index]!).getByText("به‌زودی")).toBeVisible();
       expect(within(cards[index]!).queryByRole("link")).toBeNull();
       expect(cards[index]).not.toHaveTextContent(/[\d۰-۹]/);
@@ -204,6 +193,38 @@ test("presents ordered Popular Cities with Tehran as the only discovery action",
   await user.click(tehranLink);
   expect(screen.getByRole("status", { name: "مسیر جاری" })).toHaveTextContent(
     "/search",
+  );
+});
+
+test("links the residential and commercial property paths to filtered search", () => {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  renderHomeShell(queryClient);
+
+  const paths = screen.getByRole("region", {
+    name: "دنبال چه نوع ملکی هستید؟",
+  });
+  expect(
+    within(paths).getByRole("navigation", { name: "انواع ملک مسکونی" }),
+  ).toBeVisible();
+  expect(
+    within(paths).getByRole("navigation", { name: "انواع ملک تجاری" }),
+  ).toBeVisible();
+  expect(within(paths).getByRole("link", { name: /آپارتمان/ })).toHaveAttribute(
+    "href",
+    expect.stringContaining("property_type=apartment"),
+  );
+  const warehouseAndWorkshop = within(paths).getByRole("link", {
+    name: /انبار و کارگاه/,
+  });
+  expect(warehouseAndWorkshop).toHaveAttribute(
+    "href",
+    expect.stringContaining("property_type=warehouse"),
+  );
+  expect(warehouseAndWorkshop).toHaveAttribute(
+    "href",
+    expect.stringContaining("property_type=workshop"),
   );
 });
 
@@ -727,6 +748,9 @@ test("keeps the final homepage sections in the agreed public order", () => {
       name: "اجاره ملک مسکونی و تجاری در تهران",
     }),
     within(main).getByRole("heading", { name: "شهرهای محبوب" }),
+    within(main).getByRole("heading", {
+      name: "دنبال چه نوع ملکی هستید؟",
+    }),
     within(main).getByRole("heading", {
       name: "چرا به اطلاعات اعتماد کنیم؟",
     }),
