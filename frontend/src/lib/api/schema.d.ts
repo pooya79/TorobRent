@@ -4478,6 +4478,15 @@ export interface operations {
           "application/json": components["schemas"]["Submission"];
         };
       };
+      /** @description OTP resend cooldown or endpoint request limit was reached. */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
     };
   };
   v1_submissions_images_create: {

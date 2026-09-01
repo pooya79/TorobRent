@@ -654,8 +654,8 @@ function ContactFields({
                 </div>
               )}
             <p className="text-muted-foreground text-xs">
-              کد ۵ دقیقه اعتبار دارد، پس از ۵ تلاش ناموفق جایگزین می‌شود و ارسال
-              دوباره پس از ۶۰ ثانیه ممکن است.
+              کد ۵ دقیقه اعتبار دارد؛ پس از ۵ تلاش ناموفق باید کد تازه‌ای
+              درخواست کنید. ارسال دوباره پس از ۶۰ ثانیه ممکن است.
             </p>
             {verificationMessage && (
               <p role="status" className="text-sm">

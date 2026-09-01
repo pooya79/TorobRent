@@ -252,7 +252,10 @@ class SubmissionContactVerificationView(APIView):
     @extend_schema(
         summary="Verify the selected alternate Submission contact phone",
         request=SubmissionContactVerificationSerializer,
-        responses=SubmissionSerializer,
+        responses={
+            200: SubmissionSerializer,
+            (429, PROBLEM_MEDIA_TYPE): THROTTLED_RESPONSE,
+        },
     )
     def post(self, request: Request, submission_id: str) -> Response:
         submission = get_object_or_404(

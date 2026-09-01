@@ -2084,6 +2084,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/Submission'
           description: ''
+        '429':
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: OTP resend cooldown or endpoint request limit was reached.
   /api/v1/submissions/{submission_id}/images/:
     post:
       operationId: v1_submissions_images_create
