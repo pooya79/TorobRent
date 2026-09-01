@@ -161,6 +161,9 @@ SPECTACULAR_SETTINGS = {
         ),
         "SourceProposalStateEnum": "apps.source_proposals.models.SourceProposalState.choices",
         "SourceProposalStepEnum": "apps.source_proposals.models.SourceProposalStep.choices",
+        "ExternalListingCandidateStateEnum": (
+            "apps.source_proposals.models.ExternalListingCandidateState.choices"
+        ),
         "SupportClassificationEnum": "apps.contact.models.SupportClassification.choices",
         "SupportPriorityEnum": "apps.contact.models.SupportPriority.choices",
         "SupportRequiredCapabilityEnum": ("apps.contact.models.SupportRequiredCapability.choices"),

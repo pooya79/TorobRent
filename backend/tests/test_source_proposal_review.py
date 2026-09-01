@@ -1,11 +1,12 @@
 import pytest
 from django.contrib.auth.models import Permission
+from django.core.management import call_command
 from django.utils import timezone
 from rest_framework.test import APIClient
 
 from apps.accounts.models import User
 from apps.catalog.models import Listing, Source
-from apps.source_proposals.models import SourceProposal
+from apps.source_proposals.models import ExternalListingCandidate, SourceProposal
 
 
 def make_user(*, email: str, submitter: bool = False) -> User:
@@ -208,6 +209,7 @@ def test_claim_and_revision_conflicts_prevent_concurrent_or_self_decisions(
 
 @pytest.mark.django_db
 def test_approval_validates_source_without_publishing_a_listing(api_client: APIClient):
+    call_command("loaddata", "catalog_seed", verbosity=0)
     representative = make_user(email="representative@example.com", submitter=True)
     domain = ".".join(["long-domain-segment"] * 7) + ".example"
     proposal = make_pending_proposal(submitter=representative, domain=domain)
@@ -236,6 +238,7 @@ def test_approval_validates_source_without_publishing_a_listing(api_client: APIC
     assert source.name == f"external-{proposal.id}"
     assert source.display_name == "و" * 120
     assert Listing.objects.count() == 0
+    assert ExternalListingCandidate.objects.filter(source_proposal=proposal).count() == 2
     proposal.refresh_from_db()
     assert proposal.source is not None
 

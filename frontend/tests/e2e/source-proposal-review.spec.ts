@@ -82,6 +82,9 @@ test("@milestone Source Representative completes the Operator review loop", asyn
   await loginOperator(page);
   await page.goto("/operator/source-proposals");
   await expect(page.getByText("خانه‌یاب مرورگر")).toBeVisible();
+  const beforeSourceApproval = (await (
+    await page.context().request.get("/api/v1/catalog/properties/")
+  ).json()) as { count: number };
   await page.getByRole("button", { name: "شروع بررسی" }).click();
   await page.getByLabel("دلیل تصمیم").fill("مدرک اختیار را تکمیل کنید.");
   await page.getByRole("button", { name: "درخواست اصلاح" }).click();
@@ -124,6 +127,40 @@ test("@milestone Source Representative completes the Operator review loop", asyn
   await page.getByLabel(/این تصمیم فقط Source را اعتبارسنجی می‌کند/).check();
   await page.getByRole("button", { name: "تأیید Source" }).click();
   await expect(page.getByText("تصمیم ثبت شد.")).toBeVisible();
+  await expect(
+    page.getByRole("heading", {
+      name: "آپارتمان شبیه‌سازی‌شده برای بررسی",
+    }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "دفتر شبیه‌سازی‌شده برای بررسی" }),
+  ).toBeVisible();
+  const afterSourceApproval = (await (
+    await page.context().request.get("/api/v1/catalog/properties/")
+  ).json()) as { count: number };
+  expect(afterSourceApproval.count).toBe(beforeSourceApproval.count);
+
+  await page
+    .getByRole("button", {
+      name: "شروع بررسی آپارتمان شبیه‌سازی‌شده برای بررسی",
+    })
+    .click();
+  await page
+    .getByLabel("تأیید انتشار آپارتمان شبیه‌سازی‌شده برای بررسی")
+    .check();
+  await page
+    .getByRole("button", {
+      name: "تأیید و انتشار آپارتمان شبیه‌سازی‌شده برای بررسی",
+    })
+    .click();
+  await expect(page.getByText("تصمیم Listing ثبت شد.")).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "دفتر شبیه‌سازی‌شده برای بررسی" }),
+  ).toBeVisible();
+  const afterListingApproval = (await (
+    await page.context().request.get("/api/v1/catalog/properties/")
+  ).json()) as { count: number };
+  expect(afterListingApproval.count).toBe(beforeSourceApproval.count + 1);
 
   await endSession(page);
   await loginSubmitter(page, submitter);

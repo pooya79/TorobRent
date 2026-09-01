@@ -1,4 +1,6 @@
 import ipaddress
+import uuid
+from dataclasses import dataclass
 from datetime import timedelta
 from urllib.parse import urlsplit
 
@@ -7,15 +9,107 @@ from django.db import transaction
 from django.utils import timezone
 
 from apps.accounts.models import User
-from apps.catalog.models import OutboundPolicy, Source
+from apps.catalog.models import TEHRAN_CITY_ID, Neighborhood, OutboundPolicy, PropertyType, Source
+from apps.catalog.services import ExternalListingSpec, materialize_external_listing
 
 from .models import (
+    ExternalListingCandidate,
+    ExternalListingCandidateEvent,
+    ExternalListingCandidateReviewClaim,
+    ExternalListingCandidateState,
     SourceProposal,
     SourceProposalEvent,
     SourceProposalReviewClaim,
     SourceProposalState,
     SourceProposalStep,
 )
+
+
+@dataclass(frozen=True)
+class SimulatedCandidateSpec:
+    slug: str
+    title: str
+    property_type: PropertyType
+    area_sqm: int
+    room_count: int | None
+    deposit_rial: int
+    monthly_rent_rial: int
+
+
+SIMULATED_CANDIDATE_SPECS = (
+    SimulatedCandidateSpec(
+        slug="residential-1",
+        title="آپارتمان شبیه‌سازی‌شده برای بررسی",
+        property_type=PropertyType.APARTMENT,
+        area_sqm=85,
+        room_count=2,
+        deposit_rial=5_000_000_000,
+        monthly_rent_rial=250_000_000,
+    ),
+    SimulatedCandidateSpec(
+        slug="commercial-2",
+        title="دفتر شبیه‌سازی‌شده برای بررسی",
+        property_type=PropertyType.OFFICE,
+        area_sqm=110,
+        room_count=None,
+        deposit_rial=8_000_000_000,
+        monthly_rent_rial=400_000_000,
+    ),
+)
+
+
+@transaction.atomic
+def generate_simulated_external_listing_candidates(
+    *, proposal: SourceProposal
+) -> list[ExternalListingCandidate]:
+    proposal = (
+        SourceProposal.objects.select_for_update().select_related("source").get(id=proposal.id)
+    )
+    source = proposal.source
+    if proposal.state != SourceProposalState.APPROVED or source is None:
+        raise ValidationError("Only an approved Source Proposal can produce Listing candidates.")
+    neighborhoods = list(
+        Neighborhood.objects
+        .filter(
+            reviewed=True,
+            district__reviewed=True,
+            district__city_id=TEHRAN_CITY_ID,
+            district__city__reviewed=True,
+        )
+        .select_related("district")
+        .order_by("district__number", "name_fa")[: len(SIMULATED_CANDIDATE_SPECS)]
+    )
+    if len(neighborhoods) < len(SIMULATED_CANDIDATE_SPECS):
+        return []
+    candidates: list[ExternalListingCandidate] = []
+    for index, (spec, neighborhood) in enumerate(
+        zip(SIMULATED_CANDIDATE_SPECS, neighborhoods, strict=True), start=1
+    ):
+        external_url = f"https://{proposal.normalized_domain}/demo-listings/{spec.slug}"
+        candidate, _created = ExternalListingCandidate.objects.get_or_create(
+            id=uuid.uuid5(proposal.id, f"simulated-external-listing-{index}"),
+            defaults={
+                "source_proposal": proposal,
+                "source": source,
+                "title": spec.title,
+                "external_url": external_url,
+                "city_id": TEHRAN_CITY_ID,
+                "district": neighborhood.district,
+                "neighborhood": neighborhood,
+                "property_type": spec.property_type,
+                "area_sqm": spec.area_sqm,
+                "room_count": spec.room_count,
+                "deposit_rial": spec.deposit_rial,
+                "monthly_rent_rial": spec.monthly_rent_rial,
+                "description": (
+                    "داده ساختگی و محلی برای اثبات مرز بررسی؛ هیچ رسانه یا "
+                    "داده‌ای از وب‌سایت Source دریافت نشده است."
+                ),
+            },
+        )
+        candidates.append(candidate)
+    return candidates
+
 
 SOURCE_PROPOSAL_CLAIM_DURATION = timedelta(minutes=15)
 
@@ -389,9 +483,218 @@ def approve_source_proposal(
     )
     proposal.source = source
     proposal.save(update_fields=("source", "updated_at"))
-    return _record_review_decision(
+    approved = _record_review_decision(
         proposal=proposal,
         actor=actor,
         claim=claim,
         new_state=SourceProposalState.APPROVED,
+    )
+    generate_simulated_external_listing_candidates(proposal=approved)
+    return approved
+
+
+EXTERNAL_CANDIDATE_CLAIM_DURATION = timedelta(minutes=15)
+
+
+def _ensure_candidate_not_representative(
+    *, candidate: ExternalListingCandidate, actor: User
+) -> None:
+    if candidate.source_proposal.submitter_id == actor.id:
+        raise ValidationError("An Operator cannot decide their own External Listing candidate.")
+
+
+def _active_candidate_claim(
+    candidate: ExternalListingCandidate,
+) -> ExternalListingCandidateReviewClaim | None:
+    return candidate.review_claims.filter(released_at__isnull=True).first()
+
+
+@transaction.atomic
+def claim_external_listing_candidate_review(
+    *, candidate: ExternalListingCandidate, actor: User
+) -> ExternalListingCandidateReviewClaim:
+    candidate = (
+        ExternalListingCandidate.objects
+        .select_for_update()
+        .select_related("source_proposal")
+        .get(id=candidate.id)
+    )
+    _ensure_candidate_not_representative(candidate=candidate, actor=actor)
+    if candidate.state != ExternalListingCandidateState.PENDING:
+        raise ValidationError("Only a pending External Listing candidate can be claimed.")
+    now = timezone.now()
+    claim = _active_candidate_claim(candidate)
+    if claim is not None and claim.expires_at <= now:
+        claim.released_at = now
+        claim.save(update_fields=("released_at",))
+        claim = None
+    if claim is not None:
+        if claim.operator_id == actor.id:
+            return claim
+        raise SourceProposalReviewConflict(
+            "review_claim_conflict",
+            "This External Listing candidate is already claimed by another Operator.",
+        )
+    return ExternalListingCandidateReviewClaim.objects.create(
+        candidate=candidate,
+        operator=actor,
+        revision=candidate.revision,
+        expires_at=now + EXTERNAL_CANDIDATE_CLAIM_DURATION,
+    )
+
+
+def _current_candidate_claim(
+    *, candidate: ExternalListingCandidate, actor: User, reviewed_revision: int
+) -> ExternalListingCandidateReviewClaim:
+    if candidate.revision != reviewed_revision:
+        raise SourceProposalReviewConflict(
+            "review_revision_conflict", "The candidate revision changed. Refresh it."
+        )
+    if candidate.state != ExternalListingCandidateState.PENDING:
+        raise SourceProposalReviewConflict(
+            "review_decision_conflict", "Another decision already changed this candidate."
+        )
+    claim = _active_candidate_claim(candidate)
+    if claim is None or claim.operator_id != actor.id:
+        raise SourceProposalReviewConflict(
+            "review_claim_required", "A current Review Claim owned by this Operator is required."
+        )
+    if claim.expires_at <= timezone.now():
+        claim.released_at = timezone.now()
+        claim.save(update_fields=("released_at",))
+        raise SourceProposalReviewConflict("review_claim_expired", "The Review Claim expired.")
+    return claim
+
+
+def _record_candidate_decision(
+    *,
+    candidate: ExternalListingCandidate,
+    actor: User,
+    claim: ExternalListingCandidateReviewClaim,
+    new_state: ExternalListingCandidateState,
+    reason: str = "",
+) -> ExternalListingCandidate:
+    prior_state = candidate.state
+    candidate.state = new_state
+    candidate.save(update_fields=("state", "updated_at"))
+    ExternalListingCandidateEvent.objects.create(
+        candidate=candidate,
+        actor=actor,
+        revision=candidate.revision,
+        prior_state=prior_state,
+        new_state=new_state,
+        reason=reason,
+    )
+    claim.released_at = timezone.now()
+    claim.save(update_fields=("released_at",))
+    return candidate
+
+
+def _candidate_reason(reason: str) -> str:
+    reason = reason.strip()
+    if not reason:
+        raise ValidationError("A rejection or Request Changes decision requires a reason.")
+    return reason
+
+
+@transaction.atomic
+def request_external_listing_candidate_changes(
+    *, candidate: ExternalListingCandidate, actor: User, reviewed_revision: int, reason: str
+) -> ExternalListingCandidate:
+    candidate = (
+        ExternalListingCandidate.objects
+        .select_for_update()
+        .select_related("source_proposal")
+        .get(id=candidate.id)
+    )
+    _ensure_candidate_not_representative(candidate=candidate, actor=actor)
+    claim = _current_candidate_claim(
+        candidate=candidate, actor=actor, reviewed_revision=reviewed_revision
+    )
+    return _record_candidate_decision(
+        candidate=candidate,
+        actor=actor,
+        claim=claim,
+        new_state=ExternalListingCandidateState.CHANGES_REQUESTED,
+        reason=_candidate_reason(reason),
+    )
+
+
+@transaction.atomic
+def reject_external_listing_candidate(
+    *, candidate: ExternalListingCandidate, actor: User, reviewed_revision: int, reason: str
+) -> ExternalListingCandidate:
+    candidate = (
+        ExternalListingCandidate.objects
+        .select_for_update()
+        .select_related("source_proposal")
+        .get(id=candidate.id)
+    )
+    _ensure_candidate_not_representative(candidate=candidate, actor=actor)
+    claim = _current_candidate_claim(
+        candidate=candidate, actor=actor, reviewed_revision=reviewed_revision
+    )
+    return _record_candidate_decision(
+        candidate=candidate,
+        actor=actor,
+        claim=claim,
+        new_state=ExternalListingCandidateState.REJECTED,
+        reason=_candidate_reason(reason),
+    )
+
+
+@transaction.atomic
+def approve_external_listing_candidate(
+    *, candidate: ExternalListingCandidate, actor: User, reviewed_revision: int, confirmed: bool
+) -> ExternalListingCandidate:
+    if not confirmed:
+        raise ValidationError("External Listing approval requires confirmation.")
+    candidate = (
+        ExternalListingCandidate.objects
+        .select_for_update()
+        .select_related("source_proposal", "source")
+        .get(id=candidate.id)
+    )
+    _ensure_candidate_not_representative(candidate=candidate, actor=actor)
+    claim = _current_candidate_claim(
+        candidate=candidate, actor=actor, reviewed_revision=reviewed_revision
+    )
+    listing = materialize_external_listing(
+        spec=ExternalListingSpec(
+            source=candidate.source,
+            property_values={
+                "city": candidate.city,
+                "district": candidate.district,
+                "neighborhood": candidate.neighborhood,
+                "property_type": candidate.property_type,
+                "area_sqm": candidate.area_sqm,
+                "room_count": candidate.room_count,
+                "provenance_note": (
+                    f"کاندیدای شبیه‌سازی‌شده از Source Proposal {candidate.source_proposal_id}"
+                ),
+            },
+            terms_values={
+                "deposit_rial": candidate.deposit_rial,
+                "monthly_rent_rial": candidate.monthly_rent_rial,
+            },
+            listing_values={
+                "description": candidate.description,
+                "source_reference": str(candidate.id),
+                "source_claims": {"simulated": True},
+                "provenance_note": (
+                    f"Source Proposal {candidate.source_proposal_id}; original URL retained."
+                ),
+                "external_url": candidate.external_url,
+                "external_media_url": "",
+                "direct_phone": "",
+            },
+        )
+    )
+    candidate.listing = listing
+    candidate.save(update_fields=("listing", "updated_at"))
+    return _record_candidate_decision(
+        candidate=candidate,
+        actor=actor,
+        claim=claim,
+        new_state=ExternalListingCandidateState.PUBLISHED,
     )

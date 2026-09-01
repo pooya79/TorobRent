@@ -11,6 +11,8 @@ export type SourceProposalDraft =
   components["schemas"]["PatchedSourceProposalDraft"];
 export type OperatorSourceProposal =
   components["schemas"]["OperatorSourceProposal"];
+export type ExternalListingCandidate =
+  components["schemas"]["ExternalListingCandidate"];
 
 export const sourceProposalsQueryOptions = queryOptions({
   queryKey: ["source-proposals"] as const,
@@ -124,6 +126,55 @@ export async function decideSourceProposal(
       : "/api/v1/operator/source-proposals/{proposal_id}/request-changes/";
   const { data, error } = await api.POST(path, {
     params: { path: { proposal_id: proposalId } },
+    body: { reviewed_revision: revision, reason },
+  });
+  if (error || !data) throw apiError(error);
+  return data;
+}
+
+export const operatorExternalListingCandidatesQueryOptions = queryOptions({
+  queryKey: ["operator-external-listing-candidates"] as const,
+  queryFn: async () => {
+    const { data, error } = await api.GET(
+      "/api/v1/operator/external-listing-candidates/",
+    );
+    if (error || !data) throw apiError(error);
+    return data;
+  },
+});
+
+export async function claimExternalListingCandidate(candidateId: string) {
+  const { data, error } = await api.POST(
+    "/api/v1/operator/external-listing-candidates/{candidate_id}/claim/",
+    { params: { path: { candidate_id: candidateId } } },
+  );
+  if (error || !data) throw apiError(error);
+  return data;
+}
+
+export async function decideExternalListingCandidate(
+  candidateId: string,
+  decision: "request-changes" | "reject" | "approve",
+  revision: number,
+  reason: string,
+) {
+  if (decision === "approve") {
+    const { data, error } = await api.POST(
+      "/api/v1/operator/external-listing-candidates/{candidate_id}/approve/",
+      {
+        params: { path: { candidate_id: candidateId } },
+        body: { reviewed_revision: revision, confirmed: true },
+      },
+    );
+    if (error || !data) throw apiError(error);
+    return data;
+  }
+  const path =
+    decision === "reject"
+      ? "/api/v1/operator/external-listing-candidates/{candidate_id}/reject/"
+      : "/api/v1/operator/external-listing-candidates/{candidate_id}/request-changes/";
+  const { data, error } = await api.POST(path, {
+    params: { path: { candidate_id: candidateId } },
     body: { reviewed_revision: revision, reason },
   });
   if (error || !data) throw apiError(error);
