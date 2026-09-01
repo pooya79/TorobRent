@@ -60,6 +60,14 @@ class DirectListingSpec:
     existing_listing_id: UUID | None = None
 
 
+@dataclass(frozen=True)
+class ExternalListingSpec:
+    source: Source
+    property_values: Mapping[str, object]
+    terms_values: Mapping[str, object]
+    listing_values: Mapping[str, object]
+
+
 def _event_cache_identity(session_token: UUID) -> str:
     return hmac.new(
         settings.SECRET_KEY.encode(),
@@ -226,6 +234,25 @@ def materialize_direct_listing(*, spec: DirectListingSpec) -> Listing:
     listing = publish_listing(listing)
     replace_listing_images(listing=listing, image_specs=spec.image_specs)
     return listing
+
+
+@transaction.atomic
+def materialize_external_listing(*, spec: ExternalListingSpec) -> Listing:
+    property_ = Property(**spec.property_values)
+    property_.full_clean()
+    property_.save()
+    terms = RentalTerms(**spec.terms_values)
+    terms.full_clean()
+    terms.save()
+    listing = Listing(
+        property=property_,
+        source=spec.source,
+        terms=terms,
+        **spec.listing_values,
+    )
+    listing.full_clean()
+    listing.save()
+    return publish_listing(listing)
 
 
 @transaction.atomic

@@ -10,8 +10,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   claimSourceProposal,
+  claimExternalListingCandidate,
+  decideExternalListingCandidate,
   decideSourceProposal,
+  operatorExternalListingCandidatesQueryOptions,
   operatorSourceProposalsQueryOptions,
+  type ExternalListingCandidate,
   type OperatorSourceProposal,
 } from "@/features/source-proposals/queries";
 import { errorMessage } from "@/lib/api/errors";
@@ -229,16 +233,161 @@ function Detail({ label, value }: { label: string; value: string }) {
   );
 }
 
+function ExternalListingCandidateCard({
+  candidate,
+  onDecisionSuccess,
+}: {
+  candidate: ExternalListingCandidate;
+  onDecisionSuccess: (candidateId: string) => void;
+}) {
+  const [claimed, setClaimed] = useState(false);
+  const [confirmed, setConfirmed] = useState(false);
+  const [reason, setReason] = useState("");
+  const claim = useMutation({
+    mutationFn: () => claimExternalListingCandidate(candidate.id),
+    onSuccess: () => setClaimed(true),
+  });
+  const decision = useMutation({
+    mutationFn: (kind: "request-changes" | "reject" | "approve") =>
+      decideExternalListingCandidate(
+        candidate.id,
+        kind,
+        candidate.revision,
+        reason,
+      ),
+    onSuccess: () => onDecisionSuccess(candidate.id),
+  });
+
+  return (
+    <Card className="shadow-none">
+      <CardHeader>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h3 className="font-semibold">{candidate.title}</h3>
+          <div className="flex gap-2">
+            <Badge variant="secondary">داده شبیه‌سازی‌شده</Badge>
+            <Badge variant="outline">بدون رسانه خارجی</Badge>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="grid gap-5">
+        <Alert>
+          <AlertTitle>این Candidate هنوز منتشر نشده است</AlertTitle>
+          <AlertDescription>
+            تأیید Source فقط این داده محلی را برای بررسی مستقل آماده کرده است.
+          </AlertDescription>
+        </Alert>
+        <dl className="grid gap-4 sm:grid-cols-2">
+          <Detail label="Source" value={candidate.source.display_name} />
+          <Detail label="دامنه Source" value={candidate.source.domain} />
+          <Detail label="پیوند اصلی آگهی" value={candidate.external_url} />
+          <Detail
+            label="متراژ"
+            value={`${candidate.area_sqm.toLocaleString("fa-IR")} متر`}
+          />
+          <Detail
+            label="ودیعه"
+            value={`${candidate.deposit_rial.toLocaleString("fa-IR")} ریال`}
+          />
+          <Detail
+            label="اجاره ماهانه"
+            value={`${candidate.monthly_rent_rial.toLocaleString("fa-IR")} ریال`}
+          />
+        </dl>
+        <p className="text-muted-foreground text-sm">{candidate.description}</p>
+        {!claimed ? (
+          <Button
+            onClick={() => claim.mutate()}
+            disabled={claim.isPending}
+            aria-label={`شروع بررسی ${candidate.title}`}
+          >
+            شروع بررسی Listing
+          </Button>
+        ) : (
+          <div className="grid gap-4">
+            <div className="grid gap-2">
+              <Label htmlFor={`candidate-reason-${candidate.id}`}>
+                دلیل تصمیم {candidate.title}
+              </Label>
+              <Input
+                id={`candidate-reason-${candidate.id}`}
+                value={reason}
+                onChange={(event) => setReason(event.target.value)}
+              />
+            </div>
+            <label className="flex items-start gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={confirmed}
+                onChange={(event) => setConfirmed(event.target.checked)}
+                aria-label={`تأیید انتشار ${candidate.title}`}
+              />
+              تأیید می‌کنم این Candidate مستقلاً بررسی شده و ادامه آن فقط از
+              پیوند اصلی آگهی خواهد بود.
+            </label>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="outline"
+                disabled={decision.isPending}
+                onClick={() => decision.mutate("request-changes")}
+                aria-label={`درخواست اصلاح ${candidate.title}`}
+              >
+                درخواست اصلاح
+              </Button>
+              <Button
+                variant="destructive"
+                disabled={decision.isPending}
+                onClick={() => decision.mutate("reject")}
+                aria-label={`رد ${candidate.title}`}
+              >
+                رد Candidate
+              </Button>
+              <Button
+                disabled={!confirmed || decision.isPending}
+                onClick={() => decision.mutate("approve")}
+                aria-label={`تأیید و انتشار ${candidate.title}`}
+              >
+                تأیید و انتشار
+              </Button>
+            </div>
+          </div>
+        )}
+        {(claim.error || decision.error) && (
+          <Alert variant="destructive">
+            <AlertDescription>
+              {errorMessage(
+                claim.error ?? decision.error,
+                "ثبت تصمیم Listing ممکن نشد.",
+              )}
+            </AlertDescription>
+          </Alert>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 export function OperatorSourceProposalPage() {
   const queryClient = useQueryClient();
   const [completed, setCompleted] = useState(false);
+  const [listingCompleted, setListingCompleted] = useState(false);
   const proposals = useQuery(operatorSourceProposalsQueryOptions);
+  const candidates = useQuery(operatorExternalListingCandidatesQueryOptions);
   const removeCompletedProposal = (proposalId: string) => {
     queryClient.setQueryData<OperatorSourceProposal[]>(
       operatorSourceProposalsQueryOptions.queryKey,
       (current) => current?.filter((proposal) => proposal.id !== proposalId),
     );
     setCompleted(true);
+    void queryClient.invalidateQueries({
+      queryKey: operatorExternalListingCandidatesQueryOptions.queryKey,
+    });
+  };
+  const removeCompletedCandidate = (candidateId: string) => {
+    queryClient.setQueryData<ExternalListingCandidate[]>(
+      operatorExternalListingCandidatesQueryOptions.queryKey,
+      (current) => current?.filter((candidate) => candidate.id !== candidateId),
+    );
+    setListingCompleted(true);
   };
   return (
     <PageMain>
@@ -269,6 +418,43 @@ export function OperatorSourceProposalPage() {
           />
         ))}
       </div>
+      <section className="mt-12" aria-labelledby="external-candidate-heading">
+        <header className="mb-6">
+          <h2
+            id="external-candidate-heading"
+            className="text-2xl font-semibold"
+          >
+            بررسی مستقل External Listingها
+          </h2>
+          <p className="text-muted-foreground mt-2">
+            این Candidateها محلی و شبیه‌سازی‌شده‌اند و هرکدام تصمیم جداگانه
+            می‌گیرند.
+          </p>
+        </header>
+        {candidates.isPending && (
+          <p role="status">در حال بارگذاری Listingها…</p>
+        )}
+        {candidates.isError && (
+          <Alert variant="destructive">
+            <AlertDescription>
+              صف External Listingها بارگذاری نشد.
+            </AlertDescription>
+          </Alert>
+        )}
+        {listingCompleted && <p role="status">تصمیم Listing ثبت شد.</p>}
+        {candidates.data?.length === 0 && (
+          <p>External Listing در انتظار بررسی وجود ندارد.</p>
+        )}
+        <div className="grid gap-6">
+          {candidates.data?.map((candidate) => (
+            <ExternalListingCandidateCard
+              key={candidate.id}
+              candidate={candidate}
+              onDecisionSuccess={removeCompletedCandidate}
+            />
+          ))}
+        </div>
+      </section>
     </PageMain>
   );
 }

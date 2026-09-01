@@ -985,6 +985,129 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: Request was throttled
+  /api/v1/operator/external-listing-candidates/:
+    get:
+      operationId: v1_operator_external_listing_candidates_list
+      summary: List pending simulated External Listing candidates
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ExternalListingCandidate'
+          description: ''
+  /api/v1/operator/external-listing-candidates/{candidate_id}/approve/:
+    post:
+      operationId: v1_operator_external_listing_candidates_approve_create
+      summary: Approve and publish an External Listing candidate
+      parameters:
+      - in: path
+        name: candidate_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SourceProposalApproval'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExternalListingCandidate'
+          description: ''
+  /api/v1/operator/external-listing-candidates/{candidate_id}/claim/:
+    post:
+      operationId: v1_operator_external_listing_candidates_claim_create
+      summary: Claim an External Listing candidate review
+      parameters:
+      - in: path
+        name: candidate_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExternalListingCandidateReviewClaim'
+          description: ''
+  /api/v1/operator/external-listing-candidates/{candidate_id}/reject/:
+    post:
+      operationId: v1_operator_external_listing_candidates_reject_create
+      summary: Reject an External Listing candidate
+      parameters:
+      - in: path
+        name: candidate_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SourceProposalDecision'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExternalListingCandidate'
+          description: ''
+  /api/v1/operator/external-listing-candidates/{candidate_id}/request-changes/:
+    post:
+      operationId: v1_operator_external_listing_candidates_request_changes_create
+      summary: Request changes to an External Listing candidate
+      parameters:
+      - in: path
+        name: candidate_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SourceProposalDecision'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExternalListingCandidate'
+          description: ''
   /api/v1/operator/source-proposals/:
     get:
       operationId: v1_operator_source_proposals_list
@@ -2957,6 +3080,23 @@ components:
       required:
       - latitude
       - longitude
+    ExternalCandidateSource:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        display_name:
+          type: string
+        domain:
+          type: string
+        is_active:
+          type: boolean
+      required:
+      - display_name
+      - domain
+      - id
+      - is_active
     ExternalContactChannelEnum:
       enum:
       - email
@@ -2977,6 +3117,177 @@ components:
           format: uri
       required:
       - url
+    ExternalListingCandidate:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        source_proposal_id:
+          type: string
+          format: uuid
+          readOnly: true
+        source:
+          allOf:
+          - $ref: '#/components/schemas/ExternalCandidateSource'
+          readOnly: true
+        listing_id:
+          type:
+          - string
+          - 'null'
+          format: uuid
+          readOnly: true
+        state:
+          $ref: '#/components/schemas/ExternalListingCandidateStateEnum'
+        revision:
+          type: integer
+          readOnly: true
+        simulated:
+          type: boolean
+          readOnly: true
+        title:
+          type: string
+          maxLength: 200
+        external_url:
+          type: string
+          format: uri
+          maxLength: 1000
+        property_type:
+          $ref: '#/components/schemas/PropertyTypeEnum'
+        area_sqm:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 0
+          format: int64
+        room_count:
+          type:
+          - integer
+          - 'null'
+          maximum: 9223372036854775807
+          minimum: 0
+          format: int64
+        deposit_rial:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 0
+          format: int64
+        monthly_rent_rial:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 0
+          format: int64
+        description:
+          type: string
+        media:
+          type: array
+          items:
+            type: string
+          readOnly: true
+        history:
+          type: array
+          items:
+            $ref: '#/components/schemas/ExternalListingCandidateEvent'
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - area_sqm
+      - created_at
+      - deposit_rial
+      - external_url
+      - history
+      - id
+      - listing_id
+      - media
+      - monthly_rent_rial
+      - property_type
+      - revision
+      - simulated
+      - source
+      - source_proposal_id
+      - title
+      - updated_at
+    ExternalListingCandidateEvent:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        actor_label:
+          type: string
+          format: email
+          readOnly: true
+        revision:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 0
+          format: int64
+        prior_state:
+          $ref: '#/components/schemas/ExternalListingCandidateStateEnum'
+        new_state:
+          $ref: '#/components/schemas/ExternalListingCandidateStateEnum'
+        reason:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - actor_label
+      - created_at
+      - id
+      - new_state
+      - prior_state
+      - revision
+    ExternalListingCandidateReviewClaim:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        operator_label:
+          type: string
+          format: email
+          readOnly: true
+        revision:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 0
+          format: int64
+        expires_at:
+          type: string
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - created_at
+      - expires_at
+      - id
+      - operator_label
+      - revision
+    ExternalListingCandidateStateEnum:
+      enum:
+      - pending
+      - changes_requested
+      - rejected
+      - published
+      type: string
+      description: |-
+        * `pending` - در انتظار بررسی
+        * `changes_requested` - نیازمند اصلاح
+        * `rejected` - ردشده
+        * `published` - منتشرشده
     FacetCount:
       type: object
       properties:

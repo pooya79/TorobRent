@@ -379,6 +379,91 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/v1/operator/external-listing-candidates/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List pending simulated External Listing candidates */
+    get: operations["v1_operator_external_listing_candidates_list"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/operator/external-listing-candidates/{candidate_id}/approve/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Approve and publish an External Listing candidate */
+    post: operations["v1_operator_external_listing_candidates_approve_create"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/operator/external-listing-candidates/{candidate_id}/claim/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Claim an External Listing candidate review */
+    post: operations["v1_operator_external_listing_candidates_claim_create"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/operator/external-listing-candidates/{candidate_id}/reject/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Reject an External Listing candidate */
+    post: operations["v1_operator_external_listing_candidates_reject_create"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/operator/external-listing-candidates/{candidate_id}/request-changes/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Request changes to an External Listing candidate */
+    post: operations["v1_operator_external_listing_candidates_request_changes_create"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/v1/operator/source-proposals/": {
     parameters: {
       query?: never;
@@ -1385,6 +1470,13 @@ export interface components {
       /** Format: decimal */
       longitude: string;
     };
+    ExternalCandidateSource: {
+      /** Format: uuid */
+      id: string;
+      display_name: string;
+      domain: string;
+      is_active: boolean;
+    };
     /**
      * @description * `email` - ایمیل
      *     * `phone` - تلفن
@@ -1397,6 +1489,71 @@ export interface components {
       /** Format: uri */
       url: string;
     };
+    ExternalListingCandidate: {
+      /** Format: uuid */
+      readonly id: string;
+      /** Format: uuid */
+      readonly source_proposal_id: string;
+      readonly source: components["schemas"]["ExternalCandidateSource"];
+      /** Format: uuid */
+      readonly listing_id: string | null;
+      state?: components["schemas"]["ExternalListingCandidateStateEnum"];
+      readonly revision: number;
+      readonly simulated: boolean;
+      title: string;
+      /** Format: uri */
+      external_url: string;
+      property_type: components["schemas"]["PropertyTypeEnum"];
+      /** Format: int64 */
+      area_sqm: number;
+      /** Format: int64 */
+      room_count?: number | null;
+      /** Format: int64 */
+      deposit_rial: number;
+      /** Format: int64 */
+      monthly_rent_rial: number;
+      description?: string;
+      readonly media: string[];
+      readonly history: components["schemas"]["ExternalListingCandidateEvent"][];
+      /** Format: date-time */
+      readonly created_at: string;
+      /** Format: date-time */
+      readonly updated_at: string;
+    };
+    ExternalListingCandidateEvent: {
+      /** Format: uuid */
+      readonly id: string;
+      /** Format: email */
+      readonly actor_label: string;
+      /** Format: int64 */
+      revision: number;
+      prior_state: components["schemas"]["ExternalListingCandidateStateEnum"];
+      new_state: components["schemas"]["ExternalListingCandidateStateEnum"];
+      reason?: string;
+      /** Format: date-time */
+      readonly created_at: string;
+    };
+    ExternalListingCandidateReviewClaim: {
+      /** Format: uuid */
+      readonly id: string;
+      /** Format: email */
+      readonly operator_label: string;
+      /** Format: int64 */
+      revision: number;
+      /** Format: date-time */
+      expires_at: string;
+      /** Format: date-time */
+      readonly created_at: string;
+    };
+    /**
+     * @description * `pending` - در انتظار بررسی
+     *     * `changes_requested` - نیازمند اصلاح
+     *     * `rejected` - ردشده
+     *     * `published` - منتشرشده
+     * @enum {string}
+     */
+    ExternalListingCandidateStateEnum:
+      "pending" | "changes_requested" | "rejected" | "published";
     FacetCount: {
       value: string;
       count: number;
@@ -3659,6 +3816,121 @@ export interface operations {
         };
         content: {
           "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  v1_operator_external_listing_candidates_list: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ExternalListingCandidate"][];
+        };
+      };
+    };
+  };
+  v1_operator_external_listing_candidates_approve_create: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        candidate_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["SourceProposalApproval"];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ExternalListingCandidate"];
+        };
+      };
+    };
+  };
+  v1_operator_external_listing_candidates_claim_create: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        candidate_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ExternalListingCandidateReviewClaim"];
+        };
+      };
+    };
+  };
+  v1_operator_external_listing_candidates_reject_create: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        candidate_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["SourceProposalDecision"];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ExternalListingCandidate"];
+        };
+      };
+    };
+  };
+  v1_operator_external_listing_candidates_request_changes_create: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        candidate_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["SourceProposalDecision"];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ExternalListingCandidate"];
         };
       };
     };
