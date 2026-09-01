@@ -168,6 +168,58 @@ test("restores a pending Source Proposal after reload", async () => {
   expect(screen.getByText(/خانه‌یاب ثبت شده است/)).toBeVisible();
 });
 
+test("resumes the Source Proposal selected from the dashboard", async () => {
+  let createCalled = false;
+  server.use(
+    http.post("*/api/v1/source-proposals/", () => {
+      createCalled = true;
+      return HttpResponse.json({}, { status: 500 });
+    }),
+    http.get("*/api/v1/source-proposals/:proposalId/", ({ params }) =>
+      HttpResponse.json({
+        id: params.proposalId,
+        state: "changes_requested",
+        revision: 2,
+        current_step: "preview",
+        website_name: "منبع انتخاب‌شده",
+        website_url: "https://selected.example/rentals",
+        relationship: "website_manager",
+        inventory_range: "51_200",
+        sitemap_url: "",
+        operator_note: "همین پیشنهاد باید باز شود.",
+        authority_declared: true,
+        preview: null,
+        preview_confirmed: false,
+        pending_since: null,
+        available_actions: ["edit"],
+        history: [],
+        created_at: "2026-08-31T08:00:00Z",
+        updated_at: "2026-08-31T09:00:00Z",
+      }),
+    ),
+  );
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  render(
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter
+        initialEntries={[`/source-proposal?proposal=${proposalId}`]}
+      >
+        <SourceProposalPage />
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+
+  expect(await screen.findByLabelText("نام وب‌سایت")).toHaveValue(
+    "منبع انتخاب‌شده",
+  );
+  expect(screen.getByLabelText("یادداشت برای اپراتور (اختیاری)")).toHaveValue(
+    "همین پیشنهاد باید باز شود.",
+  );
+  expect(createCalled).toBe(false);
+});
+
 test("clears the one-shot new flag after starting from the dashboard", async () => {
   let createBody: unknown;
   server.use(

@@ -35,7 +35,9 @@ class SourceProposalListCreateView(APIView):
         responses=SourceProposalSerializer(many=True),
     )
     def get(self, request: Request) -> Response:
-        proposals = SourceProposal.objects.filter(submitter=cast(User, request.user))
+        proposals = SourceProposal.objects.filter(
+            submitter=cast(User, request.user)
+        ).prefetch_related("events__actor")
         return Response(SourceProposalSerializer(proposals, many=True).data)
 
     @extend_schema(

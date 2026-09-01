@@ -3,7 +3,14 @@ from typing import Any
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
-from .models import InventoryRange, SourceProposal, SourceRepresentativeRelationship
+from .models import (
+    InventoryRange,
+    SourceProposal,
+    SourceProposalEvent,
+    SourceProposalReviewClaim,
+    SourceProposalState,
+    SourceRepresentativeRelationship,
+)
 
 REQUIRED_ERROR = "این مقدار الزامی است."
 
@@ -79,15 +86,33 @@ class SimulatedSourceProposalPreviewSerializer(serializers.Serializer[Any]):
     examples = SimulatedPreviewExampleSerializer(many=True)
 
 
+class SourceProposalEventSerializer(serializers.ModelSerializer[SourceProposalEvent]):
+    actor_label = serializers.EmailField(source="actor.email", read_only=True)
+
+    class Meta:
+        model = SourceProposalEvent
+        fields = (
+            "id",
+            "actor_label",
+            "revision",
+            "prior_state",
+            "new_state",
+            "reason",
+            "created_at",
+        )
+
+
 class SourceProposalSerializer(serializers.ModelSerializer[SourceProposal]):
     available_actions = serializers.SerializerMethodField()
     preview = serializers.SerializerMethodField()
+    history = serializers.SerializerMethodField()
 
     class Meta:
         model = SourceProposal
         fields = (
             "id",
             "state",
+            "revision",
             "current_step",
             "website_name",
             "website_url",
@@ -100,15 +125,73 @@ class SourceProposalSerializer(serializers.ModelSerializer[SourceProposal]):
             "preview_confirmed",
             "pending_since",
             "available_actions",
+            "history",
             "created_at",
             "updated_at",
         )
 
     def get_available_actions(self, proposal: SourceProposal) -> list[str]:
-        return ["edit"] if proposal.state == "draft" else []
+        return (
+            ["edit"]
+            if proposal.state in (SourceProposalState.DRAFT, SourceProposalState.CHANGES_REQUESTED)
+            else []
+        )
 
     @extend_schema_field(SimulatedSourceProposalPreviewSerializer(allow_null=True))
     def get_preview(self, proposal: SourceProposal) -> dict[str, Any] | None:
         if not proposal.preview:
             return None
         return dict(SimulatedSourceProposalPreviewSerializer(proposal.preview).data)
+
+    @extend_schema_field(SourceProposalEventSerializer(many=True))
+    def get_history(self, proposal: SourceProposal) -> list[dict[str, Any]]:
+        return list(SourceProposalEventSerializer(proposal.events.all(), many=True).data)
+
+
+class SourceProposalReviewClaimSerializer(serializers.ModelSerializer[SourceProposalReviewClaim]):
+    operator_label = serializers.EmailField(source="operator.email", read_only=True)
+
+    class Meta:
+        model = SourceProposalReviewClaim
+        fields = ("id", "operator_label", "revision", "expires_at", "created_at")
+
+
+class SourceProposalDecisionSerializer(serializers.Serializer[Any]):
+    reviewed_revision = serializers.IntegerField(min_value=1)
+    reason = serializers.CharField(max_length=5000, allow_blank=True)
+
+
+class SourceProposalApprovalSerializer(serializers.Serializer[Any]):
+    reviewed_revision = serializers.IntegerField(min_value=1)
+    confirmed = serializers.BooleanField()
+
+    def validate_confirmed(self, value: bool) -> bool:
+        if not value:
+            raise serializers.ValidationError("تأیید اعتبارسنجی Source الزامی است.")
+        return value
+
+
+class OperatorSourceProposalSerializer(SourceProposalSerializer):
+    needs_reconciliation = serializers.SerializerMethodField()
+
+    class Meta(SourceProposalSerializer.Meta):
+        fields = SourceProposalSerializer.Meta.fields + (  # type: ignore[assignment]
+            "needs_reconciliation",
+        )
+
+    def get_needs_reconciliation(self, proposal: SourceProposal) -> bool:
+        if not proposal.normalized_domain:
+            return False
+        return (
+            SourceProposal.objects
+            .filter(
+                normalized_domain=proposal.normalized_domain,
+                state__in=(
+                    SourceProposalState.DRAFT,
+                    SourceProposalState.PENDING,
+                    SourceProposalState.CHANGES_REQUESTED,
+                ),
+            )
+            .exclude(submitter_id=proposal.submitter_id)
+            .exists()
+        )

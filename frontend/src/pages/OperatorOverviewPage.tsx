@@ -99,6 +99,7 @@ export function OperatorOverviewPage() {
         {availableModules.map(({ description, icon: Icon, label, to }) => {
           const query =
             to === "/operator/submissions" ? submissionSummary : supportSummary;
+          const hasSummary = to !== "/operator/source-proposals";
           return (
             <Card key={to} className="shadow-none">
               <CardHeader>
@@ -109,11 +110,17 @@ export function OperatorOverviewPage() {
                 <p className="text-muted-foreground mb-4 leading-7">
                   {description}
                 </p>
-                <SummaryState
-                  summary={query.data}
-                  isPending={query.isPending}
-                  isError={query.isError}
-                />
+                {hasSummary ? (
+                  <SummaryState
+                    summary={query.data}
+                    isPending={query.isPending}
+                    isError={query.isError}
+                  />
+                ) : (
+                  <p className="text-muted-foreground mb-5 text-sm">
+                    Source Proposalهای در انتظار را از صف اختصاصی بررسی کنید.
+                  </p>
+                )}
                 <Link
                   aria-label={label}
                   className="text-primary inline-flex min-h-11 items-center font-semibold"

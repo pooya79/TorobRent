@@ -25,6 +25,14 @@ import {
 } from "@/features/submissions/steps";
 import { errorMessage } from "@/lib/api/errors";
 
+const sourceProposalStateLabels = {
+  draft: "پیش‌نویس",
+  pending: "در انتظار بررسی",
+  changes_requested: "نیازمند اصلاح",
+  rejected: "ردشده",
+  approved: "تأییدشده",
+};
+
 export function SubmitterDashboardPage() {
   const submissions = useQuery(submissionsQueryOptions);
   const sourceProposals = useQuery(sourceProposalsQueryOptions);
@@ -104,6 +112,10 @@ export function SubmitterDashboardPage() {
         <div className="grid gap-4">
           {sourceProposals.data?.map((proposal) => {
             const title = proposal.website_name || "Source Proposal تازه";
+            const state = proposal.state ?? "draft";
+            const sourceState = sourceProposalStateLabels[state];
+            const history = proposal.history ?? [];
+            const canEdit = proposal.available_actions.includes("edit");
             return (
               <Card className="shadow-none" key={proposal.id}>
                 <CardContent className="flex flex-col gap-4 sm:flex-row sm:items-center">
@@ -113,25 +125,57 @@ export function SubmitterDashboardPage() {
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-3">
                       <h3 className="font-semibold">{title}</h3>
-                      <Badge variant="secondary">
-                        {proposal.state === "pending"
-                          ? "در انتظار بررسی"
-                          : "پیش‌نویس"}
-                      </Badge>
+                      <Badge variant="secondary">{sourceState}</Badge>
+                      <span className="text-muted-foreground text-xs">
+                        نسخه {(proposal.revision ?? 1).toLocaleString("fa-IR")}
+                      </span>
                     </div>
                     <p className="text-muted-foreground mt-2 text-sm">
-                      {proposal.state === "pending"
+                      {state === "pending"
                         ? "اقدام بعدی: منتظر بررسی اپراتور بمانید."
-                        : "اقدام بعدی: اطلاعات و پیش‌نمایش را تکمیل و تأیید کنید."}
+                        : state === "changes_requested"
+                          ? "اقدام بعدی: موارد خواسته‌شده را اصلاح و دوباره ارسال کنید."
+                          : state === "approved"
+                            ? "Source اعتبارسنجی شد؛ هیچ Listingی خودکار منتشر نشده است."
+                            : state === "rejected"
+                              ? "این پیشنهاد بسته شده است."
+                              : "اقدام بعدی: اطلاعات و پیش‌نمایش را تکمیل و تأیید کنید."}
                     </p>
+                    {history.length > 0 && (
+                      <section
+                        className="mt-4 rounded-lg border p-3"
+                        aria-label={`تاریخچه Source Proposal ${title}`}
+                      >
+                        <h4 className="font-medium">تاریخچه بررسی</h4>
+                        <ol className="mt-2 grid gap-3 text-sm">
+                          {history.map((event) => (
+                            <li key={event.id}>
+                              <p>
+                                {sourceProposalStateLabels[event.new_state]} —
+                                نسخه {event.revision.toLocaleString("fa-IR")}
+                              </p>
+                              {event.reason && (
+                                <p className="mt-1">{event.reason}</p>
+                              )}
+                              <p className="text-muted-foreground mt-1 text-xs">
+                                {new Date(event.created_at).toLocaleString(
+                                  "fa-IR",
+                                )}
+                              </p>
+                            </li>
+                          ))}
+                        </ol>
+                      </section>
+                    )}
                   </div>
-                  {proposal.state === "draft" && (
+                  {canEdit && (
                     <Button asChild variant="outline">
                       <Link
-                        to="/source-proposal"
-                        aria-label={`ادامه Source Proposal ${title}`}
+                        to={`/source-proposal?proposal=${proposal.id}`}
+                        aria-label={`${state === "changes_requested" ? "اصلاح" : "ادامه"} Source Proposal ${title}`}
                       >
-                        ادامه <ArrowLeft aria-hidden="true" />
+                        {state === "changes_requested" ? "اصلاح" : "ادامه"}{" "}
+                        <ArrowLeft aria-hidden="true" />
                       </Link>
                     </Button>
                   )}

@@ -1,4 +1,9 @@
-import { ClipboardCheck, Headphones, type LucideIcon } from "lucide-react";
+import {
+  ClipboardCheck,
+  Globe2,
+  Headphones,
+  type LucideIcon,
+} from "lucide-react";
 
 import type { components } from "@/lib/api/schema";
 
@@ -14,6 +19,13 @@ export type OperatorModule = {
 };
 
 export const operatorModules = [
+  {
+    capabilities: ["review_source_proposals"],
+    description: "اعتبارسنجی Source و رابطه نماینده آن",
+    icon: Globe2,
+    label: "اعتبارسنجی Sourceها",
+    to: "/operator/source-proposals",
+  },
   {
     capabilities: ["review_submissions"],
     description: "صف Submissionهای آماده بررسی و انتشار",

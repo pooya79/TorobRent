@@ -985,6 +985,129 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: Request was throttled
+  /api/v1/operator/source-proposals/:
+    get:
+      operationId: v1_operator_source_proposals_list
+      summary: List pending Source Proposals for Operator review
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/OperatorSourceProposal'
+          description: ''
+  /api/v1/operator/source-proposals/{proposal_id}/approve/:
+    post:
+      operationId: v1_operator_source_proposals_approve_create
+      summary: Approve and validate a Source
+      parameters:
+      - in: path
+        name: proposal_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SourceProposalApproval'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatorSourceProposal'
+          description: ''
+  /api/v1/operator/source-proposals/{proposal_id}/claim/:
+    post:
+      operationId: v1_operator_source_proposals_claim_create
+      summary: Claim a Source Proposal review
+      parameters:
+      - in: path
+        name: proposal_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SourceProposalReviewClaim'
+          description: ''
+  /api/v1/operator/source-proposals/{proposal_id}/reject/:
+    post:
+      operationId: v1_operator_source_proposals_reject_create
+      summary: Reject a Source Proposal
+      parameters:
+      - in: path
+        name: proposal_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SourceProposalDecision'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatorSourceProposal'
+          description: ''
+  /api/v1/operator/source-proposals/{proposal_id}/request-changes/:
+    post:
+      operationId: v1_operator_source_proposals_request_changes_create
+      summary: Request changes to a Source Proposal
+      parameters:
+      - in: path
+        name: proposal_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SourceProposalDecision'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatorSourceProposal'
+          description: ''
   /api/v1/operator/submissions/:
     get:
       operationId: v1_operator_submissions_list
@@ -3262,12 +3385,102 @@ components:
       - handle_support
       - manage_operator_queues
       - review_submissions
+      - review_source_proposals
       type: string
       description: |-
         * `handle_privacy_requests` - Privacy Support handling
         * `handle_support` - General Support handling
         * `manage_operator_queues` - Operator queue management
         * `review_submissions` - Submission Review
+        * `review_source_proposals` - Source Proposal Review
+    OperatorSourceProposal:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        state:
+          $ref: '#/components/schemas/SourceProposalStateEnum'
+        revision:
+          type: integer
+          readOnly: true
+        current_step:
+          $ref: '#/components/schemas/SourceProposalStepEnum'
+        website_name:
+          type: string
+          maxLength: 200
+        website_url:
+          oneOf:
+          - type: string
+            format: uri
+            maxLength: 1000
+          - type: string
+            maxLength: 0
+        relationship:
+          oneOf:
+          - $ref: '#/components/schemas/SourceProposalRelationshipEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+        inventory_range:
+          oneOf:
+          - $ref: '#/components/schemas/SourceProposalInventoryRangeEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+        sitemap_url:
+          oneOf:
+          - type: string
+            format: uri
+            maxLength: 1000
+          - type: string
+            maxLength: 0
+        operator_note:
+          type: string
+          maxLength: 5000
+        authority_declared:
+          type: boolean
+        preview:
+          oneOf:
+          - $ref: '#/components/schemas/SimulatedSourceProposalPreview'
+          - type: 'null'
+          readOnly: true
+        preview_confirmed:
+          type: boolean
+        pending_since:
+          type:
+          - string
+          - 'null'
+          format: date-time
+          readOnly: true
+        available_actions:
+          type: array
+          items:
+            type: string
+          readOnly: true
+        history:
+          type: array
+          items:
+            $ref: '#/components/schemas/SourceProposalEvent'
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+        needs_reconciliation:
+          type: boolean
+          readOnly: true
+      required:
+      - available_actions
+      - created_at
+      - history
+      - id
+      - needs_reconciliation
+      - pending_since
+      - preview
+      - revision
+      - updated_at
     OperatorSubmissionQueue:
       type: object
       properties:
@@ -4188,6 +4401,9 @@ components:
           readOnly: true
         state:
           $ref: '#/components/schemas/SourceProposalStateEnum'
+        revision:
+          type: integer
+          readOnly: true
         current_step:
           $ref: '#/components/schemas/SourceProposalStepEnum'
         website_name:
@@ -4238,6 +4454,11 @@ components:
           items:
             type: string
           readOnly: true
+        history:
+          type: array
+          items:
+            $ref: '#/components/schemas/SourceProposalEvent'
+          readOnly: true
         created_at:
           type: string
           format: date-time
@@ -4249,16 +4470,74 @@ components:
       required:
       - available_actions
       - created_at
+      - history
       - id
       - pending_since
       - preview
+      - revision
       - updated_at
+    SourceProposalApproval:
+      type: object
+      properties:
+        reviewed_revision:
+          type: integer
+          minimum: 1
+        confirmed:
+          type: boolean
+      required:
+      - confirmed
+      - reviewed_revision
     SourceProposalCreate:
       type: object
       properties:
         start_new:
           type: boolean
           default: false
+    SourceProposalDecision:
+      type: object
+      properties:
+        reviewed_revision:
+          type: integer
+          minimum: 1
+        reason:
+          type: string
+          maxLength: 5000
+      required:
+      - reason
+      - reviewed_revision
+    SourceProposalEvent:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        actor_label:
+          type: string
+          format: email
+          readOnly: true
+        revision:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 0
+          format: int64
+        prior_state:
+          $ref: '#/components/schemas/SourceProposalStateEnum'
+        new_state:
+          $ref: '#/components/schemas/SourceProposalStateEnum'
+        reason:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - actor_label
+      - created_at
+      - id
+      - new_state
+      - prior_state
+      - revision
     SourceProposalInventoryRangeEnum:
       enum:
       - '1_10'
@@ -4283,14 +4562,49 @@ components:
         * `website_owner` - مالک وب‌سایت
         * `website_manager` - مدیر وب‌سایت
         * `authorized_representative` - نماینده مجاز
+    SourceProposalReviewClaim:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        operator_label:
+          type: string
+          format: email
+          readOnly: true
+        revision:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 0
+          format: int64
+        expires_at:
+          type: string
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - created_at
+      - expires_at
+      - id
+      - operator_label
+      - revision
     SourceProposalStateEnum:
       enum:
       - draft
       - pending
+      - changes_requested
+      - rejected
+      - approved
       type: string
       description: |-
         * `draft` - پیش‌نویس
         * `pending` - در انتظار بررسی
+        * `changes_requested` - نیازمند اصلاح
+        * `rejected` - ردشده
+        * `approved` - تأییدشده
     SourceProposalStepEnum:
       enum:
       - details

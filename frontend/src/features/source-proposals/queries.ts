@@ -9,6 +9,8 @@ export type SourceProposalDetails =
   components["schemas"]["PatchedSourceProposalDetails"];
 export type SourceProposalDraft =
   components["schemas"]["PatchedSourceProposalDraft"];
+export type OperatorSourceProposal =
+  components["schemas"]["OperatorSourceProposal"];
 
 export const sourceProposalsQueryOptions = queryOptions({
   queryKey: ["source-proposals"] as const,
@@ -23,6 +25,15 @@ export async function resumeOrCreateSourceProposal(startNew = false) {
   const { data, error } = await api.POST("/api/v1/source-proposals/", {
     body: { start_new: startNew },
   });
+  if (error || !data) throw apiError(error);
+  return data;
+}
+
+export async function getSourceProposal(proposalId: string) {
+  const { data, error } = await api.GET(
+    "/api/v1/source-proposals/{proposal_id}/",
+    { params: { path: { proposal_id: proposalId } } },
+  );
   if (error || !data) throw apiError(error);
   return data;
 }
@@ -68,6 +79,53 @@ export async function submitSourceProposal(proposalId: string) {
       body: { preview_confirmed: true },
     },
   );
+  if (error || !data) throw apiError(error);
+  return data;
+}
+
+export const operatorSourceProposalsQueryOptions = queryOptions({
+  queryKey: ["operator-source-proposals"] as const,
+  queryFn: async () => {
+    const { data, error } = await api.GET("/api/v1/operator/source-proposals/");
+    if (error || !data) throw apiError(error);
+    return data;
+  },
+});
+
+export async function claimSourceProposal(proposalId: string) {
+  const { data, error } = await api.POST(
+    "/api/v1/operator/source-proposals/{proposal_id}/claim/",
+    { params: { path: { proposal_id: proposalId } } },
+  );
+  if (error || !data) throw apiError(error);
+  return data;
+}
+
+export async function decideSourceProposal(
+  proposalId: string,
+  decision: "request-changes" | "reject" | "approve",
+  revision: number,
+  reason: string,
+) {
+  if (decision === "approve") {
+    const { data, error } = await api.POST(
+      "/api/v1/operator/source-proposals/{proposal_id}/approve/",
+      {
+        params: { path: { proposal_id: proposalId } },
+        body: { reviewed_revision: revision, confirmed: true },
+      },
+    );
+    if (error || !data) throw apiError(error);
+    return data;
+  }
+  const path =
+    decision === "reject"
+      ? "/api/v1/operator/source-proposals/{proposal_id}/reject/"
+      : "/api/v1/operator/source-proposals/{proposal_id}/request-changes/";
+  const { data, error } = await api.POST(path, {
+    params: { path: { proposal_id: proposalId } },
+    body: { reviewed_revision: revision, reason },
+  });
   if (error || !data) throw apiError(error);
   return data;
 }

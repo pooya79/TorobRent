@@ -21,6 +21,7 @@ function renderOverview(
     | "handle_support"
     | "manage_operator_queues"
     | "review_submissions"
+    | "review_source_proposals"
   )[],
 ) {
   server.use(

@@ -1,14 +1,19 @@
 from __future__ import annotations
 
 import uuid
+from typing import Any, ClassVar
 
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.db import models
 
 
 class SourceProposalState(models.TextChoices):
     DRAFT = "draft", "پیش‌نویس"
     PENDING = "pending", "در انتظار بررسی"
+    CHANGES_REQUESTED = "changes_requested", "نیازمند اصلاح"
+    REJECTED = "rejected", "ردشده"
+    APPROVED = "approved", "تأییدشده"
 
 
 class SourceProposalStep(models.TextChoices):
@@ -38,7 +43,16 @@ class SourceProposal(models.Model):
         related_name="source_proposals",
     )
     state = models.CharField(
-        max_length=16, choices=SourceProposalState, default=SourceProposalState.DRAFT
+        max_length=24, choices=SourceProposalState, default=SourceProposalState.DRAFT
+    )
+    revision = models.PositiveIntegerField(default=1, editable=False)
+    source = models.ForeignKey(
+        "catalog.Source",
+        on_delete=models.PROTECT,
+        related_name="source_proposals",
+        null=True,
+        blank=True,
+        editable=False,
     )
     current_step = models.CharField(
         max_length=16, choices=SourceProposalStep, default=SourceProposalStep.DETAILS
@@ -62,11 +76,16 @@ class SourceProposal(models.Model):
 
     class Meta:
         ordering = ("-updated_at",)
+        permissions = (("review_source_proposal", "Can review Source Proposals"),)
         constraints = [
             models.UniqueConstraint(
                 fields=("submitter", "normalized_domain"),
                 condition=models.Q(
-                    state__in=(SourceProposalState.DRAFT, SourceProposalState.PENDING)
+                    state__in=(
+                        SourceProposalState.DRAFT,
+                        SourceProposalState.PENDING,
+                        SourceProposalState.CHANGES_REQUESTED,
+                    )
                 )
                 & ~models.Q(normalized_domain=""),
                 name="one_open_source_proposal_per_account_domain",
@@ -75,3 +94,73 @@ class SourceProposal(models.Model):
 
     def __str__(self) -> str:
         return self.website_name or f"Source Proposal {self.id}"
+
+
+class ImmutableSourceProposalEventQuerySet(models.QuerySet["SourceProposalEvent"]):
+    def update(self, **kwargs: Any) -> int:
+        raise ValidationError("Source Proposal history is immutable.")
+
+    def delete(self) -> tuple[int, dict[str, int]]:
+        raise ValidationError("Source Proposal history is immutable.")
+
+
+class SourceProposalEvent(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    proposal = models.ForeignKey(SourceProposal, on_delete=models.PROTECT, related_name="events")
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="source_proposal_events",
+    )
+    revision = models.PositiveIntegerField()
+    prior_state = models.CharField(max_length=24, choices=SourceProposalState)
+    new_state = models.CharField(max_length=24, choices=SourceProposalState)
+    reason = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    objects: ClassVar[models.Manager[SourceProposalEvent]] = models.Manager.from_queryset(
+        ImmutableSourceProposalEventQuerySet
+    )()
+
+    class Meta:
+        ordering = ("created_at", "id")
+
+    def __str__(self) -> str:
+        return f"{self.proposal_id}: {self.prior_state} → {self.new_state}"
+
+    def save(self, *args: Any, **kwargs: Any) -> None:
+        if not self._state.adding:
+            raise ValidationError("Source Proposal history is immutable.")
+        super().save(*args, **kwargs)
+
+    def delete(self, *args: Any, **kwargs: Any) -> tuple[int, dict[str, int]]:
+        raise ValidationError("Source Proposal history is immutable.")
+
+
+class SourceProposalReviewClaim(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    proposal = models.ForeignKey(
+        SourceProposal, on_delete=models.CASCADE, related_name="review_claims"
+    )
+    operator = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="source_proposal_review_claims",
+    )
+    revision = models.PositiveIntegerField()
+    expires_at = models.DateTimeField()
+    released_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ("-created_at",)
+        constraints = [
+            models.UniqueConstraint(
+                fields=("proposal", "revision"),
+                condition=models.Q(released_at__isnull=True),
+                name="one_open_source_proposal_claim_per_revision",
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.proposal_id}: {self.operator_id} (revision {self.revision})"

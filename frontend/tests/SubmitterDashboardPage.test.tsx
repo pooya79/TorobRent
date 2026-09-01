@@ -52,7 +52,84 @@ test("shows Source Proposals separately with status and next action", async () =
   expect(screen.getByText("پیش‌نویس")).toBeVisible();
   expect(
     screen.getByRole("link", { name: "ادامه Source Proposal خانه‌یاب" }),
-  ).toHaveAttribute("href", "/source-proposal");
+  ).toHaveAttribute(
+    "href",
+    "/source-proposal?proposal=10000000-0000-4000-8000-000000000087",
+  );
+});
+
+test("shows a Source Proposal review outcome, reason, revision, and next action", async () => {
+  server.use(
+    http.get("*/api/v1/submissions/", () => HttpResponse.json([])),
+    http.get("*/api/v1/source-proposals/", () =>
+      HttpResponse.json([
+        {
+          id: "10000000-0000-4000-8000-000000000088",
+          state: "changes_requested",
+          revision: 1,
+          current_step: "preview",
+          website_name: "خانه‌یاب",
+          website_url: "https://khaneh.example/rentals",
+          relationship: "website_manager",
+          inventory_range: "51_200",
+          sitemap_url: "",
+          operator_note: "",
+          authority_declared: true,
+          preview: { simulated: true },
+          preview_confirmed: true,
+          pending_since: null,
+          available_actions: ["edit"],
+          history: [
+            {
+              id: "20000000-0000-4000-8000-000000000087",
+              actor_label: "representative@example.com",
+              revision: 1,
+              prior_state: "draft",
+              new_state: "pending",
+              reason: "",
+              created_at: "2026-09-01T07:30:00Z",
+            },
+            {
+              id: "20000000-0000-4000-8000-000000000088",
+              actor_label: "operator@example.com",
+              revision: 1,
+              prior_state: "pending",
+              new_state: "changes_requested",
+              reason: "مدرک اختیار را تکمیل کنید.",
+              created_at: "2026-09-01T08:00:00Z",
+            },
+          ],
+          created_at: "2026-09-01T07:00:00Z",
+          updated_at: "2026-09-01T08:00:00Z",
+        },
+      ]),
+    ),
+  );
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  render(
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter>
+        <SubmitterDashboardPage />
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+
+  expect(await screen.findByText("نیازمند اصلاح")).toBeVisible();
+  expect(screen.getByText("نسخه ۱")).toBeVisible();
+  expect(screen.getByText("مدرک اختیار را تکمیل کنید.")).toBeVisible();
+  const history = screen.getByRole("region", {
+    name: "تاریخچه Source Proposal خانه‌یاب",
+  });
+  expect(history).toHaveTextContent("در انتظار بررسی — نسخه ۱");
+  expect(history).toHaveTextContent("نیازمند اصلاح — نسخه ۱");
+  expect(
+    screen.getByRole("link", { name: "اصلاح Source Proposal خانه‌یاب" }),
+  ).toHaveAttribute(
+    "href",
+    "/source-proposal?proposal=10000000-0000-4000-8000-000000000088",
+  );
 });
 
 test("lists the Submitter's draft state and server-backed resume action", async () => {

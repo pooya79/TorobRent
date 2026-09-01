@@ -13,6 +13,7 @@ class OperatorCapability(models.TextChoices):
     HANDLE_SUPPORT = "handle_support", "General Support handling"
     MANAGE_OPERATOR_QUEUES = "manage_operator_queues", "Operator queue management"
     REVIEW_SUBMISSIONS = "review_submissions", "Submission Review"
+    REVIEW_SOURCE_PROPOSALS = "review_source_proposals", "Source Proposal Review"
 
 
 CAPABILITY_PERMISSIONS = {
@@ -20,11 +21,13 @@ CAPABILITY_PERMISSIONS = {
     OperatorCapability.HANDLE_SUPPORT: "accounts.handle_general_support_requests",
     OperatorCapability.MANAGE_OPERATOR_QUEUES: "accounts.manage_operator_queue",
     OperatorCapability.REVIEW_SUBMISSIONS: "submissions.review_submission",
+    OperatorCapability.REVIEW_SOURCE_PROPOSALS: "source_proposals.review_source_proposal",
 }
 
 MANAGED_OPERATOR_GROUPS = frozenset({
     "Submission Reviewer",
     "Submission Review Lead",
+    "Source Proposal Reviewer",
     "Support Operator",
     "Support Lead",
     "Privacy Operator",

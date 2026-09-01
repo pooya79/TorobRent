@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import {
   autosaveSourceProposalDraft,
   generateSourceProposalPreview,
+  getSourceProposal,
   resumeOrCreateSourceProposal,
   saveSourceProposalDetails,
   submitSourceProposal,
@@ -58,14 +59,20 @@ function detailsFromProposal(
 export function SourceProposalPage() {
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [startNew] = useState(() => searchParams.get("new") === "1");
+  const [proposalId] = useState(() => searchParams.get("proposal"));
+  const [startNew] = useState(
+    () => !proposalId && searchParams.get("new") === "1",
+  );
   const [proposalOverride, setProposal] = useState<SourceProposal>();
   const [detailsOverride, setDetails] =
     useState<Required<SourceProposalDetails>>();
   const [previewConfirmed, setPreviewConfirmed] = useState(false);
   const resume = useQuery({
-    queryKey: ["source-proposal-resume", startNew],
-    queryFn: () => resumeOrCreateSourceProposal(startNew),
+    queryKey: ["source-proposal-resume", proposalId, startNew],
+    queryFn: () =>
+      proposalId
+        ? getSourceProposal(proposalId)
+        : resumeOrCreateSourceProposal(startNew),
     retry: false,
   });
   const proposal = proposalOverride ?? resume.data;

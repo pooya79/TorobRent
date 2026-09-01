@@ -16,7 +16,8 @@ type Capability =
   | "handle_privacy_requests"
   | "handle_support"
   | "manage_operator_queues"
-  | "review_submissions";
+  | "review_submissions"
+  | "review_source_proposals";
 
 function LoginDestination() {
   const location = useLocation();
@@ -54,6 +55,14 @@ function renderWorkspace(
           <Routes>
             <Route element={<OperatorWorkspace />}>
               <Route index element={<h1>نمای کلی</h1>} />
+              <Route
+                path="operator/source-proposals"
+                element={
+                  <OperatorCapabilityRoute capability="review_source_proposals">
+                    <h1>اعتبارسنجی Source Proposalها</h1>
+                  </OperatorCapabilityRoute>
+                }
+              />
               <Route
                 path="operator/submissions"
                 element={
@@ -126,6 +135,22 @@ test("navigation contains only modules covered by the account capabilities", asy
     await screen.findByRole("heading", { name: "درخواست‌های پشتیبانی" }),
   ).toBeVisible();
   expect(screen.getByRole("link", { name: "پشتیبانی" })).toBeVisible();
+  expect(
+    screen.queryByRole("link", { name: "بررسی Submissionها" }),
+  ).not.toBeInTheDocument();
+});
+
+test("shows Source Proposal validation only for its dedicated capability", async () => {
+  renderWorkspace("/operator/source-proposals", ["review_source_proposals"]);
+
+  expect(
+    await screen.findByRole("heading", {
+      name: "اعتبارسنجی Source Proposalها",
+    }),
+  ).toBeVisible();
+  expect(
+    screen.getByRole("link", { name: "اعتبارسنجی Sourceها" }),
+  ).toBeVisible();
   expect(
     screen.queryByRole("link", { name: "بررسی Submissionها" }),
   ).not.toBeInTheDocument();

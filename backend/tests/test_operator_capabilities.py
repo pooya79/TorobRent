@@ -113,6 +113,7 @@ def test_operator_anonymization_rejects_an_account_that_never_had_an_operator_gr
 @pytest.mark.django_db
 def test_managed_operator_groups_are_independent_reusable_capability_bundles():
     expected_bundles = {
+        "Source Proposal Reviewer": {"source_proposals.review_source_proposal"},
         "Submission Reviewer": {"submissions.review_submission"},
         "Submission Review Lead": {
             "accounts.manage_operator_queue",
@@ -149,9 +150,10 @@ def test_managed_operator_groups_are_independent_reusable_capability_bundles():
             "handle_general_support_requests",
             "handle_privacy_support_requests",
             "manage_operator_queue",
+            "review_source_proposal",
         )
     )
-    assert operator_permissions.count() == 4
+    assert operator_permissions.count() == 5
     assert not Permission.objects.filter(
         codename__in=("catalog_stewardship", "link_verification")
     ).exists()

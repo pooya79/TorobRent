@@ -23,6 +23,7 @@ export default [
   route("operator", "routes/operator-layout.tsx", [
     index("pages/OperatorOverviewPage.tsx"),
     route("submissions", "routes/operator-submissions.tsx"),
+    route("source-proposals", "routes/operator-source-proposals.tsx"),
     route("support", "routes/operator-support.tsx"),
     route("links", "routes/operator-links.tsx"),
     route("review", "routes/operator-review-redirect.tsx"),

@@ -379,6 +379,91 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/v1/operator/source-proposals/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List pending Source Proposals for Operator review */
+    get: operations["v1_operator_source_proposals_list"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/operator/source-proposals/{proposal_id}/approve/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Approve and validate a Source */
+    post: operations["v1_operator_source_proposals_approve_create"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/operator/source-proposals/{proposal_id}/claim/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Claim a Source Proposal review */
+    post: operations["v1_operator_source_proposals_claim_create"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/operator/source-proposals/{proposal_id}/reject/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Reject a Source Proposal */
+    post: operations["v1_operator_source_proposals_reject_create"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/operator/source-proposals/{proposal_id}/request-changes/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Request changes to a Source Proposal */
+    post: operations["v1_operator_source_proposals_request_changes_create"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/v1/operator/submissions/": {
     parameters: {
       query?: never;
@@ -1489,13 +1574,45 @@ export interface components {
      *     * `handle_support` - General Support handling
      *     * `manage_operator_queues` - Operator queue management
      *     * `review_submissions` - Submission Review
+     *     * `review_source_proposals` - Source Proposal Review
      * @enum {string}
      */
     OperatorCapabilitiesEnum:
       | "handle_privacy_requests"
       | "handle_support"
       | "manage_operator_queues"
-      | "review_submissions";
+      | "review_submissions"
+      | "review_source_proposals";
+    OperatorSourceProposal: {
+      /** Format: uuid */
+      readonly id: string;
+      state?: components["schemas"]["SourceProposalStateEnum"];
+      readonly revision: number;
+      current_step?: components["schemas"]["SourceProposalStepEnum"];
+      website_name?: string;
+      website_url?: string;
+      relationship?:
+        | components["schemas"]["SourceProposalRelationshipEnum"]
+        | components["schemas"]["BlankEnum"];
+      inventory_range?:
+        | components["schemas"]["SourceProposalInventoryRangeEnum"]
+        | components["schemas"]["BlankEnum"];
+      sitemap_url?: string;
+      operator_note?: string;
+      authority_declared?: boolean;
+      readonly preview:
+        components["schemas"]["SimulatedSourceProposalPreview"] | null;
+      preview_confirmed?: boolean;
+      /** Format: date-time */
+      readonly pending_since: string | null;
+      readonly available_actions: string[];
+      readonly history: components["schemas"]["SourceProposalEvent"][];
+      /** Format: date-time */
+      readonly created_at: string;
+      /** Format: date-time */
+      readonly updated_at: string;
+      readonly needs_reconciliation: boolean;
+    };
     OperatorSubmissionQueue: {
       /** Format: uuid */
       readonly id: string;
@@ -1890,6 +2007,7 @@ export interface components {
       /** Format: uuid */
       readonly id: string;
       state?: components["schemas"]["SourceProposalStateEnum"];
+      readonly revision: number;
       current_step?: components["schemas"]["SourceProposalStepEnum"];
       website_name?: string;
       website_url?: string;
@@ -1908,14 +2026,36 @@ export interface components {
       /** Format: date-time */
       readonly pending_since: string | null;
       readonly available_actions: string[];
+      readonly history: components["schemas"]["SourceProposalEvent"][];
       /** Format: date-time */
       readonly created_at: string;
       /** Format: date-time */
       readonly updated_at: string;
     };
+    SourceProposalApproval: {
+      reviewed_revision: number;
+      confirmed: boolean;
+    };
     SourceProposalCreate: {
       /** @default false */
       start_new: boolean;
+    };
+    SourceProposalDecision: {
+      reviewed_revision: number;
+      reason: string;
+    };
+    SourceProposalEvent: {
+      /** Format: uuid */
+      readonly id: string;
+      /** Format: email */
+      readonly actor_label: string;
+      /** Format: int64 */
+      revision: number;
+      prior_state: components["schemas"]["SourceProposalStateEnum"];
+      new_state: components["schemas"]["SourceProposalStateEnum"];
+      reason?: string;
+      /** Format: date-time */
+      readonly created_at: string;
     };
     /**
      * @description * `1_10` - ۱ تا ۱۰
@@ -1935,12 +2075,28 @@ export interface components {
      */
     SourceProposalRelationshipEnum:
       "website_owner" | "website_manager" | "authorized_representative";
+    SourceProposalReviewClaim: {
+      /** Format: uuid */
+      readonly id: string;
+      /** Format: email */
+      readonly operator_label: string;
+      /** Format: int64 */
+      revision: number;
+      /** Format: date-time */
+      expires_at: string;
+      /** Format: date-time */
+      readonly created_at: string;
+    };
     /**
      * @description * `draft` - پیش‌نویس
      *     * `pending` - در انتظار بررسی
+     *     * `changes_requested` - نیازمند اصلاح
+     *     * `rejected` - ردشده
+     *     * `approved` - تأییدشده
      * @enum {string}
      */
-    SourceProposalStateEnum: "draft" | "pending";
+    SourceProposalStateEnum:
+      "draft" | "pending" | "changes_requested" | "rejected" | "approved";
     /**
      * @description * `details` - اطلاعات وب‌سایت
      *     * `preview` - پیش‌نمایش شبیه‌سازی‌شده
@@ -3503,6 +3659,121 @@ export interface operations {
         };
         content: {
           "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  v1_operator_source_proposals_list: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["OperatorSourceProposal"][];
+        };
+      };
+    };
+  };
+  v1_operator_source_proposals_approve_create: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        proposal_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["SourceProposalApproval"];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["OperatorSourceProposal"];
+        };
+      };
+    };
+  };
+  v1_operator_source_proposals_claim_create: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        proposal_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SourceProposalReviewClaim"];
+        };
+      };
+    };
+  };
+  v1_operator_source_proposals_reject_create: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        proposal_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["SourceProposalDecision"];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["OperatorSourceProposal"];
+        };
+      };
+    };
+  };
+  v1_operator_source_proposals_request_changes_create: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        proposal_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["SourceProposalDecision"];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["OperatorSourceProposal"];
         };
       };
     };
