@@ -2,10 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { expect, test, vi } from "vitest";
 
-import {
-  createFakeMapAdapter,
-  type MapMarker,
-} from "@/features/map/adapter";
+import { createFakeMapAdapter, type MapMarker } from "@/features/map/adapter";
 import { NeshanMapAdapter } from "@/features/map/NeshanMapAdapter";
 import { OpenStreetMapAdapter } from "@/features/map/OpenStreetMapAdapter";
 
@@ -137,6 +134,82 @@ test("the fake adapter can reproduce a provider initialization failure", () => {
 
   expect(onError).toHaveBeenCalledWith(
     expect.objectContaining({ code: "provider-unavailable" }),
+  );
+});
+
+test("the fake adapter constrains user and programmatic viewport movement", async () => {
+  const user = userEvent.setup();
+  const onViewportChange = vi.fn();
+  const FakeMapAdapter = createFakeMapAdapter();
+
+  render(
+    <FakeMapAdapter
+      initialViewport={{
+        north: 36.5,
+        east: 52.4,
+        south: 36.1,
+        west: 52,
+        zoom: 8,
+      }}
+      viewConstraints={{
+        bounds: { north: 36, east: 52, south: 35, west: 51 },
+        minZoom: 10,
+      }}
+      markers={[marker]}
+      clusters={[
+        {
+          id: "outside-cluster",
+          center: { latitude: 36.9, longitude: 52.9 },
+          bounds: { north: 37, east: 53, south: 36.8, west: 52.8 },
+          propertyCount: 3,
+          propertyIds: ["property-1", "property-2", "property-3"],
+        },
+      ]}
+      selectedPropertyId={null}
+      retryToken={0}
+      onReady={vi.fn()}
+      onError={vi.fn()}
+      onViewportChange={onViewportChange}
+      onSelectProperty={vi.fn()}
+      onPreviewProperty={vi.fn()}
+      onSelectCluster={vi.fn()}
+    />,
+  );
+
+  await user.click(
+    screen.getByRole("button", {
+      name: `انتخاب ${marker.preview.title}، ${marker.label}`,
+    }),
+  );
+  expect(onViewportChange).toHaveBeenLastCalledWith(
+    expect.objectContaining({
+      north: 36.2,
+      east: 52.2,
+      south: 35.8,
+      west: 51.8,
+      zoom: 10,
+    }),
+    "programmatic",
+  );
+
+  await user.click(
+    screen.getByRole("button", { name: "تغییر محدوده آزمایشی" }),
+  );
+  expect(onViewportChange).toHaveBeenLastCalledWith(
+    expect.objectContaining({ zoom: 11 }),
+    "user",
+  );
+
+  await user.click(screen.getByRole("button", { name: "خوشه ۳ ملک" }));
+  expect(onViewportChange).toHaveBeenLastCalledWith(
+    expect.objectContaining({
+      north: 36.1,
+      east: 52.1,
+      south: 35.9,
+      west: 51.9,
+      zoom: 12,
+    }),
+    "user",
   );
 });
 

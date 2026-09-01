@@ -1,16 +1,16 @@
 import { useEffect, type ComponentType } from "react";
 
+import {
+  constrainMapViewport,
+  type MapViewConstraints,
+  type MapViewport,
+} from "./view-constraints";
+
+export type { MapViewConstraints, MapViewport } from "./view-constraints";
+
 export type MapCoordinates = {
   latitude: number;
   longitude: number;
-};
-
-export type MapViewport = {
-  north: number;
-  east: number;
-  south: number;
-  west: number;
-  zoom: number;
 };
 
 export type ApproximateLocation = {
@@ -63,6 +63,7 @@ export class MapProviderError extends Error {
 
 export type MapAdapterProps = {
   initialViewport: MapViewport;
+  viewConstraints?: MapViewConstraints;
   markers: readonly MapMarker[];
   clusters: readonly MapCluster[];
   selectedPropertyId: string | null;
@@ -93,6 +94,7 @@ export function createFakeMapAdapter({
 }: FakeMapAdapterOptions = {}): MapAdapter {
   function FakeMapAdapter({
     initialViewport,
+    viewConstraints,
     markers,
     clusters,
     selectedPropertyId,
@@ -104,6 +106,22 @@ export function createFakeMapAdapter({
     onPreviewProperty,
     onSelectCluster,
   }: MapAdapterProps) {
+    const effectiveInitialViewport = viewConstraints
+      ? constrainMapViewport(initialViewport, viewConstraints)
+      : initialViewport;
+    const moveEast = () => {
+      const shiftedViewport = {
+        ...effectiveInitialViewport,
+        east: effectiveInitialViewport.east + 1,
+        west: effectiveInitialViewport.west + 1,
+      };
+      onViewportChange(
+        viewConstraints
+          ? constrainMapViewport(shiftedViewport, viewConstraints)
+          : shiftedViewport,
+        "user",
+      );
+    };
     useEffect(() => {
       if (retryToken < failAttempts) {
         onError(new MapProviderError("Deterministic fake provider failure"));
@@ -118,6 +136,13 @@ export function createFakeMapAdapter({
       <div
         role="application"
         aria-label="نقشه تعاملی ملک‌ها"
+        tabIndex={0}
+        onKeyDown={(event) => {
+          if (event.key === "ArrowRight") {
+            event.preventDefault();
+            moveEast();
+          }
+        }}
         className="bg-muted relative h-full min-h-80 overflow-hidden rounded-xl p-4"
       >
         <button
@@ -126,8 +151,8 @@ export function createFakeMapAdapter({
           onClick={() =>
             onViewportChange(
               {
-                ...initialViewport,
-                zoom: initialViewport.zoom + 1,
+                ...effectiveInitialViewport,
+                zoom: effectiveInitialViewport.zoom + 1,
               },
               "user",
             )
@@ -145,7 +170,7 @@ export function createFakeMapAdapter({
               onClick={() => {
                 onSelectProperty(marker.propertyId);
                 onPreviewProperty(marker.propertyId);
-                onViewportChange(initialViewport, "programmatic");
+                onViewportChange(effectiveInitialViewport, "programmatic");
               }}
             >
               {marker.label}
@@ -163,11 +188,14 @@ export function createFakeMapAdapter({
             type="button"
             onClick={() => {
               onSelectCluster(cluster.id);
+              const clusterViewport = {
+                ...cluster.bounds,
+                zoom: effectiveInitialViewport.zoom + 2,
+              };
               onViewportChange(
-                {
-                  ...cluster.bounds,
-                  zoom: initialViewport.zoom + 2,
-                },
+                viewConstraints
+                  ? constrainMapViewport(clusterViewport, viewConstraints)
+                  : clusterViewport,
                 "user",
               );
             }}

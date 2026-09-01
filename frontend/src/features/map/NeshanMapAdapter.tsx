@@ -23,6 +23,7 @@ import {
   type MapViewport,
 } from "./adapter";
 import { neshanMapKey } from "./environment";
+import { mapViewOptions } from "./view-constraints";
 
 type TileErrorSource = {
   on: (type: "tileloaderror", listener: () => void) => unknown;
@@ -131,6 +132,7 @@ function clusterStyle(propertyCount: number) {
 
 export function NeshanMapAdapter({
   initialViewport,
+  viewConstraints,
   markers,
   clusters,
   selectedPropertyId,
@@ -158,10 +160,6 @@ export function NeshanMapAdapter({
     }
     const target = containerRef.current;
     if (!target) return;
-    const center = fromLonLat([
-      (initialViewportRef.current.east + initialViewportRef.current.west) / 2,
-      (initialViewportRef.current.north + initialViewportRef.current.south) / 2,
-    ]);
     try {
       const initializedMap = new ProviderMapConstructor({
         target,
@@ -170,7 +168,13 @@ export function NeshanMapAdapter({
         poi: true,
         traffic: false,
         keyboardEventTarget: target,
-        view: new View({ center, zoom: initialViewportRef.current.zoom }),
+        view: new View(
+          mapViewOptions(
+            initialViewportRef.current,
+            viewConstraints,
+            fromLonLat,
+          ),
+        ),
       });
       const focusOnlyWheelZoom = initializedMap
         .getInteractions()
@@ -193,7 +197,7 @@ export function NeshanMapAdapter({
         }),
       );
     }
-  }, [onError, onReady, retryToken]);
+  }, [onError, onReady, retryToken, viewConstraints]);
 
   useEffect(() => {
     if (!map) return;

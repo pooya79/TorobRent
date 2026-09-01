@@ -26,6 +26,7 @@ import {
   type MapViewport,
 } from "./adapter";
 import { openStreetMapTileUrl } from "./environment";
+import { mapViewOptions } from "./view-constraints";
 
 type MapFeatureMetadata =
   | { kind: "approximate-location"; propertyId: string }
@@ -128,6 +129,7 @@ function clusterStyle(propertyCount: number) {
 
 export function OpenStreetMapAdapter({
   initialViewport,
+  viewConstraints,
   markers,
   clusters,
   selectedPropertyId,
@@ -147,10 +149,6 @@ export function OpenStreetMapAdapter({
   useEffect(() => {
     const target = containerRef.current;
     if (!target) return;
-    const center = fromLonLat([
-      (initialViewportRef.current.east + initialViewportRef.current.west) / 2,
-      (initialViewportRef.current.north + initialViewportRef.current.south) / 2,
-    ]);
     const tileSource = new OSM({
       url: openStreetMapTileUrl,
       crossOrigin: "anonymous",
@@ -166,7 +164,13 @@ export function OpenStreetMapAdapter({
         controls: defaultControls({ attribution: false }),
         interactions: defaultInteractions({ onFocusOnly: false }),
         layers: [new TileLayer({ source: tileSource })],
-        view: new View({ center, zoom: initialViewportRef.current.zoom }),
+        view: new View(
+          mapViewOptions(
+            initialViewportRef.current,
+            viewConstraints,
+            fromLonLat,
+          ),
+        ),
       });
       setMap(initializedMap);
       onReady();
@@ -183,7 +187,7 @@ export function OpenStreetMapAdapter({
         }),
       );
     }
-  }, [onError, onReady, retryToken]);
+  }, [onError, onReady, retryToken, viewConstraints]);
 
   useEffect(() => {
     if (!map) return;

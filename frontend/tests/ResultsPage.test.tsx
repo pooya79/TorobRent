@@ -1252,6 +1252,62 @@ test("settles user map movement into a shareable replacement viewport query", as
   );
 });
 
+test("replaces an outside shared viewport with its Tehran-constrained equivalent", async () => {
+  const user = userEvent.setup();
+  renderResults(
+    [
+      "/search?location=previous",
+      "/search?viewport_north=35.8&viewport_east=52&viewport_south=35.7&viewport_west=51.8&viewport_zoom=8",
+    ],
+    createFakeMapAdapter(),
+  );
+
+  const state = screen.getByLabelText("وضعیت جست‌وجو");
+  await waitFor(() => {
+    expect(state).toHaveTextContent("viewport_east=51.728331");
+    expect(state).toHaveTextContent("viewport_west=51.528331");
+    expect(state).toHaveTextContent("viewport_zoom=10");
+  });
+
+  await user.click(screen.getByRole("button", { name: "بازگشت آزمایشی" }));
+  expect(state).toHaveTextContent("location=previous");
+});
+
+test("replaces excess shared viewport precision with six-decimal canonical values", async () => {
+  const user = userEvent.setup();
+  renderResults(
+    [
+      "/search?location=previous",
+      "/search?viewport_north=35.800000123&viewport_east=51.500000123&viewport_south=35.700000123&viewport_west=51.300000123&viewport_zoom=13.000000123",
+    ],
+    createFakeMapAdapter(),
+  );
+
+  const state = screen.getByLabelText("وضعیت جست‌وجو");
+  await waitFor(() => {
+    expect(state).toHaveTextContent("viewport_north=35.8");
+    expect(state).toHaveTextContent("viewport_east=51.5");
+    expect(state).toHaveTextContent("viewport_zoom=13");
+    expect(state).not.toHaveTextContent("000000123");
+  });
+
+  await user.click(screen.getByRole("button", { name: "بازگشت آزمایشی" }));
+  expect(state).toHaveTextContent("location=previous");
+});
+
+test("resets a world-scale viewport whose span cannot be preserved around Tehran", async () => {
+  renderResults(
+    "/search?viewport_north=90&viewport_east=180&viewport_south=-80&viewport_west=-170&viewport_zoom=0",
+    createFakeMapAdapter(),
+  );
+
+  await waitFor(() =>
+    expect(screen.getByLabelText("وضعیت جست‌وجو")).not.toHaveTextContent(
+      "viewport_",
+    ),
+  );
+});
+
 test("keeps the existing map mounted when the first viewport query is added", async () => {
   const user = userEvent.setup();
   const FakeMapAdapter = createFakeMapAdapter();
@@ -1343,6 +1399,48 @@ test("shows server Property clusters and discloses city-wide map coverage", asyn
   ).toBeVisible();
   expect(screen.getByText("۹ ملک پیدا شد")).toBeVisible();
   expect(screen.getByText("از این تعداد، ۷ ملک روی نقشه است")).toBeVisible();
+});
+
+test("constrains cluster movement before settling the search viewport", async () => {
+  const user = userEvent.setup();
+  server.use(
+    http.get("*/api/v1/catalog/properties/", () =>
+      HttpResponse.json({
+        ...propertySearchPage,
+        map: {
+          ...propertySearchPage.map,
+          markers: [],
+          clusters: [
+            {
+              id: "outside-cluster",
+              latitude: "36.900000",
+              longitude: "52.900000",
+              north: "37.000000",
+              east: "53.000000",
+              south: "36.800000",
+              west: "52.800000",
+              property_count: 3,
+              property_ids: propertySearchPage.results.map(
+                (property) => property.id,
+              ),
+            },
+          ],
+        },
+      }),
+    ),
+  );
+  renderResults("/search", createFakeMapAdapter());
+
+  await user.click(await screen.findByRole("button", { name: "خوشه ۳ ملک" }));
+
+  const state = screen.getByLabelText("وضعیت جست‌وجو");
+  await waitFor(() => {
+    expect(state).toHaveTextContent("viewport_north=35.946495");
+    expect(state).toHaveTextContent("viewport_east=51.728331");
+    expect(state).toHaveTextContent("viewport_south=35.746495");
+    expect(state).toHaveTextContent("viewport_west=51.528331");
+    expect(state).toHaveTextContent("viewport_zoom=12");
+  });
 });
 
 test("discards the previous map and results while a viewport replacement loads", async () => {

@@ -142,6 +142,11 @@ The restricted position of a Property, when known, from which its Approximate Lo
 derived. It is not published to Renters.
 _Avoid_: Public location, map marker
 
+**Tehran Search Boundary**:
+The slightly padded geographic boundary around Tehran's 22 municipal districts within which a
+Renter may navigate while searching the current Tehran market.
+_Avoid_: Tehran viewport, map bounds
+
 **Favorite**:
 An authenticated Renter's saved interest in a Property, independent of any particular Listing. It
 persists while the Property is unavailable and follows a merge, but ceases when the Property is

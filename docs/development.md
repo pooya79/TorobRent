@@ -67,10 +67,29 @@ OpenStreetMap-compatible tile service for production traffic. The public OpenStr
 is donation-funded and must not be treated as an unlimited production CDN. Preserve the visible
 OpenStreetMap attribution when changing the tile source.
 
-The browser contract sets `VITE_MAP_ADAPTER=fake`, so it never contacts a map service. For a
-minimal non-CI provider check, select the adapter, run the frontend, open `/search`, verify
-Persian/RTL map controls and the selected provider's visible attribution, pan once with the mouse,
-and confirm that the map remains keyboard-focusable.
+The browser contract sets `VITE_MAP_ADAPTER=fake`, so it never contacts a map service. Perform the
+following non-CI smoke check once with `openstreetmap` and once with `neshan`: run the frontend,
+open `/search`, verify Persian/RTL controls and the provider's visible attribution, and confirm the
+map remains keyboard-focusable. Try to zoom farther out than zoom 10 and drag the map center beyond
+each edge of the Tehran Search Boundary; neither wheel nor pointer interaction should overshoot or
+spring back. Select an outer cluster and confirm its fitted view also remains constrained.
+
+Search constrains map centers to the **Tehran Search Boundary** at zoom 10 or closer. The boundary
+is the WGS84 envelope of all 22 municipal-district polygons in Tehran Municipality's versioned
+1401 `manategh.rar` dataset, padded geodetically by 2 km on each edge and rounded to six decimal
+places:
+
+- west `51.066861`, south `35.550177`, east `51.628331`, north `35.846495`
+- source: `https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/`
+- official archive: `manategh.rar` under the source page's 1401 GIS downloads
+- downloaded archive SHA-256:
+  `46fdd853f8c22257b297756a73b9ea691f4541203eb24396f56dd4b948194c13`
+
+The source shapefile is EPSG:32639. Its complete vertex envelope was transformed to WGS84 before
+adding latitude-aware 2 km offsets. The raw archive is not committed because the public download
+does not state explicit redistribution terms. Recalculate and review the static boundary only
+when the supported market or the municipality's district boundaries change; the application must
+not fetch boundary geometry at runtime.
 
 The default test suite uses SQLite for fast unit tests. CI sets `TEST_DATABASE_URL` to run the same
 suite against PostgreSQL. Any query, constraint, locking, JSON, or transaction behavior should have

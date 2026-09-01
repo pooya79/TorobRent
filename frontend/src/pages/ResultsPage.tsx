@@ -48,7 +48,13 @@ import type {
   MapViewport,
 } from "@/features/map/adapter";
 import { configuredMapAdapter } from "@/features/map/configured-adapter";
-import { SearchMapPanel, tehranViewport } from "@/features/map/SearchMapPanel";
+import { SearchMapPanel } from "@/features/map/SearchMapPanel";
+import {
+  constrainMapViewport,
+  mapViewportCanBeConstrained,
+  tehranInitialViewport,
+  tehranSearchViewConstraints,
+} from "@/features/map/view-constraints";
 import type { components } from "@/lib/api/schema";
 
 type PropertySummary = components["schemas"]["PropertySummary"];
@@ -180,7 +186,9 @@ const viewportParameterNames = [
   "viewport_zoom",
 ] as const;
 
-function viewportFromSearchParams(searchParams: URLSearchParams): MapViewport {
+function parsedViewportFromSearchParams(
+  searchParams: URLSearchParams,
+): MapViewport | null {
   const values = viewportParameterNames.map((name) =>
     Number(searchParams.get(name)),
   );
@@ -194,14 +202,22 @@ function viewportFromSearchParams(searchParams: URLSearchParams): MapViewport {
       east !== undefined &&
       south !== undefined &&
       west !== undefined &&
-      zoom !== undefined &&
-      north > south &&
-      east > west
+      zoom !== undefined
     ) {
-      return { north, east, south, west, zoom };
+      const viewport = { north, east, south, west, zoom };
+      return mapViewportCanBeConstrained(viewport, tehranSearchViewConstraints)
+        ? viewport
+        : null;
     }
   }
-  return tehranViewport;
+  return null;
+}
+
+function viewportFromSearchParams(searchParams: URLSearchParams): MapViewport {
+  const viewport = parsedViewportFromSearchParams(searchParams);
+  return viewport
+    ? constrainMapViewport(viewport, tehranSearchViewConstraints)
+    : tehranInitialViewport;
 }
 
 function viewportValue(value: number) {
@@ -365,6 +381,37 @@ export function ResultsPage({ mapAdapter }: { mapAdapter?: MapAdapter }) {
     () => viewportFromSearchParams(searchParams),
     [searchParams],
   );
+  useEffect(() => {
+    if (!viewportParameterNames.some((name) => searchParams.has(name))) return;
+    const parsedViewport = parsedViewportFromSearchParams(searchParams);
+    const next = new URLSearchParams(searchParams);
+    if (!parsedViewport) {
+      for (const name of viewportParameterNames) next.delete(name);
+    } else {
+      const constrainedViewport = constrainMapViewport(
+        parsedViewport,
+        tehranSearchViewConstraints,
+      );
+      const canonicalViewportParameters = [
+        ["viewport_north", constrainedViewport.north],
+        ["viewport_east", constrainedViewport.east],
+        ["viewport_south", constrainedViewport.south],
+        ["viewport_west", constrainedViewport.west],
+        ["viewport_zoom", constrainedViewport.zoom],
+      ] as const;
+      if (
+        canonicalViewportParameters.every(
+          ([name, value]) => searchParams.get(name) === viewportValue(value),
+        )
+      ) {
+        return;
+      }
+      for (const [name, value] of canonicalViewportParameters) {
+        next.set(name, viewportValue(value));
+      }
+    }
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams]);
   const mapMarkers =
     searchData?.map.markers
       .map((property) => toMapMarker(property, resultSearchParams))
@@ -490,6 +537,7 @@ export function ResultsPage({ mapAdapter }: { mapAdapter?: MapAdapter }) {
     markers: mapMarkers,
     clusters: mapClusters,
     initialViewport,
+    viewConstraints: tehranSearchViewConstraints,
     onViewportChange: handleViewportChange,
     selectedPropertyId,
     onSelectProperty: setSelectedPropertyId,

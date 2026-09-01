@@ -16,22 +16,17 @@ import {
   type MapAdapter,
   type MapCluster,
   type MapMarker,
+  type MapViewConstraints,
   type MapViewport,
 } from "./adapter";
-
-export const tehranViewport: MapViewport = {
-  north: 35.82,
-  east: 51.52,
-  south: 35.65,
-  west: 51.25,
-  zoom: 10,
-};
+import { tehranInitialViewport } from "./view-constraints";
 
 type SearchMapPanelProps = {
   adapter: MapAdapter;
   markers: readonly MapMarker[];
   clusters: readonly MapCluster[];
   initialViewport?: MapViewport;
+  viewConstraints?: MapViewConstraints;
   onViewportChange?: (viewport: MapViewport) => void;
   onSelectCluster?: (clusterId: string) => void;
   selectedPropertyId?: string | null;
@@ -43,7 +38,8 @@ export function SearchMapPanel({
   adapter: Adapter,
   markers,
   clusters,
-  initialViewport = tehranViewport,
+  initialViewport = tehranInitialViewport,
+  viewConstraints,
   onViewportChange,
   onSelectCluster,
   selectedPropertyId: controlledSelectedPropertyId,
@@ -146,6 +142,7 @@ export function SearchMapPanel({
           <Suspense fallback={null}>
             <Adapter
               initialViewport={initialViewport}
+              viewConstraints={viewConstraints}
               markers={markers}
               clusters={clusters}
               selectedPropertyId={selectedPropertyId}
