@@ -1,14 +1,15 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
+import { renderToString } from "react-dom/server";
 import { MemoryRouter } from "react-router";
 import { expect, test } from "vitest";
 
 import { ContactPage } from "@/pages/ContactPage";
+import { AdvertisePage } from "@/pages/AdvertisePage";
 import {
   AboutPage,
-  AdvertisePage,
   GuidePage,
   PrivacyPage,
   TermsPage,
@@ -60,23 +61,99 @@ test("publishes Persian Guide, Privacy, Terms, and honest alpha guidance", () =>
   }
 });
 
-test("introduces future Owner and Agent phone enrollment without entering Submission", () => {
+test("offers repeated entry into the resumable Submitter journey", () => {
   renderPage(<AdvertisePage />);
 
   expect(
     screen.getByRole("heading", { name: "ثبت آگهی در ترب‌رنت" }),
   ).toBeVisible();
+  const callsToAction = screen.getAllByRole("link", {
+    name: "شروع ثبت رایگان",
+  });
+  expect(callsToAction).toHaveLength(2);
+  for (const callToAction of callsToAction) {
+    expect(callToAction).toHaveAttribute("href", "/submitter/get-started");
+  }
+});
+
+test("compares the Property and Source Proposal journeys truthfully", () => {
+  renderPage(<AdvertisePage />);
+
+  const propertyJourney = screen.getByRole("article", {
+    name: "ثبت یک ملک",
+  });
+  expect(propertyJourney).toHaveTextContent("مالک یا نماینده مجاز مالک");
+  expect(propertyJourney).toHaveTextContent("آگهی مستقیم");
+  expect(propertyJourney).toHaveTextContent("شماره تماس تأییدشده");
+
+  const sourceJourney = screen.getByRole("article", {
+    name: "معرفی وب‌سایت اجاره",
+  });
+  expect(sourceJourney).toHaveTextContent("نماینده منبع");
+  expect(sourceJourney).toHaveTextContent("پیشنهاد منبع");
+  expect(sourceJourney).toHaveTextContent("آگهی بیرونی");
+  expect(sourceJourney).toHaveTextContent("نشانی آگهی اصلی");
+  expect(sourceJourney).toHaveTextContent("کشف شبیه‌سازی‌شده");
+  expect(sourceJourney).not.toHaveTextContent("هفت مرحله");
+});
+
+test("explains review, privacy, resumability, availability, and the seven Property steps", () => {
+  renderPage(<AdvertisePage />);
+
+  for (const promise of [
+    "بررسی اپراتور",
+    "موقعیت دقیق منتشر نمی‌شود",
+    "کنترل انتشار شماره تماس",
+    "ادامه از همان مرحله",
+    "تأیید موجود بودن",
+    "ثبت و انتشار رایگان",
+  ]) {
+    expect(screen.getByRole("heading", { name: promise })).toBeVisible();
+  }
+
+  const steps = screen.getByRole("list", { name: "هفت مرحله ثبت ملک" });
+  expect(within(steps).getAllByRole("listitem")).toHaveLength(7);
+  expect(steps).toHaveTextContent("نشانی ملک");
+  expect(steps).toHaveTextContent("امکانات و توضیحات");
+  expect(steps).toHaveTextContent("اطلاعات تماس");
+  expect(steps).toHaveTextContent("بازبینی");
+  expect(steps).not.toHaveTextContent("نقش و اختیار");
+});
+
+test("answers acquisition FAQs without unsupported marketplace claims", () => {
+  renderPage(<AdvertisePage />);
+
+  for (const question of [
+    "چه کسانی می‌توانند اطلاعات ثبت کنند؟",
+    "ثبت و انتشار هزینه دارد؟",
+    "بررسی اپراتور چطور انجام می‌شود؟",
+    "شماره تلفن من برای همه نمایش داده می‌شود؟",
+    "موقعیت دقیق ملک منتشر می‌شود؟",
+    "چطور یک وب‌سایت اجاره را معرفی کنم؟",
+    "کشف شبیه‌سازی‌شده یعنی چه؟",
+    "بعد از ارسال چه اتفاقی می‌افتد؟",
+  ]) {
+    expect(screen.getByText(question)).toBeVisible();
+  }
+  expect(screen.getByText(/نسخه آلفا/)).toBeVisible();
   expect(
-    screen.getByText(
-      /ثبت‌نام تلفنی مالکان و نمایندگان مجاز مالک هنوز فعال نشده است/,
-    ),
+    screen.getByText(/کشف خودکار زنده یا انتشار خودکار نیست/),
   ).toBeVisible();
-  expect(screen.getByText(/به‌زودی/)).toBeVisible();
-  expect(screen.getByRole("link", { name: "جست‌وجوی ملک" })).toHaveAttribute(
-    "href",
-    "/search",
+  expect(
+    screen.queryByText(/بزرگ‌ترین|موفقیت|تضمین تأیید|کمتر از .* ساعت/),
+  ).toBeNull();
+});
+
+test("keeps the acquisition promise and action in prerendered HTML", () => {
+  const initialDocument = renderToString(
+    <MemoryRouter>
+      <AdvertisePage />
+    </MemoryRouter>,
   );
-  expect(screen.queryByRole("link", { name: /ثبت آگهی/ })).toBeNull();
+
+  expect(initialDocument).toContain("ثبت آگهی در ترب‌رنت");
+  expect(initialDocument).toContain("ثبت و انتشار رایگان");
+  expect(initialDocument).toContain('href="/submitter/get-started"');
 });
 
 test("explains TorobRent genuinely without unsupported marketplace claims", () => {
@@ -199,7 +276,7 @@ test("pre-renders public guidance with Persian metadata", () => {
     [aboutMeta(), "معرفی فارسی ترب‌رنت"],
     [guideMeta(), "راهنمای فارسی جست‌وجو"],
     [contactMeta(), "ارسال پیام فارسی"],
-    [advertiseMeta(), "ثبت‌نام تلفنی مالک و نماینده مجاز"],
+    [advertiseMeta(), "ثبت رایگان ملک یا معرفی وب‌سایت اجاره"],
     [privacyMeta(), "سیاست حریم خصوصی فارسی"],
     [termsMeta(), "شرایط استفاده فارسی"],
   ] as const;

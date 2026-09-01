@@ -182,6 +182,54 @@ for (const theme of ["light", "dark"] as const) {
     { name: "mobile", width: 390, height: 844 },
     { name: "desktop", width: 1440, height: 1000 },
   ] as const) {
+    test(`@a11y advertise acquisition works in ${theme} mode on ${viewport.name}`, async ({
+      page,
+    }) => {
+      await initializeTheme(page, theme);
+      await page.emulateMedia({ reducedMotion: "reduce" });
+      await page.setViewportSize(viewport);
+      await page.goto("/advertise");
+
+      await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
+      await expect(
+        page.getByRole("heading", { name: "ثبت آگهی در ترب‌رنت", level: 1 }),
+      ).toBeVisible();
+      const callsToAction = page.getByRole("link", {
+        name: "شروع ثبت رایگان",
+      });
+      await expect(callsToAction).toHaveCount(2);
+      await callsToAction.first().focus();
+      await expectVisibleKeyboardFocus(callsToAction.first());
+
+      const layoutFitsViewport = await page.evaluate(
+        () => document.documentElement.scrollWidth <= window.innerWidth,
+      );
+      expect(layoutFitsViewport).toBe(true);
+      const heroAnimation = await page
+        .getByRole("heading", { name: "ثبت آگهی در ترب‌رنت", level: 1 })
+        .evaluate(
+          (heading) => getComputedStyle(heading.parentElement!).animationName,
+        );
+      expect(heroAnimation).toBe("none");
+
+      const results = await new AxeBuilder({ page })
+        .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
+        .analyze();
+      expect(results.violations).toEqual([]);
+
+      await callsToAction.first().click();
+      await expect(page).toHaveURL(
+        /(?:\/submitter\/get-started|\/login\?returnTo=%2Fsubmitter%2Fget-started)$/,
+      );
+    });
+  }
+}
+
+for (const theme of ["light", "dark"] as const) {
+  for (const viewport of [
+    { name: "mobile", width: 390, height: 844 },
+    { name: "desktop", width: 1440, height: 1000 },
+  ] as const) {
     test(`@a11y canonical surfaces pass WCAG 2.2 AA checks in ${theme} mode on ${viewport.name}`, async ({
       page,
     }) => {

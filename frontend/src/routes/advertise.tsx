@@ -1,10 +1,11 @@
-import { AdvertisePage } from "@/pages/PublicGuidancePages";
+import { AdvertisePage } from "@/pages/AdvertisePage";
 
 export const meta = () => [
-  { title: "ثبت آگهی در ترب‌رنت | مالکان و نمایندگان مجاز" },
+  { title: "ثبت ملک و معرفی وب‌سایت اجاره | ترب‌رنت" },
   {
     name: "description",
-    content: "معرفی مسیر آینده ثبت‌نام تلفنی مالک و نماینده مجاز در ترب‌رنت.",
+    content:
+      "ثبت رایگان ملک یا معرفی وب‌سایت اجاره با مسیر ذخیره‌شونده و بررسی اپراتور در ترب‌رنت.",
   },
 ];
 
