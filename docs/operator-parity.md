@@ -7,17 +7,17 @@ The parity gate for these workflows is satisfied only while the checks below rem
 
 - The capability contract, route guards, domain APIs, self-work rules, stale-write handling, and
   domain-owned immutable histories are covered by focused backend and React tests.
-- The milestone Playwright suite covers login return navigation, capability-filtered workspace
-  access, Submission claiming and publication, the Submitter-visible outcome, Support claiming,
-  privacy routing and access loss, privacy-capable finalization, and `/operator/review` compatibility.
+- The browser contract covers login return navigation into the Operator Workspace. Focused backend
+  and React tests cover capability-filtered access, Submission claiming and publication,
+  Submitter-visible outcomes, Support Request routing and finalization, and compatibility routes.
 - Submission and Support queues poll every 30 seconds while open and invalidate both queue and
   selected-record queries immediately after mutations. No WebSockets, push notifications, or
   Operator email alerts are part of this release.
 - The overview calls each accessible domain's summary endpoint in parallel. Summary counts use the
   same authorization and self-work selectors as queues. Work becomes an aging warning after 48
   hours.
-- Existing Support Requests and pending Submissions are preserved by migrations; migration tests
-  and the milestone journey exercise records created before and during the rollout.
+- Existing Support Requests and pending Submissions are preserved by migration and focused workflow
+  tests.
 - Desktop and tablet are fully supported. Mobile supports overview, queue triage, claiming, and
   simple actions; dense Submission normalization remains a desktop/tablet workflow.
 

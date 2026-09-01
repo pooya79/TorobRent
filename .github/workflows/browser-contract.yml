@@ -1,0 +1,36 @@
+name: Browser contract
+
+on:
+  workflow_dispatch:
+
+jobs:
+  cross-browser:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.0.1
+        with:
+          version: "0.12.5"
+          enable-cache: true
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+      - uses: pnpm/action-setup@v6
+        with:
+          version: "11.22.0"
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24.19.0"
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+      - run: uv sync --locked
+        working-directory: backend
+      - run: pnpm install --frozen-lockfile
+        working-directory: frontend
+      - run: pnpm exec playwright install --with-deps chromium firefox webkit
+        working-directory: frontend
+      - run: pnpm test:e2e:cross-browser
+        working-directory: frontend
+        env:
+          FRONTEND_ORIGIN: http://127.0.0.1:5173
+          CSRF_TRUSTED_ORIGINS: http://127.0.0.1:5173

@@ -30,12 +30,10 @@ export default defineConfig({
     },
     {
       name: "firefox",
-      grep: /@cross-browser/,
       use: { browserName: "firefox" },
     },
     {
       name: "webkit",
-      grep: /@cross-browser/,
       use: { browserName: "webkit" },
     },
   ],

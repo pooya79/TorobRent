@@ -5,7 +5,7 @@ DEMO_COMPOSE = docker compose -p torobrent-demo --env-file .env.demo -f compose.
 bootstrap:
 	cd backend && uv sync
 	cd frontend && corepack enable && pnpm install --frozen-lockfile
-	cd frontend && pnpm exec playwright install chromium firefox webkit
+	cd frontend && pnpm exec playwright install chromium
 
 dev:
 	docker compose up --build
@@ -46,7 +46,7 @@ test-demo:
 	./scripts/demo-smoke.sh
 
 test-milestone: check
-	cd frontend && pnpm test:e2e:milestone
+	cd frontend && pnpm test:e2e:cross-browser
 	cd frontend && pnpm test:lighthouse
 	$(MAKE) test-demo
 

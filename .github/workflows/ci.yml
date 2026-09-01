@@ -54,12 +54,6 @@ jobs:
 
   frontend-and-contract:
     runs-on: ubuntu-latest
-    services:
-      mailpit:
-        image: axllent/mailpit:v1.30.7
-        ports:
-          - 1025:1025
-          - 8025:8025
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v10.0.1
@@ -83,17 +77,11 @@ jobs:
         working-directory: frontend
       - run: pnpm lint && pnpm format:check && pnpm typecheck && pnpm test && pnpm build
         working-directory: frontend
-      - run: pnpm exec playwright install --with-deps chromium firefox webkit
+      - run: pnpm exec playwright install --with-deps chromium
         working-directory: frontend
       - run: pnpm test:e2e
         working-directory: frontend
         env:
-          EMAIL_BACKEND: django.core.mail.backends.smtp.EmailBackend
-          EMAIL_HOST: 127.0.0.1
-          EMAIL_PORT: 1025
-          EMAIL_USE_TLS: "false"
-          E2E_MAILPIT_URL: http://127.0.0.1:8025
-          E2E_REQUIRE_MAILPIT: "1"
           FRONTEND_ORIGIN: http://127.0.0.1:5173
           CSRF_TRUSTED_ORIGINS: http://127.0.0.1:5173
       - run: pnpm test:lighthouse

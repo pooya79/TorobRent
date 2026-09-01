@@ -5,9 +5,9 @@
 Django configuration lives in `backend/config/`, domain applications under `backend/apps/`, and
 tests in `backend/tests/`. React code is under `frontend/src/`, organized into `app/`, `pages/`,
 `features/`, `components/`, and shared `lib/`. Frontend unit tests live in `frontend/tests/`, with
-Playwright scenarios in `frontend/tests/e2e/`. `contracts/openapi.yaml` is the API contract;
-`frontend/src/lib/api/schema.d.ts` is generated from it. Project notes live in `docs/`, while
-Compose and nginx configuration are at the repository root and in `infra/`.
+the focused Playwright browser contract in `frontend/tests/e2e/`. `contracts/openapi.yaml` is the
+API contract; `frontend/src/lib/api/schema.d.ts` is generated from it. Project notes live in
+`docs/`, while Compose and nginx configuration are at the repository root and in `infra/`.
 
 ## Build, Test, and Development Commands
 
@@ -17,7 +17,8 @@ Compose and nginx configuration are at the repository root and in `infra/`.
 - `make infra-up`: start PostgreSQL and Redis for host-based development.
 - `make migrate`: apply Django migrations.
 - `make test`: run pytest with coverage, then Vitest.
-- `cd frontend && pnpm test:e2e`: run Playwright browser tests.
+- `cd frontend && pnpm test:e2e`: run the Chromium browser contract.
+- `cd frontend && pnpm test:e2e:cross-browser`: manually run it on Chromium, Firefox, and WebKit.
 - `make check`: run linting, formatting, types, tests, API drift checks, and the frontend build.
 
 ## Coding Style & Naming Conventions
@@ -33,8 +34,9 @@ Run `make format`, `make lint`, and `make typecheck`; pre-commit hooks enforce t
 
 Pytest discovers `backend/tests/test_*.py`; mark database tests with `@pytest.mark.django_db`.
 Backend coverage must remain at least 85%. Vitest discovers `frontend/tests/**/*.test.ts(x)` and
-uses Testing Library with MSW. Name Playwright files `*.spec.ts`. Add tests for behavior changes;
-exercise database-specific behavior against PostgreSQL.
+uses Testing Library with MSW. Keep Playwright focused on behavior that requires a real browser.
+Omit redundant end-to-end tests when backend or React tests already cover the same behavior.
+Exercise database-specific behavior against PostgreSQL.
 
 ## Commit & Pull Request Guidelines
 

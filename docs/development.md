@@ -2,8 +2,9 @@
 
 ## Commands
 
-- `make bootstrap`: synchronize Python/frontend lockfiles and install the supported Playwright
-  browser binaries. On a fresh Linux host, first install their system libraries with
+- `make bootstrap`: synchronize Python/frontend lockfiles and install Chromium for the pull-request
+  browser contract. Before a manual cross-browser run on a fresh Linux host, install all engines
+  and their system libraries with
   `cd frontend && pnpm exec playwright install --with-deps chromium firefox webkit`.
 - `make dev`: run the complete development environment in Compose.
 - `make prod` / `make prod-down`: start or stop the production Compose stack using
@@ -13,13 +14,15 @@
 - `make api-client`: regenerate OpenAPI and TypeScript API types.
 - `make lint`, `make format`, `make format-check`, `make typecheck`, `make test`, `make build`:
   focused checks.
-- `cd frontend && pnpm test:e2e`: run the SSR/browser smoke suite with local frontend and Django
-  test runtimes.
-- `cd frontend && pnpm test:e2e:compose`: run the same smoke suite through the nginx gateway after
+- `cd frontend && pnpm test:e2e`: run the focused browser contract on Chromium with local frontend
+  and Django test runtimes.
+- `cd frontend && pnpm test:e2e:cross-browser`: manually run the browser contract on Chromium,
+  Firefox, and WebKit.
+- `cd frontend && pnpm test:e2e:compose`: run the Chromium contract through the nginx gateway after
   `make dev` is ready.
 - `make check`: run the full local validation suite.
-- `make test-milestone`: run all repository gates, the Mailpit-backed role narrative, Lighthouse,
-  and the isolated Docker lifecycle proof.
+- `make test-milestone`: run all repository gates, the cross-browser contract, Lighthouse, and the
+  isolated Docker lifecycle proof.
 - `make docker-build`: verify both production images.
 
 Python dependencies are declared in `backend/pyproject.toml` and locked with `uv`. JavaScript
@@ -65,7 +68,7 @@ OpenStreetMap-compatible tile service for production traffic. The public OpenStr
 is donation-funded and must not be treated as an unlimited production CDN. Preserve the visible
 OpenStreetMap attribution when changing the tile source.
 
-Automated browser tests and the deterministic demo set `VITE_MAP_ADAPTER=fake`, so they never
+The browser contract and the deterministic demo set `VITE_MAP_ADAPTER=fake`, so they never
 contact a map service. For a minimal non-CI provider check, select the adapter, run the frontend,
 open `/search`, verify Persian/RTL map controls and the selected provider's visible attribution,
 pan once with the mouse, and confirm that the map remains keyboard-focusable.

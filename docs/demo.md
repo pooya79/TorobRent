@@ -32,15 +32,15 @@ missing stable fixture IDs.
 
 The command prints these coordinates when startup succeeds:
 
-| Purpose | URL or credentials |
-| --- | --- |
-| Application | <http://localhost:5173> |
-| Django admin | <http://localhost:5173/admin/> |
-| Mailpit inbox | <http://localhost:8025> |
-| Liveness | <http://localhost:5173/api/v1/system/live/> |
-| Readiness | <http://localhost:5173/api/v1/system/ready/> |
-| Submitter | `submitter@torobrent.local` / `demo-submitter` |
-| Operator | `operator@torobrent.local` / `demo-operator` |
+| Purpose       | URL or credentials                             |
+| ------------- | ---------------------------------------------- |
+| Application   | <http://localhost:5173>                        |
+| Django admin  | <http://localhost:5173/admin/>                 |
+| Mailpit inbox | <http://localhost:8025>                        |
+| Liveness      | <http://localhost:5173/api/v1/system/live/>    |
+| Readiness     | <http://localhost:5173/api/v1/system/ready/>   |
+| Submitter     | `submitter@torobrent.local` / `demo-submitter` |
+| Operator      | `operator@torobrent.local` / `demo-operator`   |
 
 These weak passwords and the Operator superuser status are local-only demo conveniences.
 
@@ -98,7 +98,7 @@ make test-demo
 The smoke verifies an idempotent seed, both persona passwords, database and media persistence over
 a full down/up cycle, and deterministic restoration after a volume-scoped reset.
 
-The complete quality, supported-browser, accessibility, performance, query-bound, and lifecycle
+The complete quality, browser-contract, accessibility, performance, query-bound, and lifecycle
 evidence is mapped in [Milestone validation](validation.md). Run `make test-milestone` to execute the
 whole local release gate; it is intentionally slower than the normal development checks.
 
