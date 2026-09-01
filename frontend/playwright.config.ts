@@ -1,11 +1,12 @@
 import { defineConfig } from "@playwright/test";
+import { randomUUID } from "node:crypto";
 
 const externalBaseUrl = process.env.E2E_BASE_URL;
 const frontendPort = process.env.E2E_FRONTEND_PORT ?? "5173";
 const baseURL = externalBaseUrl ?? `http://127.0.0.1:${frontendPort}`;
 const backendPort = process.env.E2E_BACKEND_PORT ?? "8010";
 const backendUrl = `http://127.0.0.1:${backendPort}`;
-const isolatedDatabaseUrl = `sqlite:////tmp/torobrent-playwright-${backendPort}-${process.pid}.sqlite3`;
+const isolatedDatabaseUrl = `sqlite:////tmp/torobrent-playwright-${backendPort}-${randomUUID()}.sqlite3`;
 const chromiumExecutable = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH;
 const seedCommand =
   process.env.CAPTURE_DESIGN || process.env.E2E_SEED_DEV

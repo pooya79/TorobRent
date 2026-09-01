@@ -63,7 +63,10 @@ def generate_simulated_external_listing_candidates(
     *, proposal: SourceProposal
 ) -> list[ExternalListingCandidate]:
     proposal = (
-        SourceProposal.objects.select_for_update().select_related("source").get(id=proposal.id)
+        SourceProposal.objects
+        .select_for_update(of=("self",))
+        .select_related("source")
+        .get(id=proposal.id)
     )
     source = proposal.source
     if proposal.state != SourceProposalState.APPROVED or source is None:
