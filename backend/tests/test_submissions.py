@@ -10,6 +10,7 @@ from django.apps import apps as django_apps
 from django.conf import settings
 from django.contrib import admin
 from django.contrib.auth.models import Permission
+from django.core.cache import cache
 from django.core.files.storage import FileSystemStorage, default_storage
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.management import call_command
@@ -304,7 +305,7 @@ def test_submitter_recovers_from_expired_and_exhausted_alternate_contact_codes(
         format="json",
     )
 
-    assert delayed.status_code == 202
+    assert delayed.status_code == 429
     assert "demo_otp" not in delayed.data
     assert expired.status_code == 400
     assert exhausted.status_code == 400
@@ -331,6 +332,36 @@ def test_alternate_contact_code_is_not_disclosed_outside_demo(api_client: APICli
 
     assert response.status_code == 202
     assert "demo_otp" not in response.data
+
+
+@pytest.mark.django_db
+def test_alternate_contact_request_and_verification_are_throttled(api_client: APIClient):
+    cache.clear()
+    submitter = User.objects.create_user(
+        phone="09123456789",
+        password="correct-horse-battery",
+        phone_verified_at=timezone.now(),
+        is_submitter=True,
+    )
+    submission_id = create_draft(api_client, submitter)
+    request_url = f"/api/v1/submissions/{submission_id}/contact-verification/request/"
+    verify_url = f"/api/v1/submissions/{submission_id}/contact-verification/verify/"
+
+    for index in range(5):
+        response = api_client.post(
+            request_url,
+            {"phone": f"0935000000{index}"},
+            format="json",
+        )
+        assert response.status_code == 202
+    assert api_client.post(request_url, {"phone": "09350000005"}, format="json").status_code == 429
+
+    cache.clear()
+    for _ in range(20):
+        response = api_client.post(verify_url, {"otp": "00000"}, format="json")
+        assert response.status_code == 400
+    assert api_client.post(verify_url, {"otp": "00000"}, format="json").status_code == 429
+    cache.clear()
 
 
 @pytest.mark.django_db

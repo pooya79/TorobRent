@@ -155,7 +155,7 @@ test("verifies another public number and recovers from an invalid code", async (
       phone_verified: true,
       account_phone: "09123456789",
       authorization_declared: false,
-      phone_publication_consent: false,
+      phone_publication_consent: true,
     },
   };
   const alternateDraft = {
@@ -197,6 +197,7 @@ test("verifies another public number and recovers from an invalid code", async (
   renderPage(`/add-submission?submission=${draft.id}&step=contact`);
 
   await user.click(await screen.findByLabelText("استفاده از شماره دیگر"));
+  expect(screen.getByLabelText(/نمایش عمومی این شماره تماس/)).not.toBeChecked();
   await user.type(screen.getByLabelText("شماره دیگر"), "۰۹۳۵۱۲۳۴۵۶۷");
   await user.click(screen.getByRole("button", { name: "ارسال کد تأیید" }));
 

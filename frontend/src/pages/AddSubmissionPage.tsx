@@ -510,11 +510,15 @@ function ContactFields({
   const [otp, setOtp] = useState("");
   const [demoOtp, setDemoOtp] = useState<string>();
   const [verificationMessage, setVerificationMessage] = useState<string>();
+  const [publicationConsent, setPublicationConsent] = useState(
+    Boolean(submission.contact?.phone_publication_consent),
+  );
   const requestVerification = useMutation({
     mutationFn: () =>
       requestAlternateContactVerification(submission.id, alternatePhone),
     onSuccess: (response) => {
       setAlternateVerified(false);
+      setPublicationConsent(false);
       setOtp("");
       setDemoOtp(response.demo_otp);
       setVerificationMessage(
@@ -566,7 +570,9 @@ function ContactFields({
           name="phone_source"
           value={phoneSource}
           onValueChange={(value) => {
-            setPhoneSource(value as "account" | "alternate");
+            const nextSource = value as "account" | "alternate";
+            if (nextSource !== phoneSource) setPublicationConsent(false);
+            setPhoneSource(nextSource);
             setVerificationMessage(undefined);
           }}
         >
@@ -604,6 +610,7 @@ function ContactFields({
                 onChange={(event) => {
                   setAlternatePhone(event.target.value);
                   setAlternateVerified(false);
+                  setPublicationConsent(false);
                   setVerificationMessage(undefined);
                 }}
               />
@@ -631,6 +638,8 @@ function ContactFields({
                     <Input
                       aria-label="کد تأیید شماره دیگر"
                       inputMode="numeric"
+                      autoComplete="one-time-code"
+                      maxLength={6}
                       value={otp}
                       onChange={(event) => setOtp(event.target.value)}
                     />
@@ -644,6 +653,10 @@ function ContactFields({
                   </Button>
                 </div>
               )}
+            <p className="text-muted-foreground text-xs">
+              کد ۵ دقیقه اعتبار دارد، پس از ۵ تلاش ناموفق جایگزین می‌شود و ارسال
+              دوباره پس از ۶۰ ثانیه ممکن است.
+            </p>
             {verificationMessage && (
               <p role="status" className="text-sm">
                 {verificationMessage}
@@ -670,7 +683,8 @@ function ContactFields({
         <input
           name="phone_publication_consent"
           type="checkbox"
-          defaultChecked={submission.contact?.phone_publication_consent}
+          checked={publicationConsent}
+          onChange={(event) => setPublicationConsent(event.target.checked)}
           aria-invalid={Boolean(consentError)}
           aria-describedby={consentError ? "consent-error" : undefined}
         />

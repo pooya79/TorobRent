@@ -13,7 +13,7 @@ from django.utils.dateparse import parse_datetime
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiParameter, OpenApiResponse, extend_schema
 from rest_framework import status
-from rest_framework.exceptions import APIException, PermissionDenied, ValidationError
+from rest_framework.exceptions import APIException, PermissionDenied, Throttled, ValidationError
 from rest_framework.generics import ListAPIView, get_object_or_404
 from rest_framework.parsers import JSONParser, MultiPartParser
 from rest_framework.permissions import BasePermission
@@ -52,6 +52,7 @@ from .serializers import (
     SubmissionWorkloadSummarySerializer,
 )
 from .services import (
+    ContactVerificationCooldown,
     ContactVerificationResult,
     ReviewWorkflowConflict,
     SubmissionAccessDenied,
@@ -107,6 +108,11 @@ class ReviewConflict(APIException):
 REVIEW_CONFLICT_RESPONSE = OpenApiResponse(
     response=ProblemSerializer,
     description="The Review Claim, reviewed revision, or decision state is no longer current.",
+)
+PROBLEM_MEDIA_TYPE = "application/problem+json"
+THROTTLED_RESPONSE = OpenApiResponse(
+    response=ProblemSerializer,
+    description="OTP resend cooldown or endpoint request limit was reached.",
 )
 
 
@@ -212,7 +218,10 @@ class SubmissionContactVerificationRequestView(APIView):
     @extend_schema(
         summary="Send an OTP for an alternate Submission contact phone",
         request=SubmissionContactVerificationRequestSerializer,
-        responses={202: SubmissionContactOtpResponseSerializer},
+        responses={
+            202: SubmissionContactOtpResponseSerializer,
+            (429, PROBLEM_MEDIA_TYPE): THROTTLED_RESPONSE,
+        },
     )
     def post(self, request: Request, submission_id: str) -> Response:
         submission = get_object_or_404(Submission, id=submission_id, submitter=request.user)
@@ -224,6 +233,11 @@ class SubmissionContactVerificationRequestView(APIView):
                 actor=cast(User, request.user),
                 phone=serializer.validated_data["phone"],
             )
+        except ContactVerificationCooldown as exc:
+            raise Throttled(
+                wait=exc.wait_seconds,
+                detail="برای ارسال دوباره کد باید ۶۰ ثانیه صبر کنید.",
+            ) from None
         except DjangoValidationError as exc:
             raise validation_response(exc) from None
         data = {"detail": "اگر شماره قابل تأیید باشد، کد تأیید ارسال می‌شود."}

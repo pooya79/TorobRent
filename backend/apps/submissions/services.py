@@ -6,6 +6,7 @@ from decimal import Decimal
 from enum import StrEnum
 from functools import partial
 from io import BytesIO
+from math import ceil
 from typing import Any
 from uuid import UUID
 
@@ -78,6 +79,12 @@ class SubmissionAccessDenied(Exception):
     pass
 
 
+class ContactVerificationCooldown(Exception):
+    def __init__(self, wait_seconds: int) -> None:
+        self.wait_seconds = wait_seconds
+        super().__init__("Alternate contact verification is in its resend cooldown.")
+
+
 class ContactVerificationResult(StrEnum):
     SUCCESS = "success"
     INVALID = "invalid"
@@ -126,7 +133,8 @@ def request_submission_contact_verification(
         and latest.phone == normalized_phone
         and latest.created_at > timezone.now() - timedelta(seconds=60)
     ):
-        return None
+        elapsed = (timezone.now() - latest.created_at).total_seconds()
+        raise ContactVerificationCooldown(ceil(60 - elapsed))
     now = timezone.now()
     submission.contact_verification_challenges.filter(consumed_at__isnull=True).update(
         consumed_at=now

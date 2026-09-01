@@ -2050,6 +2050,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/SubmissionContactOtpResponse'
           description: ''
+        '429':
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: OTP resend cooldown or endpoint request limit was reached.
   /api/v1/submissions/{submission_id}/contact-verification/verify/:
     post:
       operationId: v1_submissions_contact_verification_verify_create

@@ -4444,6 +4444,15 @@ export interface operations {
           "application/json": components["schemas"]["SubmissionContactOtpResponse"];
         };
       };
+      /** @description OTP resend cooldown or endpoint request limit was reached. */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
     };
   };
   v1_submissions_contact_verification_verify_create: {
