@@ -8,6 +8,7 @@ from django.utils import timezone
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
+from apps.accounts.identifiers import normalize_iranian_mobile
 from apps.catalog.models import (
     City,
     District,
@@ -28,6 +29,7 @@ from .audit_serializers import (
     PublicationResultAuditSerializer,
 )
 from .models import (
+    ContactPhoneSource,
     ReviewClaim,
     Submission,
     SubmissionDecisionNotification,
@@ -38,7 +40,11 @@ from .models import (
     SubmissionStep,
     SubmitterRole,
 )
-from .services import STEP_DEFINITIONS, verified_public_contact_phone
+from .services import (
+    STEP_DEFINITIONS,
+    submission_contact_phone_is_verified,
+    verified_public_contact_phone,
+)
 
 MAX_SAFE_TOMAN_FOR_JSON_RIAL = 900_719_925_474_099
 
@@ -236,6 +242,10 @@ class ContactInputSerializer(serializers.Serializer[Any]):
         max_length=32,
         error_messages={"required": REQUIRED_ERROR, "blank": "شماره تماس الزامی است."},
     )
+    phone_source = serializers.ChoiceField(
+        choices=ContactPhoneSource.choices,
+        default=ContactPhoneSource.ACCOUNT,
+    )
     authorization_declared = serializers.BooleanField(error_messages={"required": REQUIRED_ERROR})
     phone_publication_consent = serializers.BooleanField(
         error_messages={"required": REQUIRED_ERROR}
@@ -246,17 +256,36 @@ class ContactInputSerializer(serializers.Serializer[Any]):
             raise serializers.ValidationError("اعلام اختیار ثبت ملک الزامی است.")
         return value
 
-    def validate_phone(self, value: str) -> str:
+    def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
         request = self.context.get("request")
         user = getattr(request, "user", None)
-        phone = (
-            verified_public_contact_phone(submitter=user, value=value) if user is not None else None
-        )
+        phone = normalize_iranian_mobile(attrs["phone"])
         if phone is None:
-            raise serializers.ValidationError(
-                "شماره عمومی تماس باید همان شماره تأییدشده حساب باشد."
+            raise serializers.ValidationError({"phone": "شماره تلفن همراه معتبر وارد کنید."})
+        phone_source = attrs.get("phone_source", ContactPhoneSource.ACCOUNT)
+        attrs["phone_source"] = phone_source
+        if phone_source == ContactPhoneSource.ACCOUNT:
+            verified_phone = (
+                verified_public_contact_phone(submitter=user, value=phone)
+                if user is not None
+                else None
             )
-        return phone
+            if verified_phone is None:
+                raise serializers.ValidationError({
+                    "phone": "شماره عمومی تماس باید همان شماره تأییدشده حساب باشد."
+                })
+            attrs["phone"] = verified_phone
+            return attrs
+        submission = self.parent.instance
+        if (
+            not isinstance(submission, Submission)
+            or submission.contact_phone_source != ContactPhoneSource.ALTERNATE
+            or submission.contact_phone != phone
+            or submission.alternate_contact_phone_verified_at is None
+        ):
+            raise serializers.ValidationError({"phone": "شماره دیگر باید پیش از ادامه تأیید شود."})
+        attrs["phone"] = phone
+        return attrs
 
     def validate_phone_publication_consent(self, value: bool) -> bool:
         if not value:
@@ -297,8 +326,30 @@ class RentalTermsOutputSerializer(serializers.Serializer[Any]):
 class ContactOutputSerializer(serializers.Serializer[Any]):
     name = serializers.CharField()
     phone = serializers.CharField()
+    phone_source = serializers.ChoiceField(choices=ContactPhoneSource.choices)
+    phone_verified = serializers.BooleanField()
+    account_phone = serializers.CharField()
     authorization_declared = serializers.BooleanField()
     phone_publication_consent = serializers.BooleanField()
+
+
+class SubmissionContactVerificationRequestSerializer(serializers.Serializer[Any]):
+    phone = serializers.CharField(max_length=32)
+
+    def validate_phone(self, value: str) -> str:
+        phone = normalize_iranian_mobile(value)
+        if phone is None:
+            raise serializers.ValidationError("شماره تلفن همراه معتبر وارد کنید.")
+        return phone
+
+
+class SubmissionContactVerificationSerializer(serializers.Serializer[Any]):
+    otp = serializers.RegexField(r"^\d{6}$")
+
+
+class SubmissionContactOtpResponseSerializer(serializers.Serializer[Any]):
+    detail = serializers.CharField()
+    demo_otp = serializers.RegexField(r"^\d{6}$", required=False)
 
 
 class SubmissionImageVariantSerializer(serializers.ModelSerializer[SubmissionImageVariant]):
@@ -693,16 +744,14 @@ class SubmissionSerializer(ClaimStatusMixin, serializers.ModelSerializer[Submiss
     @extend_schema_field(ContactOutputSerializer(allow_null=True))
     def get_contact(self, submission: Submission) -> dict[str, Any] | None:
         phone = submission.contact_phone
-        if (
-            submission.state in (SubmissionState.DRAFT, SubmissionState.CHANGES_REQUESTED)
-            and submission.submitter.phone_verified
-        ):
-            phone = submission.submitter.phone or ""
         if not submission.contact_name and not phone:
             return None
         return {
             "name": submission.contact_name,
             "phone": phone,
+            "phone_source": submission.contact_phone_source,
+            "phone_verified": submission_contact_phone_is_verified(submission),
+            "account_phone": submission.submitter.phone or "",
             "authorization_declared": submission.authorization_declared,
             "phone_publication_consent": submission.phone_publication_consent,
         }

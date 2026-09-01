@@ -93,6 +93,36 @@ export async function saveSubmissionStep(
   return data;
 }
 
+export async function requestAlternateContactVerification(
+  submissionId: string,
+  phone: string,
+) {
+  const { data, error } = await api.POST(
+    "/api/v1/submissions/{submission_id}/contact-verification/request/",
+    {
+      params: { path: { submission_id: submissionId } },
+      body: { phone },
+    },
+  );
+  if (error || !data) throw apiError(error);
+  return data;
+}
+
+export async function verifyAlternateContact(
+  submissionId: string,
+  otp: string,
+) {
+  const { data, error } = await api.POST(
+    "/api/v1/submissions/{submission_id}/contact-verification/verify/",
+    {
+      params: { path: { submission_id: submissionId } },
+      body: { otp },
+    },
+  );
+  if (error || !data) throw apiError(error);
+  return data;
+}
+
 export async function submitSubmission(submissionId: string) {
   const { data, error } = await api.POST(
     "/api/v1/submissions/{submission_id}/submit/",

@@ -1,3 +1,4 @@
+from datetime import timedelta
 from importlib import import_module
 from io import BytesIO
 from pathlib import Path
@@ -35,6 +36,7 @@ from apps.catalog.models import (
 from apps.submissions.models import (
     MediaAsset,
     Submission,
+    SubmissionContactVerificationChallenge,
     SubmissionImage,
     SubmissionImageStatus,
     SubmissionImageVariant,
@@ -95,6 +97,9 @@ def test_verified_submitter_can_create_an_owner_draft(api_client: APIClient):
     assert response.data["contact"] == {
         "name": "",
         "phone": "09123456789",
+        "phone_source": "account",
+        "phone_verified": True,
+        "account_phone": "09123456789",
         "authorization_declared": False,
         "phone_publication_consent": False,
     }
@@ -124,7 +129,8 @@ def test_choosing_a_relationship_resumes_the_matching_submission_draft(api_clien
     assert resumed.status_code == 200
     assert resumed.data["id"] == owner.data["id"]
     assert resumed.data["id"] != agent.data["id"]
-    assert resumed.data["contact"]["phone"] == submitter.phone
+    assert resumed.data["contact"]["phone"] == "09351234567"
+    assert resumed.data["contact"]["phone_verified"] is False
     assert Submission.objects.filter(submitter=submitter).count() == 2
 
 
@@ -172,6 +178,159 @@ def test_contact_requires_the_verified_account_phone_and_publication_acknowledge
     assert "contact.phone" in unverified_phone.data["errors"]
     assert missing_acknowledgement.status_code == 400
     assert "contact.phone_publication_consent" in missing_acknowledgement.data["errors"]
+
+
+@pytest.mark.django_db
+@override_settings(DEMO_OTP_DISCLOSURE=True)
+def test_submitter_verifies_an_alternate_contact_without_changing_login_phone(
+    api_client: APIClient,
+):
+    submitter = User.objects.create_user(
+        phone="09123456789",
+        password="correct-horse-battery",
+        phone_verified_at=timezone.now(),
+        is_submitter=True,
+    )
+    submission_id = create_draft(api_client, submitter)
+
+    requested = api_client.post(
+        f"/api/v1/submissions/{submission_id}/contact-verification/request/",
+        {"phone": "۰۹۳۵۱۲۳۴۵۶۷"},
+        format="json",
+    )
+    verified = api_client.post(
+        f"/api/v1/submissions/{submission_id}/contact-verification/verify/",
+        {"otp": requested.data["demo_otp"]},
+        format="json",
+    )
+    saved = api_client.patch(
+        f"/api/v1/submissions/{submission_id}/",
+        {
+            "completed_step": "contact",
+            "contact": {
+                "name": "سارا احمدی",
+                "phone": "09351234567",
+                "phone_source": "alternate",
+                "authorization_declared": True,
+                "phone_publication_consent": True,
+            },
+        },
+        format="json",
+    )
+
+    submitter.refresh_from_db()
+    assert requested.status_code == 202
+    assert verified.status_code == 200
+    assert verified.data["contact"]["phone"] == "09351234567"
+    assert verified.data["contact"]["phone_verified"] is True
+    assert saved.status_code == 200
+    assert saved.data["contact"]["phone_source"] == "alternate"
+    assert submitter.phone == "09123456789"
+    assert submitter.phone_verified is True
+
+
+@pytest.mark.django_db
+@override_settings(DEMO_OTP_DISCLOSURE=True)
+def test_changing_alternate_contact_replaces_code_and_invalidates_verification(
+    api_client: APIClient,
+):
+    submitter = User.objects.create_user(
+        phone="09123456789",
+        password="correct-horse-battery",
+        phone_verified_at=timezone.now(),
+        is_submitter=True,
+    )
+    submission_id = create_draft(api_client, submitter)
+    request_url = f"/api/v1/submissions/{submission_id}/contact-verification/request/"
+    verify_url = f"/api/v1/submissions/{submission_id}/contact-verification/verify/"
+
+    first = api_client.post(request_url, {"phone": "09351234567"}, format="json")
+    SubmissionContactVerificationChallenge.objects.update(
+        created_at=timezone.now() - timedelta(seconds=61)
+    )
+    second = api_client.post(request_url, {"phone": "09211234567"}, format="json")
+    replaced = api_client.post(verify_url, {"otp": first.data["demo_otp"]}, format="json")
+    current = api_client.post(verify_url, {"otp": second.data["demo_otp"]}, format="json")
+
+    assert second.status_code == 202
+    assert replaced.status_code == 400
+    assert current.status_code == 200
+    assert current.data["contact"] == {
+        "name": "",
+        "phone": "09211234567",
+        "phone_source": "alternate",
+        "phone_verified": True,
+        "account_phone": "09123456789",
+        "authorization_declared": False,
+        "phone_publication_consent": False,
+    }
+
+
+@pytest.mark.django_db
+@override_settings(DEMO_OTP_DISCLOSURE=True)
+def test_submitter_recovers_from_expired_and_exhausted_alternate_contact_codes(
+    api_client: APIClient,
+):
+    submitter = User.objects.create_user(
+        phone="09123456789",
+        password="correct-horse-battery",
+        phone_verified_at=timezone.now(),
+        is_submitter=True,
+    )
+    submission_id = create_draft(api_client, submitter)
+    request_url = f"/api/v1/submissions/{submission_id}/contact-verification/request/"
+    verify_url = f"/api/v1/submissions/{submission_id}/contact-verification/verify/"
+
+    first = api_client.post(request_url, {"phone": "09351234567"}, format="json")
+    delayed = api_client.post(request_url, {"phone": "09351234567"}, format="json")
+    SubmissionContactVerificationChallenge.objects.update(expires_at=timezone.now())
+    expired = api_client.post(verify_url, {"otp": first.data["demo_otp"]}, format="json")
+    SubmissionContactVerificationChallenge.objects.update(
+        created_at=timezone.now() - timedelta(seconds=61)
+    )
+    fresh = api_client.post(request_url, {"phone": "09351234567"}, format="json")
+    invalid_otp = "000001" if fresh.data["demo_otp"] == "000000" else "000000"
+    for _ in range(5):
+        invalid = api_client.post(verify_url, {"otp": invalid_otp}, format="json")
+        assert invalid.status_code == 400
+    exhausted = api_client.post(verify_url, {"otp": fresh.data["demo_otp"]}, format="json")
+    SubmissionContactVerificationChallenge.objects.update(
+        created_at=timezone.now() - timedelta(seconds=61)
+    )
+    replacement = api_client.post(request_url, {"phone": "09351234567"}, format="json")
+    recovered = api_client.post(
+        verify_url,
+        {"otp": replacement.data["demo_otp"]},
+        format="json",
+    )
+
+    assert delayed.status_code == 202
+    assert "demo_otp" not in delayed.data
+    assert expired.status_code == 400
+    assert exhausted.status_code == 400
+    assert recovered.status_code == 200
+    assert recovered.data["contact"]["phone_verified"] is True
+
+
+@pytest.mark.django_db
+@override_settings(DEMO_OTP_DISCLOSURE=False)
+def test_alternate_contact_code_is_not_disclosed_outside_demo(api_client: APIClient):
+    submitter = User.objects.create_user(
+        phone="09123456789",
+        password="correct-horse-battery",
+        phone_verified_at=timezone.now(),
+        is_submitter=True,
+    )
+    submission_id = create_draft(api_client, submitter)
+
+    response = api_client.post(
+        f"/api/v1/submissions/{submission_id}/contact-verification/request/",
+        {"phone": "09351234567"},
+        format="json",
+    )
+
+    assert response.status_code == 202
+    assert "demo_otp" not in response.data
 
 
 @pytest.mark.django_db

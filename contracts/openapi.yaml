@@ -2022,6 +2022,62 @@ paths:
               schema:
                 $ref: '#/components/schemas/Submission'
           description: ''
+  /api/v1/submissions/{submission_id}/contact-verification/request/:
+    post:
+      operationId: v1_submissions_contact_verification_request_create
+      summary: Send an OTP for an alternate Submission contact phone
+      parameters:
+      - in: path
+        name: submission_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubmissionContactVerificationRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '202':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubmissionContactOtpResponse'
+          description: ''
+  /api/v1/submissions/{submission_id}/contact-verification/verify/:
+    post:
+      operationId: v1_submissions_contact_verification_verify_create
+      summary: Verify the selected alternate Submission contact phone
+      parameters:
+      - in: path
+        name: submission_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubmissionContactVerification'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Submission'
+          description: ''
   /api/v1/submissions/{submission_id}/images/:
     post:
       operationId: v1_submissions_images_create
@@ -2605,6 +2661,10 @@ components:
         phone:
           type: string
           maxLength: 32
+        phone_source:
+          allOf:
+          - $ref: '#/components/schemas/PhoneSourceEnum'
+          default: account
         authorization_declared:
           type: boolean
         phone_publication_consent:
@@ -2653,15 +2713,24 @@ components:
           type: string
         phone:
           type: string
+        phone_source:
+          $ref: '#/components/schemas/PhoneSourceEnum'
+        phone_verified:
+          type: boolean
+        account_phone:
+          type: string
         authorization_declared:
           type: boolean
         phone_publication_consent:
           type: boolean
       required:
+      - account_phone
       - authorization_declared
       - name
       - phone
       - phone_publication_consent
+      - phone_source
+      - phone_verified
     CurrencyEnum:
       enum:
       - IRR
@@ -3445,6 +3514,14 @@ components:
           type: string
       required:
       - phone
+    PhoneSourceEnum:
+      enum:
+      - account
+      - alternate
+      type: string
+      description: |-
+        * `account` - شماره تأییدشده حساب
+        * `alternate` - شماره تأییدشده دیگر
     PhoneVerification:
       type: object
       properties:
@@ -3974,8 +4051,9 @@ components:
           readOnly: true
         revision:
           type: integer
-          maximum: 2147483647
+          maximum: 9223372036854775807
           minimum: 0
+          format: int64
         expires_at:
           type: string
           format: date-time
@@ -4390,6 +4468,32 @@ components:
           type: string
       required:
       - reviewed_revision
+    SubmissionContactOtpResponse:
+      type: object
+      properties:
+        detail:
+          type: string
+        demo_otp:
+          type: string
+          pattern: ^\d{6}$
+      required:
+      - detail
+    SubmissionContactVerification:
+      type: object
+      properties:
+        otp:
+          type: string
+          pattern: ^\d{6}$
+      required:
+      - otp
+    SubmissionContactVerificationRequest:
+      type: object
+      properties:
+        phone:
+          type: string
+          maxLength: 32
+      required:
+      - phone
     SubmissionCreate:
       type: object
       properties:
@@ -4430,8 +4534,9 @@ components:
           $ref: '#/components/schemas/SubmissionDecisionNotificationStatusEnum'
         attempt_count:
           type: integer
-          maximum: 2147483647
+          maximum: 9223372036854775807
           minimum: 0
+          format: int64
         failure_reason:
           type:
           - string
@@ -4484,8 +4589,9 @@ components:
           readOnly: true
         revision:
           type: integer
-          maximum: 2147483647
+          maximum: 9223372036854775807
           minimum: 0
+          format: int64
         reviewed_revision:
           type: integer
           readOnly: true
@@ -4566,8 +4672,9 @@ components:
           maxLength: 500
         position:
           type: integer
-          maximum: 32767
+          maximum: 9223372036854775807
           minimum: 0
+          format: int64
         is_primary:
           type: boolean
         variants:
@@ -4619,16 +4726,19 @@ components:
           readOnly: true
         width:
           type: integer
-          maximum: 2147483647
+          maximum: 9223372036854775807
           minimum: 0
+          format: int64
         height:
           type: integer
-          maximum: 2147483647
+          maximum: 9223372036854775807
           minimum: 0
+          format: int64
         byte_size:
           type: integer
-          maximum: 2147483647
+          maximum: 9223372036854775807
           minimum: 0
+          format: int64
       required:
       - byte_size
       - height

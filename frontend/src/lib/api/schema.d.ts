@@ -912,6 +912,40 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/v1/submissions/{submission_id}/contact-verification/request/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Send an OTP for an alternate Submission contact phone */
+    post: operations["v1_submissions_contact_verification_request_create"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/submissions/{submission_id}/contact-verification/verify/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Verify the selected alternate Submission contact phone */
+    post: operations["v1_submissions_contact_verification_verify_create"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/v1/submissions/{submission_id}/images/": {
     parameters: {
       query?: never;
@@ -1204,6 +1238,8 @@ export interface components {
     ContactInput: {
       name: string;
       phone: string;
+      /** @default account */
+      phone_source: components["schemas"]["PhoneSourceEnum"];
       authorization_declared: boolean;
       phone_publication_consent: boolean;
     };
@@ -1222,6 +1258,9 @@ export interface components {
     ContactOutput: {
       name: string;
       phone: string;
+      phone_source: components["schemas"]["PhoneSourceEnum"];
+      phone_verified: boolean;
+      account_phone: string;
       authorization_declared: boolean;
       phone_publication_consent: boolean;
     };
@@ -1571,6 +1610,12 @@ export interface components {
     PhoneReveal: {
       phone: string;
     };
+    /**
+     * @description * `account` - شماره تأییدشده حساب
+     *     * `alternate` - شماره تأییدشده دیگر
+     * @enum {string}
+     */
+    PhoneSourceEnum: "account" | "alternate";
     PhoneVerification: {
       identifier: string;
       otp: string;
@@ -1789,6 +1834,7 @@ export interface components {
       readonly operator_id: string;
       /** Format: email */
       readonly operator_email: string;
+      /** Format: int64 */
       revision: number;
       /** Format: date-time */
       expires_at: string;
@@ -1957,6 +2003,16 @@ export interface components {
       formatting?: components["schemas"]["Formatting"];
       internal_note?: string;
     };
+    SubmissionContactOtpResponse: {
+      detail: string;
+      demo_otp?: string;
+    };
+    SubmissionContactVerification: {
+      otp: string;
+    };
+    SubmissionContactVerificationRequest: {
+      phone: string;
+    };
     SubmissionCreate: {
       role: components["schemas"]["RoleEnum"];
       /** @default false */
@@ -1984,6 +2040,7 @@ export interface components {
       /** Format: uuid */
       readonly id: string;
       status?: components["schemas"]["SubmissionDecisionNotificationStatusEnum"];
+      /** Format: int64 */
       attempt_count?: number;
       readonly failure_reason: string | null;
       /** Format: date-time */
@@ -2008,6 +2065,7 @@ export interface components {
       readonly actor_label: string;
       /** Format: email */
       readonly actor_email: string | null;
+      /** Format: int64 */
       revision: number;
       readonly reviewed_revision: number;
       /** Format: uuid */
@@ -2036,6 +2094,7 @@ export interface components {
       readonly id: string;
       status?: components["schemas"]["SubmissionImageStatusEnum"];
       failure_reason?: string;
+      /** Format: int64 */
       position: number;
       is_primary?: boolean;
       readonly variants: components["schemas"]["SubmissionImageVariant"][];
@@ -2059,8 +2118,11 @@ export interface components {
     SubmissionImageVariant: {
       kind: components["schemas"]["SubmissionImageVariantKindEnum"];
       readonly url: string;
+      /** Format: int64 */
       width: number;
+      /** Format: int64 */
       height: number;
+      /** Format: int64 */
       byte_size: number;
     };
     /**
@@ -4348,6 +4410,56 @@ export interface operations {
       cookie?: never;
     };
     requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Submission"];
+        };
+      };
+    };
+  };
+  v1_submissions_contact_verification_request_create: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        submission_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["SubmissionContactVerificationRequest"];
+      };
+    };
+    responses: {
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SubmissionContactOtpResponse"];
+        };
+      };
+    };
+  };
+  v1_submissions_contact_verification_verify_create: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        submission_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["SubmissionContactVerification"];
+      };
+    };
     responses: {
       200: {
         headers: {

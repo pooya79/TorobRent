@@ -23,6 +23,7 @@ from apps.catalog.models import (
     Source,
 )
 from apps.submissions.models import (
+    ContactPhoneSource,
     ReviewClaim,
     Submission,
     SubmissionEvent,
@@ -359,6 +360,41 @@ def test_approval_creates_and_publishes_a_normalized_direct_listing(api_client: 
     assert listing.description == "نورگیر و آرام."
     assert listing.direct_phone == submission.contact_phone
     assert approved.data["listing_id"] == str(listing.id)
+
+
+@pytest.mark.django_db
+def test_approval_publishes_only_the_verified_alternate_contact(api_client: APIClient):
+    submission = make_complete_submission()
+    account_phone = submission.submitter.phone
+    submission.contact_phone = "09351234567"
+    submission.contact_phone_source = ContactPhoneSource.ALTERNATE
+    submission.alternate_contact_phone_verified_at = timezone.now()
+    submission.save(
+        update_fields=(
+            "contact_phone",
+            "contact_phone_source",
+            "alternate_contact_phone_verified_at",
+        )
+    )
+    submit_for_review(submission=submission, actor=submission.submitter)
+    operator = make_operator()
+    api_client.force_authenticate(operator)
+    api_client.post(
+        f"/api/v1/operator/submissions/{submission.id}/claim/",
+        {},
+        format="json",
+    )
+
+    approved = api_client.post(
+        f"/api/v1/operator/submissions/{submission.id}/approve/",
+        {"reviewed_revision": submission.revision},
+        format="json",
+    )
+
+    listing = Listing.objects.get(id=approved.data["listing_id"])
+    assert approved.status_code == 200
+    assert listing.direct_phone == "09351234567"
+    assert listing.direct_phone != account_phone
 
 
 @pytest.mark.django_db

@@ -4,6 +4,7 @@ from typing import cast
 from uuid import UUID
 
 from asgiref.sync import sync_to_async
+from django.conf import settings
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db.models import F, Prefetch, Q, QuerySet
 from django.http import StreamingHttpResponse
@@ -39,6 +40,9 @@ from .serializers import (
     ReviewClaimSerializer,
     ReviewReasonSerializer,
     SubmissionApprovalSerializer,
+    SubmissionContactOtpResponseSerializer,
+    SubmissionContactVerificationRequestSerializer,
+    SubmissionContactVerificationSerializer,
     SubmissionCreateSerializer,
     SubmissionImageOrderSerializer,
     SubmissionImageSerializer,
@@ -48,6 +52,7 @@ from .serializers import (
     SubmissionWorkloadSummarySerializer,
 )
 from .services import (
+    ContactVerificationResult,
     ReviewWorkflowConflict,
     SubmissionAccessDenied,
     add_submission_image_for_actor,
@@ -62,10 +67,12 @@ from .services import (
     renew_submission_review_claim,
     reorder_submission_images_for_actor,
     request_submission_changes,
+    request_submission_contact_verification,
     retry_submission_decision_notification,
     retry_submission_image_for_actor,
     save_submission_step_for_actor,
     submit_for_review,
+    verify_submission_contact,
 )
 
 
@@ -196,6 +203,59 @@ class SubmissionSubmitView(APIView):
             submission = submit_for_review(submission=submission, actor=cast(User, request.user))
         except DjangoValidationError as exc:
             raise validation_response(exc) from None
+        return Response(SubmissionSerializer(submission).data)
+
+
+class SubmissionContactVerificationRequestView(APIView):
+    throttle_scope = "phone_verification_request"
+
+    @extend_schema(
+        summary="Send an OTP for an alternate Submission contact phone",
+        request=SubmissionContactVerificationRequestSerializer,
+        responses={202: SubmissionContactOtpResponseSerializer},
+    )
+    def post(self, request: Request, submission_id: str) -> Response:
+        submission = get_object_or_404(Submission, id=submission_id, submitter=request.user)
+        serializer = SubmissionContactVerificationRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            otp = request_submission_contact_verification(
+                submission=submission,
+                actor=cast(User, request.user),
+                phone=serializer.validated_data["phone"],
+            )
+        except DjangoValidationError as exc:
+            raise validation_response(exc) from None
+        data = {"detail": "اگر شماره قابل تأیید باشد، کد تأیید ارسال می‌شود."}
+        if settings.DEMO_OTP_DISCLOSURE and otp is not None:
+            data["demo_otp"] = otp
+        return Response(data, status=status.HTTP_202_ACCEPTED)
+
+
+class SubmissionContactVerificationView(APIView):
+    throttle_scope = "phone_verification"
+
+    @extend_schema(
+        summary="Verify the selected alternate Submission contact phone",
+        request=SubmissionContactVerificationSerializer,
+        responses=SubmissionSerializer,
+    )
+    def post(self, request: Request, submission_id: str) -> Response:
+        submission = get_object_or_404(
+            Submission.objects.select_related("submitter"),
+            id=submission_id,
+            submitter=request.user,
+        )
+        serializer = SubmissionContactVerificationSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        result = verify_submission_contact(
+            submission=submission,
+            actor=cast(User, request.user),
+            otp=serializer.validated_data["otp"],
+        )
+        if result != ContactVerificationResult.SUCCESS:
+            raise ValidationError({"otp": "کد تأیید پذیرفته نشد. کد تازه‌ای درخواست کنید."})
+        submission.refresh_from_db()
         return Response(SubmissionSerializer(submission).data)
 
 

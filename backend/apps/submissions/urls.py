@@ -3,6 +3,8 @@ from django.urls import path
 from .views import (
     SubmissionArchiveView,
     SubmissionConfirmAvailabilityView,
+    SubmissionContactVerificationRequestView,
+    SubmissionContactVerificationView,
     SubmissionDetailView,
     SubmissionImageContentView,
     SubmissionImageDetailView,
@@ -19,6 +21,16 @@ urlpatterns = [
     path("", SubmissionListCreateView.as_view(), name="list-create"),
     path("<uuid:submission_id>/", SubmissionDetailView.as_view(), name="detail"),
     path("<uuid:submission_id>/submit/", SubmissionSubmitView.as_view(), name="submit"),
+    path(
+        "<uuid:submission_id>/contact-verification/request/",
+        SubmissionContactVerificationRequestView.as_view(),
+        name="contact-verification-request",
+    ),
+    path(
+        "<uuid:submission_id>/contact-verification/verify/",
+        SubmissionContactVerificationView.as_view(),
+        name="contact-verification-verify",
+    ),
     path(
         "<uuid:submission_id>/confirm-availability/",
         SubmissionConfirmAvailabilityView.as_view(),

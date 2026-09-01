@@ -27,11 +27,13 @@ import {
 } from "@/features/submissions/SubmissionImagesFields";
 import {
   createSubmission,
+  requestAlternateContactVerification,
   saveSubmissionStep,
   submitSubmission,
   submissionQueryOptions,
   type Submission,
   type SubmissionStepUpdate,
+  verifyAlternateContact,
 } from "@/features/submissions/queries";
 import {
   phonePublicationConsentCopy,
@@ -491,6 +493,50 @@ function ContactFields({
   submission: Submission;
   validation?: ValidationState;
 }) {
+  const queryClient = useQueryClient();
+  const initialSource = submission.contact?.phone_source ?? "account";
+  const accountPhone =
+    submission.contact?.account_phone ?? submission.contact?.phone ?? "";
+  const [phoneSource, setPhoneSource] = useState<"account" | "alternate">(
+    initialSource,
+  );
+  const [alternatePhone, setAlternatePhone] = useState(
+    initialSource === "alternate" ? (submission.contact?.phone ?? "") : "",
+  );
+  const [alternateVerified, setAlternateVerified] = useState(
+    initialSource === "alternate" &&
+      Boolean(submission.contact?.phone_verified),
+  );
+  const [otp, setOtp] = useState("");
+  const [demoOtp, setDemoOtp] = useState<string>();
+  const [verificationMessage, setVerificationMessage] = useState<string>();
+  const requestVerification = useMutation({
+    mutationFn: () =>
+      requestAlternateContactVerification(submission.id, alternatePhone),
+    onSuccess: (response) => {
+      setAlternateVerified(false);
+      setOtp("");
+      setDemoOtp(response.demo_otp);
+      setVerificationMessage(
+        response.demo_otp
+          ? undefined
+          : "اگر شماره قابل تأیید باشد، کد تازه ارسال شده است.",
+      );
+    },
+    onError: (error) =>
+      setVerificationMessage(errorMessage(error, "ارسال کد تأیید ناموفق بود.")),
+  });
+  const verifyContact = useMutation({
+    mutationFn: () => verifyAlternateContact(submission.id, otp),
+    onSuccess: (saved) => {
+      queryClient.setQueryData(["submissions", submission.id], saved);
+      setAlternatePhone(saved.contact?.phone ?? alternatePhone);
+      setAlternateVerified(true);
+      setVerificationMessage("شماره دیگر تأیید شد.");
+    },
+    onError: (error) =>
+      setVerificationMessage(errorMessage(error, "کد تأیید پذیرفته نشد.")),
+  });
   const nameError = fieldMessage(validation, "contact.name");
   const phoneError = fieldMessage(validation, "contact.phone");
   const authorizationError = fieldMessage(
@@ -514,23 +560,99 @@ function ContactFields({
         />
         <FieldError id="contact-name-error" message={nameError} />
       </Label>
-      <Label className="space-y-2">
-        <span>شماره عمومی تماس</span>
-        <Input
-          name="phone"
-          aria-label="شماره عمومی تماس"
-          inputMode="tel"
-          defaultValue={submission.contact?.phone}
-          readOnly
-          aria-invalid={Boolean(phoneError)}
-          aria-describedby={phoneError ? "contact-phone-error" : undefined}
-        />
-        <p className="text-muted-foreground text-xs">
-          این همان شماره تأییدشده حساب شماست و Renterها آن را در Direct Listing
-          خواهند دید.
-        </p>
+      <fieldset className="grid gap-3" aria-invalid={Boolean(phoneError)}>
+        <legend className="text-sm font-medium">شماره عمومی تماس</legend>
+        <RadioGroup
+          name="phone_source"
+          value={phoneSource}
+          onValueChange={(value) => {
+            setPhoneSource(value as "account" | "alternate");
+            setVerificationMessage(undefined);
+          }}
+        >
+          <Label className="border-border flex min-h-11 items-center gap-3 rounded-lg border px-4">
+            <RadioGroupItem value="account" />
+            استفاده از شماره تأییدشده حساب ({accountPhone})
+          </Label>
+          <Label className="border-border flex min-h-11 items-center gap-3 rounded-lg border px-4">
+            <RadioGroupItem value="alternate" /> استفاده از شماره دیگر
+          </Label>
+        </RadioGroup>
+        {phoneSource === "account" ? (
+          <>
+            <Input
+              name="phone"
+              aria-label="شماره عمومی تماس"
+              inputMode="tel"
+              value={accountPhone}
+              readOnly
+            />
+            <p className="text-muted-foreground text-xs">
+              این همان شماره تأییدشده حساب شماست و Renterها آن را در Direct
+              Listing خواهند دید.
+            </p>
+          </>
+        ) : (
+          <div className="grid gap-3 rounded-lg border p-4">
+            <Label className="space-y-2">
+              <span>شماره دیگر</span>
+              <Input
+                name="phone"
+                aria-label="شماره دیگر"
+                inputMode="tel"
+                value={alternatePhone}
+                onChange={(event) => {
+                  setAlternatePhone(event.target.value);
+                  setAlternateVerified(false);
+                  setVerificationMessage(undefined);
+                }}
+              />
+            </Label>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={!alternatePhone || requestVerification.isPending}
+              onClick={() => requestVerification.mutate()}
+            >
+              {requestVerification.isPending
+                ? "در حال ارسال…"
+                : "ارسال کد تأیید"}
+            </Button>
+            {demoOtp && (
+              <p className="text-muted-foreground text-xs">
+                کد نمایشی: {demoOtp}
+              </p>
+            )}
+            {!alternateVerified &&
+              (demoOtp || requestVerification.isSuccess) && (
+                <div className="grid gap-3">
+                  <Label className="space-y-2">
+                    <span>کد تأیید شماره دیگر</span>
+                    <Input
+                      aria-label="کد تأیید شماره دیگر"
+                      inputMode="numeric"
+                      value={otp}
+                      onChange={(event) => setOtp(event.target.value)}
+                    />
+                  </Label>
+                  <Button
+                    type="button"
+                    disabled={otp.length !== 6 || verifyContact.isPending}
+                    onClick={() => verifyContact.mutate()}
+                  >
+                    {verifyContact.isPending ? "در حال بررسی…" : "تأیید شماره"}
+                  </Button>
+                </div>
+              )}
+            {verificationMessage && (
+              <p role="status" className="text-sm">
+                {verificationMessage}
+              </p>
+            )}
+          </div>
+        )}
         <FieldError id="contact-phone-error" message={phoneError} />
-      </Label>
+      </fieldset>
       <Label className="flex min-h-11 items-start gap-3">
         <input
           name="authorization_declared"
@@ -731,6 +853,8 @@ function stepPayload(
       contact: {
         name: formValue(form, "name"),
         phone: formValue(form, "phone"),
+        phone_source: formValue(form, "phone_source") as
+          "account" | "alternate",
         authorization_declared: form.has("authorization_declared"),
         phone_publication_consent: form.has("phone_publication_consent"),
       },

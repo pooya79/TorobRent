@@ -35,6 +35,11 @@ class SubmissionStep(models.TextChoices):
     REVIEW = "review", "بازبینی"
 
 
+class ContactPhoneSource(models.TextChoices):
+    ACCOUNT = "account", "شماره تأییدشده حساب"
+    ALTERNATE = "alternate", "شماره تأییدشده دیگر"
+
+
 class SubmissionEventType(models.TextChoices):
     TRANSITION = "transition", "تغییر وضعیت"
     DECISION_CORRECTION = "decision_correction", "اصلاح تصمیم"
@@ -130,6 +135,16 @@ class Submission(models.Model):
     description = models.TextField(blank=True)
     contact_name = models.CharField(max_length=120, blank=True)
     contact_phone = models.CharField(max_length=32, blank=True)
+    contact_phone_source = models.CharField(
+        max_length=16,
+        choices=ContactPhoneSource,
+        default=ContactPhoneSource.ACCOUNT,
+    )
+    alternate_contact_phone_verified_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        editable=False,
+    )
     authorization_declared = models.BooleanField(default=False)
     phone_publication_consent = models.BooleanField(default=False)
     review_data = models.JSONField(default=dict, blank=True)
@@ -143,6 +158,27 @@ class Submission(models.Model):
 
     def __str__(self) -> str:
         return f"{self.get_role_display()}: {self.id}"
+
+
+class SubmissionContactVerificationChallenge(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    submission = models.ForeignKey(
+        Submission,
+        on_delete=models.CASCADE,
+        related_name="contact_verification_challenges",
+    )
+    phone = models.CharField(max_length=11, db_index=True)
+    secret_hash = models.CharField(max_length=128)
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    attempts = models.PositiveSmallIntegerField(default=0)
+    consumed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        indexes = [models.Index(fields=("submission", "-created_at"))]
+
+    def __str__(self) -> str:
+        return f"Submission contact verification challenge {self.id}"
 
 
 class ImmutableSubmissionEventQuerySet(models.QuerySet["SubmissionEvent"]):

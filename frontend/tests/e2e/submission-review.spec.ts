@@ -194,6 +194,7 @@ test("@milestone browser covers changes, resubmit, reject, group, publish, and p
   );
 
   const submitter = await registerVerifiedSubmitter(page, request);
+  const alternatePhone = "09351234567";
   const session = await page.context().request.get("/api/v1/auth/session/");
   const csrfToken = ((await session.json()) as { csrf_token: string })
     .csrf_token;
@@ -218,7 +219,31 @@ test("@milestone browser covers changes, resubmit, reject, group, publish, and p
     page.getByRole("alert").getByText("شماره تماس را اصلاح کنید."),
   ).toBeVisible();
   await page.goto(`/add-submission?submission=${revisedId}&step=contact`);
-  await expect(page.getByLabel("شماره عمومی تماس")).not.toHaveValue("");
+  await page.getByLabel("استفاده از شماره دیگر").check();
+  await page.getByLabel("شماره دیگر").fill(alternatePhone);
+  const verificationRequest = page.waitForResponse(
+    (response) =>
+      response
+        .url()
+        .includes(`/submissions/${revisedId}/contact-verification/request/`) &&
+      response.request().method() === "POST",
+  );
+  await page.getByRole("button", { name: "ارسال کد تأیید" }).click();
+  const verificationBody = (await (await verificationRequest).json()) as {
+    demo_otp?: string;
+  };
+  expect(verificationBody.demo_otp).toMatch(/^\d{6}$/);
+  const invalidOtp =
+    verificationBody.demo_otp === "000000" ? "000001" : "000000";
+  await page.getByLabel("کد تأیید شماره دیگر").fill(invalidOtp);
+  await page.getByRole("button", { name: "تأیید شماره" }).click();
+  await expect(page.getByText(/کد تأیید پذیرفته نشد/)).toBeVisible();
+  await expect(page).toHaveURL(
+    new RegExp(`/add-submission\\?submission=${revisedId}&step=contact`),
+  );
+  await page.getByLabel("کد تأیید شماره دیگر").fill(verificationBody.demo_otp!);
+  await page.getByRole("button", { name: "تأیید شماره" }).click();
+  await expect(page.getByText("شماره دیگر تأیید شد.")).toBeVisible();
   await page.getByRole("button", { name: "ذخیره و ادامه" }).click();
   await expect(page.getByRole("heading", { name: "بازبینی" })).toBeVisible();
   await page
@@ -299,9 +324,9 @@ test("@milestone browser covers changes, resubmit, reject, group, publish, and p
     .click();
   await expect(
     revisedListing.getByRole("link", {
-      name: `تماس با ${submitter.phone}`,
+      name: `تماس با ${alternatePhone}`,
     }),
-  ).toHaveAttribute("href", `tel:${submitter.phone}`);
+  ).toHaveAttribute("href", `tel:${alternatePhone}`);
 
   await endSession(page);
   await loginOperator(page);

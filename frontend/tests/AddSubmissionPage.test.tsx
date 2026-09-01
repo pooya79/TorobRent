@@ -142,6 +142,78 @@ test("shows the verified account phone as the mandatory public continuation rout
   ).toBeVisible();
 });
 
+test("verifies another public number and recovers from an invalid code", async () => {
+  const user = userEvent.setup();
+  let requestedPhone: unknown;
+  const contactDraft = {
+    ...draft,
+    current_step: "contact",
+    contact: {
+      name: "",
+      phone: "09123456789",
+      phone_source: "account",
+      phone_verified: true,
+      account_phone: "09123456789",
+      authorization_declared: false,
+      phone_publication_consent: false,
+    },
+  };
+  const alternateDraft = {
+    ...contactDraft,
+    contact: {
+      ...contactDraft.contact,
+      phone: "09351234567",
+      phone_source: "alternate",
+      phone_verified: true,
+    },
+  };
+  server.use(
+    http.get("*/api/v1/submissions/:id/", () =>
+      HttpResponse.json(contactDraft),
+    ),
+    http.post(
+      "*/api/v1/submissions/:id/contact-verification/request/",
+      async ({ request }) => {
+        requestedPhone = await request.json();
+        return HttpResponse.json(
+          { detail: "کد ارسال شد.", demo_otp: "314159" },
+          { status: 202 },
+        );
+      },
+    ),
+    http.post(
+      "*/api/v1/submissions/:id/contact-verification/verify/",
+      async ({ request }) => {
+        const body = (await request.json()) as { otp: string };
+        return body.otp === "314159"
+          ? HttpResponse.json(alternateDraft)
+          : HttpResponse.json(
+              { detail: "کد تأیید پذیرفته نشد." },
+              { status: 400 },
+            );
+      },
+    ),
+  );
+  renderPage(`/add-submission?submission=${draft.id}&step=contact`);
+
+  await user.click(await screen.findByLabelText("استفاده از شماره دیگر"));
+  await user.type(screen.getByLabelText("شماره دیگر"), "۰۹۳۵۱۲۳۴۵۶۷");
+  await user.click(screen.getByRole("button", { name: "ارسال کد تأیید" }));
+
+  expect(requestedPhone).toEqual({ phone: "۰۹۳۵۱۲۳۴۵۶۷" });
+  expect(screen.getByText(/کد نمایشی: 314159/)).toBeVisible();
+  await user.type(screen.getByLabelText("کد تأیید شماره دیگر"), "000000");
+  await user.click(screen.getByRole("button", { name: "تأیید شماره" }));
+  expect(await screen.findByText("کد تأیید پذیرفته نشد.")).toBeVisible();
+
+  await user.clear(screen.getByLabelText("کد تأیید شماره دیگر"));
+  await user.type(screen.getByLabelText("کد تأیید شماره دیگر"), "314159");
+  await user.click(screen.getByRole("button", { name: "تأیید شماره" }));
+
+  expect(await screen.findByText("شماره دیگر تأیید شد.")).toBeVisible();
+  expect(screen.getByLabelText("شماره دیگر")).toHaveValue("09351234567");
+});
+
 test("places an Exact Location with a draggable map pin and saves coordinates without geocoding", async () => {
   const user = userEvent.setup();
   let savedBody: unknown;

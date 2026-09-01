@@ -1,13 +1,16 @@
 import logging
+import secrets
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from decimal import Decimal
+from enum import StrEnum
 from functools import partial
 from io import BytesIO
 from typing import Any
 from uuid import UUID
 
 from django.conf import settings
+from django.contrib.auth.hashers import check_password, make_password
 from django.core.exceptions import ValidationError
 from django.core.files.base import ContentFile, File
 from django.core.files.storage import Storage
@@ -21,6 +24,7 @@ from PIL import Image, ImageOps, UnidentifiedImageError
 from apps.accounts.capabilities import OperatorCapability, has_capability
 from apps.accounts.identifiers import normalize_iranian_mobile
 from apps.accounts.models import User
+from apps.accounts.sms import send_verification_code
 from apps.catalog.models import (
     Listing,
     ListingImage,
@@ -39,9 +43,11 @@ from apps.catalog.services import (
 
 from .audit_serializers import validate_decision_correction
 from .models import (
+    ContactPhoneSource,
     MediaAsset,
     ReviewClaim,
     Submission,
+    SubmissionContactVerificationChallenge,
     SubmissionDecisionNotification,
     SubmissionDecisionNotificationFailure,
     SubmissionDecisionNotificationStatus,
@@ -72,11 +78,117 @@ class SubmissionAccessDenied(Exception):
     pass
 
 
+class ContactVerificationResult(StrEnum):
+    SUCCESS = "success"
+    INVALID = "invalid"
+    EXPIRED = "expired"
+    EXHAUSTED = "exhausted"
+
+
 def verified_public_contact_phone(*, submitter: User, value: str) -> str | None:
     phone = normalize_iranian_mobile(value)
     if not submitter.phone_verified or phone is None or phone != submitter.phone:
         return None
     return phone
+
+
+def submission_contact_phone_is_verified(submission: Submission) -> bool:
+    if submission.contact_phone_source == ContactPhoneSource.ACCOUNT:
+        return (
+            verified_public_contact_phone(
+                submitter=submission.submitter,
+                value=submission.contact_phone,
+            )
+            is not None
+        )
+    return submission.alternate_contact_phone_verified_at is not None
+
+
+@transaction.atomic
+def request_submission_contact_verification(
+    *, submission: Submission, actor: User, phone: str
+) -> str | None:
+    normalized_phone = normalize_iranian_mobile(phone)
+    if normalized_phone is None:
+        raise ValidationError("شماره تلفن همراه معتبر وارد کنید.")
+    submission = (
+        Submission.objects.select_for_update().select_related("submitter").get(id=submission.id)
+    )
+    if submission.submitter_id != actor.id:
+        raise ValidationError("فقط ثبت‌کننده می‌تواند شماره تماس را تأیید کند.")
+    if submission.state not in (SubmissionState.DRAFT, SubmissionState.CHANGES_REQUESTED):
+        raise ValidationError("شماره تماس در وضعیت کنونی قابل تغییر نیست.")
+    if normalized_phone == actor.phone:
+        raise ValidationError("برای این گزینه شماره‌ای متفاوت از شماره حساب وارد کنید.")
+    latest = submission.contact_verification_challenges.order_by("-created_at").first()
+    if (
+        latest is not None
+        and latest.phone == normalized_phone
+        and latest.created_at > timezone.now() - timedelta(seconds=60)
+    ):
+        return None
+    now = timezone.now()
+    submission.contact_verification_challenges.filter(consumed_at__isnull=True).update(
+        consumed_at=now
+    )
+    code = f"{secrets.randbelow(1_000_000):06d}"
+    SubmissionContactVerificationChallenge.objects.create(
+        submission=submission,
+        phone=normalized_phone,
+        secret_hash=make_password(code),
+        expires_at=now + timedelta(minutes=5),
+    )
+    submission.contact_phone = normalized_phone
+    submission.contact_phone_source = ContactPhoneSource.ALTERNATE
+    submission.alternate_contact_phone_verified_at = None
+    submission.phone_publication_consent = False
+    submission.save(
+        update_fields=(
+            "contact_phone",
+            "contact_phone_source",
+            "alternate_contact_phone_verified_at",
+            "phone_publication_consent",
+            "updated_at",
+        )
+    )
+    send_verification_code(recipient=normalized_phone, code=code)
+    return code
+
+
+@transaction.atomic
+def verify_submission_contact(
+    *, submission: Submission, actor: User, otp: str
+) -> ContactVerificationResult:
+    submission = Submission.objects.select_for_update().get(id=submission.id)
+    if submission.submitter_id != actor.id:
+        return ContactVerificationResult.INVALID
+    challenge = (
+        SubmissionContactVerificationChallenge.objects
+        .select_for_update()
+        .filter(
+            submission=submission,
+            phone=submission.contact_phone,
+            consumed_at__isnull=True,
+        )
+        .order_by("-created_at")
+        .first()
+    )
+    if challenge is None:
+        return ContactVerificationResult.INVALID
+    if challenge.expires_at <= timezone.now():
+        return ContactVerificationResult.EXPIRED
+    if challenge.attempts >= 5:
+        return ContactVerificationResult.EXHAUSTED
+    challenge.attempts += 1
+    if not check_password(otp, challenge.secret_hash):
+        challenge.save(update_fields=("attempts",))
+        return ContactVerificationResult.INVALID
+    now = timezone.now()
+    challenge.consumed_at = now
+    challenge.save(update_fields=("attempts", "consumed_at"))
+    submission.alternate_contact_phone_verified_at = now
+    submission.save(update_fields=("alternate_contact_phone_verified_at", "updated_at"))
+    return ContactVerificationResult.SUCCESS
 
 
 @transaction.atomic
@@ -538,14 +650,8 @@ def _validate_complete_submission(submission: Submission) -> None:
         or not submission.review_data.get("accuracy_confirmed")
     ):
         raise ValidationError("Submission پیش از ارسال باید کامل و تأیید شده باشد.")
-    if (
-        verified_public_contact_phone(
-            submitter=submission.submitter,
-            value=submission.contact_phone,
-        )
-        is None
-    ):
-        raise ValidationError("شماره عمومی تماس باید همان شماره تأییدشده حساب باشد.")
+    if not submission_contact_phone_is_verified(submission):
+        raise ValidationError("شماره عمومی تماس باید پیش از ارسال تأیید شود.")
     ensure_submission_media_complete(submission=submission)
 
 
@@ -625,6 +731,9 @@ def _apply_submission_step_update(
     if contact is not None:
         submission.contact_name = contact["name"]
         submission.contact_phone = contact["phone"]
+        submission.contact_phone_source = contact["phone_source"]
+        if contact["phone_source"] == ContactPhoneSource.ACCOUNT:
+            submission.alternate_contact_phone_verified_at = None
         submission.authorization_declared = contact["authorization_declared"]
         submission.phone_publication_consent = contact["phone_publication_consent"]
     if "description" in validated_data:
