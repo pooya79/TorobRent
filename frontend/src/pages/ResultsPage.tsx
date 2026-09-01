@@ -340,10 +340,18 @@ export function ResultsPage({ mapAdapter }: { mapAdapter?: MapAdapter }) {
     const result = new URLSearchParams(
       searchData?.requestSearchParams ?? searchParams,
     );
-    const loadedPage = searchParams.get("page");
-    if (loadedPage) result.set("page", loadedPage);
+    const requestedPage = Math.max(
+      1,
+      Number(searchParams.get("page") ?? "1") || 1,
+    );
+    const loadedPage = Math.max(requestedPage, search.data?.pages.length ?? 1);
+    if (loadedPage > 1) result.set("page", String(loadedPage));
     return result;
-  }, [searchData?.requestSearchParams, searchParams]);
+  }, [
+    search.data?.pages.length,
+    searchData?.requestSearchParams,
+    searchParams,
+  ]);
   const MapAdapterComponent = mapAdapter ?? configuredMapAdapter;
   const location =
     resultSearchParams.get("location_label") ||
@@ -381,9 +389,12 @@ export function ResultsPage({ mapAdapter }: { mapAdapter?: MapAdapter }) {
     if (result.isError || !result.data) return;
     const loadedPageCount = result.data.pages.length;
     if (loadedPageCount >= requestedPageCount) {
-      const next = new URLSearchParams(latestSearchParamsRef.current);
+      const current = latestSearchParamsRef.current;
+      const next = new URLSearchParams(current);
       if (loadedPageCount > 1) next.set("page", String(loadedPageCount));
-      setSearchParams(next, { replace: true });
+      if (next.toString() !== current.toString()) {
+        setSearchParams(next, { replace: true });
+      }
     }
   }, [requestedPageCount, search, setSearchParams]);
   useEffect(() => {

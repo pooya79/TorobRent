@@ -3,6 +3,9 @@ import { expect, type Page } from "@playwright/test";
 export type ExplicitTheme = "light" | "dark";
 
 export const themeStorageKey = "torobrent-theme";
+const operatorEmail = process.env.E2E_OPERATOR_EMAIL ?? "operator@example.com";
+const operatorPassword =
+  process.env.E2E_OPERATOR_PASSWORD ?? "operator-password";
 
 export const canonicalSurfaces = [
   { name: "home", path: "/" },
@@ -30,8 +33,8 @@ export async function initializeTheme(page: Page, theme: ExplicitTheme) {
 
 export async function loginDemoOperator(page: Page) {
   await page.goto("/login");
-  await page.getByLabel("ایمیل").fill("operator@torobrent.local");
-  await page.getByLabel("گذرواژه").fill("demo-operator");
+  await page.getByLabel("ایمیل").fill(operatorEmail);
+  await page.getByLabel("گذرواژه").fill(operatorPassword);
   await page.getByRole("button", { name: "ورود" }).click();
   await expect(page).toHaveURL(/\/dashboard$/);
 }
