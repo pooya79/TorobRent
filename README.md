@@ -22,9 +22,6 @@ Useful commands are documented in [docs/development.md](docs/development.md). Ar
 transport decisions are in [docs/architecture.md](docs/architecture.md) and
 [docs/api-contract.md](docs/api-contract.md).
 
-Reviewers can launch the fictional, deterministic product walkthrough with `make demo`; see the
-[local demo guide](docs/demo.md) for personas, lifecycle commands, and troubleshooting.
-
 ## Production containers
 
 Copy `.env.production.example` to a secure, untracked environment file, replace every placeholder,

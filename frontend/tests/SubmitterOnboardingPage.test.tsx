@@ -107,7 +107,7 @@ test("adds and verifies a phone on an email-authenticated account before grantin
       async ({ request }) => {
         requested = await request.json();
         return HttpResponse.json(
-          { detail: "کد ارسال شد.", demo_otp: "314159" },
+          { detail: "کد ارسال شد.", development_otp: "314159" },
           { status: 202 },
         );
       },
@@ -137,7 +137,7 @@ test("adds and verifies a phone on an email-authenticated account before grantin
 
   await user.type(await screen.findByLabelText("شماره تلفن"), "۰۹۱۲۳۴۵۶۷۸۹");
   await user.click(screen.getByRole("button", { name: "ارسال کد تأیید" }));
-  expect(await screen.findByText("کد نمایشی: 314159")).toBeVisible();
+  expect(await screen.findByText("کد توسعه: 314159")).toBeVisible();
   await user.type(screen.getByLabelText("کد تأیید"), "314159");
   await user.click(screen.getByRole("button", { name: "تأیید و ادامه" }));
 

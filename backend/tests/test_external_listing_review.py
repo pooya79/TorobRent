@@ -84,8 +84,8 @@ def test_only_approved_source_proposal_generates_deterministic_simulated_candida
     assert all(candidate.state == "pending" for candidate in first)
     assert all(candidate.source_id == proposal.source_id for candidate in first)
     assert [candidate.external_url for candidate in first] == [
-        "https://khaneh.example/demo-listings/residential-1",
-        "https://khaneh.example/demo-listings/commercial-2",
+        "https://khaneh.example/sample-listings/residential-1",
+        "https://khaneh.example/sample-listings/commercial-2",
     ]
 
 
@@ -219,7 +219,7 @@ def test_each_candidate_has_independent_protected_review_and_external_publicatio
             monthly_rent_rial=100_000_000,
         ),
         state=ListingState.EXPIRED,
-        external_url="https://khaneh.example/demo-listings/group-anchor",
+        external_url="https://khaneh.example/sample-listings/group-anchor",
         published_at=timezone.now() - timedelta(days=31),
         availability_confirmed_at=timezone.now() - timedelta(days=31),
         available_until=timezone.now() - timedelta(days=1),

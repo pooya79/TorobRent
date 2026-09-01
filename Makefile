@@ -1,6 +1,4 @@
-.PHONY: bootstrap dev prod prod-down demo demo-down demo-reset demo-clean test-demo test-milestone infra-up infra-down migrate makemigrations superuser api-schema api-client api-check test test-backend test-frontend lint format format-check typecheck build check docker-build
-
-DEMO_COMPOSE = docker compose -p torobrent-demo --env-file .env.demo -f compose.demo.yaml
+.PHONY: bootstrap dev seed-dev prod prod-down test-milestone infra-up infra-down migrate makemigrations superuser api-schema api-client api-check test test-backend test-frontend lint format format-check typecheck build check docker-build
 
 bootstrap:
 	cd backend && uv sync
@@ -10,45 +8,18 @@ bootstrap:
 dev:
 	docker compose up --build
 
+seed-dev:
+	docker compose exec -T backend uv run --no-sync python manage.py seed_dev
+
 prod:
 	docker compose --env-file .env.production -f compose.prod.yaml up --build -d
 
 prod-down:
 	docker compose --env-file .env.production -f compose.prod.yaml down
 
-.env.demo:
-	cp .env.demo.example .env.demo
-
-demo: .env.demo
-	$(DEMO_COMPOSE) up --build --wait
-	@. ./.env.demo; printf '%s\n' \
-		"Application: http://localhost:$${DEMO_APP_PORT:-5173}" \
-		"Admin:       http://localhost:$${DEMO_APP_PORT:-5173}/admin/" \
-		"Mailpit:     http://localhost:$${DEMO_MAILPIT_PORT:-8025}" \
-		"Liveness:    http://localhost:$${DEMO_APP_PORT:-5173}/api/v1/system/live/" \
-		"Readiness:   http://localhost:$${DEMO_APP_PORT:-5173}/api/v1/system/ready/" \
-		'Submitter:   submitter@torobrent.local / demo-submitter' \
-		'Operator:    operator@torobrent.local / demo-operator'
-
-demo-down: .env.demo
-	$(DEMO_COMPOSE) down --remove-orphans
-
-demo-reset: .env.demo
-	@printf '%s\n' 'WARNING: deleting only torobrent-demo database and media volumes.'
-	$(DEMO_COMPOSE) down --volumes --remove-orphans
-	$(MAKE) demo
-
-demo-clean: .env.demo
-	@printf '%s\n' 'WARNING: uninstalling only torobrent-demo containers, volumes, and local images.'
-	$(DEMO_COMPOSE) down --volumes --remove-orphans --rmi local
-
-test-demo:
-	./scripts/demo-smoke.sh
-
 test-milestone: check
 	cd frontend && pnpm test:e2e:cross-browser
 	cd frontend && pnpm test:lighthouse
-	$(MAKE) test-demo
 
 infra-up:
 	docker compose up -d postgres redis

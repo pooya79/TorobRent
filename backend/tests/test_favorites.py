@@ -13,7 +13,7 @@ from apps.catalog.services import merge_properties
 
 @pytest.fixture
 def active_property(db: Any) -> Property:
-    call_command("seed_demo", verbosity=0)
+    call_command("seed_dev", verbosity=0)
     property_ = Property.objects.filter(listings__state=ListingState.PUBLISHED).first()
     assert property_ is not None
     return property_

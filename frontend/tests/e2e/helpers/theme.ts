@@ -31,7 +31,7 @@ export async function initializeTheme(page: Page, theme: ExplicitTheme) {
   );
 }
 
-export async function loginDemoOperator(page: Page) {
+export async function loginDevelopmentOperator(page: Page) {
   await page.goto("/login");
   await page.getByLabel("ایمیل").fill(operatorEmail);
   await page.getByLabel("گذرواژه").fill(operatorPassword);

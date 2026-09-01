@@ -97,10 +97,3 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - run: make docker-build
-
-  demo-lifecycle:
-    runs-on: ubuntu-latest
-    needs: [containers]
-    steps:
-      - uses: actions/checkout@v7
-      - run: make test-demo

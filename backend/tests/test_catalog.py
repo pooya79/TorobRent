@@ -55,10 +55,10 @@ def test_frontend_property_taxonomy_is_generated_from_the_catalog_mapping(tmp_pa
 
 
 @pytest.mark.django_db
-def test_public_catalog_query_count_is_bounded_for_representative_demo_fixture(
+def test_public_catalog_query_count_is_bounded_for_representative_development_fixture(
     api_client: APIClient,
 ):
-    call_command("seed_demo", verbosity=0)
+    call_command("seed_dev", verbosity=0)
 
     with CaptureQueriesContext(connection) as search_queries:
         search_response = api_client.get(
@@ -134,7 +134,7 @@ def test_public_catalog_statistics_count_only_searchable_tehran_inventory(
 
 @pytest.mark.django_db
 def test_public_catalog_filters_by_repeated_property_types(api_client: APIClient):
-    call_command("seed_demo", verbosity=0)
+    call_command("seed_dev", verbosity=0)
 
     response = api_client.get(
         "/api/v1/catalog/properties/",
@@ -154,7 +154,7 @@ def test_public_catalog_filters_by_repeated_property_types(api_client: APIClient
 def test_public_catalog_filters_by_property_category_and_rejects_incompatible_types(
     api_client: APIClient,
 ):
-    call_command("seed_demo", verbosity=0)
+    call_command("seed_dev", verbosity=0)
 
     commercial_response = api_client.get(
         "/api/v1/catalog/properties/",
@@ -300,7 +300,7 @@ def test_public_catalog_exposes_self_excluding_property_and_quick_filter_facets(
 def test_public_catalog_feature_facets_keep_unknown_distinct_from_absent(
     api_client: APIClient,
 ):
-    call_command("seed_demo", verbosity=0)
+    call_command("seed_dev", verbosity=0)
 
     response = api_client.get(
         "/api/v1/catalog/properties/",
@@ -1379,7 +1379,7 @@ def test_property_search_exposes_only_the_reviewed_primary_property_image(
     )
     from apps.submissions.models import MediaAsset
 
-    call_command("seed_demo", verbosity=0)
+    call_command("seed_dev", verbosity=0)
     initial_search = api_client.get("/api/v1/catalog/properties/")
     property_ = Property.objects.get(id=initial_search.data["results"][0]["id"])
     listing = Listing.objects.active().filter(property=property_).first()

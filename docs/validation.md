@@ -40,13 +40,12 @@ interfaces. Manual product review remains useful but is not a release gate.
 | Manual cross-browser contract | GitHub Actions → `Browser contract` → Run workflow                 | The browser contract on Chromium, Firefox, and WebKit                                                                                               |
 | Public performance            | `cd frontend && pnpm test:lighthouse`                              | Three local production runs per URL; median performance and pessimistic accessibility ≥0.90, pessimistic CLS ≤0.10, optimized and responsive images |
 | Query growth                  | `cd backend && uv run pytest tests/test_catalog.py -k query_count` | Representative 60-Property/80-Listing search and detail remain at no more than two SQL queries each                                                 |
-| Docker lifecycle              | `make test-demo`                                                   | Idempotent seed, persona access, persistent database/media restart, scoped reset, and removal of project containers, volumes, and local images      |
-| Whole milestone               | `make test-milestone`                                              | Repository checks, the manual cross-browser contract, Lighthouse, and Docker lifecycle proof                                                        |
+| Whole milestone               | `make test-milestone`                                              | Repository checks, the manual cross-browser contract, and Lighthouse                                                                                |
 
 CI installs Chromium and runs the compact browser contract after frontend unit/type/build gates.
 Firefox and WebKit are installed only for an explicitly requested cross-browser run. Lighthouse
-then runs in the ordinary frontend job; production containers and the isolated demo lifecycle
-remain downstream release gates.
+then runs in the ordinary frontend job, and production containers remain the downstream release
+gate.
 
 ## Manual review boundary
 
@@ -57,7 +56,7 @@ least one current screen reader/browser pairing, and perform a visual contrast/r
 
 ## Residual public-beta prerequisites
 
-The milestone deliberately remains a local demonstration. A public beta still requires a reviewed
+The milestone does not establish public-beta readiness. A public beta still requires a reviewed
 live-data ingestion policy, authorized inventory and media, production hosting/TLS, secrets and
 SMTP, monitoring/backups, abuse operations, legal/privacy approval, and a measured screen-reader
 review. No crawler, external infrastructure, fixture-to-public migration, or third-party media

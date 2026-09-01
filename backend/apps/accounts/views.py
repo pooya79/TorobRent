@@ -86,9 +86,9 @@ def registration_response(identifier_kind: str, otp: str | None) -> Response:
             "detail": "کد تأیید برای شماره تلفن ارسال شد.",
             "verification_method": "phone",
         }
-        if settings.DEMO_OTP_DISCLOSURE:
+        if settings.DEVELOPMENT_OTP_DISCLOSURE:
             assert otp is not None
-            data["demo_otp"] = otp
+            data["development_otp"] = otp
         return Response(data, status=status.HTTP_201_CREATED)
     return Response(
         {
@@ -293,8 +293,8 @@ class PhoneVerificationRequestView(APIView):
         except PhoneOwnershipConflict as exc:
             raise PhoneOwnershipConflictResponse from exc
         data = {"detail": "اگر شماره قابل تأیید باشد، کد تأیید ارسال می‌شود."}
-        if settings.DEMO_OTP_DISCLOSURE and otp is not None:
-            data["demo_otp"] = otp
+        if settings.DEVELOPMENT_OTP_DISCLOSURE and otp is not None:
+            data["development_otp"] = otp
         return Response(data, status=status.HTTP_202_ACCEPTED)
 
 

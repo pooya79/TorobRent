@@ -3,7 +3,7 @@ from dataclasses import dataclass
 
 from apps.accounts.models import User
 from apps.catalog.models import Listing, Property
-from apps.common.demo import DemoFixtureKind, demo_id
+from apps.common.development_seed import DevelopmentFixtureKind, development_fixture_id
 
 from .models import (
     Submission,
@@ -15,7 +15,7 @@ from .models import (
 
 
 @dataclass(frozen=True)
-class DemoSubmissionSpec:
+class DevelopmentSubmissionSpec:
     state: SubmissionState
     listing: Listing | None = None
 
@@ -37,7 +37,9 @@ def _seed_events(*, submission: Submission, index: int, submitter: User, operato
         )
     for position, (prior_state, new_state, actor, reason) in enumerate(transitions, start=1):
         SubmissionEvent.objects.get_or_create(
-            id=demo_id(DemoFixtureKind.SUBMISSION_EVENT, index * 10 + position),
+            id=development_fixture_id(
+                DevelopmentFixtureKind.SUBMISSION_EVENT, index * 10 + position
+            ),
             defaults={
                 "submission": submission,
                 "actor": actor,
@@ -49,7 +51,7 @@ def _seed_events(*, submission: Submission, index: int, submitter: User, operato
         )
 
 
-def seed_demo_submissions(
+def seed_development_submissions(
     *,
     submitter: User,
     operator: User,
@@ -58,16 +60,16 @@ def seed_demo_submissions(
     expired_listing: Listing,
 ) -> None:
     specs = (
-        DemoSubmissionSpec(SubmissionState.DRAFT),
-        DemoSubmissionSpec(SubmissionState.PENDING),
-        DemoSubmissionSpec(SubmissionState.CHANGES_REQUESTED),
-        DemoSubmissionSpec(SubmissionState.REJECTED),
-        DemoSubmissionSpec(SubmissionState.PUBLISHED, published_listing),
-        DemoSubmissionSpec(SubmissionState.PUBLISHED, expired_listing),
+        DevelopmentSubmissionSpec(SubmissionState.DRAFT),
+        DevelopmentSubmissionSpec(SubmissionState.PENDING),
+        DevelopmentSubmissionSpec(SubmissionState.CHANGES_REQUESTED),
+        DevelopmentSubmissionSpec(SubmissionState.REJECTED),
+        DevelopmentSubmissionSpec(SubmissionState.PUBLISHED, published_listing),
+        DevelopmentSubmissionSpec(SubmissionState.PUBLISHED, expired_listing),
     )
     for index, spec in enumerate(specs, start=1):
         submission, created = Submission.objects.get_or_create(
-            id=demo_id(DemoFixtureKind.SUBMISSION, index),
+            id=development_fixture_id(DevelopmentFixtureKind.SUBMISSION, index),
             defaults={
                 "submitter": submitter,
                 "role": SubmitterRole.OWNER if index % 2 else SubmitterRole.AGENT,
@@ -80,7 +82,7 @@ def seed_demo_submissions(
                 "city": property_.city,
                 "district": property_.district,
                 "neighborhood": property_.neighborhood,
-                "address": f"نشانی ساختگی نسخه نمایشی {index}",
+                "address": f"نشانی ساختگی محیط توسعه {index}",
                 "property_type": property_.property_type,
                 "area_sqm": property_.area_sqm,
                 "room_count": property_.room_count,
@@ -95,12 +97,12 @@ def seed_demo_submissions(
                 "storage": property_.storage,
                 "balcony": property_.balcony,
                 "furnished": property_.furnished,
-                "description": "پیشنهاد ساختگی برای نمایش گردش کار Submitter و Operator.",
-                "contact_name": "کاربر نمایشی",
+                "description": "پیشنهاد ساختگی برای توسعه گردش کار Submitter و Operator.",
+                "contact_name": "کاربر توسعه",
                 "contact_phone": "09120000000",
                 "authorization_declared": True,
                 "phone_publication_consent": True,
-                "review_data": {"demo": True},
+                "review_data": {"development_seed": True},
             },
         )
         if created:

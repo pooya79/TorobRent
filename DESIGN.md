@@ -52,7 +52,7 @@ server cookie. If JavaScript or browser storage is unavailable, semantic colors 
 `prefers-color-scheme`.
 
 The dark palette is a restrained counterpart rather than a color inversion. Property photography
-and demo listing imagery remain untreated inside neutral media frames; only first-party interface or
+and sample listing imagery remain untreated inside neutral media frames; only first-party interface or
 brand artwork may receive a theme-specific variant. Native controls and browser chrome follow the
 resolved theme through `color-scheme` and theme-color metadata.
 

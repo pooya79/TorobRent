@@ -176,7 +176,7 @@ test("verifies another public number and recovers from an invalid code", async (
       async ({ request }) => {
         requestedPhone = await request.json();
         return HttpResponse.json(
-          { detail: "کد ارسال شد.", demo_otp: "314159" },
+          { detail: "کد ارسال شد.", development_otp: "314159" },
           { status: 202 },
         );
       },
@@ -202,7 +202,7 @@ test("verifies another public number and recovers from an invalid code", async (
   await user.click(screen.getByRole("button", { name: "ارسال کد تأیید" }));
 
   expect(requestedPhone).toEqual({ phone: "۰۹۳۵۱۲۳۴۵۶۷" });
-  expect(screen.getByText(/کد نمایشی: 314159/)).toBeVisible();
+  expect(screen.getByText(/کد توسعه: 314159/)).toBeVisible();
   await user.type(screen.getByLabelText("کد تأیید شماره دیگر"), "000000");
   await user.click(screen.getByRole("button", { name: "تأیید شماره" }));
   expect(await screen.findByText("کد تأیید پذیرفته نشد.")).toBeVisible();

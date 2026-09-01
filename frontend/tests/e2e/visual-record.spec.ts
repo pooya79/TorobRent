@@ -3,7 +3,7 @@ import { expect, test } from "@playwright/test";
 import {
   canonicalSurfaces,
   initializeTheme,
-  loginDemoOperator,
+  loginDevelopmentOperator,
 } from "./helpers/theme";
 
 for (const theme of ["light", "dark"] as const) {
@@ -11,7 +11,7 @@ for (const theme of ["light", "dark"] as const) {
     page,
   }) => {
     await initializeTheme(page, theme);
-    await loginDemoOperator(page);
+    await loginDevelopmentOperator(page);
 
     for (const { name, path } of canonicalSurfaces) {
       for (const viewport of [

@@ -58,7 +58,7 @@ function AccessForm({
   const [pendingPhone, setPendingPhone] = useState<{
     identifier: string;
     password: string;
-    demoOtp?: string;
+    developmentOtp?: string;
   }>();
   const [registrationResult, setRegistrationResult] = useState<string>();
 
@@ -109,7 +109,7 @@ function AccessForm({
       if (data.verification_method === "phone") {
         setPendingPhone({
           ...variables,
-          demoOtp: data.demo_otp,
+          developmentOtp: data.development_otp,
         });
       }
     },
@@ -165,9 +165,9 @@ function AccessForm({
             maxLength={6}
             required
           />
-          {pendingPhone.demoOtp ? (
+          {pendingPhone.developmentOtp ? (
             <p className="text-muted-foreground text-sm">
-              کد نمایشی: {pendingPhone.demoOtp}
+              کد توسعه: {pendingPhone.developmentOtp}
             </p>
           ) : null}
         </div>

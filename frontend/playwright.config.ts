@@ -8,8 +8,8 @@ const backendUrl = `http://127.0.0.1:${backendPort}`;
 const isolatedDatabaseUrl = `sqlite:////tmp/torobrent-playwright-${backendPort}-${process.pid}.sqlite3`;
 const chromiumExecutable = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH;
 const seedCommand =
-  process.env.CAPTURE_DESIGN || process.env.E2E_SEED_DEMO
-    ? "seed_demo"
+  process.env.CAPTURE_DESIGN || process.env.E2E_SEED_DEV
+    ? "seed_dev"
     : "loaddata catalog_seed";
 
 export default defineConfig({
@@ -41,7 +41,7 @@ export default defineConfig({
     ? undefined
     : [
         {
-          command: `cd ../backend && export DJANGO_SETTINGS_MODULE=config.settings.test TEST_DATABASE_URL=${isolatedDatabaseUrl} CSRF_TRUSTED_ORIGINS=${baseURL} FRONTEND_ORIGIN=${baseURL} DEMO_OTP_DISCLOSURE=true DJANGO_SUPERUSER_EMAIL=operator@example.com DJANGO_SUPERUSER_PASSWORD=operator-password && uv run python manage.py migrate --noinput && uv run python manage.py ${seedCommand} && uv run python manage.py createsuperuser --noinput && uv run python manage.py shell -c 'from django.utils import timezone; from apps.accounts.models import User; now = timezone.now(); User.objects.filter(email="operator@example.com").update(email_verified_at=now, phone="09120000000", phone_verified_at=now, is_submitter=True)' && exec uv run uvicorn config.asgi:application --host 127.0.0.1 --port ${backendPort}`,
+          command: `cd ../backend && export DJANGO_SETTINGS_MODULE=config.settings.test TEST_DATABASE_URL=${isolatedDatabaseUrl} CSRF_TRUSTED_ORIGINS=${baseURL} FRONTEND_ORIGIN=${baseURL} DEVELOPMENT_OTP_DISCLOSURE=true DJANGO_SUPERUSER_EMAIL=operator@example.com DJANGO_SUPERUSER_PASSWORD=operator-password && uv run python manage.py migrate --noinput && uv run python manage.py ${seedCommand} && uv run python manage.py createsuperuser --noinput && uv run python manage.py shell -c 'from django.utils import timezone; from apps.accounts.models import User; now = timezone.now(); User.objects.filter(email="operator@example.com").update(email_verified_at=now, phone="09120000000", phone_verified_at=now, is_submitter=True)' && exec uv run uvicorn config.asgi:application --host 127.0.0.1 --port ${backendPort}`,
           url: `${backendUrl}/api/v1/system/ready/`,
           reuseExistingServer: !process.env.CI,
         },

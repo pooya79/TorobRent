@@ -1879,7 +1879,7 @@ export interface components {
     };
     PhoneOtpResponse: {
       detail: string;
-      demo_otp?: string;
+      development_otp?: string;
     };
     PhoneReveal: {
       phone: string;
@@ -2074,7 +2074,7 @@ export interface components {
     };
     RegistrationResponse: {
       detail: string;
-      demo_otp?: string;
+      development_otp?: string;
       verification_method: components["schemas"]["VerificationMethodEnum"];
     };
     RentalTermsInput: {
@@ -2318,7 +2318,7 @@ export interface components {
     };
     SubmissionContactOtpResponse: {
       detail: string;
-      demo_otp?: string;
+      development_otp?: string;
     };
     SubmissionContactVerification: {
       otp: string;

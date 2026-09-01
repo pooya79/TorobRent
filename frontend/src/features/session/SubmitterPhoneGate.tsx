@@ -12,7 +12,7 @@ import { apiError, errorMessage } from "@/lib/api/errors";
 export function SubmitterPhoneGate({ onVerified }: { onVerified: () => void }) {
   const [pendingPhone, setPendingPhone] = useState<{
     identifier: string;
-    demoOtp?: string;
+    developmentOtp?: string;
   }>();
   const requestPhone = useMutation({
     mutationFn: async (identifier: string) => {
@@ -21,7 +21,7 @@ export function SubmitterPhoneGate({ onVerified }: { onVerified: () => void }) {
         { body: { identifier, purpose: "submitter_onboarding" } },
       );
       if (error || !data) throw apiError(error);
-      return { identifier, demoOtp: data.demo_otp };
+      return { identifier, developmentOtp: data.development_otp };
     },
     onSuccess: setPendingPhone,
   });
@@ -63,9 +63,9 @@ export function SubmitterPhoneGate({ onVerified }: { onVerified: () => void }) {
                 maxLength={6}
                 required
               />
-              {pendingPhone.demoOtp ? (
+              {pendingPhone.developmentOtp ? (
                 <p className="text-muted-foreground text-sm">
-                  کد نمایشی: {pendingPhone.demoOtp}
+                  کد توسعه: {pendingPhone.developmentOtp}
                 </p>
               ) : null}
               <p className="text-muted-foreground text-sm">

@@ -1,7 +1,7 @@
 {
   "ci": {
     "collect": {
-      "startServerCommand": "concurrently --kill-others --success first \"cd ../backend && export DJANGO_SETTINGS_MODULE=config.settings.test TEST_DATABASE_URL=sqlite:////tmp/torobrent-lighthouse.sqlite3 CSRF_TRUSTED_ORIGINS=http://127.0.0.1:4173 && uv run python manage.py migrate --noinput && uv run python manage.py seed_demo && uv run uvicorn config.asgi:application --host 127.0.0.1 --port 8011\" \"PORT=4180 pnpm start\" \"LIGHTHOUSE_FRONTEND_URL=http://127.0.0.1:4180 LIGHTHOUSE_BACKEND_URL=http://127.0.0.1:8011 LIGHTHOUSE_PORT=4173 node scripts/lighthouse-proxy.mjs\"",
+      "startServerCommand": "concurrently --kill-others --success first \"cd ../backend && export DJANGO_SETTINGS_MODULE=config.settings.test TEST_DATABASE_URL=sqlite:////tmp/torobrent-lighthouse.sqlite3 CSRF_TRUSTED_ORIGINS=http://127.0.0.1:4173 && uv run python manage.py migrate --noinput && uv run python manage.py seed_dev && uv run uvicorn config.asgi:application --host 127.0.0.1 --port 8011\" \"PORT=4180 pnpm start\" \"LIGHTHOUSE_FRONTEND_URL=http://127.0.0.1:4180 LIGHTHOUSE_BACKEND_URL=http://127.0.0.1:8011 LIGHTHOUSE_PORT=4173 node scripts/lighthouse-proxy.mjs\"",
       "startServerReadyPattern": "Lighthouse proxy ready",
       "startServerReadyTimeout": 120000,
       "url": [

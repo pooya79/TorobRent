@@ -3,15 +3,15 @@ from datetime import UTC, datetime
 
 from .models import User
 
-DEMO_SUBMITTER_EMAIL = "submitter@torobrent.local"
-DEMO_SUBMITTER_PASSWORD = "demo-submitter"
-DEMO_OPERATOR_EMAIL = "operator@torobrent.local"
-DEMO_OPERATOR_PASSWORD = "demo-operator"
+DEVELOPMENT_SUBMITTER_EMAIL = "submitter@torobrent.local"
+DEVELOPMENT_SUBMITTER_PASSWORD = "dev-submitter"
+DEVELOPMENT_OPERATOR_EMAIL = "operator@torobrent.local"
+DEVELOPMENT_OPERATOR_PASSWORD = "dev-operator"
 VERIFIED_AT = datetime(2026, 1, 1, tzinfo=UTC)
 
 
 @dataclass(frozen=True)
-class DemoPersonas:
+class DevelopmentPersonas:
     submitter: User
     operator: User
 
@@ -33,17 +33,17 @@ def _get_or_create_persona(*, email: str, password: str, operator: bool, submitt
     return user
 
 
-def seed_demo_personas() -> DemoPersonas:
-    return DemoPersonas(
+def seed_development_personas() -> DevelopmentPersonas:
+    return DevelopmentPersonas(
         submitter=_get_or_create_persona(
-            email=DEMO_SUBMITTER_EMAIL,
-            password=DEMO_SUBMITTER_PASSWORD,
+            email=DEVELOPMENT_SUBMITTER_EMAIL,
+            password=DEVELOPMENT_SUBMITTER_PASSWORD,
             operator=False,
             submitter=True,
         ),
         operator=_get_or_create_persona(
-            email=DEMO_OPERATOR_EMAIL,
-            password=DEMO_OPERATOR_PASSWORD,
+            email=DEVELOPMENT_OPERATOR_EMAIL,
+            password=DEVELOPMENT_OPERATOR_PASSWORD,
             operator=True,
             submitter=False,
         ),

@@ -508,7 +508,7 @@ function ContactFields({
       Boolean(submission.contact?.phone_verified),
   );
   const [otp, setOtp] = useState("");
-  const [demoOtp, setDemoOtp] = useState<string>();
+  const [developmentOtp, setDevelopmentOtp] = useState<string>();
   const [verificationMessage, setVerificationMessage] = useState<string>();
   const [publicationConsent, setPublicationConsent] = useState(
     Boolean(submission.contact?.phone_publication_consent),
@@ -520,9 +520,9 @@ function ContactFields({
       setAlternateVerified(false);
       setPublicationConsent(false);
       setOtp("");
-      setDemoOtp(response.demo_otp);
+      setDevelopmentOtp(response.development_otp);
       setVerificationMessage(
-        response.demo_otp
+        response.development_otp
           ? undefined
           : "اگر شماره قابل تأیید باشد، کد تازه ارسال شده است.",
       );
@@ -625,13 +625,13 @@ function ContactFields({
                 ? "در حال ارسال…"
                 : "ارسال کد تأیید"}
             </Button>
-            {demoOtp && (
+            {developmentOtp && (
               <p className="text-muted-foreground text-xs">
-                کد نمایشی: {demoOtp}
+                کد توسعه: {developmentOtp}
               </p>
             )}
             {!alternateVerified &&
-              (demoOtp || requestVerification.isSuccess) && (
+              (developmentOtp || requestVerification.isSuccess) && (
                 <div className="grid gap-3">
                   <Label className="space-y-2">
                     <span>کد تأیید شماره دیگر</span>

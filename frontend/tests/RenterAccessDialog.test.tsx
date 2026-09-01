@@ -84,7 +84,7 @@ test("verifies a phone Renter, updates the session, and resumes pending intent",
         {
           detail: "کد تأیید ارسال شد.",
           verification_method: "phone",
-          demo_otp: "314159",
+          development_otp: "314159",
         },
         { status: 201 },
       );

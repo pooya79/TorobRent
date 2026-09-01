@@ -4038,7 +4038,7 @@ components:
       properties:
         detail:
           type: string
-        demo_otp:
+        development_otp:
           type: string
           pattern: ^\d{6}$
       required:
@@ -4496,7 +4496,7 @@ components:
       properties:
         detail:
           type: string
-        demo_otp:
+        development_otp:
           type: string
           pattern: ^\d{6}$
         verification_method:
@@ -5110,7 +5110,7 @@ components:
       properties:
         detail:
           type: string
-        demo_otp:
+        development_otp:
           type: string
           pattern: ^\d{6}$
       required:

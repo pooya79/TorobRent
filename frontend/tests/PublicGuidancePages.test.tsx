@@ -39,7 +39,7 @@ test("publishes Persian Guide, Privacy, Terms, and honest alpha guidance", () =>
     {
       page: <GuidePage />,
       heading: "راهنمای ترب‌رنت",
-      copy: "اطلاعات نسخه آلفا از داده‌های نمایشی و ورود دستی",
+      copy: "اطلاعات نسخه آلفا از داده‌های ساختگی و ورود دستی",
     },
     {
       page: <PrivacyPage />,

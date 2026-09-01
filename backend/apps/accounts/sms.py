@@ -22,7 +22,7 @@ outbox: list[SmsMessage] = []
 
 
 class LocmemSmsBackend:
-    """Test/demo backend; production selects the webhook backend explicitly."""
+    """Test/development backend; production selects the webhook backend explicitly."""
 
     def send_verification_code(self, *, recipient: str, code: str) -> None:
         outbox.append(SmsMessage(recipient=recipient, code=code))

@@ -200,7 +200,7 @@ def test_email_registration_preserves_only_a_safe_return_destination(
         assert unsafe.status_code == 400
 
 
-@override_settings(DEMO_OTP_DISCLOSURE=True)
+@override_settings(DEVELOPMENT_OTP_DISCLOSURE=True)
 @pytest.mark.django_db
 def test_phone_registration_requires_otp_before_normalized_identifier_can_log_in(
     api_client: APIClient,
@@ -216,10 +216,10 @@ def test_phone_registration_requires_otp_before_normalized_identifier_can_log_in
     assert registration.status_code == 201
     assert registration.data["detail"] == "کد تأیید برای شماره تلفن ارسال شد."
     assert registration.data["verification_method"] == "phone"
-    assert registration.data["demo_otp"].isdigit()
-    assert len(registration.data["demo_otp"]) == 6
+    assert registration.data["development_otp"].isdigit()
+    assert len(registration.data["development_otp"]) == 6
     assert sms_outbox[-1].recipient == "09123456789"
-    assert sms_outbox[-1].code == registration.data["demo_otp"]
+    assert sms_outbox[-1].code == registration.data["development_otp"]
     user = User.objects.get(phone="09123456789")
     assert user.email is None
     assert user.phone_verified_at is None
@@ -234,7 +234,7 @@ def test_phone_registration_requires_otp_before_normalized_identifier_can_log_in
 
     verification = client.post(
         "/api/v1/auth/verify-phone/",
-        {"identifier": "۰۹۱۲۳۴۵۶۷۸۹", "otp": registration.data["demo_otp"]},
+        {"identifier": "۰۹۱۲۳۴۵۶۷۸۹", "otp": registration.data["development_otp"]},
         format="json",
     )
     assert verification.status_code == 200
@@ -243,7 +243,7 @@ def test_phone_registration_requires_otp_before_normalized_identifier_can_log_in
 
     reused = client.post(
         "/api/v1/auth/verify-phone/",
-        {"identifier": "09123456789", "otp": registration.data["demo_otp"]},
+        {"identifier": "09123456789", "otp": registration.data["development_otp"]},
         format="json",
     )
     assert reused.status_code == 400
@@ -258,7 +258,7 @@ def test_phone_registration_requires_otp_before_normalized_identifier_can_log_in
     assert login.data["phone_verified"] is True
 
 
-@override_settings(DEMO_OTP_DISCLOSURE=False)
+@override_settings(DEVELOPMENT_OTP_DISCLOSURE=False)
 @pytest.mark.django_db
 def test_production_phone_registration_never_discloses_the_otp(api_client: APIClient):
     client = csrf_client(api_client)
@@ -270,11 +270,11 @@ def test_production_phone_registration_never_discloses_the_otp(api_client: APICl
     )
 
     assert registration.status_code == 201
-    assert "demo_otp" not in registration.data
+    assert "development_otp" not in registration.data
     assert sms_outbox[-1].code not in registration.content.decode()
 
 
-@override_settings(DEMO_OTP_DISCLOSURE=True)
+@override_settings(DEVELOPMENT_OTP_DISCLOSURE=True)
 @pytest.mark.django_db
 def test_phone_verification_does_not_promote_a_renter_registration(api_client: APIClient):
     client = csrf_client(api_client)
@@ -286,7 +286,7 @@ def test_phone_verification_does_not_promote_a_renter_registration(api_client: A
 
     verification = client.post(
         "/api/v1/auth/verify-phone/",
-        {"identifier": "09351234567", "otp": registration.data["demo_otp"]},
+        {"identifier": "09351234567", "otp": registration.data["development_otp"]},
         format="json",
     )
 
@@ -323,7 +323,7 @@ def test_phone_otp_requests_are_private_and_enforce_the_resend_delay(api_client:
     assert User.objects.get(phone="09123456789").phone_challenges.count() == 1
 
 
-@override_settings(DEMO_OTP_DISCLOSURE=True)
+@override_settings(DEVELOPMENT_OTP_DISCLOSURE=True)
 @pytest.mark.django_db
 def test_phone_otp_reports_expiry_and_attempt_exhaustion(api_client: APIClient):
     client = csrf_client(api_client)
@@ -332,7 +332,7 @@ def test_phone_otp_reports_expiry_and_attempt_exhaustion(api_client: APIClient):
         {"identifier": "09123456789", "password": "correct-horse-battery"},
         format="json",
     )
-    expired_otp = expired_registration.data["demo_otp"]
+    expired_otp = expired_registration.data["development_otp"]
     PhoneVerificationChallenge.objects.filter(phone="09123456789").update(
         expires_at=timezone.now() - timedelta(seconds=1)
     )
@@ -351,7 +351,7 @@ def test_phone_otp_reports_expiry_and_attempt_exhaustion(api_client: APIClient):
         {"identifier": "09351234567", "password": "correct-horse-battery"},
         format="json",
     )
-    wrong_otp = "999999" if attempts_registration.data["demo_otp"] == "000000" else "000000"
+    wrong_otp = "999999" if attempts_registration.data["development_otp"] == "000000" else "000000"
     for _ in range(5):
         invalid = client.post(
             "/api/v1/auth/verify-phone/",
@@ -362,7 +362,7 @@ def test_phone_otp_reports_expiry_and_attempt_exhaustion(api_client: APIClient):
 
     exhausted = client.post(
         "/api/v1/auth/verify-phone/",
-        {"identifier": "09351234567", "otp": attempts_registration.data["demo_otp"]},
+        {"identifier": "09351234567", "otp": attempts_registration.data["development_otp"]},
         format="json",
     )
     assert exhausted.data["errors"]["otp"][0]["message"] == generic_error
@@ -375,7 +375,7 @@ def test_phone_otp_reports_expiry_and_attempt_exhaustion(api_client: APIClient):
     assert missing.data["errors"]["otp"][0]["message"] == generic_error
 
 
-@override_settings(DEMO_OTP_DISCLOSURE=True)
+@override_settings(DEVELOPMENT_OTP_DISCLOSURE=True)
 @pytest.mark.django_db
 def test_verified_email_account_can_add_phone_and_use_both_identifiers(
     api_client: APIClient, user: User
@@ -391,11 +391,11 @@ def test_verified_email_account_can_add_phone_and_use_both_identifiers(
         format="json",
     )
     assert requested.status_code == 202
-    assert requested.data["demo_otp"].isdigit()
+    assert requested.data["development_otp"].isdigit()
 
     verified = client.post(
         "/api/v1/auth/verify-phone/",
-        {"identifier": "09351234567", "otp": requested.data["demo_otp"]},
+        {"identifier": "09351234567", "otp": requested.data["development_otp"]},
         format="json",
     )
     assert verified.status_code == 200
@@ -443,7 +443,7 @@ def test_submitter_phone_conflict_is_support_oriented_and_does_not_reveal_the_ot
     assert user.phone is None
 
 
-@override_settings(DEMO_OTP_DISCLOSURE=True)
+@override_settings(DEVELOPMENT_OTP_DISCLOSURE=True)
 @pytest.mark.django_db
 def test_email_authenticated_renter_verifies_phone_then_gains_submitter_eligibility(
     api_client: APIClient, user: User
@@ -460,7 +460,7 @@ def test_email_authenticated_renter_verifies_phone_then_gains_submitter_eligibil
     )
     verified = client.post(
         "/api/v1/auth/verify-phone/",
-        {"identifier": "09351234567", "otp": requested.data["demo_otp"]},
+        {"identifier": "09351234567", "otp": requested.data["development_otp"]},
         format="json",
     )
     eligible = client.get("/api/v1/users/me/submitter-onboarding/")
@@ -521,7 +521,7 @@ def test_verified_phone_account_can_add_email_and_use_both_identifiers(api_clien
         ("/api/v1/auth/renter-register/", "simple-renter@example.com", False),
     ],
 )
-def test_demo_registration_accepts_a_simple_password(
+def test_registration_accepts_a_simple_password(
     api_client: APIClient, endpoint: str, email: str, is_submitter: bool
 ):
     response = csrf_client(api_client).post(

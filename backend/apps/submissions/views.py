@@ -241,8 +241,8 @@ class SubmissionContactVerificationRequestView(APIView):
         except DjangoValidationError as exc:
             raise validation_response(exc) from None
         data = {"detail": "اگر شماره قابل تأیید باشد، کد تأیید ارسال می‌شود."}
-        if settings.DEMO_OTP_DISCLOSURE and otp is not None:
-            data["demo_otp"] = otp
+        if settings.DEVELOPMENT_OTP_DISCLOSURE and otp is not None:
+            data["development_otp"] = otp
         return Response(data, status=status.HTTP_202_ACCEPTED)
 
 

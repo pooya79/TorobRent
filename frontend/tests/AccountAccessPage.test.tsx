@@ -30,7 +30,7 @@ function renderAccessPage(mode: "login" | "register" | "recovery") {
   );
 }
 
-test("allows a simple password when creating a demo account", async () => {
+test("allows a simple password when creating a development account", async () => {
   const user = userEvent.setup();
   let submitted: unknown;
   server.use(
@@ -43,19 +43,19 @@ test("allows a simple password when creating a demo account", async () => {
 
   await user.type(
     screen.getByLabelText("ایمیل یا شماره تلفن"),
-    "demo@example.com",
+    "development@example.com",
   );
   await user.type(screen.getByLabelText("گذرواژه"), "123");
   await user.click(screen.getByRole("button", { name: "ساخت حساب" }));
 
   expect(submitted).toEqual({
-    identifier: "demo@example.com",
+    identifier: "development@example.com",
     password: "123",
   });
   expect(await screen.findByText("حساب ساخته شد.")).toBeVisible();
 });
 
-test("verifies a phone registration with a demo OTP", async () => {
+test("verifies a phone registration with a development OTP", async () => {
   const user = userEvent.setup();
   let verification: unknown;
   server.use(
@@ -64,7 +64,7 @@ test("verifies a phone registration with a demo OTP", async () => {
         {
           detail: "کد تأیید ارسال شد.",
           verification_method: "phone",
-          demo_otp: "314159",
+          development_otp: "314159",
         },
         { status: 201 },
       ),
@@ -80,7 +80,7 @@ test("verifies a phone registration with a demo OTP", async () => {
   await user.type(screen.getByLabelText("گذرواژه"), "123");
   await user.click(screen.getByRole("button", { name: "ساخت حساب" }));
 
-  expect(await screen.findByText("کد نمایشی: 314159")).toBeVisible();
+  expect(await screen.findByText("کد توسعه: 314159")).toBeVisible();
   await user.type(screen.getByLabelText("کد تأیید"), "314159");
   await user.click(screen.getByRole("button", { name: "تأیید شماره" }));
 
@@ -91,7 +91,7 @@ test("verifies a phone registration with a demo OTP", async () => {
   });
 });
 
-test("does not render an OTP secret when the server omits demo disclosure", async () => {
+test("does not render an OTP secret when the server omits development disclosure", async () => {
   const user = userEvent.setup();
   server.use(
     http.post("*/api/v1/auth/register/", () =>
@@ -108,7 +108,7 @@ test("does not render an OTP secret when the server omits demo disclosure", asyn
   await user.click(screen.getByRole("button", { name: "ساخت حساب" }));
 
   expect(await screen.findByLabelText("کد تأیید")).toBeVisible();
-  expect(screen.queryByText(/کد نمایشی/)).toBeNull();
+  expect(screen.queryByText(/کد توسعه/)).toBeNull();
 });
 
 test("logs in a verified Submitter and preserves the protected destination", async () => {

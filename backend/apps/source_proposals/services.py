@@ -85,7 +85,7 @@ def generate_simulated_external_listing_candidates(
     for index, (spec, neighborhood) in enumerate(
         zip(SIMULATED_CANDIDATE_SPECS, neighborhoods, strict=True), start=1
     ):
-        external_url = f"https://{proposal.normalized_domain}/demo-listings/{spec.slug}"
+        external_url = f"https://{proposal.normalized_domain}/sample-listings/{spec.slug}"
         candidate, _created = ExternalListingCandidate.objects.get_or_create(
             id=uuid.uuid5(proposal.id, f"simulated-external-listing-{index}"),
             defaults={

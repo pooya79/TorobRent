@@ -128,7 +128,7 @@ class PhoneVerificationRequestSerializer(serializers.Serializer[Any]):
 
 
 class PhoneOtpResponseSerializer(DetailSerializer):
-    demo_otp = serializers.RegexField(r"^\d{6}$", required=False)
+    development_otp = serializers.RegexField(r"^\d{6}$", required=False)
 
 
 class RegistrationResponseSerializer(PhoneOtpResponseSerializer):

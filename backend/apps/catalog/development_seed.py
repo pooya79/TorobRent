@@ -5,7 +5,7 @@ from decimal import Decimal
 from django.conf import settings
 from django.core.management import call_command
 
-from apps.common.demo import DemoFixtureKind, demo_id
+from apps.common.development_seed import DevelopmentFixtureKind, development_fixture_id
 
 from .locations import derive_public_location
 from .models import (
@@ -25,13 +25,13 @@ from .models import (
 
 ACTIVE_UNTIL = datetime(2099, 12, 31, tzinfo=UTC)
 PUBLISHED_AT = datetime(2026, 1, 1, tzinfo=UTC)
-DEMO_LATITUDE_ORIGIN = Decimal("35.650000")
-DEMO_LONGITUDE_ORIGIN = Decimal("51.300000")
-DEMO_LOCATION_STEP = Decimal("0.025000")
+DEVELOPMENT_LATITUDE_ORIGIN = Decimal("35.650000")
+DEVELOPMENT_LONGITUDE_ORIGIN = Decimal("51.300000")
+DEVELOPMENT_LOCATION_STEP = Decimal("0.025000")
 
 
 @dataclass(frozen=True)
-class DemoCatalog:
+class DevelopmentCatalog:
     properties: int
     listings: int
     first_property: Property
@@ -47,11 +47,11 @@ def _load_locations() -> None:
 def _seed_sources() -> tuple[Source, Source, Source]:
     direct = Source.objects.get(is_builtin=True)
     portal_one, _created = Source.objects.get_or_create(
-        id=demo_id(DemoFixtureKind.SOURCE, 1),
+        id=development_fixture_id(DevelopmentFixtureKind.SOURCE, 1),
         defaults={
-            "name": "demo-home-one",
-            "domain": "demo-one.invalid",
-            "display_name": "نمونه نمایشی یک",
+            "name": "development-home-one",
+            "domain": "development-one.invalid",
+            "display_name": "نمونه ساختگی یک",
             "is_active": True,
             "is_builtin": False,
             "outbound_policy": OutboundPolicy.EXTERNAL_LINK,
@@ -59,11 +59,11 @@ def _seed_sources() -> tuple[Source, Source, Source]:
         },
     )
     portal_two, _created = Source.objects.get_or_create(
-        id=demo_id(DemoFixtureKind.SOURCE, 2),
+        id=development_fixture_id(DevelopmentFixtureKind.SOURCE, 2),
         defaults={
-            "name": "demo-home-two",
-            "domain": "demo-two.invalid",
-            "display_name": "نمونه نمایشی دو",
+            "name": "development-home-two",
+            "domain": "development-two.invalid",
+            "display_name": "نمونه ساختگی دو",
             "is_active": True,
             "is_builtin": False,
             "outbound_policy": OutboundPolicy.EXTERNAL_LINK,
@@ -86,10 +86,10 @@ def _seed_properties() -> list[Property]:
         property_type = property_types[(index - 1) % len(property_types)]
         room_count = (index - 1) % 5 if property_type_requires_room_count(property_type) else None
         row, column = divmod(index - 1, 10)
-        latitude = DEMO_LATITUDE_ORIGIN + row * DEMO_LOCATION_STEP
-        longitude = DEMO_LONGITUDE_ORIGIN + column * DEMO_LOCATION_STEP
+        latitude = DEVELOPMENT_LATITUDE_ORIGIN + row * DEVELOPMENT_LOCATION_STEP
+        longitude = DEVELOPMENT_LONGITUDE_ORIGIN + column * DEVELOPMENT_LOCATION_STEP
         property_, created = Property.objects.get_or_create(
-            id=demo_id(DemoFixtureKind.PROPERTY, index),
+            id=development_fixture_id(DevelopmentFixtureKind.PROPERTY, index),
             defaults={
                 "city_id": TEHRAN_CITY_ID,
                 "district": neighborhood.district,
@@ -110,7 +110,7 @@ def _seed_properties() -> list[Property]:
                 "cooling": "کولر آبی",
                 "latitude": latitude,
                 "longitude": longitude,
-                "provenance_note": "داده ساختگی و محلی برای نمایش TorobRent",
+                "provenance_note": "داده ساختگی و محلی برای توسعه TorobRent",
                 "normalized_at": PUBLISHED_AT,
             },
         )
@@ -154,7 +154,7 @@ def _seed_listings(properties: list[Property]) -> list[Listing]:
         property_ = properties[(index - 1) % len(properties)]
         source = sources[(index - 1) % len(sources)]
         terms, _created = RentalTerms.objects.get_or_create(
-            id=demo_id(DemoFixtureKind.TERMS, index),
+            id=development_fixture_id(DevelopmentFixtureKind.TERMS, index),
             defaults={
                 "deposit_rial": 0 if index == 1 else index * 1_000_000_000,
                 "monthly_rent_rial": 0 if index == 2 else index * 50_000_000,
@@ -163,22 +163,22 @@ def _seed_listings(properties: list[Property]) -> list[Listing]:
             },
         )
         if property_.area_sqm is None:
-            raise RuntimeError("Demo Properties must have an area")
+            raise RuntimeError("Development Properties must have an area")
         external = source.outbound_policy == OutboundPolicy.EXTERNAL_LINK
         listing, _created = Listing.objects.get_or_create(
-            id=demo_id(DemoFixtureKind.LISTING, index),
+            id=development_fixture_id(DevelopmentFixtureKind.LISTING, index),
             defaults={
                 "property": property_,
                 "source": source,
                 "terms": terms,
                 "state": _listing_state(index),
-                "description": "آگهی ساختگی برای مرور قابلیت‌های نسخه نمایشی.",
-                "source_reference": f"DEMO-{index:03d}",
+                "description": "آگهی ساختگی برای مرور قابلیت‌ها در محیط توسعه.",
+                "source_reference": f"DEV-{index:03d}",
                 "source_claims": {"area_sqm": property_.area_sqm + 5} if index > 60 else {},
-                "provenance_note": "Fixture نمایشی؛ موجودی زنده یا داده خزنده نیست.",
+                "provenance_note": "داده توسعه؛ موجودی زنده یا داده خزنده نیست.",
                 "external_url": f"https://{source.domain}/listings/{index}" if external else "",
                 "external_media_url": (
-                    f"{settings.FRONTEND_ORIGIN.rstrip('/')}/demo-media/"
+                    f"{settings.FRONTEND_ORIGIN.rstrip('/')}/sample-media/"
                     f"property-{index % 3 + 1}.svg"
                     if source.allows_external_media
                     else ""
@@ -193,11 +193,11 @@ def _seed_listings(properties: list[Property]) -> list[Listing]:
     return listings
 
 
-def seed_demo_catalog() -> DemoCatalog:
+def seed_development_catalog() -> DevelopmentCatalog:
     _load_locations()
     properties = _seed_properties()
     listings = _seed_listings(properties)
-    return DemoCatalog(
+    return DevelopmentCatalog(
         properties=len(properties),
         listings=len(listings),
         first_property=properties[0],

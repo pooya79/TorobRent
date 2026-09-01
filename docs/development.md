@@ -21,8 +21,7 @@
 - `cd frontend && pnpm test:e2e:compose`: run the Chromium contract through the nginx gateway after
   `make dev` is ready.
 - `make check`: run the full local validation suite.
-- `make test-milestone`: run all repository gates, the cross-browser contract, Lighthouse, and the
-  isolated Docker lifecycle proof.
+- `make test-milestone`: run all repository gates, the cross-browser contract, and Lighthouse.
 - `make docker-build`: verify both production images.
 
 Python dependencies are declared in `backend/pyproject.toml` and locked with `uv`. JavaScript
@@ -68,10 +67,10 @@ OpenStreetMap-compatible tile service for production traffic. The public OpenStr
 is donation-funded and must not be treated as an unlimited production CDN. Preserve the visible
 OpenStreetMap attribution when changing the tile source.
 
-The browser contract and the deterministic demo set `VITE_MAP_ADAPTER=fake`, so they never
-contact a map service. For a minimal non-CI provider check, select the adapter, run the frontend,
-open `/search`, verify Persian/RTL map controls and the selected provider's visible attribution,
-pan once with the mouse, and confirm that the map remains keyboard-focusable.
+The browser contract sets `VITE_MAP_ADAPTER=fake`, so it never contacts a map service. For a
+minimal non-CI provider check, select the adapter, run the frontend, open `/search`, verify
+Persian/RTL map controls and the selected provider's visible attribution, pan once with the mouse,
+and confirm that the map remains keyboard-focusable.
 
 The default test suite uses SQLite for fast unit tests. CI sets `TEST_DATABASE_URL` to run the same
 suite against PostgreSQL. Any query, constraint, locking, JSON, or transaction behavior should have

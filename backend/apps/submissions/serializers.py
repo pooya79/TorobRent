@@ -349,7 +349,7 @@ class SubmissionContactVerificationSerializer(serializers.Serializer[Any]):
 
 class SubmissionContactOtpResponseSerializer(serializers.Serializer[Any]):
     detail = serializers.CharField()
-    demo_otp = serializers.RegexField(r"^\d{6}$", required=False)
+    development_otp = serializers.RegexField(r"^\d{6}$", required=False)
 
 
 class SubmissionImageVariantSerializer(serializers.ModelSerializer[SubmissionImageVariant]):

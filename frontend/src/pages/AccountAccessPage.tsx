@@ -47,7 +47,7 @@ export function AccountAccessPage({ mode }: { mode: AccountAccessMode }) {
   const [result, setResult] = useState<string>();
   const [pendingPhone, setPendingPhone] = useState<{
     identifier: string;
-    demoOtp?: string;
+    developmentOtp?: string;
   }>();
   const mutation = useMutation({
     mutationFn: async ({
@@ -96,9 +96,10 @@ export function AccountAccessPage({ mode }: { mode: AccountAccessMode }) {
       ) {
         setPendingPhone({
           identifier: variables.identifier,
-          demoOtp:
-            "demo_otp" in data && typeof data.demo_otp === "string"
-              ? data.demo_otp
+          developmentOtp:
+            "development_otp" in data &&
+            typeof data.development_otp === "string"
+              ? data.development_otp
               : undefined,
         });
       }
@@ -136,7 +137,7 @@ export function AccountAccessPage({ mode }: { mode: AccountAccessMode }) {
         current
           ? {
               ...current,
-              demoOtp: data.demo_otp,
+              developmentOtp: data.development_otp,
             }
           : current,
       );
@@ -196,9 +197,9 @@ export function AccountAccessPage({ mode }: { mode: AccountAccessMode }) {
                   maxLength={6}
                   required
                 />
-                {pendingPhone.demoOtp ? (
+                {pendingPhone.developmentOtp ? (
                   <p className="text-muted-foreground text-sm">
-                    کد نمایشی: {pendingPhone.demoOtp}
+                    کد توسعه: {pendingPhone.developmentOtp}
                   </p>
                 ) : null}
                 <p className="text-muted-foreground text-sm">

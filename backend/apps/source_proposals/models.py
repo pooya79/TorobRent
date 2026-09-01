@@ -176,7 +176,7 @@ class ExternalListingCandidateState(models.TextChoices):
 
 
 class ExternalListingCandidate(models.Model):
-    """Deterministic demo discovery awaiting an independent Operator decision."""
+    """Deterministic sample discovery awaiting an independent Operator decision."""
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     source_proposal = models.ForeignKey(
