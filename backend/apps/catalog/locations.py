@@ -7,7 +7,7 @@ from django.conf import settings
 
 from .models import LocationPrecision, Property
 
-APPROXIMATE_RADIUS_METERS = 500
+APPROXIMATE_RADIUS_METERS = 50
 NEIGHBORHOOD_RADIUS_METERS = 1500
 EARTH_RADIUS_METERS = 6_371_000
 
@@ -21,7 +21,7 @@ def derive_public_location(property_: Property) -> None:
             hashlib.sha256,
         ).digest()
         angle = int.from_bytes(digest[:8], "big") / (2**64) * math.tau
-        distance = 180 + int.from_bytes(digest[8:16], "big") / (2**64) * 140
+        distance = 18 + int.from_bytes(digest[8:16], "big") / (2**64) * 14
         latitude = float(property_.latitude)
         longitude = float(property_.longitude)
         latitude_offset = math.cos(angle) * distance / EARTH_RADIUS_METERS

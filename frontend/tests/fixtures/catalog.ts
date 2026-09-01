@@ -45,7 +45,7 @@ export const propertyDetail: components["schemas"]["PropertyDetail"] = {
     latitude: "35.771800",
     longitude: "51.381200",
     precision: "approximate",
-    radius_meters: 500,
+    radius_meters: 50,
   },
   property_category: "residential",
   property_category_label: "مسکونی",

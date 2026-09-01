@@ -465,6 +465,10 @@ class MapClusterSerializer(serializers.Serializer[Any]):
     id = serializers.CharField()
     latitude = serializers.DecimalField(max_digits=9, decimal_places=6)
     longitude = serializers.DecimalField(max_digits=9, decimal_places=6)
+    north = serializers.DecimalField(max_digits=9, decimal_places=6)
+    east = serializers.DecimalField(max_digits=9, decimal_places=6)
+    south = serializers.DecimalField(max_digits=9, decimal_places=6)
+    west = serializers.DecimalField(max_digits=9, decimal_places=6)
     property_count = serializers.IntegerField(min_value=2)
     property_ids = serializers.ListField(child=serializers.UUIDField())
 

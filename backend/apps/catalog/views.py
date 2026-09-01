@@ -57,18 +57,17 @@ EVENT_SESSION_PARAMETER = OpenApiParameter(
     description="Ephemeral per-tab token used only for short-lived deduplication and rate control",
 )
 
+MAP_MARKER_ZOOM_THRESHOLD = 11
+
 
 def catalog_map_payload(
     mappable_properties: list[Property], *, total_property_count: int, zoom: int
 ) -> dict[str, object]:
     markers = mappable_properties
     clusters: list[dict[str, object]] = []
-    if zoom <= 13:
+    if zoom < MAP_MARKER_ZOOM_THRESHOLD:
         cell_sizes = {
             10: Decimal("0.2"),
-            11: Decimal("0.1"),
-            12: Decimal("0.05"),
-            13: Decimal("0.025"),
         }
         cell_size = cell_sizes.get(zoom, Decimal("0.4"))
         cells: dict[tuple[int, int], list[Property]] = defaultdict(list)
@@ -102,6 +101,10 @@ def catalog_map_payload(
                 "id": f"{zoom}:{cell[0]}:{cell[1]}",
                 "latitude": sum(latitudes, start=Decimal()) / len(cell_properties),
                 "longitude": sum(longitudes, start=Decimal()) / len(cell_properties),
+                "north": max(latitudes),
+                "east": max(longitudes),
+                "south": min(latitudes),
+                "west": min(longitudes),
                 "property_count": len(cell_properties),
                 "property_ids": property_ids,
             })
@@ -204,7 +207,7 @@ class PropertySearchView(ListAPIView[Property]):
             )
             .exclude(location_precision="")
         )
-        zoom = filters.viewport.zoom if filters.viewport is not None else 11
+        zoom = filters.viewport.zoom if filters.viewport is not None else 10
         response.data["map"] = CatalogMapSerializer(
             catalog_map_payload(
                 mappable_properties,

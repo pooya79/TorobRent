@@ -43,9 +43,14 @@ export type MapMarker = {
 export type MapCluster = {
   id: string;
   center: MapCoordinates;
+  bounds: Omit<MapViewport, "zoom">;
   propertyCount: number;
   propertyIds: readonly string[];
 };
+
+export function markerLabelIsVisible() {
+  return true;
+}
 
 export class MapProviderError extends Error {
   readonly code = "provider-unavailable";
@@ -160,7 +165,7 @@ export function createFakeMapAdapter({
               onSelectCluster(cluster.id);
               onViewportChange(
                 {
-                  ...initialViewport,
+                  ...cluster.bounds,
                   zoom: initialViewport.zoom + 2,
                 },
                 "user",

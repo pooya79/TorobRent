@@ -48,7 +48,7 @@ test("offers a keyboard-operable textual fallback for mapped Properties", async 
     label: "ودیعه و اجاره یک Active Listing",
     approximateLocation: {
       center: { latitude: 35.7665, longitude: 51.4749 },
-      radiusMeters: 500,
+      radiusMeters: 50,
       precision: "approximate",
     },
     preview: {
@@ -98,6 +98,12 @@ test("offers keyboard-operable cluster selection in the textual fallback", async
   const cluster: MapCluster = {
     id: "cluster-1",
     center: { latitude: 35.7665, longitude: 51.4749 },
+    bounds: {
+      north: 35.77,
+      east: 51.48,
+      south: 35.76,
+      west: 51.47,
+    },
     propertyCount: 3,
     propertyIds: ["property-1", "property-2", "property-3"],
   };

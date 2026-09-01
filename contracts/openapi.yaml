@@ -3612,6 +3612,22 @@ components:
           type: string
           format: decimal
           pattern: ^-?\d{0,3}(?:\.\d{0,6})?$
+        north:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,6})?$
+        east:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,6})?$
+        south:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,6})?$
+        west:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,6})?$
         property_count:
           type: integer
           minimum: 2
@@ -3621,11 +3637,15 @@ components:
             type: string
             format: uuid
       required:
+      - east
       - id
       - latitude
       - longitude
+      - north
       - property_count
       - property_ids
+      - south
+      - west
     NormalizedCorrectionsAudit:
       type: object
       properties:

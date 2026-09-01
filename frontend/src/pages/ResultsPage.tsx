@@ -376,6 +376,12 @@ export function ResultsPage({ mapAdapter }: { mapAdapter?: MapAdapter }) {
         latitude: Number(cluster.latitude),
         longitude: Number(cluster.longitude),
       },
+      bounds: {
+        north: Number(cluster.north),
+        east: Number(cluster.east),
+        south: Number(cluster.south),
+        west: Number(cluster.west),
+      },
       propertyCount: cluster.property_count,
       propertyIds: cluster.property_ids,
     })) ?? [];

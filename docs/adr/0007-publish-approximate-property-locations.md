@@ -1,7 +1,7 @@
 # Publish approximate Property locations
 
 TorobRent publishes only a stable Approximate Location for a Property rather than exposing its
-exact coordinates through public APIs. Public map coordinates identify an area of roughly 500
+exact coordinates through public APIs. Public map coordinates identify an area of roughly 50
 meters and the interface presents that uncertainty explicitly. A Submitter may provide an Exact
 Location and an Operator may verify or adjust it, but it remains restricted data used to derive the
 public location. Only the responsible Submitter and Operators with relevant review or catalog

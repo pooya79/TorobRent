@@ -1695,6 +1695,14 @@ export interface components {
       latitude: string;
       /** Format: decimal */
       longitude: string;
+      /** Format: decimal */
+      north: string;
+      /** Format: decimal */
+      east: string;
+      /** Format: decimal */
+      south: string;
+      /** Format: decimal */
+      west: string;
       property_count: number;
       property_ids: string[];
     };

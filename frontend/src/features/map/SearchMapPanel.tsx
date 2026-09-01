@@ -24,7 +24,7 @@ export const tehranViewport: MapViewport = {
   east: 51.52,
   south: 35.65,
   west: 51.25,
-  zoom: 11,
+  zoom: 10,
 };
 
 type SearchMapPanelProps = {

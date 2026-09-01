@@ -1211,7 +1211,7 @@ test("renders public approximate markers and uncertainty circles through the map
       name: /انتخاب آپارتمان در سعادت‌آباد، ودیعه .*، اجاره ماهانه /,
     }),
   ).toBeVisible();
-  expect(screen.getByText("محدوده تقریبی ۵۰۰ متر")).toBeVisible();
+  expect(screen.getByText("محدوده تقریبی ۵۰ متر")).toBeVisible();
 });
 
 test("settles user map movement into a shareable replacement viewport query", async () => {
@@ -1241,7 +1241,7 @@ test("settles user map movement into a shareable replacement viewport query", as
     timeout: 1_000,
   });
   expect(requestedViewports[0]?.get("viewport_north")).toBe("35.82");
-  expect(requestedViewports[0]?.get("viewport_zoom")).toBe("12");
+  expect(requestedViewports[0]?.get("viewport_zoom")).toBe("11");
   expect(screen.getByLabelText("وضعیت جست‌وجو")).toHaveTextContent(
     "viewport_north=35.82",
   );
@@ -1321,6 +1321,10 @@ test("shows server Property clusters and discloses city-wide map coverage", asyn
               id: "11:357:514",
               latitude: "35.750000",
               longitude: "51.400000",
+              north: "35.760000",
+              east: "51.410000",
+              south: "35.740000",
+              west: "51.390000",
               property_count: 7,
               property_ids: propertySearchPage.results.map(
                 (property) => property.id,

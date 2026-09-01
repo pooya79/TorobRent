@@ -498,7 +498,7 @@ def test_anonymous_renter_retrieves_property_only_through_an_active_listing(
     assert response.data["features"]["parking"] == FeatureState.PRESENT
     assert response.data["features"]["elevator"] == FeatureState.UNKNOWN
     assert response.data["approximate_location"]["precision"] == "approximate"
-    assert response.data["approximate_location"]["radius_meters"] == 500
+    assert response.data["approximate_location"]["radius_meters"] == 50
     assert response.data["approximate_location"]["latitude"] != "35.770001"
     assert response.data["approximate_location"]["longitude"] != "51.379999"
     serialized = response.json()
@@ -624,7 +624,7 @@ def test_catalog_viewport_filters_properties_facets_and_map_counts(api_client: A
             LocationPrecision.APPROXIMATE if latitude is not None and longitude is not None else ""
         )
         property_.location_radius_meters = (
-            500 if latitude is not None and longitude is not None else None
+            50 if latitude is not None and longitude is not None else None
         )
         property_.save(
             update_fields=(
@@ -640,7 +640,7 @@ def test_catalog_viewport_filters_properties_facets_and_map_counts(api_client: A
         latitude="35.750000", longitude="51.400000", parking=FeatureState.PRESENT
     )
     create_searchable_property(
-        latitude="35.790000", longitude="51.450000", parking=FeatureState.ABSENT
+        latitude="35.790000", longitude="51.440000", parking=FeatureState.ABSENT
     )
     malformed = create_searchable_property(
         latitude=None, longitude=None, parking=FeatureState.UNKNOWN
@@ -650,6 +650,26 @@ def test_catalog_viewport_filters_properties_facets_and_map_counts(api_client: A
     malformed.save(update_fields=("approximate_latitude", "approximate_longitude"))
 
     citywide = api_client.get("/api/v1/catalog/properties/")
+    clustered_viewport = api_client.get(
+        "/api/v1/catalog/properties/",
+        {
+            "viewport_north": "35.80",
+            "viewport_east": "51.46",
+            "viewport_south": "35.74",
+            "viewport_west": "51.39",
+            "viewport_zoom": "10",
+        },
+    )
+    marker_viewport = api_client.get(
+        "/api/v1/catalog/properties/",
+        {
+            "viewport_north": "35.80",
+            "viewport_east": "51.46",
+            "viewport_south": "35.74",
+            "viewport_west": "51.39",
+            "viewport_zoom": "11",
+        },
+    )
     response = api_client.get(
         "/api/v1/catalog/properties/",
         {
@@ -666,7 +686,24 @@ def test_catalog_viewport_filters_properties_facets_and_map_counts(api_client: A
     assert citywide.data["map"]["mappable_property_count"] == 2
     assert citywide.data["map"]["markers"] == []
     assert len(citywide.data["map"]["clusters"]) == 1
-    assert citywide.data["map"]["clusters"][0]["property_count"] == 2
+    citywide_cluster = citywide.data["map"]["clusters"][0]
+    assert citywide_cluster["property_count"] == 2
+    assert {
+        direction: citywide_cluster[direction] for direction in ("north", "east", "south", "west")
+    } == {
+        "north": "35.790000",
+        "east": "51.440000",
+        "south": "35.750000",
+        "west": "51.400000",
+    }
+    assert clustered_viewport.status_code == 200
+    assert clustered_viewport.data["map"]["markers"] == []
+    assert len(clustered_viewport.data["map"]["clusters"]) == 1
+    assert marker_viewport.status_code == 200
+    assert marker_viewport.data["map"]["clusters"] == []
+    assert {marker["id"] for marker in marker_viewport.data["map"]["markers"]} == {
+        property_id for property_id in citywide_cluster["property_ids"]
+    }
     assert response.status_code == 200
     assert response.data["count"] == 1
     assert response.data["results"][0]["id"] == str(inside.id)

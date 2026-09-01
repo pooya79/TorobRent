@@ -18,6 +18,7 @@ import { useEffect, useRef, useState } from "react";
 
 import {
   MapProviderError,
+  markerLabelIsVisible,
   type MapAdapterProps,
   type MapViewport,
 } from "./adapter";
@@ -304,7 +305,7 @@ export function NeshanMapAdapter({
         return markerStyle(
           selected,
           marker?.label ?? "",
-          Boolean(marker) && (selected || (map.getView().getZoom() ?? 0) >= 14),
+          Boolean(marker) && markerLabelIsVisible(),
         );
       },
     });
@@ -324,14 +325,22 @@ export function NeshanMapAdapter({
           if (metadata?.kind === "cluster") {
             onSelectCluster(metadata.clusterId);
             userMovementRef.current = true;
-            const geometry = feature.getGeometry();
-            if (geometry instanceof Point) {
-              map.getView().animate({
-                center: geometry.getCoordinates(),
-                zoom:
-                  (map.getView().getZoom() ?? initialViewportRef.current.zoom) +
-                  2,
+            const cluster = clusters.find(
+              (item) => item.id === metadata.clusterId,
+            );
+            if (cluster) {
+              const southWest = fromLonLat([
+                cluster.bounds.west,
+                cluster.bounds.south,
+              ]);
+              const northEast = fromLonLat([
+                cluster.bounds.east,
+                cluster.bounds.north,
+              ]);
+              map.getView().fit([...southWest, ...northEast], {
                 duration: 200,
+                maxZoom: 16,
+                padding: [64, 64, 64, 64],
               });
             }
             return feature;

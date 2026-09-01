@@ -2,7 +2,10 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { expect, test, vi } from "vitest";
 
-import { createFakeMapAdapter, type MapMarker } from "@/features/map/adapter";
+import {
+  createFakeMapAdapter,
+  type MapMarker,
+} from "@/features/map/adapter";
 import { NeshanMapAdapter } from "@/features/map/NeshanMapAdapter";
 import { OpenStreetMapAdapter } from "@/features/map/OpenStreetMapAdapter";
 
@@ -11,7 +14,7 @@ const marker: MapMarker = {
   label: "ودیعه ۱ میلیارد، اجاره ۲۵ میلیون تومان",
   approximateLocation: {
     center: { latitude: 35.7665, longitude: 51.4749 },
-    radiusMeters: 500,
+    radiusMeters: 50,
     precision: "approximate",
   },
   preview: {
@@ -51,6 +54,12 @@ test("the fake adapter deterministically exposes the TorobRent map contract", as
         {
           id: "cluster-1",
           center: { latitude: 35.75, longitude: 51.4 },
+          bounds: {
+            north: 35.76,
+            east: 51.41,
+            south: 35.74,
+            west: 51.39,
+          },
           propertyCount: 7,
           propertyIds: ["property-1"],
         },
@@ -70,7 +79,7 @@ test("the fake adapter deterministically exposes the TorobRent map contract", as
   expect(
     screen.getByRole("application", { name: "نقشه تعاملی ملک‌ها" }),
   ).toBeVisible();
-  expect(screen.getByText("محدوده تقریبی ۵۰۰ متر")).toBeVisible();
+  expect(screen.getByText("محدوده تقریبی ۵۰ متر")).toBeVisible();
 
   await user.click(
     screen.getByRole("button", {
