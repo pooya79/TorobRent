@@ -233,7 +233,7 @@ test("reviews each simulated External Listing candidate independently", async ()
   ).toBeVisible();
   expect(screen.getAllByText("داده شبیه‌سازی‌شده")).toHaveLength(2);
   expect(screen.getAllByText("بدون رسانه خارجی")).toHaveLength(2);
-  expect(screen.getByText(candidates[0].external_url)).toBeVisible();
+  expect(screen.getByText(candidates[0]!.external_url)).toBeVisible();
 
   await user.click(
     screen.getByRole("button", {
@@ -250,7 +250,7 @@ test("reviews each simulated External Listing candidate independently", async ()
     }),
   );
   expect(decisions[0]).toEqual({
-    id: candidates[0].id,
+    id: candidates[0]!.id,
     kind: "request-changes",
     reason: "جزئیات این مورد نیازمند اصلاح است.",
   });
@@ -273,6 +273,6 @@ test("reviews each simulated External Listing candidate independently", async ()
       name: "تأیید و انتشار دفتر شبیه‌سازی‌شده برای بررسی",
     }),
   );
-  expect(decisions[1]).toEqual({ id: candidates[1].id, kind: "approve" });
+  expect(decisions[1]).toEqual({ id: candidates[1]!.id, kind: "approve" });
   expect(await screen.findByText("تصمیم Listing ثبت شد.")).toBeVisible();
 });

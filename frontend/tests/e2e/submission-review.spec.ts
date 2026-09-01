@@ -220,7 +220,9 @@ test("@milestone browser covers changes, resubmit, reject, group, publish, and p
   ).toBeVisible();
   await page.goto(`/add-submission?submission=${revisedId}&step=contact`);
   await page.getByLabel("استفاده از شماره دیگر").check();
-  await page.getByLabel("شماره دیگر").fill(alternatePhone);
+  await page
+    .getByRole("textbox", { name: "شماره دیگر", exact: true })
+    .fill(alternatePhone);
   const verificationRequest = page.waitForResponse(
     (response) =>
       response
@@ -244,6 +246,7 @@ test("@milestone browser covers changes, resubmit, reject, group, publish, and p
   await page.getByLabel("کد تأیید شماره دیگر").fill(verificationBody.demo_otp!);
   await page.getByRole("button", { name: "تأیید شماره" }).click();
   await expect(page.getByText("شماره دیگر تأیید شد.")).toBeVisible();
+  await page.getByLabel(/با نمایش عمومی این شماره تماس در آگهی موافقم/).check();
   await page.getByRole("button", { name: "ذخیره و ادامه" }).click();
   await expect(page.getByRole("heading", { name: "بازبینی" })).toBeVisible();
   await page

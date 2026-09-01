@@ -15,15 +15,26 @@ test("@milestone registers, verifies through Mailpit, logs in, and enters protec
   test.setTimeout(90_000);
   test.skip(!mailpitAvailable, "The complete email journey requires Mailpit");
 
-  const { email, password } = await registerVerifiedSubmitter(page, request);
+  await page.goto("/advertise");
+  await page.getByRole("link", { name: "شروع ثبت رایگان" }).first().click();
+  await expect(page).toHaveURL(/\/login\?returnTo=%2Fsubmitter%2Fget-started$/);
+  await page.getByRole("link", { name: "ساخت حساب" }).click();
+  await expect(page).toHaveURL(
+    /\/register\?returnTo=%2Fsubmitter%2Fget-started$/,
+  );
 
-  await expect(page).toHaveURL(/\/dashboard$/);
+  const { email, password, phone } = await registerVerifiedSubmitter(
+    page,
+    request,
+    { registrationReady: true, finishAtDashboard: false },
+  );
+
+  await expect(page.getByRole("button", { name: /ثبت یک ملک/ })).toBeVisible();
   await expect(
-    page.getByRole("heading", { name: "پیشنهادهای من", exact: true }),
+    page.getByRole("button", { name: /معرفی وب‌سایت اجاره/ }),
   ).toBeVisible();
 
   await page.setViewportSize({ width: 1280, height: 900 });
-  await page.goto("/submitter/get-started");
   await page.getByRole("button", { name: /ثبت یک ملک/ }).click();
   await expect(page).toHaveURL(/\/add-submission$/);
   await page.getByRole("button", { name: "ساخت یا ادامه Submission" }).click();
@@ -49,12 +60,16 @@ test("@milestone registers, verifies through Mailpit, logs in, and enters protec
   await expect(page).toHaveURL(/\/login\?returnTo=/);
   await page.keyboard.press("Escape");
   await expect(page.getByRole("dialog")).not.toBeVisible();
-  await page.getByLabel("ایمیل").fill(email);
+  await page.getByLabel("ایمیل یا شماره تلفن").fill(phone);
   await page.getByLabel("گذرواژه").fill(password);
   await page.getByRole("button", { name: "ورود" }).click();
   await expect(
     page.getByRole("heading", { name: "شرایط اجاره" }),
   ).toBeVisible();
+
+  const account = await page.context().request.get("/api/v1/users/me/");
+  expect(account.ok()).toBe(true);
+  expect(await account.json()).toMatchObject({ email, phone });
 
   await page.getByLabel("ودیعه، تومان").fill("۱٬۰۰۰٬۰۰۰٬۰۰۰");
   await page.getByLabel("اجاره ماهانه، تومان").fill("۲۵٬۰۰۰٬۰۰۰");
@@ -79,7 +94,7 @@ test("@milestone registers, verifies through Mailpit, logs in, and enters protec
   await expect(page.getByText("آماده", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "ذخیره و ادامه" }).click();
   await page.getByLabel("نام تماس").fill("سارا احمدی");
-  await expect(page.getByLabel("شماره عمومی تماس")).not.toHaveValue("");
+  await expect(page.getByLabel("شماره عمومی تماس")).toHaveValue(phone);
   await page.getByRole("checkbox", { name: /اختیار ثبت و انتشار/ }).check();
   await page.getByRole("button", { name: "ذخیره و ادامه" }).click();
   await expect(

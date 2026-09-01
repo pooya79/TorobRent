@@ -37,46 +37,43 @@ test("@milestone Source Representative completes the Operator review loop", asyn
   );
 
   const submitter = await registerVerifiedSubmitter(page, request);
-  const session = await page.context().request.get("/api/v1/auth/session/");
-  const csrfToken = ((await session.json()) as { csrf_token: string })
-    .csrf_token;
-  const headers = { "X-CSRFToken": csrfToken };
-  const created = await page
-    .context()
-    .request.post("/api/v1/source-proposals/", {
-      headers,
-      data: {},
-    });
-  expect(created.ok()).toBe(true);
-  const proposal = (await created.json()) as { id: string };
-  const detail = `/api/v1/source-proposals/${proposal.id}/`;
-  expect(
-    (
-      await page.context().request.patch(detail, {
-        headers,
-        data: {
-          website_name: "خانه‌یاب مرورگر",
-          website_url: `https://browser-${Date.now()}.example/rentals`,
-          relationship: "website_manager",
-          inventory_range: "51_200",
-          sitemap_url: "",
-          operator_note: "دسته اجاره از فروش جداست.",
-          authority_declared: true,
-        },
-      })
-    ).ok(),
-  ).toBe(true);
-  expect(
-    (await page.context().request.post(`${detail}preview/`, { headers })).ok(),
-  ).toBe(true);
-  expect(
-    (
-      await page.context().request.post(`${detail}submit/`, {
-        headers,
-        data: { preview_confirmed: true },
-      })
-    ).ok(),
-  ).toBe(true);
+  await page.goto("/submitter/get-started");
+  await expect(page.getByRole("button", { name: /ثبت یک ملک/ })).toBeVisible();
+  await page.getByRole("button", { name: /معرفی وب‌سایت اجاره/ }).click();
+  await expect(page).toHaveURL(/\/source-proposal$/);
+
+  await page.getByLabel("نام وب‌سایت").fill("خانه‌یاب مرورگر");
+  await page
+    .getByLabel("نشانی صفحه اصلی یا کاتالوگ")
+    .fill(`https://browser-${Date.now()}.example/rentals`);
+  await page.getByLabel("رابطه شما با وب‌سایت").selectOption("website_manager");
+  await page.getByLabel("تعداد تقریبی ملک‌ها").selectOption("51_200");
+  await page
+    .getByLabel("یادداشت برای اپراتور (اختیاری)")
+    .fill("دسته اجاره از فروش جداست.");
+  await page.getByLabel(/اختیار معرفی این وب‌سایت/).check();
+  await page.getByLabel(/اختیار معرفی این وب‌سایت/).press("Tab");
+  await expect(page.getByText("پیش‌نویس ذخیره شد.")).toBeVisible();
+
+  await page.reload();
+  await expect(page.getByLabel("نام وب‌سایت")).toHaveValue("خانه‌یاب مرورگر");
+  await expect(page.getByLabel("رابطه شما با وب‌سایت")).toHaveValue(
+    "website_manager",
+  );
+  await page.getByRole("button", { name: "ذخیره و مشاهده پیش‌نمایش" }).click();
+  await expect(
+    page.getByRole("heading", { name: "پیش‌نمایش شبیه‌سازی‌شده" }),
+  ).toBeVisible();
+  await expect(page.getByText(/هیچ درخواست زنده‌ای/)).toBeVisible();
+  await page.reload();
+  await expect(
+    page.getByRole("heading", { name: "پیش‌نمایش شبیه‌سازی‌شده" }),
+  ).toBeVisible();
+  await page.getByLabel(/این پیش‌نمایش شبیه‌سازی‌شده را بررسی کردم/).check();
+  await page.getByRole("button", { name: "ارسال برای بررسی" }).click();
+  await expect(
+    page.getByRole("heading", { name: "در انتظار بررسی اپراتور" }),
+  ).toBeVisible();
 
   await endSession(page);
   await loginOperator(page);
@@ -93,7 +90,8 @@ test("@milestone Source Representative completes the Operator review loop", asyn
   await endSession(page);
   await loginSubmitter(page, submitter);
   await page.goto("/dashboard");
-  await expect(page.getByText("نیازمند اصلاح")).toBeVisible();
+  await expect(page.getByText("نیازمند اصلاح", { exact: true })).toBeVisible();
+  await expect(page.getByText("نیازمند اصلاح — نسخه ۱")).toBeVisible();
   await expect(page.getByText("مدرک اختیار را تکمیل کنید.")).toBeVisible();
   await expect(
     page.getByRole("link", {
@@ -157,6 +155,22 @@ test("@milestone Source Representative completes the Operator review loop", asyn
   await expect(
     page.getByRole("heading", { name: "دفتر شبیه‌سازی‌شده برای بررسی" }),
   ).toBeVisible();
+  await page
+    .getByRole("button", {
+      name: "شروع بررسی دفتر شبیه‌سازی‌شده برای بررسی",
+    })
+    .click();
+  await page
+    .getByLabel("دلیل تصمیم دفتر شبیه‌سازی‌شده برای بررسی")
+    .fill("این Candidate با معیارهای انتشار مستقل سازگار نیست.");
+  await page
+    .getByRole("button", {
+      name: "رد دفتر شبیه‌سازی‌شده برای بررسی",
+    })
+    .click();
+  await expect(
+    page.getByRole("heading", { name: "دفتر شبیه‌سازی‌شده برای بررسی" }),
+  ).not.toBeVisible();
   const afterListingApproval = (await (
     await page.context().request.get("/api/v1/catalog/properties/")
   ).json()) as { count: number };
@@ -165,7 +179,8 @@ test("@milestone Source Representative completes the Operator review loop", asyn
   await endSession(page);
   await loginSubmitter(page, submitter);
   await page.goto("/dashboard");
-  await expect(page.getByText("تأییدشده")).toBeVisible();
+  await expect(page.getByText("تأییدشده", { exact: true })).toBeVisible();
+  await expect(page.getByText("تأییدشده — نسخه ۲")).toBeVisible();
   await expect(
     page.getByText("Source اعتبارسنجی شد؛ هیچ Listingی خودکار منتشر نشده است."),
   ).toBeVisible();

@@ -1,7 +1,5 @@
 import { expect, test } from "@playwright/test";
 
-const tehranId = "11111111-1111-4111-8111-111111111111";
-
 test.beforeEach(({ page }) => {
   test.skip(
     !process.env.E2E_SEED_DEMO,
@@ -19,7 +17,7 @@ test("integrates desktop Property discovery, restoration, and anonymous Favorite
   await page.setViewportSize({ width: 900, height: 900 });
   await page.goto("/");
 
-  await page.getByRole("link", { name: "مشاهدهٔ ملک‌های تهران" }).click();
+  await page.getByRole("link", { name: "مشاهده ملک‌های تهران" }).click();
   const toolbar = page.getByRole("search", { name: "نوار جست‌وجوی ملک" });
   await expect(page.getByText("۲۴ ملک پیدا شد")).toBeVisible();
   const city = toolbar.getByRole("combobox", { name: "شهر" });
@@ -41,7 +39,7 @@ test("integrates desktop Property discovery, restoration, and anonymous Favorite
     })
     .toEqual({
       pathname: "/search",
-      city: tehranId,
+      city: "تهران",
       category: "commercial",
     });
   await expect(page.getByText("۳۰ ملک پیدا شد")).toBeVisible();
@@ -69,14 +67,6 @@ test("integrates desktop Property discovery, restoration, and anonymous Favorite
     '<meta name="robots" content="noindex, follow"',
   );
 
-  const viewportControl = page.getByRole("button", {
-    name: "تغییر محدوده آزمایشی",
-  });
-  await viewportControl.focus();
-  await page.keyboard.press("Enter");
-  await expect(page).toHaveURL(/viewport_zoom=12/);
-  await expect(page.getByText("۳۰ ملک در این محدوده پیدا شد")).toBeVisible();
-
   await page.getByRole("button", { name: "نمایش ملک‌های بیشتر" }).click();
   await expect(page).toHaveURL(/(?:\?|&)page=2(?:&|$)/);
   await expect(page.getByRole("article")).toHaveCount(30);
@@ -84,13 +74,27 @@ test("integrates desktop Property discovery, restoration, and anonymous Favorite
   const restoredProperty = page.getByRole("article").last();
   const restoredTitle = await restoredProperty.getAttribute("aria-label");
   expect(restoredTitle).toBeTruthy();
-  await restoredProperty.getByRole("link", { name: restoredTitle! }).click();
+  const restoredHref = await restoredProperty
+    .getByRole("link", { name: restoredTitle! })
+    .getAttribute("href");
+  expect(restoredHref).toBeTruthy();
+  await page.goto(restoredHref!);
+  await expect(page).toHaveURL(/\/properties\//);
   await expect(
     page.getByRole("link", { name: "بازگشت به نتایج" }),
   ).toBeVisible();
   await page.getByRole("link", { name: "بازگشت به نتایج" }).click();
   await expect(page).toHaveURL(/(?:\?|&)page=2(?:&|$)/);
   await expect(page.getByRole("article")).toHaveCount(30);
+
+  const viewportControl = page.getByRole("button", {
+    name: "تغییر محدوده آزمایشی",
+  });
+  await viewportControl.focus();
+  await page.keyboard.press("Enter");
+  await expect(page).toHaveURL(/viewport_zoom=12/);
+  await expect(page.getByText("۲۴ ملک در این محدوده پیدا شد")).toBeVisible();
+  await expect(page.getByRole("article")).toHaveCount(24);
 
   const favoriteCard = page.getByRole("article").first();
   const favoriteTitle = await favoriteCard.getAttribute("aria-label");
@@ -105,11 +109,15 @@ test("integrates desktop Property discovery, restoration, and anonymous Favorite
   const registration = page.getByRole("dialog", {
     name: "ساخت حساب اجاره‌جو",
   });
-  await registration
-    .getByLabel("ایمیل")
-    .fill(`renter-${Date.now()}@example.com`);
+  const renterPhone = `09${String(Date.now()).slice(-9)}`;
+  await registration.getByLabel("ایمیل یا شماره تلفن").fill(renterPhone);
   await registration.getByLabel("گذرواژه").fill("correct-horse-battery");
   await registration.getByRole("button", { name: "ساخت حساب و ادامه" }).click();
+  const demoOtp = await registration.getByText(/کد نمایشی:/).textContent();
+  await registration
+    .getByLabel("کد تأیید")
+    .fill(demoOtp?.match(/\d{6}/)?.[0] ?? "");
+  await registration.getByRole("button", { name: "تأیید و ادامه" }).click();
   await expect(
     favoriteCard.getByRole("button", {
       name: `حذف ${favoriteTitle!} از علاقه‌مندی‌ها`,
@@ -139,7 +147,7 @@ test("keeps mobile filters, map previews, and Favorite intent keyboard operable"
     viewport_zoom: "14",
   });
   await page.goto(`/search?${search.toString()}`);
-  await expect(page.getByText("۳۰ ملک در این محدوده پیدا شد")).toBeVisible();
+  await expect(page.getByText("۲۴ ملک در این محدوده پیدا شد")).toBeVisible();
 
   const filtersTrigger = page.getByRole("button", {
     name: "فیلترهای پیشرفته",

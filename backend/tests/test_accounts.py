@@ -258,6 +258,22 @@ def test_phone_registration_requires_otp_before_normalized_identifier_can_log_in
     assert login.data["phone_verified"] is True
 
 
+@override_settings(DEMO_OTP_DISCLOSURE=False)
+@pytest.mark.django_db
+def test_production_phone_registration_never_discloses_the_otp(api_client: APIClient):
+    client = csrf_client(api_client)
+
+    registration = client.post(
+        "/api/v1/auth/register/",
+        {"identifier": "09123456789", "password": "correct-horse-battery"},
+        format="json",
+    )
+
+    assert registration.status_code == 201
+    assert "demo_otp" not in registration.data
+    assert sms_outbox[-1].code not in registration.content.decode()
+
+
 @override_settings(DEMO_OTP_DISCLOSURE=True)
 @pytest.mark.django_db
 def test_phone_verification_does_not_promote_a_renter_registration(api_client: APIClient):

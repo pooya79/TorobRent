@@ -8,6 +8,8 @@ import { useLoaderData } from "react-router";
 import { propertySearchInfiniteQueryOptions } from "@/features/catalog/queries";
 import { ResultsPage } from "@/pages/ResultsPage";
 
+export { meta } from "@/pages/ResultsPage";
+
 export async function loader({ request }: { request: Request }) {
   const requestUrl = new URL(request.url);
   const baseUrl =

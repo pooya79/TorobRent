@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { MemoryRouter, useLocation } from "react-router";
@@ -263,7 +263,9 @@ test("clears the one-shot new flag after starting from the dashboard", async () 
     }),
   ).toBeVisible();
   expect(createBody).toEqual({ start_new: true });
-  expect(screen.getByTestId("location-search")).toHaveTextContent(/^$/);
+  await waitFor(() =>
+    expect(screen.getByTestId("location-search")).toHaveTextContent(/^$/),
+  );
 });
 
 test("keeps entered details available when URL validation fails", async () => {

@@ -7,11 +7,15 @@ const mailpitUrl = process.env.E2E_MAILPIT_URL ?? "http://localhost:8025";
 export async function registerVerifiedSubmitter(
   page: Page,
   request: APIRequestContext,
+  options: {
+    registrationReady?: boolean;
+    finishAtDashboard?: boolean;
+  } = {},
 ) {
   const email = `submitter-${Date.now()}-${Math.random().toString(16).slice(2)}@example.com`;
   const password = "correct-horse-battery";
 
-  await page.goto("/register");
+  if (!options.registrationReady) await page.goto("/register");
   await page.getByLabel("ایمیل").fill(email);
   await page.getByLabel("گذرواژه").fill(password);
   const register = page.getByRole("button", { name: "ساخت حساب" });
@@ -47,9 +51,7 @@ export async function registerVerifiedSubmitter(
   await page.getByLabel("ایمیل").fill(email);
   await page.getByLabel("گذرواژه").fill(password);
   await page.getByRole("button", { name: "ورود" }).click();
-  await expect(page).toHaveURL(
-    /\/submitter\/get-started\?returnTo=%2Fdashboard$/,
-  );
+  await expect(page).toHaveURL(/\/submitter\/get-started(?:\?|$)/);
 
   const phone = `09${String(Date.now()).slice(-9)}`;
   await page.getByLabel("شماره تلفن").fill(phone);
@@ -58,8 +60,10 @@ export async function registerVerifiedSubmitter(
   await page.getByLabel("کد تأیید").fill(demoOtp?.match(/\d{6}/)?.[0] ?? "");
   await page.getByRole("button", { name: "تأیید و ادامه" }).click();
 
-  await page.goto("/dashboard");
-  await expect(page).toHaveURL(/\/dashboard$/);
+  if (options.finishAtDashboard !== false) {
+    await page.goto("/dashboard");
+    await expect(page).toHaveURL(/\/dashboard$/);
+  }
 
   return { email, password, phone };
 }

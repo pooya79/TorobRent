@@ -149,6 +149,7 @@ for (const viewport of [
   }) => {
     test.setTimeout(90_000);
     await page.setViewportSize(viewport);
+    await page.emulateMedia({ reducedMotion: "reduce" });
 
     for (const route of publicRoutes) {
       await page.goto(route);

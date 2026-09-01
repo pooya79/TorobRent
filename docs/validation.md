@@ -1,33 +1,48 @@
-# Milestone validation
+# Integrated milestone validation
 
-Issue #17 closes the local-demo milestone through externally observable checks. The fixture catalog
-is fictional and is not live crawler inventory.
+Issue #91 closes the integrated Submitter acquisition milestone through externally observable
+checks. The fixture catalog and Source Proposal discovery are deterministic simulations; neither is
+live crawler inventory.
 
 ## Coherent product story
 
 `pnpm test:e2e:milestone` selects the `@milestone` Playwright slices as one product narrative:
 
-1. `account-journey.spec.ts` registers a Submitter, follows the Mailpit verification link, signs in,
-   creates a server-backed guided draft, uploads media, proves persistence and responsive navigation.
+1. `account-journey.spec.ts` starts at `/advertise`, preserves the protected onboarding destination
+   through registration and Mailpit email verification, adds a verified phone to that same account,
+   exposes both onboarding choices, and selects the manual Property branch. It creates a
+   server-backed guided draft with the account phone, uploads media, proves reload and logout/login
+   recovery, signs back in with the verified phone, and reaches a review-ready Submission.
 2. `submission-review.spec.ts` independently registers and verifies a Submitter, then preserves that
    identity through submission, an explicit Operator handoff, requested changes, resubmission,
    rejection, grouping and publication. It proves public expiry, Submitter Availability
-   Confirmation, renewed visibility, approved direct contact, aggregate events and archival.
-3. `catalog-journey.spec.ts` exercises anonymous search, same-Listing filters, URL and return state,
+   Confirmation, renewed visibility, an independently verified alternate public contact, aggregate
+   events and archival.
+3. `source-proposal-review.spec.ts` selects the website branch in the browser, creates and autosaves
+   a Source Proposal, reloads it, confirms the explicitly labeled simulated preview, and submits it.
+   It then proves requested changes, resubmission, authoritative versioned dashboard history, Source
+   approval without publication, two deterministic External Listing candidates, and independent
+   decisions that publish one candidate and reject the other.
+4. `catalog-journey.spec.ts` exercises anonymous search, same-Listing filters, URL and return state,
    empty results, mobile filters, stable Property URLs, multiple source Listings, disagreements,
    external continuation, direct continuation, grouping and source deactivation.
    `property-discovery.spec.ts` then uses the deterministic fake map and demo catalog for one
    Chromium desktop journey across city/category selection, map viewport state, infinite loading,
-   Property return restoration, anonymous Favorite authentication and saved state, plus one focused
-   mobile keyboard/focus journey across Advanced Filters, map mode and bottom-sheet previews.
-4. `smoke.spec.ts` proves mobile navigation, route focus, filter-dialog focus containment and
+   Property return restoration, verified-phone Favorite authentication and saved state, plus one
+   focused mobile keyboard/focus journey across Advanced Filters, map mode and bottom-sheet
+   previews. The public-HTTP assertion also proves filtered SSR results remain non-indexable.
+5. `smoke.spec.ts` proves mobile navigation, route focus, filter-dialog focus containment and
    restoration, same-origin readiness, protected return navigation, SSR and the Persian error page.
-5. `accessibility.spec.ts` runs WCAG 2.2 AA automated checks on public pages at mobile and desktop
+6. `accessibility.spec.ts` runs WCAG 2.2 AA automated checks on public pages at mobile and desktop
    sizes and verifies the reduced-motion contract. The supported-browser gate additionally seeds
    the demo catalog and exercises all six canonical surfaces in Light and Dark. `theme.spec.ts`
    proves pre-hydration restoration, real reload and cross-tab persistence, live System-mode
    changes, fixed explicit modes, invalid-storage recovery and the no-JavaScript fallback. Unit and
    component suites additionally cover loading, validation and API failure states.
+7. Backend public-HTTP tests prove expired and exhausted OTP recovery and that production mode never
+   includes an OTP in account or alternate-contact responses. Component tests prove omitted codes
+   never reach markup. Migration tests move existing verified-email accounts and persisted
+   Submission data through the account-phone and alternate-contact migrations without loss.
 
 The Playwright narrative marks an approved Listing expired through the Operator admin, proves that
 it leaves the public Property, then returns to the original Submitter to confirm availability and
