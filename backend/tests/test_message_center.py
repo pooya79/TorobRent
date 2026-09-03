@@ -6,6 +6,7 @@ from django.db import transaction
 
 from apps.communications.models import SystemNotification, SystemNotificationReadState
 from apps.communications.services import create_submission_review_notification
+from apps.contact.models import IntakeKind, SupportRequest
 from apps.submissions.models import SubmissionDecisionNotification, SubmissionEvent
 from apps.submissions.services import (
     approve_submission,
@@ -184,9 +185,13 @@ def test_opening_detail_marks_read_and_account_can_mark_it_unread(api_client):
         "id": str(notification.id),
         "kind": "system_notification",
         "title": "اصلاح پیشنهاد لازم است",
+        "preview": "تصاویر را اصلاح کنید.",
         "body": "تصاویر را اصلاح کنید.",
         "created_at": opened.data["created_at"],
         "read": True,
+        "public_status": None,
+        "reply_allowed": False,
+        "entries": [],
         "target": {
             "label": "مشاهده پیشنهاد",
             "href": f"/dashboard#submission-{submission.id}",
@@ -247,6 +252,47 @@ def test_feed_filters_unread_and_future_kinds_in_latest_activity_order(api_clien
     assert [item["id"] for item in all_items] == [str(second.id), str(first.id)]
     assert [item["id"] for item in unread_items] == [str(first.id)]
     assert future_kind["count"] == 0
+
+
+@pytest.mark.django_db
+def test_feed_paginates_a_combined_notification_and_support_request_timeline(api_client):
+    submission = make_complete_submission()
+    for index in range(15):
+        event = SubmissionEvent.objects.create(
+            submission=submission,
+            actor=submission.submitter,
+            revision=index + 1,
+            prior_state="pending",
+            new_state="rejected",
+            reason=f"تصمیم {index}",
+        )
+        SystemNotification.objects.create(
+            recipient=submission.submitter,
+            originating_event=event,
+            target_submission=submission,
+        )
+        SupportRequest.objects.create(
+            submitter=submission.submitter,
+            name="درخواست‌کننده",
+            email=submission.submitter.email,
+            intake_kind=IntakeKind.GENERAL,
+            subject=f"پشتیبانی {index}",
+            message=f"پیام {index}",
+            account_linked_at_intake=True,
+        )
+    api_client.force_authenticate(submission.submitter)
+
+    pages = [
+        api_client.get(f"/api/v1/messages/?page={page}&page_size=10").data for page in range(1, 4)
+    ]
+
+    assert [page["count"] for page in pages] == [30, 30, 30]
+    assert [len(page["results"]) for page in pages] == [10, 10, 10]
+    ids = [item["id"] for page in pages for item in page["results"]]
+    assert len(set(ids)) == 30
+    assert pages[0]["previous"] is None
+    assert pages[0]["next"].endswith("page=2&page_size=10")
+    assert pages[2]["next"] is None
 
 
 @pytest.mark.django_db

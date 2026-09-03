@@ -199,9 +199,13 @@ def edit_support_message(
     support_message.save(update_fields=("body", "edited_at"))
     support_request = support_message.support_request
     support_request.public_updated_at = now
+    update_fields = ["public_updated_at", "requester_read_at", "updated_at"]
+    if support_message.is_initial:
+        support_request.message = body
+        update_fields.append("message")
     if support_message.author_kind == SupportMessageAuthor.REQUESTER:
         support_request.requester_read_at = now
-    support_request.save(update_fields=("public_updated_at", "requester_read_at", "updated_at"))
+    support_request.save(update_fields=update_fields)
     return support_message
 
 

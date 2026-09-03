@@ -48,6 +48,13 @@ def test_contact_details_are_managed_and_absent_values_stay_absent(api_client: A
         "map_url": "https://maps.example/place",
     }
 
+    with pytest.MonkeyPatch.context() as monkeypatch:
+        monkeypatch.setattr(settings, "CONTACT_MAP_URL", "javascript:alert(document.domain)")
+        unsafe = api_client.get("/api/v1/system/contact/")
+
+    assert unsafe.status_code == 200
+    assert unsafe.data["map_url"] is None
+
 
 @pytest.mark.django_db
 def test_routine_support_handling_is_retired_from_ordinary_django_admin(client, user):

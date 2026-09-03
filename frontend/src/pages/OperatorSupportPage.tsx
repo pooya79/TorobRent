@@ -116,6 +116,9 @@ export function OperatorSupportPage() {
       : (queueItems[0]?.id ?? "");
   const detail = useQuery(supportRequestQueryOptions(activeId));
   const selected = detail.data;
+  const threadReplies = (selected?.replies ?? []).filter(
+    (reply) => !reply.is_initial,
+  );
 
   const refreshSupportRequest = async () => {
     await Promise.all([
@@ -597,9 +600,9 @@ export function OperatorSupportPage() {
                     <h2 id="support-reply-title" className="font-semibold">
                       پاسخ قابل مشاهده برای درخواست‌کننده
                     </h2>
-                    {(selected.replies ?? []).length > 0 ? (
+                    {threadReplies.length > 0 ? (
                       <ol className="mt-3 space-y-2">
-                        {selected.replies.map((reply) => (
+                        {threadReplies.map((reply) => (
                           <li
                             className="bg-muted rounded-lg p-3 text-sm"
                             key={reply.id}

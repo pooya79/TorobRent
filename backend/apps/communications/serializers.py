@@ -154,13 +154,6 @@ class MessageDetailSerializer(MessageSummarySerializer):
     reply_allowed = serializers.SerializerMethodField()
     entries = serializers.SerializerMethodField()
 
-    def to_representation(self, instance: MessageItem) -> dict[str, object]:
-        representation = super().to_representation(instance)
-        if isinstance(instance, SystemNotification):
-            for field in ("preview", "public_status", "reply_allowed", "entries"):
-                representation.pop(field, None)
-        return representation
-
     def get_body(self, notification: MessageItem) -> str:
         return self.get_preview(notification)
 

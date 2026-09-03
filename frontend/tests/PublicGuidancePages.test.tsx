@@ -195,6 +195,24 @@ test("shows only managed Contact details that are configured", async () => {
   );
 });
 
+test("does not render an unsafe managed Contact map link", async () => {
+  server.use(
+    http.get("*/api/v1/system/contact/", () =>
+      HttpResponse.json({
+        phone: null,
+        address: null,
+        map_url: "javascript:alert(document.domain)",
+      }),
+    ),
+  );
+  renderPage(<ContactPage />);
+
+  await screen.findByRole("heading", { name: "تماس با ما" });
+  expect(
+    screen.queryByRole("link", { name: "مشاهده روی نقشه" }),
+  ).not.toBeInTheDocument();
+});
+
 test("explains deletion and prompt public-contact removal boundaries", () => {
   renderPage(<ContactPage />);
 

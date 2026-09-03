@@ -108,6 +108,45 @@ test("loads an existing durable assignment with request and event details", asyn
   ).toBeVisible();
 });
 
+test("shows the initial request once and only subsequent messages in the reply history", async () => {
+  serveSupportRequest();
+  server.use(
+    http.get("*/api/v1/operator/support-requests/:id/", () =>
+      HttpResponse.json({
+        ...queueItem,
+        message: "پیام نخست یکتا",
+        operator_note: "",
+        history: [],
+        replies: [
+          {
+            id: "30000000-0000-4000-8000-000000000041",
+            author_kind: "requester",
+            is_initial: true,
+            body: "پیام نخست یکتا",
+            created_at: assignedAt,
+            edited_at: null,
+            editable: false,
+          },
+          {
+            id: "30000000-0000-4000-8000-000000000042",
+            author_kind: "operator",
+            is_initial: false,
+            body: "پاسخ بعدی اپراتور",
+            created_at: assignedAt,
+            edited_at: null,
+            editable: true,
+          },
+        ],
+      }),
+    ),
+  );
+
+  renderPage();
+
+  expect(await screen.findByText("پاسخ بعدی اپراتور")).toBeVisible();
+  expect(screen.getAllByText("پیام نخست یکتا")).toHaveLength(1);
+});
+
 test("identifies an anonymized historical author without displaying former identity", async () => {
   serveSupportRequest();
   server.use(

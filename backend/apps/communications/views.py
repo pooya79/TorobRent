@@ -2,12 +2,13 @@ from collections.abc import Callable
 from typing import cast
 
 from django.core.exceptions import ValidationError as DjangoValidationError
+from django.core.paginator import InvalidPage, Paginator
 from django.db import models
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from drf_spectacular.utils import extend_schema, extend_schema_view
 from rest_framework import status
-from rest_framework.exceptions import APIException, ValidationError
+from rest_framework.exceptions import APIException, NotFound, ValidationError
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -80,19 +81,36 @@ class MessageListView(APIView):
                 requests = requests.filter(
                     requester_read_at__lt=models.F("public_updated_at")
                 ) | requests.filter(requester_read_at__isnull=True)
-        items: list[SystemNotification | SupportRequest] = list(notifications)
-        items.extend(requests)
+        paginator = self.pagination_class()
+        page_size = paginator.get_page_size(request)
+        assert page_size is not None
+        total = notifications.count() + requests.count()
+        django_paginator = Paginator(range(total), page_size)
+        page_number = paginator.get_page_number(request, django_paginator)
+        try:
+            page = django_paginator.page(page_number)
+        except InvalidPage as exc:
+            message = paginator.invalid_page_message.format(
+                page_number=page_number, message=str(exc)
+            )
+            raise NotFound(message) from exc
+
+        start = page.start_index() - 1
+        end = page.end_index()
+        notifications = notifications.order_by("-created_at", "-id")[:end]
+        requests = requests.order_by("-public_updated_at", "-id")[:end]
+        items: list[SystemNotification | SupportRequest] = [*notifications, *requests]
         items = sorted(
             items,
             key=lambda item: (
-                item.created_at if isinstance(item, SystemNotification) else item.public_updated_at
+                item.created_at if isinstance(item, SystemNotification) else item.public_updated_at,
+                str(item.id),
             ),
             reverse=True,
-        )
-        paginator = self.pagination_class()
-        page = paginator.paginate_queryset(items, request, view=self)
-        assert page is not None
-        serialized = MessageSummarySerializer(page, many=True)  # type: ignore[arg-type]
+        )[start:end]
+        paginator.page = page
+        paginator.request = request
+        serialized = MessageSummarySerializer(items, many=True)  # type: ignore[arg-type]
         return paginator.get_paginated_response(serialized.data)
 
 

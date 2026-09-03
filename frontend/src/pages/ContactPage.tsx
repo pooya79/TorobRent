@@ -6,6 +6,16 @@ import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api/client";
 import { apiError } from "@/lib/api/errors";
 
+function safeExternalUrl(value: string | null | undefined) {
+  if (!value) return null;
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" || url.protocol === "https:" ? value : null;
+  } catch {
+    return null;
+  }
+}
+
 export function ContactPage() {
   const details = useQuery({
     queryKey: ["contact-details"],
@@ -15,6 +25,9 @@ export function ContactPage() {
       return data;
     },
   });
+  const phone = details.data?.phone;
+  const address = details.data?.address;
+  const mapUrl = safeExternalUrl(details.data?.map_url);
 
   return (
     <main
@@ -39,7 +52,7 @@ export function ContactPage() {
           اپراتور اطلاعات تماس عمومی را سریع از نمایش خارج می‌کند.
         </AlertDescription>
       </Alert>
-      {details.data?.phone || details.data?.address || details.data?.map_url ? (
+      {phone || address || mapUrl ? (
         <section
           className="mt-8 rounded-xl border p-5"
           aria-labelledby="contact-details-title"
@@ -47,26 +60,21 @@ export function ContactPage() {
           <h2 id="contact-details-title" className="font-semibold">
             اطلاعات تماس
           </h2>
-          {details.data.phone ? (
+          {phone ? (
             <p className="mt-3">
               تلفن:{" "}
-              <a
-                className="text-primary underline"
-                href={`tel:${details.data.phone}`}
-              >
-                {details.data.phone}
+              <a className="text-primary underline" href={`tel:${phone}`}>
+                {phone}
               </a>
             </p>
           ) : null}
-          {details.data.address ? (
-            <address className="mt-3 not-italic">
-              {details.data.address}
-            </address>
+          {address ? (
+            <address className="mt-3 not-italic">{address}</address>
           ) : null}
-          {details.data.map_url ? (
+          {mapUrl ? (
             <a
               className="text-primary mt-3 inline-block underline"
-              href={details.data.map_url}
+              href={mapUrl}
               rel="noopener noreferrer"
               target="_blank"
             >
