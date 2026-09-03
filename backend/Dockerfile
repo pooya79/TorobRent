@@ -7,12 +7,14 @@ COPY --from=uv /uv /uvx /bin/
 COPY backend/pyproject.toml backend/uv.lock ./
 
 FROM base AS development
-RUN uv sync --locked
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --locked
 COPY backend/ .
 EXPOSE 8000
 
 FROM base AS production
-RUN uv sync --locked --no-dev --no-editable
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --locked --no-dev --no-editable
 COPY backend/ .
 RUN uv run --no-sync python manage.py collectstatic --noinput --settings=config.settings.base
 RUN install -d -o 65534 -g 65534 /app/backend/media /var/lib/celery

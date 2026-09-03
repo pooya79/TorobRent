@@ -121,6 +121,8 @@ services:
       context: .
       dockerfile: frontend/Dockerfile
       target: development
+      args:
+        NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmjs.org}
     working_dir: /app/frontend
     command: sh -c "pnpm install --frozen-lockfile && pnpm dev"
     environment:

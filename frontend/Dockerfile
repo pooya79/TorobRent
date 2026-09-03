@@ -1,8 +1,12 @@
 FROM node:24.19.0-alpine AS base
 WORKDIR /app/frontend
+ARG NPM_REGISTRY=https://registry.npmjs.org
+ENV COREPACK_NPM_REGISTRY=$NPM_REGISTRY
+ENV PNPM_CONFIG_REGISTRY=$NPM_REGISTRY
 RUN corepack enable
 COPY frontend/package.json frontend/pnpm-lock.yaml frontend/pnpm-workspace.yaml ./
-RUN pnpm install --frozen-lockfile
+RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
+    pnpm install --frozen-lockfile --store-dir=/pnpm/store
 
 FROM base AS development
 COPY frontend/ .
@@ -21,7 +25,8 @@ ENV VITE_OPENSTREETMAP_TILE_URL=$VITE_OPENSTREETMAP_TILE_URL
 RUN pnpm build
 
 FROM base AS production-dependencies
-RUN pnpm install --prod --frozen-lockfile
+RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
+    pnpm install --prod --frozen-lockfile --store-dir=/pnpm/store
 
 FROM node:24.19.0-alpine AS production
 WORKDIR /app/frontend
