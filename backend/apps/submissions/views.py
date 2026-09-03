@@ -1,4 +1,4 @@
-from collections.abc import AsyncIterator, Callable
+from collections.abc import Callable, Iterator
 from datetime import timedelta
 from typing import cast
 from uuid import UUID
@@ -847,7 +847,7 @@ class SubmissionImageContentView(APIView):
             **ownership,
         )
 
-        async def stream_variant() -> AsyncIterator[bytes]:
+        def stream_variant() -> Iterator[bytes]:
             processed = variant.file.open("rb")
             try:
                 while chunk := processed.read(64 * 1024):

@@ -2,10 +2,8 @@ from datetime import timedelta
 from importlib import import_module
 from io import BytesIO
 from pathlib import Path
-from typing import Any
 
 import pytest
-from asgiref.sync import async_to_sync
 from django.apps import apps as django_apps
 from django.conf import settings
 from django.contrib import admin
@@ -68,10 +66,6 @@ def create_draft(api_client: APIClient, submitter: User) -> str:
     response = api_client.post("/api/v1/submissions/", {"role": "owner"}, format="json")
     assert response.status_code == 201
     return str(response.data["id"])
-
-
-async def collect_stream(stream: Any) -> bytes:
-    return b"".join([chunk async for chunk in stream])
 
 
 @pytest.mark.django_db
@@ -994,7 +988,7 @@ def test_image_processing_corrects_orientation_and_removes_metadata(api_client: 
         variant["url"] for variant in uploaded.data["variants"] if variant["kind"] == "medium"
     )
     content = api_client.get(medium_url)
-    processed = Image.open(BytesIO(async_to_sync(collect_stream)(content.streaming_content)))
+    processed = Image.open(BytesIO(b"".join(content.streaming_content)))
 
     assert content.status_code == 200
     assert content.headers["Cache-Control"] == "private, max-age=300"
