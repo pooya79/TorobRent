@@ -70,16 +70,16 @@ test("hydrates an authenticated account into the initial server render", async (
 
   vi.unstubAllGlobals();
   render(
-    <AppProviders
-      csrfToken={result.data.csrfToken}
-      dehydratedState={result.data.dehydratedState}
-    >
-      <MemoryRouter>
+    <MemoryRouter>
+      <AppProviders
+        csrfToken={result.data.csrfToken}
+        dehydratedState={result.data.dehydratedState}
+      >
         <ProductShell>
           <main />
         </ProductShell>
-      </MemoryRouter>
-    </AppProviders>,
+      </AppProviders>
+    </MemoryRouter>,
   );
 
   const navbar = screen.getByRole("banner", { name: "راهبری عمومی" });

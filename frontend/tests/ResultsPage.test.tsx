@@ -1946,10 +1946,10 @@ test("restores accumulated results, query context, and scroll after Property nav
       {
         path: "/",
         element: (
-          <>
+          <RenterAccessProvider>
             <ScrollRestoration />
             <Outlet />
-          </>
+          </RenterAccessProvider>
         ),
         children: [
           {
@@ -1974,9 +1974,7 @@ test("restores accumulated results, query context, and scroll after Property nav
   const scrollTo = vi.spyOn(window, "scrollTo").mockImplementation(() => {});
   render(
     <QueryClientProvider client={queryClient}>
-      <RenterAccessProvider>
-        <RouterProvider router={router} />
-      </RenterAccessProvider>
+      <RouterProvider router={router} />
     </QueryClientProvider>,
   );
 
