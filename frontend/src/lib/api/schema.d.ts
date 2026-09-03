@@ -362,23 +362,6 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/api/v1/contact/messages/": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Send a message to TorobRent Operators */
-    post: operations["v1_contact_messages_create"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
   "/api/v1/messages/": {
     parameters: {
       query?: never;
@@ -412,6 +395,57 @@ export interface paths {
     head?: never;
     /** Change the read state of a Message Center item */
     patch: operations["v1_messages_partial_update"];
+    trace?: never;
+  };
+  "/api/v1/messages/support-requests/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Open a Support Request */
+    post: operations["v1_messages_support_requests_create"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/messages/support-requests/{support_request_id}/messages/{support_message_id}/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /** Edit your recent Support message */
+    patch: operations["v1_messages_support_requests_messages_partial_update"];
+    trace?: never;
+  };
+  "/api/v1/messages/support-requests/{support_request_id}/replies/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Reply to your Support Request */
+    post: operations["v1_messages_support_requests_replies_create"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
     trace?: never;
   };
   "/api/v1/messages/unread-count/": {
@@ -926,6 +960,40 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/v1/operator/support-requests/{support_request_id}/replies/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Post a requester-visible Support Reply */
+    post: operations["v1_operator_support_requests_replies_create"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/operator/support-requests/{support_request_id}/replies/{support_message_id}/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /** Edit the assigned Operator's recent Support Reply */
+    patch: operations["v1_operator_support_requests_replies_partial_update"];
+    trace?: never;
+  };
   "/api/v1/operator/support-requests/{support_request_id}/resolve/": {
     parameters: {
       query?: never;
@@ -1273,6 +1341,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/v1/system/contact/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get managed public Contact details */
+    get: operations["v1_system_contact_retrieve"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/v1/system/live/": {
     parameters: {
       query?: never;
@@ -1408,6 +1493,12 @@ export interface components {
       source_claims?: unknown;
       provenance_note?: string;
     };
+    /**
+     * @description * `requester` - Requester
+     *     * `operator` - Operator
+     * @enum {string}
+     */
+    AuthorKindEnum: "requester" | "operator";
     AvailabilityOutput: {
       state: string;
       /** Format: date-time */
@@ -1459,6 +1550,12 @@ export interface components {
       | "images"
       | "contact"
       | "review";
+    ContactDetails: {
+      phone: string | null;
+      address: string | null;
+      /** Format: uri */
+      map_url: string | null;
+    };
     ContactInput: {
       name: string;
       phone: string;
@@ -1466,18 +1563,6 @@ export interface components {
       phone_source: components["schemas"]["PhoneSourceEnum"];
       authorization_declared: boolean;
       phone_publication_consent: boolean;
-    };
-    ContactMessageCreate: {
-      name: string;
-      /** Format: email */
-      email: string;
-      kind: components["schemas"]["IntakeKindEnum"];
-      message: string;
-      /** وب‌سایت */
-      website?: string;
-    };
-    ContactMessageCreated: {
-      detail: string;
     };
     ContactOutput: {
       name: string;
@@ -1765,12 +1850,16 @@ export interface components {
       readonly id: string;
       readonly kind: components["schemas"]["MessageKindEnum"];
       readonly title: string;
-      readonly body: string;
+      readonly preview: string;
       /** Format: date-time */
       readonly created_at: string;
       readonly read: boolean;
-      readonly target: components["schemas"]["MessageTarget"] | null;
       readonly group: components["schemas"]["MessageGroup"];
+      readonly body: string;
+      readonly target: components["schemas"]["MessageTarget"] | null;
+      readonly public_status: string | null;
+      readonly reply_allowed: boolean;
+      readonly entries: components["schemas"]["SupportThreadEntry"][];
     };
     MessageGroup: {
       kind: components["schemas"]["MessageGroupKindEnum"];
@@ -1781,9 +1870,10 @@ export interface components {
     /**
      * @description * `submission` - submission
      *     * `source_proposal` - source_proposal
+     *     * `support_request` - support_request
      * @enum {string}
      */
-    MessageGroupKindEnum: "submission" | "source_proposal";
+    MessageGroupKindEnum: "submission" | "source_proposal" | "support_request";
     /**
      * @description * `system_notification` - System Notification
      *     * `listing_inquiry` - Listing Inquiry
@@ -1993,6 +2083,12 @@ export interface components {
       description?: string;
       contact?: components["schemas"]["ContactInput"];
       review?: components["schemas"]["ReviewInput"];
+    };
+    PatchedSupportMessageCreate: {
+      body?: string;
+    };
+    PatchedSupportReplyCreate: {
+      body?: string;
     };
     PatchedSupportTriage: {
       classification?: components["schemas"]["SupportClassificationEnum"];
@@ -2656,6 +2752,20 @@ export interface components {
       verified_at: string;
       summary: string;
     };
+    SupportMessage: {
+      /** Format: uuid */
+      readonly id: string;
+      author_kind: components["schemas"]["AuthorKindEnum"];
+      readonly is_initial: boolean;
+      body: string;
+      /** Format: date-time */
+      readonly created_at: string;
+      /** Format: date-time */
+      readonly edited_at: string | null;
+    };
+    SupportMessageCreate: {
+      body: string;
+    };
     /**
      * @description * `normal` - عادی
      *     * `urgent` - فوری
@@ -2693,14 +2803,29 @@ export interface components {
     SupportReopen: {
       reason: string;
     };
+    SupportReply: {
+      /** Format: uuid */
+      readonly id: string;
+      author_kind: components["schemas"]["AuthorKindEnum"];
+      readonly is_initial: boolean;
+      body: string;
+      /** Format: date-time */
+      readonly created_at: string;
+      /** Format: date-time */
+      readonly edited_at: string | null;
+      readonly editable: boolean;
+    };
+    SupportReplyCreate: {
+      body: string;
+    };
     SupportRequest: {
       /** Format: uuid */
       readonly id: string;
       name: string;
-      /** Format: email */
-      email: string;
+      email?: string;
       readonly account_linked_at_intake: boolean;
       readonly intake_kind: components["schemas"]["IntakeKindEnum"];
+      subject?: string;
       classification?: components["schemas"]["SupportClassificationEnum"];
       priority?: components["schemas"]["SupportPriorityEnum"];
       readonly priority_locked: boolean;
@@ -2734,7 +2859,18 @@ export interface components {
       readonly external_contacts: components["schemas"]["SupportExternalContact"][];
       readonly identity_verifications: components["schemas"]["SupportIdentityVerification"][];
       readonly privacy_actions: components["schemas"]["SupportPrivacyAction"][];
+      readonly replies: components["schemas"]["SupportReply"][];
       readonly history: components["schemas"]["SupportRequestEvent"][];
+    };
+    SupportRequestCreate: {
+      intake_kind: components["schemas"]["IntakeKindEnum"];
+      subject: string;
+      message: string;
+    };
+    SupportRequestCreated: {
+      /** Format: uuid */
+      id: string;
+      href: string;
     };
     SupportRequestEvent: {
       /** Format: uuid */
@@ -2838,10 +2974,10 @@ export interface components {
       /** Format: uuid */
       readonly id: string;
       name: string;
-      /** Format: email */
-      email: string;
+      email?: string;
       readonly account_linked_at_intake: boolean;
       readonly intake_kind: components["schemas"]["IntakeKindEnum"];
+      subject?: string;
       classification?: components["schemas"]["SupportClassificationEnum"];
       priority?: components["schemas"]["SupportPriorityEnum"];
       readonly priority_locked: boolean;
@@ -2903,6 +3039,33 @@ export interface components {
       | "duplicate"
       | "spam"
       | "no_action_required";
+    SupportThreadEntry: {
+      /** Format: uuid */
+      id: string;
+      kind: components["schemas"]["SupportThreadEntryKindEnum"];
+      body?: string;
+      status?: components["schemas"]["SupportThreadEntryStatusEnum"];
+      /** Format: date-time */
+      created_at: string;
+      /** Format: date-time */
+      edited_at?: string | null;
+      editable?: boolean;
+    };
+    /**
+     * @description * `requester_message` - requester_message
+     *     * `operator_reply` - operator_reply
+     *     * `status` - status
+     * @enum {string}
+     */
+    SupportThreadEntryKindEnum:
+      "requester_message" | "operator_reply" | "status";
+    /**
+     * @description * `received` - received
+     *     * `in_progress` - in_progress
+     *     * `resolved` - resolved
+     * @enum {string}
+     */
+    SupportThreadEntryStatusEnum: "received" | "in_progress" | "resolved";
     /**
      * @description * `escalated` - Escalated
      * @enum {string}
@@ -3891,65 +4054,6 @@ export interface operations {
       };
     };
   };
-  v1_contact_messages_create: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        "application/json": components["schemas"]["ContactMessageCreate"];
-      };
-    };
-    responses: {
-      201: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ContactMessageCreated"];
-        };
-      };
-      /** @description Request validation failed */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/problem+json": components["schemas"]["Problem"];
-        };
-      };
-      /** @description Authentication or CSRF verification failed */
-      403: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/problem+json": components["schemas"]["Problem"];
-        };
-      };
-      /** @description Only JSON request bodies are supported */
-      415: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/problem+json": components["schemas"]["Problem"];
-        };
-      };
-      /** @description Request was throttled */
-      429: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/problem+json": components["schemas"]["Problem"];
-        };
-      };
-    };
-  };
   v1_messages_list: {
     parameters: {
       query?: {
@@ -4025,6 +4129,80 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["MessageDetail"];
+        };
+      };
+    };
+  };
+  v1_messages_support_requests_create: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["SupportRequestCreate"];
+      };
+    };
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SupportRequestCreated"];
+        };
+      };
+    };
+  };
+  v1_messages_support_requests_messages_partial_update: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        support_message_id: string;
+        support_request_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: {
+      content: {
+        "application/json": components["schemas"]["PatchedSupportMessageCreate"];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SupportMessage"];
+        };
+      };
+    };
+  };
+  v1_messages_support_requests_replies_create: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        support_request_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["SupportMessageCreate"];
+      };
+    };
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SupportMessage"];
         };
       };
     };
@@ -4819,6 +4997,57 @@ export interface operations {
       };
     };
   };
+  v1_operator_support_requests_replies_create: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        support_request_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["SupportReplyCreate"];
+      };
+    };
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SupportReply"];
+        };
+      };
+    };
+  };
+  v1_operator_support_requests_replies_partial_update: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        support_message_id: string;
+        support_request_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: {
+      content: {
+        "application/json": components["schemas"]["PatchedSupportReplyCreate"];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SupportReply"];
+        };
+      };
+    };
+  };
   v1_operator_support_requests_resolve_create: {
     parameters: {
       query?: never;
@@ -5460,6 +5689,25 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["Submission"];
+        };
+      };
+    };
+  };
+  v1_system_contact_retrieve: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ContactDetails"];
         };
       };
     };

@@ -939,52 +939,6 @@ paths:
                 items:
                   $ref: '#/components/schemas/SupportedCity'
           description: ''
-  /api/v1/contact/messages/:
-    post:
-      operationId: v1_contact_messages_create
-      summary: Send a message to TorobRent Operators
-      tags:
-      - v1
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/ContactMessageCreate'
-        required: true
-      security:
-      - cookieAuth: []
-      - {}
-      responses:
-        '201':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ContactMessageCreated'
-          description: ''
-        '400':
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Request validation failed
-        '403':
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Authentication or CSRF verification failed
-        '415':
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Only JSON request bodies are supported
-        '429':
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Request was throttled
   /api/v1/messages/:
     get:
       operationId: v1_messages_list
@@ -1081,6 +1035,88 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/MessageDetail'
+          description: ''
+  /api/v1/messages/support-requests/:
+    post:
+      operationId: v1_messages_support_requests_create
+      summary: Open a Support Request
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SupportRequestCreate'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SupportRequestCreated'
+          description: ''
+  /api/v1/messages/support-requests/{support_request_id}/messages/{support_message_id}/:
+    patch:
+      operationId: v1_messages_support_requests_messages_partial_update
+      summary: Edit your recent Support message
+      parameters:
+      - in: path
+        name: support_message_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: support_request_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedSupportMessageCreate'
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SupportMessage'
+          description: ''
+  /api/v1/messages/support-requests/{support_request_id}/replies/:
+    post:
+      operationId: v1_messages_support_requests_replies_create
+      summary: Reply to your Support Request
+      parameters:
+      - in: path
+        name: support_request_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SupportMessageCreate'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SupportMessage'
           description: ''
   /api/v1/messages/unread-count/:
     get:
@@ -2012,6 +2048,67 @@ paths:
               schema:
                 $ref: '#/components/schemas/SupportRequest'
           description: ''
+  /api/v1/operator/support-requests/{support_request_id}/replies/:
+    post:
+      operationId: v1_operator_support_requests_replies_create
+      summary: Post a requester-visible Support Reply
+      parameters:
+      - in: path
+        name: support_request_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SupportReplyCreate'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SupportReply'
+          description: ''
+  /api/v1/operator/support-requests/{support_request_id}/replies/{support_message_id}/:
+    patch:
+      operationId: v1_operator_support_requests_replies_partial_update
+      summary: Edit the assigned Operator's recent Support Reply
+      parameters:
+      - in: path
+        name: support_message_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: support_request_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedSupportReplyCreate'
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SupportReply'
+          description: ''
   /api/v1/operator/support-requests/{support_request_id}/resolve/:
     post:
       operationId: v1_operator_support_requests_resolve_create
@@ -2680,6 +2777,21 @@ paths:
               schema:
                 $ref: '#/components/schemas/Submission'
           description: ''
+  /api/v1/system/contact/:
+    get:
+      operationId: v1_system_contact_retrieve
+      summary: Get managed public Contact details
+      tags:
+      - v1
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContactDetails'
+          description: ''
   /api/v1/system/live/:
     get:
       operationId: v1_system_live_retrieve
@@ -2948,6 +3060,14 @@ components:
         source_claims: {}
         provenance_note:
           type: string
+    AuthorKindEnum:
+      enum:
+      - requester
+      - operator
+      type: string
+      description: |-
+        * `requester` - Requester
+        * `operator` - Operator
     AvailabilityOutput:
       type: object
       properties:
@@ -3056,6 +3176,26 @@ components:
         * `images` - images
         * `contact` - contact
         * `review` - review
+    ContactDetails:
+      type: object
+      properties:
+        phone:
+          type:
+          - string
+          - 'null'
+        address:
+          type:
+          - string
+          - 'null'
+        map_url:
+          type:
+          - string
+          - 'null'
+          format: uri
+      required:
+      - address
+      - map_url
+      - phone
     ContactInput:
       type: object
       properties:
@@ -3078,38 +3218,6 @@ components:
       - name
       - phone
       - phone_publication_consent
-    ContactMessageCreate:
-      type: object
-      properties:
-        name:
-          type: string
-          maxLength: 120
-        email:
-          type: string
-          format: email
-          maxLength: 254
-        kind:
-          $ref: '#/components/schemas/IntakeKindEnum'
-        message:
-          type: string
-          maxLength: 4000
-          minLength: 10
-        website:
-          type: string
-          writeOnly: true
-          title: وب‌سایت
-      required:
-      - email
-      - kind
-      - message
-      - name
-    ContactMessageCreated:
-      type: object
-      properties:
-        detail:
-          type: string
-      required:
-      - detail
     ContactOutput:
       type: object
       properties:
@@ -3806,7 +3914,7 @@ components:
         title:
           type: string
           readOnly: true
-        body:
+        preview:
           type: string
           readOnly: true
         created_at:
@@ -3816,22 +3924,42 @@ components:
         read:
           type: boolean
           readOnly: true
+        group:
+          allOf:
+          - $ref: '#/components/schemas/MessageGroup'
+          readOnly: true
+        body:
+          type: string
+          readOnly: true
         target:
           oneOf:
           - $ref: '#/components/schemas/MessageTarget'
           - type: 'null'
           readOnly: true
-        group:
-          allOf:
-          - $ref: '#/components/schemas/MessageGroup'
+        public_status:
+          type:
+          - string
+          - 'null'
+          readOnly: true
+        reply_allowed:
+          type: boolean
+          readOnly: true
+        entries:
+          type: array
+          items:
+            $ref: '#/components/schemas/SupportThreadEntry'
           readOnly: true
       required:
       - body
       - created_at
+      - entries
       - group
       - id
       - kind
+      - preview
+      - public_status
       - read
+      - reply_allowed
       - target
       - title
     MessageGroup:
@@ -3852,10 +3980,12 @@ components:
       enum:
       - submission
       - source_proposal
+      - support_request
       type: string
       description: |-
         * `submission` - submission
         * `source_proposal` - source_proposal
+        * `support_request` - support_request
     MessageKindEnum:
       enum:
       - system_notification
@@ -4330,6 +4460,18 @@ components:
           $ref: '#/components/schemas/ContactInput'
         review:
           $ref: '#/components/schemas/ReviewInput'
+    PatchedSupportMessageCreate:
+      type: object
+      properties:
+        body:
+          type: string
+          maxLength: 2000
+    PatchedSupportReplyCreate:
+      type: object
+      properties:
+        body:
+          type: string
+          maxLength: 2000
     PatchedSupportTriage:
       type: object
       properties:
@@ -5906,6 +6048,46 @@ components:
       - method
       - summary
       - verified_at
+    SupportMessage:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        author_kind:
+          $ref: '#/components/schemas/AuthorKindEnum'
+        is_initial:
+          type: boolean
+          readOnly: true
+        body:
+          type: string
+          maxLength: 2000
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        edited_at:
+          type:
+          - string
+          - 'null'
+          format: date-time
+          readOnly: true
+      required:
+      - author_kind
+      - body
+      - created_at
+      - edited_at
+      - id
+      - is_initial
+    SupportMessageCreate:
+      type: object
+      properties:
+        body:
+          type: string
+          maxLength: 2000
+      required:
+      - body
     SupportPriorityEnum:
       enum:
       - normal
@@ -5995,6 +6177,50 @@ components:
           maxLength: 1000
       required:
       - reason
+    SupportReply:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        author_kind:
+          $ref: '#/components/schemas/AuthorKindEnum'
+        is_initial:
+          type: boolean
+          readOnly: true
+        body:
+          type: string
+          maxLength: 2000
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        edited_at:
+          type:
+          - string
+          - 'null'
+          format: date-time
+          readOnly: true
+        editable:
+          type: boolean
+          readOnly: true
+      required:
+      - author_kind
+      - body
+      - created_at
+      - editable
+      - edited_at
+      - id
+      - is_initial
+    SupportReplyCreate:
+      type: object
+      properties:
+        body:
+          type: string
+          maxLength: 2000
+      required:
+      - body
     SupportRequest:
       type: object
       properties:
@@ -6006,9 +6232,12 @@ components:
           type: string
           maxLength: 120
         email:
-          type: string
-          format: email
-          maxLength: 254
+          oneOf:
+          - type: string
+            format: email
+            maxLength: 254
+          - type: string
+            maxLength: 0
         account_linked_at_intake:
           type: boolean
           readOnly: true
@@ -6016,6 +6245,9 @@ components:
           allOf:
           - $ref: '#/components/schemas/IntakeKindEnum'
           readOnly: true
+        subject:
+          type: string
+          maxLength: 120
         classification:
           $ref: '#/components/schemas/SupportClassificationEnum'
         priority:
@@ -6107,6 +6339,11 @@ components:
           items:
             $ref: '#/components/schemas/SupportPrivacyAction'
           readOnly: true
+        replies:
+          type: array
+          items:
+            $ref: '#/components/schemas/SupportReply'
+          readOnly: true
         history:
           type: array
           items:
@@ -6118,7 +6355,6 @@ components:
       - assignee_email
       - assignee_id
       - created_at
-      - email
       - external_contacts
       - history
       - id
@@ -6130,11 +6366,38 @@ components:
       - personal_content_redacted_at
       - priority_locked
       - privacy_actions
+      - replies
       - resolution_category
       - resolution_summary
       - resolved_at
       - resolved_by_id
       - updated_at
+    SupportRequestCreate:
+      type: object
+      properties:
+        intake_kind:
+          $ref: '#/components/schemas/IntakeKindEnum'
+        subject:
+          type: string
+          maxLength: 120
+        message:
+          type: string
+          maxLength: 2000
+      required:
+      - intake_kind
+      - message
+      - subject
+    SupportRequestCreated:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        href:
+          type: string
+      required:
+      - href
+      - id
     SupportRequestEvent:
       type: object
       properties:
@@ -6329,9 +6592,12 @@ components:
           type: string
           maxLength: 120
         email:
-          type: string
-          format: email
-          maxLength: 254
+          oneOf:
+          - type: string
+            format: email
+            maxLength: 254
+          - type: string
+            maxLength: 0
         account_linked_at_intake:
           type: boolean
           readOnly: true
@@ -6339,6 +6605,9 @@ components:
           allOf:
           - $ref: '#/components/schemas/IntakeKindEnum'
           readOnly: true
+        subject:
+          type: string
+          maxLength: 120
         classification:
           $ref: '#/components/schemas/SupportClassificationEnum'
         priority:
@@ -6413,7 +6682,6 @@ components:
       - assignee_email
       - assignee_id
       - created_at
-      - email
       - id
       - intake_kind
       - name
@@ -6469,6 +6737,52 @@ components:
         * `duplicate` - تکراری
         * `spam` - هرزنامه
         * `no_action_required` - بدون اقدام لازم
+    SupportThreadEntry:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        kind:
+          $ref: '#/components/schemas/SupportThreadEntryKindEnum'
+        body:
+          type: string
+        status:
+          $ref: '#/components/schemas/SupportThreadEntryStatusEnum'
+        created_at:
+          type: string
+          format: date-time
+        edited_at:
+          type:
+          - string
+          - 'null'
+          format: date-time
+        editable:
+          type: boolean
+      required:
+      - created_at
+      - id
+      - kind
+    SupportThreadEntryKindEnum:
+      enum:
+      - requester_message
+      - operator_reply
+      - status
+      type: string
+      description: |-
+        * `requester_message` - requester_message
+        * `operator_reply` - operator_reply
+        * `status` - status
+    SupportThreadEntryStatusEnum:
+      enum:
+      - received
+      - in_progress
+      - resolved
+      type: string
+      description: |-
+        * `received` - received
+        * `in_progress` - in_progress
+        * `resolved` - resolved
     SupportTriageStatusEnum:
       enum:
       - escalated

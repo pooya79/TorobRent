@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import cast
 from uuid import UUID
 
@@ -17,6 +17,8 @@ from .models import (
     SupportClassification,
     SupportExternalContact,
     SupportIdentityVerification,
+    SupportMessage,
+    SupportMessageAuthor,
     SupportPriority,
     SupportPrivacyAction,
     SupportRequest,
@@ -80,22 +82,127 @@ def create_support_request(
     email: str,
     intake_kind: IntakeKind,
     message: str,
+    subject: str = "",
 ) -> SupportRequest:
     priority = SupportPriority.NORMAL
     priority_locked = False
     if intake_kind == IntakeKind.PUBLIC_CONTACT_REMOVAL:
         priority = SupportPriority.URGENT
         priority_locked = True
-    return SupportRequest.objects.create(
+    now = timezone.now()
+    support_request = SupportRequest.objects.create(
         submitter=submitter,
         name=name,
         email=email,
         intake_kind=intake_kind,
         message=message,
+        subject=subject,
+        requester_read_at=now if submitter is not None else None,
         account_linked_at_intake=submitter is not None,
         priority=priority,
         priority_locked=priority_locked,
     )
+    if submitter is not None:
+        SupportMessage.objects.create(
+            support_request=support_request,
+            author=submitter,
+            author_kind=SupportMessageAuthor.REQUESTER,
+            is_initial=True,
+            body=message,
+        )
+        support_request.requester_read_at = support_request.public_updated_at
+        support_request.save(update_fields=("requester_read_at",))
+    return support_request
+
+
+@transaction.atomic
+def add_support_message(
+    *, support_request: SupportRequest, actor: User, body: str, author_kind: SupportMessageAuthor
+) -> SupportMessage:
+    support_request = SupportRequest.objects.select_for_update().get(id=support_request.id)
+    if author_kind == SupportMessageAuthor.OPERATOR:
+        _ensure_assigned_operator(support_request=support_request, actor=actor)
+    elif support_request.submitter_id != actor.id:
+        raise ValidationError("Only the requester may reply to this Support Request.")
+
+    now = timezone.now()
+    if (
+        author_kind == SupportMessageAuthor.REQUESTER
+        and support_request.status == SupportRequestStatus.RESOLVED
+    ):
+        if support_request.resolved_at is None or support_request.resolved_at < now - timedelta(
+            days=14
+        ):
+            raise SupportRequestConflict(
+                "support_request_reply_window_expired",
+                "Create a new Support Request to continue after 14 days.",
+            )
+        prior_state = support_request.status
+        support_request.status = SupportRequestStatus.OPEN
+        support_request.assignee = None
+        support_request.assigned_at = None
+        support_request.resolved_by = None
+        support_request.resolved_at = None
+        support_request.resolution_category = None
+        support_request.resolution_summary = ""
+        SupportRequestEvent.objects.create(
+            support_request=support_request,
+            actor=actor,
+            event_type=SupportRequestEventType.REOPENED,
+            prior_state=prior_state,
+            new_state=SupportRequestStatus.OPEN,
+            classification=support_request.classification,
+        )
+
+    body = body.strip()
+    if not body:
+        raise ValidationError("A Support message is required.")
+    message = SupportMessage.objects.create(
+        support_request=support_request,
+        author=actor,
+        author_kind=author_kind,
+        body=body,
+    )
+    support_request.updated_at = now
+    support_request.public_updated_at = now
+    if author_kind == SupportMessageAuthor.REQUESTER:
+        support_request.requester_read_at = now
+    support_request.save()
+    return message
+
+
+@transaction.atomic
+def edit_support_message(
+    *, support_message: SupportMessage, actor: User, body: str
+) -> SupportMessage:
+    support_message = (
+        SupportMessage.objects
+        .select_for_update()
+        .select_related("support_request")
+        .get(id=support_message.id)
+    )
+    if support_message.author_id != actor.id:
+        raise ValidationError("Only the author may edit this Support message.")
+    if support_message.author_kind == SupportMessageAuthor.OPERATOR:
+        _ensure_assigned_operator(support_request=support_message.support_request, actor=actor)
+    now = timezone.now()
+    if support_message.created_at < now - timedelta(minutes=15):
+        raise SupportRequestConflict(
+            "support_message_edit_window_expired",
+            "Support messages can only be edited for 15 minutes.",
+        )
+    body = body.strip()
+    if not body:
+        raise ValidationError("A Support message is required.")
+    support_message.body = body
+    support_message.edited_at = now
+    support_message.save(update_fields=("body", "edited_at"))
+    support_request = support_message.support_request
+    support_request.public_updated_at = now
+    if support_message.author_kind == SupportMessageAuthor.REQUESTER:
+        support_request.requester_read_at = now
+    support_request.save(update_fields=("public_updated_at", "requester_read_at", "updated_at"))
+    return support_message
 
 
 @transaction.atomic
@@ -141,6 +248,9 @@ def redact_support_request_content(
     )
     SupportIdentityVerification._base_manager.filter(support_request=support_request).update(
         summary="[Personal content redacted]"
+    )
+    SupportMessage.objects.filter(support_request=support_request).update(
+        body="[Personal content redacted]"
     )
     SupportPrivacyAction._base_manager.filter(support_request=support_request).update(
         summary="[Personal content redacted]"
@@ -348,7 +458,10 @@ def _record_assignment_transition(
         support_request.assignee = None
         support_request.assigned_at = None
     support_request.status = new_state
-    support_request.save(update_fields=("status", "assignee", "assigned_at", "updated_at"))
+    support_request.public_updated_at = timezone.now()
+    support_request.save(
+        update_fields=("status", "assignee", "assigned_at", "public_updated_at", "updated_at")
+    )
     SupportRequestEvent.objects.create(
         support_request=support_request,
         actor=actor,
@@ -631,6 +744,7 @@ def resolve_support_request(
     support_request.resolved_at = timezone.now()
     support_request.resolution_category = category
     support_request.resolution_summary = summary
+    support_request.public_updated_at = timezone.now()
     support_request.save(
         update_fields=(
             "status",
@@ -640,6 +754,7 @@ def resolve_support_request(
             "resolved_at",
             "resolution_category",
             "resolution_summary",
+            "public_updated_at",
             "updated_at",
         )
     )
@@ -704,6 +819,7 @@ def reopen_support_request(
     support_request.resolved_at = None
     support_request.resolution_category = None
     support_request.resolution_summary = ""
+    support_request.public_updated_at = timezone.now()
     support_request.save(
         update_fields=(
             "status",
@@ -713,6 +829,7 @@ def reopen_support_request(
             "resolved_at",
             "resolution_category",
             "resolution_summary",
+            "public_updated_at",
             "updated_at",
         )
     )

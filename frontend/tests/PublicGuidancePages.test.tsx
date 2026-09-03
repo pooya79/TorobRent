@@ -14,7 +14,6 @@ import {
   PrivacyPage,
   TermsPage,
 } from "@/pages/PublicGuidancePages";
-import { server } from "./server";
 import routerConfig from "../react-router.config";
 import { meta as advertiseMeta } from "@/routes/advertise";
 import { meta as contactMeta } from "@/routes/contact";
@@ -22,6 +21,7 @@ import { meta as guideMeta } from "@/routes/guide";
 import { meta as privacyMeta } from "@/routes/privacy";
 import { meta as termsMeta } from "@/routes/terms";
 import { meta as aboutMeta } from "@/routes/about";
+import { server } from "./server";
 
 function renderPage(page: React.ReactNode) {
   const queryClient = new QueryClient({
@@ -166,95 +166,39 @@ test("explains TorobRent genuinely without unsupported marketplace claims", () =
   expect(screen.queryByText(/بزرگ‌ترین|بهترین|تضمین می‌کند/)).toBeNull();
 });
 
-test("submits an accessible Persian Contact form and reports success", async () => {
-  const user = userEvent.setup();
-  let submitted: Record<string, unknown> | undefined;
-  server.use(
-    http.post("*/api/v1/contact/messages/", async ({ request }) => {
-      submitted = (await request.json()) as Record<string, unknown>;
-      return HttpResponse.json(
-        { detail: "پیام شما ثبت شد و اپراتور آن را بررسی می‌کند." },
-        { status: 201 },
-      );
-    }),
-  );
+test("sends Contact visitors to the protected Support composer", () => {
   renderPage(<ContactPage />);
-
-  await user.type(
-    screen.getByRole("textbox", { name: "نام و نام خانوادگی" }),
-    "نگار محمدی",
-  );
-  await user.type(
-    screen.getByRole("textbox", { name: "ایمیل" }),
-    "negar@example.com",
-  );
-  await user.selectOptions(
-    screen.getByRole("combobox", { name: "موضوع پیام" }),
-    "general",
-  );
-  await user.type(
-    screen.getByRole("textbox", { name: "متن پیام" }),
-    "برای استفاده از جست‌وجو راهنمایی می‌خواهم.",
-  );
-  await user.click(screen.getByRole("button", { name: "ارسال پیام" }));
-
-  expect(await screen.findByRole("status")).toHaveTextContent(
-    "پیام شما ثبت شد",
-  );
-  expect(submitted).toMatchObject({
-    name: "نگار محمدی",
-    email: "negar@example.com",
-    kind: "general",
-  });
+  expect(
+    screen.getByRole("link", { name: "ایجاد درخواست پشتیبانی" }),
+  ).toHaveAttribute("href", "/messages/new/support");
 });
 
-test("links Persian API validation errors to the Contact field", async () => {
-  const user = userEvent.setup();
+test("shows only managed Contact details that are configured", async () => {
   server.use(
-    http.post("*/api/v1/contact/messages/", () =>
-      HttpResponse.json(
-        {
-          detail: "متن پیام باید دست‌کم ۱۰ نویسه باشد.",
-          errors: {
-            message: [
-              {
-                code: "min_length",
-                message: "متن پیام باید دست‌کم ۱۰ نویسه باشد.",
-              },
-            ],
-          },
-        },
-        { status: 400 },
-      ),
+    http.get("*/api/v1/system/contact/", () =>
+      HttpResponse.json({
+        phone: "۰۲۱۸۸۷۷۶۵۴۳",
+        address: null,
+        map_url: "https://maps.example/place",
+      }),
     ),
   );
   renderPage(<ContactPage />);
 
-  await user.type(
-    screen.getByRole("textbox", { name: "نام و نام خانوادگی" }),
-    "نگار محمدی",
-  );
-  await user.type(
-    screen.getByRole("textbox", { name: "ایمیل" }),
-    "negar@example.com",
-  );
-  const message = screen.getByRole("textbox", { name: "متن پیام" });
-  await user.type(message, "پیام معتبر برای سرور");
-  await user.click(screen.getByRole("button", { name: "ارسال پیام" }));
-
   expect(
-    await screen.findByText("متن پیام باید دست‌کم ۱۰ نویسه باشد."),
-  ).toHaveAttribute("id", "contact-message-error");
-  expect(message).toHaveAttribute("aria-invalid", "true");
-  expect(message).toHaveAttribute("aria-describedby", "contact-message-error");
+    await screen.findByRole("link", { name: "۰۲۱۸۸۷۷۶۵۴۳" }),
+  ).toHaveAttribute("href", "tel:۰۲۱۸۸۷۷۶۵۴۳");
+  expect(screen.queryByText("تهران، میدان نمونه")).toBeNull();
+  expect(screen.getByRole("link", { name: "مشاهده روی نقشه" })).toHaveAttribute(
+    "rel",
+    "noopener noreferrer",
+  );
 });
 
 test("explains deletion and prompt public-contact removal boundaries", () => {
   renderPage(<ContactPage />);
 
-  expect(
-    screen.getByRole("option", { name: "درخواست حذف حساب" }),
-  ).toBeVisible();
+  expect(screen.getByText(/درخواست حذف حساب/)).toBeVisible();
   expect(
     screen.getByText(/حذف خودکار حساب در نسخه آلفا در دسترس نیست/),
   ).toBeVisible();
@@ -283,20 +227,12 @@ test("serves public guidance dynamically with Persian metadata", () => {
   }
 });
 
-test("Contact controls follow keyboard order", async () => {
+test("Contact Support action is keyboard reachable", async () => {
   const user = userEvent.setup();
   renderPage(<ContactPage />);
 
   await user.tab();
   expect(
-    screen.getByRole("textbox", { name: "نام و نام خانوادگی" }),
+    screen.getByRole("link", { name: "ایجاد درخواست پشتیبانی" }),
   ).toHaveFocus();
-  await user.tab();
-  expect(screen.getByRole("textbox", { name: "ایمیل" })).toHaveFocus();
-  await user.tab();
-  expect(screen.getByRole("combobox", { name: "موضوع پیام" })).toHaveFocus();
-  await user.tab();
-  expect(screen.getByRole("textbox", { name: "متن پیام" })).toHaveFocus();
-  await user.tab();
-  expect(screen.getByRole("button", { name: "ارسال پیام" })).toHaveFocus();
 });

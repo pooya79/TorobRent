@@ -511,7 +511,7 @@ test("keeps privacy-reclassified content visible for an Operator with both capab
   ).toBeVisible();
 });
 
-test("records internal work and resolves without pretending to send a reply", async () => {
+test("records internal work and exposes a distinct requester-visible reply action", async () => {
   const user = userEvent.setup();
   let noteBody: Record<string, unknown> | undefined;
   let contactBody: Record<string, unknown> | undefined;
@@ -591,7 +591,7 @@ test("records internal work and resolves without pretending to send a reply", as
   );
   expect(
     screen.queryByRole("button", { name: /ارسال پاسخ/ }),
-  ).not.toBeInTheDocument();
+  ).toBeInTheDocument();
 });
 
 test("records privacy verification and admin action completion without deleting an account", async () => {

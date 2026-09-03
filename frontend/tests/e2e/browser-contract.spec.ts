@@ -76,6 +76,34 @@ test("restores protected Operator navigation after login", async ({ page }) => {
   ).toBeVisible();
 });
 
+test("restores protected Contact Support composition after login", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/contact");
+  await page.getByRole("link", { name: "ایجاد درخواست پشتیبانی" }).click();
+  await expect(page).toHaveURL(
+    /\/login\?returnTo=%2Fmessages%2Fnew%2Fsupport$/,
+  );
+
+  await page.getByLabel("ایمیل یا شماره تلفن").fill("operator@example.com");
+  await page.getByLabel("گذرواژه").fill("operator-password");
+  await page.getByRole("button", { name: "ورود" }).click();
+
+  await expect(page).toHaveURL(/\/messages\/new\/support$/);
+  await expect(
+    page.getByRole("heading", { name: "درخواست پشتیبانی جدید" }),
+  ).toBeVisible();
+  await expect(page.locator("main")).toHaveAttribute("dir", "rtl");
+  expect(
+    await page.evaluate(() => document.documentElement.scrollWidth),
+  ).toBeLessThanOrEqual(390);
+  const results = await new AxeBuilder({ page })
+    .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
+    .analyze();
+  expect(results.violations).toEqual([]);
+});
+
 test("keeps the mobile layout contained and restores visible focus", async ({
   page,
 }) => {

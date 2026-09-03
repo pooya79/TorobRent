@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Clock3, Search, ShieldX, UserRound } from "lucide-react";
-import { useState } from "react";
+import { useState, type FormEvent } from "react";
 import { Link } from "react-router";
 
 import { PageMain } from "@/components/layout/PageMain";
@@ -17,6 +17,8 @@ import { SupportTriagePanel } from "@/features/support/SupportTriagePanel";
 import {
   addSupportNote,
   claimSupportRequest,
+  editSupportReply,
+  postSupportReply,
   reassignSupportRequest,
   recordSupportExternalContact,
   recordSupportIdentityVerification,
@@ -100,6 +102,7 @@ export function OperatorSupportPage() {
     ordering: "oldest",
   });
   const [selectedId, setSelectedId] = useState<string>();
+  const [editingReplyId, setEditingReplyId] = useState<string>();
   const [suppressedIds, setSuppressedIds] = useState<Set<string>>(
     () => new Set(),
   );
@@ -167,6 +170,18 @@ export function OperatorSupportPage() {
     mutationFn: (input: SupportNoteInput) => addSupportNote(activeId, input),
     onSuccess: refreshSupportRequest,
   });
+  const postReply = useMutation({
+    mutationFn: (body: string) => postSupportReply(activeId, body),
+    onSuccess: refreshSupportRequest,
+  });
+  const editReply = useMutation({
+    mutationFn: ({ id, body }: { id: string; body: string }) =>
+      editSupportReply(activeId, id, body),
+    onSuccess: async () => {
+      setEditingReplyId(undefined);
+      await refreshSupportRequest();
+    },
+  });
   const recordExternalContact = useMutation({
     mutationFn: (input: SupportExternalContactInput) =>
       recordSupportExternalContact(activeId, input),
@@ -198,6 +213,8 @@ export function OperatorSupportPage() {
     triage.error ??
     reassign.error ??
     addNote.error ??
+    postReply.error ??
+    editReply.error ??
     recordExternalContact.error ??
     resolve.error ??
     reopen.error ??
@@ -205,6 +222,8 @@ export function OperatorSupportPage() {
     recordPrivacyAction.error;
   const operationalMutationPending =
     addNote.isPending ||
+    postReply.isPending ||
+    editReply.isPending ||
     recordExternalContact.isPending ||
     resolve.isPending ||
     reopen.isPending ||
@@ -571,15 +590,121 @@ export function OperatorSupportPage() {
               )}
               {selected.status === "in_progress" &&
                 selected.assignee_id === currentUser.data?.id && (
-                  <div className="flex justify-end">
-                    <Button
-                      variant="outline"
-                      disabled={release.isPending}
-                      onClick={() => release.mutate()}
+                  <section
+                    className="rounded-xl border p-4"
+                    aria-labelledby="support-reply-title"
+                  >
+                    <h2 id="support-reply-title" className="font-semibold">
+                      پاسخ قابل مشاهده برای درخواست‌کننده
+                    </h2>
+                    {(selected.replies ?? []).length > 0 ? (
+                      <ol className="mt-3 space-y-2">
+                        {selected.replies.map((reply) => (
+                          <li
+                            className="bg-muted rounded-lg p-3 text-sm"
+                            key={reply.id}
+                          >
+                            <p className="mb-2 text-xs font-semibold">
+                              {reply.author_kind === "operator"
+                                ? "پاسخ اپراتور"
+                                : "پیام درخواست‌کننده"}
+                            </p>
+                            {editingReplyId === reply.id ? (
+                              <form
+                                className="grid gap-2"
+                                onSubmit={(event) => {
+                                  event.preventDefault();
+                                  const body = new FormData(
+                                    event.currentTarget,
+                                  ).get("edited_reply");
+                                  if (typeof body === "string" && body.trim()) {
+                                    editReply.mutate({ id: reply.id, body });
+                                  }
+                                }}
+                              >
+                                <Label htmlFor={`operator-edit-${reply.id}`}>
+                                  ویرایش پاسخ
+                                </Label>
+                                <textarea
+                                  className="border-input min-h-24 rounded-md border p-3"
+                                  defaultValue={reply.body}
+                                  id={`operator-edit-${reply.id}`}
+                                  maxLength={2000}
+                                  name="edited_reply"
+                                  required
+                                />
+                                <Button
+                                  className="justify-self-start"
+                                  disabled={editReply.isPending}
+                                  size="sm"
+                                  type="submit"
+                                >
+                                  ذخیره ویرایش
+                                </Button>
+                              </form>
+                            ) : (
+                              <p className="whitespace-pre-wrap">
+                                {reply.body}
+                              </p>
+                            )}
+                            {reply.edited_at ? (
+                              <span className="text-muted-foreground text-xs">
+                                ویرایش‌شده
+                              </span>
+                            ) : null}
+                            {reply.editable && editingReplyId !== reply.id ? (
+                              <Button
+                                className="mt-2"
+                                onClick={() => setEditingReplyId(reply.id)}
+                                size="sm"
+                                type="button"
+                                variant="ghost"
+                              >
+                                ویرایش
+                              </Button>
+                            ) : null}
+                          </li>
+                        ))}
+                      </ol>
+                    ) : null}
+                    <form
+                      className="mt-4 grid gap-3"
+                      onSubmit={(event: FormEvent<HTMLFormElement>) => {
+                        event.preventDefault();
+                        const form = event.currentTarget;
+                        const body = new FormData(form).get("support_reply");
+                        if (typeof body === "string" && body.trim()) {
+                          postReply.mutate(body, {
+                            onSuccess: () => form.reset(),
+                          });
+                        }
+                      }}
                     >
-                      آزاد کردن درخواست
-                    </Button>
-                  </div>
+                      <Label htmlFor="operator-support-reply">
+                        پاسخ پشتیبانی
+                      </Label>
+                      <textarea
+                        className="border-input min-h-28 rounded-md border p-3"
+                        id="operator-support-reply"
+                        name="support_reply"
+                        required
+                        maxLength={2000}
+                      />
+                      <div className="flex justify-between gap-3">
+                        <Button disabled={postReply.isPending} type="submit">
+                          ارسال پاسخ
+                        </Button>
+                        <Button
+                          variant="outline"
+                          disabled={release.isPending}
+                          onClick={() => release.mutate()}
+                          type="button"
+                        >
+                          آزاد کردن درخواست
+                        </Button>
+                      </div>
+                    </form>
+                  </section>
                 )}
 
               <SupportTriagePanel

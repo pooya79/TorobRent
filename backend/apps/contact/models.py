@@ -8,6 +8,7 @@ from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models.base import ModelBase
+from django.utils import timezone
 
 from apps.accounts.capabilities import OperatorCapability
 
@@ -41,6 +42,11 @@ class SupportRequestStatus(models.TextChoices):
     IN_PROGRESS = "in_progress", "در حال بررسی"
     ESCALATED = "escalated", "ارجاع‌شده"
     RESOLVED = "resolved", "رسیدگی‌شده"
+
+
+class SupportMessageAuthor(models.TextChoices):
+    REQUESTER = "requester", "Requester"
+    OPERATOR = "operator", "Operator"
 
 
 class SupportRequestEventType(models.TextChoices):
@@ -151,14 +157,17 @@ class SupportRequest(models.Model):
         related_name="support_requests",
     )
     name = models.CharField(max_length=120)
-    email = models.EmailField()
+    email = models.EmailField(blank=True)
     intake_kind = models.CharField(
         max_length=32,
         choices=IntakeKind,
         db_column="kind",
         editable=False,
     )
+    subject = models.CharField(max_length=120, blank=True)
     message = models.TextField(max_length=4000)
+    requester_read_at = models.DateTimeField(null=True, blank=True, editable=False)
+    public_updated_at = models.DateTimeField(default=timezone.now, db_index=True, editable=False)
     account_linked_at_intake = models.BooleanField(default=False, editable=False)
     classification = models.CharField(
         max_length=24,
@@ -234,6 +243,38 @@ class SupportRequest(models.Model):
 
     def __str__(self) -> str:
         return f"{self.get_intake_kind_display()}: {self.name}"
+
+
+class SupportMessage(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    support_request = models.ForeignKey(
+        SupportRequest,
+        on_delete=models.PROTECT,
+        related_name="messages",
+    )
+    author = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="support_messages",
+    )
+    author_kind = models.CharField(max_length=12, choices=SupportMessageAuthor)
+    is_initial = models.BooleanField(default=False, editable=False)
+    body = models.TextField(max_length=2000)
+    created_at = models.DateTimeField(auto_now_add=True)
+    edited_at = models.DateTimeField(null=True, blank=True, editable=False)
+
+    class Meta:
+        ordering = ("created_at", "id")
+        constraints = [
+            models.UniqueConstraint(
+                fields=("support_request",),
+                condition=models.Q(is_initial=True),
+                name="one_initial_message_per_support_request",
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.support_request_id}: {self.author_kind}"
 
 
 class SupportRequestEvent(AppendOnlyModel):

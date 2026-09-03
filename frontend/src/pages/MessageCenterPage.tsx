@@ -1,15 +1,24 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowRight, Bell, Mail, MailOpen } from "lucide-react";
-import { useEffect, useRef } from "react";
+import { ArrowRight, Bell, Headphones, Mail, MailOpen } from "lucide-react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+  type ReactNode,
+} from "react";
 import { Link, useParams, useSearchParams } from "react-router";
 
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
 import {
   markMessageUnread,
+  editSupportMessage,
   messageDetailQueryOptions,
   messagesQueryOptions,
+  replyToSupportRequest,
   type MessageFilter,
   type MessageSummary,
 } from "@/features/messages/queries";
@@ -18,11 +27,16 @@ import { cn } from "@/lib/utils";
 const filters: { label: string; value: MessageFilter }[] = [
   { label: "همه", value: "all" },
   { label: "اعلان‌های سامانه", value: "system_notification" },
+  { label: "پشتیبانی", value: "support_request" },
   { label: "خوانده‌نشده", value: "unread" },
 ];
 
 function filterFrom(value: string | null): MessageFilter {
-  return value === "system_notification" || value === "unread" ? value : "all";
+  return value === "system_notification" ||
+    value === "support_request" ||
+    value === "unread"
+    ? value
+    : "all";
 }
 
 function pageFrom(value: string | null) {
@@ -31,9 +45,34 @@ function pageFrom(value: string | null) {
 }
 
 function groupLabel(group: MessageSummary["group"]) {
+  if (group.kind === "support_request") return group.label;
   return group.kind === "source_proposal"
     ? `منبع پیشنهادی ${group.label}`
     : group.label;
+}
+
+const statusLabels = {
+  received: "دریافت شد",
+  in_progress: "در حال بررسی",
+  resolved: "رسیدگی شد",
+} as const;
+
+function safeText(text: string): ReactNode[] {
+  return text.split(/(https?:\/\/[^\s]+)/gu).map((part, index) =>
+    /^https?:\/\//u.test(part) ? (
+      <a
+        className="text-primary underline"
+        href={part}
+        key={`${part}-${index}`}
+        rel="noopener noreferrer"
+        target="_blank"
+      >
+        {part}
+      </a>
+    ) : (
+      part
+    ),
+  );
 }
 
 function groupMessages(messages: MessageSummary[]) {
@@ -59,6 +98,7 @@ export function MessageCenterPage() {
   const detail = useQuery(messageDetailQueryOptions(messageId));
   const queryClient = useQueryClient();
   const detailHeading = useRef<HTMLHeadingElement>(null);
+  const [editingId, setEditingId] = useState<string>();
   const markUnread = useMutation({
     mutationFn: () => {
       if (!messageId) throw new Error("Message id is required");
@@ -72,6 +112,34 @@ export function MessageCenterPage() {
       });
     },
   });
+  const reply = useMutation({
+    mutationFn: (body: string) => {
+      if (!messageId) throw new Error("Message id is required");
+      return replyToSupportRequest(messageId, body);
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["messages"] });
+    },
+  });
+  const editMessage = useMutation({
+    mutationFn: ({ id, body }: { id: string; body: string }) => {
+      if (!messageId) throw new Error("Message id is required");
+      return editSupportMessage(messageId, id, body);
+    },
+    onSuccess: () => {
+      setEditingId(undefined);
+      void queryClient.invalidateQueries({ queryKey: ["messages"] });
+    },
+  });
+
+  function submitReply(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const data = new FormData(form);
+    const body = data.get("body");
+    if (typeof body !== "string" || !body.trim()) return;
+    reply.mutate(body, { onSuccess: () => form.reset() });
+  }
 
   useEffect(() => {
     if (!detail.data) return;
@@ -102,8 +170,11 @@ export function MessageCenterPage() {
         <p className="text-primary mb-2 text-sm font-semibold">حساب کاربری</p>
         <h1 className="text-3xl font-semibold tracking-tight">مرکز پیام</h1>
         <p className="text-muted-foreground mt-2">
-          اعلان‌های مهم حساب شما در اینجا نگهداری می‌شوند.
+          اعلان‌ها و گفت‌وگوهای پشتیبانی حساب شما در اینجا نگهداری می‌شوند.
         </p>
+        <Button asChild className="mt-4">
+          <Link to="/messages/new/support">درخواست پشتیبانی جدید</Link>
+        </Button>
       </header>
 
       <nav aria-label="فیلتر پیام‌ها" className="mb-4 flex flex-wrap gap-2">
@@ -270,7 +341,11 @@ export function MessageCenterPage() {
               ) : detail.data ? (
                 <article>
                   <div className="text-primary bg-primary/10 mb-4 flex size-11 items-center justify-center rounded-full">
-                    <Bell aria-hidden="true" />
+                    {detail.data.kind === "support_request" ? (
+                      <Headphones aria-hidden="true" />
+                    ) : (
+                      <Bell aria-hidden="true" />
+                    )}
                   </div>
                   <h2
                     ref={detailHeading}
@@ -282,9 +357,135 @@ export function MessageCenterPage() {
                   <time className="text-muted-foreground mt-2 block text-sm">
                     {new Date(detail.data.created_at).toLocaleString("fa-IR")}
                   </time>
-                  <p className="mt-6 leading-8">{detail.data.body}</p>
+                  {detail.data.kind === "support_request" ? (
+                    <>
+                      <p className="text-muted-foreground mt-3 text-sm">
+                        وضعیت:{" "}
+                        {
+                          statusLabels[
+                            detail.data
+                              .public_status as keyof typeof statusLabels
+                          ]
+                        }
+                      </p>
+                      <ol aria-label="رشته پشتیبانی" className="mt-6 space-y-3">
+                        {detail.data.entries.map((entry) => (
+                          <li
+                            className={cn(
+                              "rounded-lg border p-4",
+                              entry.kind === "operator_reply" && "bg-primary/5",
+                              entry.kind === "status" && "bg-muted text-sm",
+                            )}
+                            key={`${entry.kind}-${entry.id}`}
+                          >
+                            {entry.kind === "status" ? (
+                              <p>{statusLabels[entry.status!]}</p>
+                            ) : (
+                              <>
+                                <p className="mb-2 text-xs font-semibold">
+                                  {entry.kind === "operator_reply"
+                                    ? "پاسخ اپراتور"
+                                    : "شما"}
+                                </p>
+                                {editingId === entry.id ? (
+                                  <form
+                                    className="grid gap-2"
+                                    onSubmit={(event) => {
+                                      event.preventDefault();
+                                      const body = new FormData(
+                                        event.currentTarget,
+                                      ).get("edited_body");
+                                      if (
+                                        typeof body === "string" &&
+                                        body.trim()
+                                      ) {
+                                        editMessage.mutate({
+                                          id: entry.id,
+                                          body,
+                                        });
+                                      }
+                                    }}
+                                  >
+                                    <Label htmlFor={`edit-${entry.id}`}>
+                                      ویرایش پیام
+                                    </Label>
+                                    <textarea
+                                      className="border-input min-h-24 rounded-md border p-3"
+                                      defaultValue={entry.body}
+                                      id={`edit-${entry.id}`}
+                                      maxLength={2000}
+                                      name="edited_body"
+                                      required
+                                    />
+                                    <Button
+                                      className="justify-self-start"
+                                      size="sm"
+                                      type="submit"
+                                    >
+                                      ذخیره ویرایش
+                                    </Button>
+                                  </form>
+                                ) : (
+                                  <p className="leading-7 whitespace-pre-wrap">
+                                    {safeText(entry.body ?? "")}
+                                  </p>
+                                )}
+                                {entry.edited_at ? (
+                                  <span className="text-muted-foreground mt-2 block text-xs">
+                                    ویرایش‌شده
+                                  </span>
+                                ) : null}
+                                {entry.editable && editingId !== entry.id ? (
+                                  <Button
+                                    className="mt-2"
+                                    onClick={() => setEditingId(entry.id)}
+                                    size="sm"
+                                    type="button"
+                                    variant="ghost"
+                                  >
+                                    ویرایش
+                                  </Button>
+                                ) : null}
+                              </>
+                            )}
+                          </li>
+                        ))}
+                      </ol>
+                      {detail.data.reply_allowed ? (
+                        <form
+                          className="mt-6 grid gap-3"
+                          onSubmit={submitReply}
+                        >
+                          <Label htmlFor="support-reply">ادامه گفت‌وگو</Label>
+                          <textarea
+                            className="border-input min-h-28 rounded-md border p-3"
+                            id="support-reply"
+                            name="body"
+                            required
+                            maxLength={2000}
+                          />
+                          <Button
+                            className="justify-self-start"
+                            disabled={reply.isPending}
+                            type="submit"
+                          >
+                            {reply.isPending ? "در حال ارسال…" : "ارسال پیام"}
+                          </Button>
+                        </form>
+                      ) : (
+                        <Alert className="mt-6">
+                          <AlertDescription>
+                            مهلت ادامه این درخواست پایان یافته است. یک درخواست
+                            پشتیبانی جدید ایجاد کنید.
+                          </AlertDescription>
+                        </Alert>
+                      )}
+                    </>
+                  ) : (
+                    <p className="mt-6 leading-8">{detail.data.body}</p>
+                  )}
                   <div className="mt-8 flex flex-wrap gap-3">
-                    {target ? (
+                    {detail.data.kind === "support_request" ? null : target ? (
                       <Button asChild>
                         <Link to={target.href}>{target.label}</Link>
                       </Button>

@@ -15,6 +15,9 @@ SECRET_KEY = env("DJANGO_SECRET_KEY", default="unsafe-local-only-change-me")
 DEBUG = env("DEBUG")
 ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=["localhost", "127.0.0.1"])
 CSRF_TRUSTED_ORIGINS = env.list("CSRF_TRUSTED_ORIGINS", default=[])
+CONTACT_PHONE = env("CONTACT_PHONE", default="")
+CONTACT_ADDRESS = env("CONTACT_ADDRESS", default="")
+CONTACT_MAP_URL = env("CONTACT_MAP_URL", default="")
 
 INSTALLED_APPS = [
     "unfold",

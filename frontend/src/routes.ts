@@ -12,6 +12,7 @@ export default [
   route("forgot-password", "routes/forgot-password.tsx"),
   route("favorites", "pages/FavoritesPage.tsx"),
   route("messages", "routes/messages.tsx"),
+  route("messages/new/support", "routes/support-composer.tsx"),
   route("messages/:messageId", "routes/message-detail.tsx"),
   route("verify-email", "routes/verify-email.tsx"),
   route("reset-password", "routes/reset-password.tsx"),

@@ -1,15 +1,18 @@
-from typing import Any, cast
+from datetime import timedelta
+from typing import Any
 
+from django.utils import timezone
 from rest_framework import serializers
 
 from .models import (
     ExternalContactChannel,
     IdentityVerificationMethod,
-    IntakeKind,
     PrivacyActionType,
     SupportClassification,
     SupportExternalContact,
     SupportIdentityVerification,
+    SupportMessage,
+    SupportMessageAuthor,
     SupportPriority,
     SupportPrivacyAction,
     SupportRequest,
@@ -19,75 +22,6 @@ from .models import (
     SupportRequiredCapability,
     SupportResolutionCategory,
 )
-from .services import create_support_request
-
-
-class ContactMessageCreateSerializer(serializers.ModelSerializer[SupportRequest]):
-    kind = serializers.ChoiceField(source="intake_kind", choices=IntakeKind.choices)
-    website = serializers.CharField(
-        required=False,
-        allow_blank=True,
-        write_only=True,
-        label="وب‌سایت",
-    )
-
-    class Meta:
-        model = SupportRequest
-        fields = ("name", "email", "kind", "message", "website")
-        extra_kwargs = {
-            "name": {
-                "error_messages": {
-                    "blank": "نام را وارد کنید.",
-                    "required": "نام را وارد کنید.",
-                    "max_length": "نام نباید بیشتر از ۱۲۰ نویسه باشد.",
-                }
-            },
-            "email": {
-                "error_messages": {
-                    "blank": "ایمیل را وارد کنید.",
-                    "required": "ایمیل را وارد کنید.",
-                    "invalid": "یک ایمیل معتبر وارد کنید.",
-                    "max_length": "ایمیل نباید بیشتر از ۲۵۴ نویسه باشد.",
-                }
-            },
-            "kind": {
-                "error_messages": {
-                    "blank": "موضوع پیام را انتخاب کنید.",
-                    "required": "موضوع پیام را انتخاب کنید.",
-                    "invalid_choice": "موضوع پیام معتبر نیست.",
-                }
-            },
-            "message": {
-                "min_length": 10,
-                "error_messages": {
-                    "blank": "متن پیام را وارد کنید.",
-                    "required": "متن پیام را وارد کنید.",
-                    "min_length": "متن پیام باید دست‌کم ۱۰ نویسه باشد.",
-                    "max_length": "متن پیام نباید بیشتر از ۴۰۰۰ نویسه باشد.",
-                },
-            },
-        }
-
-    def validate_website(self, value: str) -> str:
-        if value:
-            raise serializers.ValidationError("ارسال پیام پذیرفته نشد.")
-        return value
-
-    def create(self, validated_data: dict[str, object]) -> SupportRequest:
-        validated_data.pop("website", None)
-        request = self.context["request"]
-        submitter = request.user if request.user.is_authenticated else None
-        return create_support_request(
-            submitter=submitter,
-            name=cast(str, validated_data["name"]),
-            email=cast(str, validated_data["email"]),
-            intake_kind=cast(IntakeKind, validated_data["intake_kind"]),
-            message=cast(str, validated_data["message"]),
-        )
-
-
-class ContactMessageCreatedSerializer(serializers.Serializer[Any]):
-    detail = serializers.CharField()
 
 
 class SupportTriageSerializer(serializers.Serializer[Any]):
@@ -149,6 +83,36 @@ class SupportReopenSerializer(serializers.Serializer[Any]):
 class SupportRequestNoteCreateSerializer(serializers.Serializer[Any]):
     body = serializers.CharField(max_length=2000)
     corrects_note = serializers.UUIDField(required=False, allow_null=True)
+
+
+class SupportReplyCreateSerializer(serializers.Serializer[Any]):
+    body = serializers.CharField(max_length=2000)
+
+
+class SupportReplySerializer(serializers.ModelSerializer[SupportMessage]):
+    editable = serializers.SerializerMethodField()
+
+    class Meta:
+        model = SupportMessage
+        fields = (
+            "id",
+            "author_kind",
+            "is_initial",
+            "body",
+            "created_at",
+            "edited_at",
+            "editable",
+        )
+
+    def get_editable(self, message: SupportMessage) -> bool:
+        request = self.context.get("request")
+        return bool(
+            request
+            and request.user.is_authenticated
+            and message.author_kind == SupportMessageAuthor.OPERATOR
+            and message.author_id == request.user.id
+            and message.created_at >= timezone.now() - timedelta(minutes=15)
+        )
 
 
 class SupportRequestNoteSerializer(serializers.ModelSerializer[SupportRequestNote]):
@@ -274,6 +238,7 @@ SUPPORT_REQUEST_QUEUE_FIELDS = (
     "email",
     "account_linked_at_intake",
     "intake_kind",
+    "subject",
     "classification",
     "priority",
     "priority_locked",
@@ -345,6 +310,7 @@ class SupportRequestSerializer(SupportRequestQueueSerializer):
     external_contacts = SupportExternalContactSerializer(many=True, read_only=True)
     identity_verifications = SupportIdentityVerificationSerializer(many=True, read_only=True)
     privacy_actions = SupportPrivacyActionSerializer(many=True, read_only=True)
+    replies = SupportReplySerializer(source="messages", many=True, read_only=True)
 
     class Meta:
         model = SupportRequest
@@ -355,5 +321,6 @@ class SupportRequestSerializer(SupportRequestQueueSerializer):
             "external_contacts",
             "identity_verifications",
             "privacy_actions",
+            "replies",
             "history",
         )

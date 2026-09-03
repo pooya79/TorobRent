@@ -1,19 +1,12 @@
 import pytest
+from django.conf import settings
 from django.contrib import admin
 from django.contrib.auth.models import Permission
-from django.core import mail
-from django.core.cache import cache
 from django.utils import timezone
 from rest_framework.test import APIClient
 
 from apps.accounts.models import User
 from apps.contact.models import IntakeKind, SupportRequest, SupportRequestStatus
-
-
-def csrf_client(api_client: APIClient) -> APIClient:
-    response = api_client.get("/api/v1/auth/session/")
-    api_client.credentials(HTTP_X_CSRFTOKEN=response.data["csrf_token"])
-    return api_client
 
 
 def valid_message(**overrides: str) -> dict[str, str]:
@@ -27,121 +20,33 @@ def valid_message(**overrides: str) -> dict[str, str]:
 
 
 @pytest.mark.django_db
-def test_visitor_sends_persian_contact_message_without_email_notification(api_client: APIClient):
-    response = csrf_client(api_client).post(
-        "/api/v1/contact/messages/", valid_message(), format="json"
-    )
+def test_legacy_contact_endpoint_rejects_new_anonymous_requests(api_client: APIClient):
+    response = api_client.post("/api/v1/contact/messages/", valid_message(), format="json")
 
-    assert response.status_code == 201
-    assert response.data == {"detail": "پیام شما ثبت شد و اپراتور آن را بررسی می‌کند."}
-    message = SupportRequest.objects.get()
-    assert message.name == "نگار محمدی"
-    assert message.submitter is None
-    assert message.status == SupportRequestStatus.OPEN
-    assert mail.outbox == []
+    assert response.status_code == 404
+    assert not SupportRequest.objects.exists()
 
 
 @pytest.mark.django_db
-def test_authenticated_submitter_identifies_account_deletion_request(api_client: APIClient, user):
-    api_client.force_login(user)
+def test_contact_details_are_managed_and_absent_values_stay_absent(api_client: APIClient):
+    with pytest.MonkeyPatch.context() as monkeypatch:
+        monkeypatch.setattr(settings, "CONTACT_PHONE", "")
+        monkeypatch.setattr(settings, "CONTACT_ADDRESS", "")
+        monkeypatch.setattr(settings, "CONTACT_MAP_URL", "")
+        absent = api_client.get("/api/v1/system/contact/")
 
-    response = csrf_client(api_client).post(
-        "/api/v1/contact/messages/",
-        valid_message(
-            email=user.email,
-            kind=IntakeKind.ACCOUNT_DELETION,
-            message="می‌خواهم حساب و اطلاعات عمومی تماس من حذف شود.",
-        ),
-        format="json",
-    )
+        monkeypatch.setattr(settings, "CONTACT_PHONE", "۰۲۱۸۸۷۷۶۵۴۳")
+        monkeypatch.setattr(settings, "CONTACT_ADDRESS", "تهران، میدان نمونه")
+        monkeypatch.setattr(settings, "CONTACT_MAP_URL", "https://maps.example/place")
+        configured = api_client.get("/api/v1/system/contact/")
 
-    assert response.status_code == 201
-    message = SupportRequest.objects.get()
-    assert message.submitter == user
-    assert message.account_linked_at_intake is True
-    assert message.intake_kind == IntakeKind.ACCOUNT_DELETION
-
-
-@pytest.mark.django_db
-def test_contact_message_validates_persian_input_and_honeypot(api_client: APIClient):
-    client = csrf_client(api_client)
-
-    short = client.post("/api/v1/contact/messages/", valid_message(message="کم"), format="json")
-    spam = client.post(
-        "/api/v1/contact/messages/",
-        valid_message(website="https://spam.example"),
-        format="json",
-    )
-
-    assert short.status_code == 400
-    assert short.data["errors"]["message"][0]["message"] == ("متن پیام باید دست‌کم ۱۰ نویسه باشد.")
-    assert spam.status_code == 400
-    assert spam.data["errors"]["website"][0]["message"] == "ارسال پیام پذیرفته نشد."
-    assert SupportRequest.objects.count() == 0
-
-
-@pytest.mark.django_db
-def test_contact_submission_is_csrf_protected_and_rate_limited(api_client: APIClient):
-    missing_csrf = api_client.post("/api/v1/contact/messages/", valid_message(), format="json")
-    assert missing_csrf.status_code == 403
-
-    cache.clear()
-    client = csrf_client(api_client)
-    for index in range(5):
-        response = client.post(
-            "/api/v1/contact/messages/",
-            valid_message(email=f"person{index}@example.com"),
-            format="json",
-        )
-        assert response.status_code == 201
-
-    throttled = client.post("/api/v1/contact/messages/", valid_message(), format="json")
-    assert throttled.status_code == 429
-    assert throttled.data["code"] == "throttled"
-
-
-@pytest.mark.django_db
-def test_contact_throttle_ignores_forged_forwarded_addresses(api_client: APIClient):
-    cache.clear()
-    client = csrf_client(api_client)
-
-    for index in range(5):
-        response = client.post(
-            "/api/v1/contact/messages/",
-            valid_message(email=f"person{index}@example.com"),
-            format="json",
-            HTTP_X_FORWARDED_FOR=f"198.51.100.{index}, 203.0.113.10",
-            REMOTE_ADDR="172.18.0.2",
-        )
-        assert response.status_code == 201
-
-    throttled = client.post(
-        "/api/v1/contact/messages/",
-        valid_message(),
-        format="json",
-        HTTP_X_FORWARDED_FOR="198.51.100.250, 203.0.113.10",
-        REMOTE_ADDR="172.18.0.2",
-    )
-    assert throttled.status_code == 429
-
-
-@pytest.mark.django_db
-def test_contact_length_validation_messages_are_persian(api_client: APIClient):
-    client = csrf_client(api_client)
-
-    long_name = client.post(
-        "/api/v1/contact/messages/", valid_message(name="ن" * 121), format="json"
-    )
-    long_message = client.post(
-        "/api/v1/contact/messages/", valid_message(message="م" * 4001), format="json"
-    )
-
-    assert long_name.status_code == 400
-    assert long_name.data["errors"]["name"][0]["message"] == ("نام نباید بیشتر از ۱۲۰ نویسه باشد.")
-    assert long_message.status_code == 400
-    assert long_message.data["errors"]["message"][0]["message"] == (
-        "متن پیام نباید بیشتر از ۴۰۰۰ نویسه باشد."
-    )
+    assert absent.status_code == 200
+    assert absent.data == {"phone": None, "address": None, "map_url": None}
+    assert configured.data == {
+        "phone": "۰۲۱۸۸۷۷۶۵۴۳",
+        "address": "تهران، میدان نمونه",
+        "map_url": "https://maps.example/place",
+    }
 
 
 @pytest.mark.django_db

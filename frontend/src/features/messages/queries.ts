@@ -8,7 +8,8 @@ export type MessageSummary = components["schemas"]["MessageSummary"];
 export type MessageDetail = components["schemas"]["MessageDetail"];
 export type MessagePage = components["schemas"]["PaginatedMessageSummaryList"];
 
-export type MessageFilter = "all" | "system_notification" | "unread";
+export type MessageFilter =
+  "all" | "system_notification" | "support_request" | "unread";
 
 export function messagesQueryOptions(filter: MessageFilter, page = 1) {
   return queryOptions({
@@ -19,7 +20,9 @@ export function messagesQueryOptions(filter: MessageFilter, page = 1) {
           ? { unread: true }
           : filter === "system_notification"
             ? { kind: "system_notification" as const }
-            : undefined;
+            : filter === "support_request"
+              ? { kind: "support_request" as const }
+              : undefined;
       const query = { ...filterQuery, ...(page > 1 ? { page } : {}) };
       const { data, error } = await api.GET("/api/v1/messages/", {
         params: { query },
@@ -50,6 +53,42 @@ export async function markMessageUnread(messageId: string) {
     params: { path: { message_id: messageId } },
     body: { read: false },
   });
+  if (error || !data) throw apiError(error);
+  return data;
+}
+
+export async function replyToSupportRequest(
+  supportRequestId: string,
+  body: string,
+) {
+  const { data, error } = await api.POST(
+    "/api/v1/messages/support-requests/{support_request_id}/replies/",
+    {
+      params: { path: { support_request_id: supportRequestId } },
+      body: { body },
+    },
+  );
+  if (error || !data) throw apiError(error);
+  return data;
+}
+
+export async function editSupportMessage(
+  supportRequestId: string,
+  supportMessageId: string,
+  body: string,
+) {
+  const { data, error } = await api.PATCH(
+    "/api/v1/messages/support-requests/{support_request_id}/messages/{support_message_id}/",
+    {
+      params: {
+        path: {
+          support_request_id: supportRequestId,
+          support_message_id: supportMessageId,
+        },
+      },
+      body: { body },
+    },
+  );
   if (error || !data) throw apiError(error);
   return data;
 }

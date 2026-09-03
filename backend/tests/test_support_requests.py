@@ -3,7 +3,6 @@ from datetime import timedelta
 
 import pytest
 from django.contrib.auth.models import Permission
-from django.core.cache import cache
 from django.db import close_old_connections, connection
 from django.utils import timezone
 from rest_framework.test import APIClient
@@ -27,15 +26,24 @@ def csrf_client(api_client: APIClient) -> APIClient:
     return api_client
 
 
+def authenticate_verified_requester(api_client: APIClient, *, email: str) -> User:
+    requester = User.objects.create_user(
+        email=email,
+        password="password",
+        email_verified_at=timezone.now(),
+    )
+    api_client.force_authenticate(requester)
+    return requester
+
+
 @pytest.mark.django_db
-def test_public_contact_endpoint_creates_an_open_support_request(api_client: APIClient):
-    cache.clear()
-    response = csrf_client(api_client).post(
-        "/api/v1/contact/messages/",
+def test_authenticated_message_center_creates_an_open_support_request(api_client: APIClient):
+    requester = authenticate_verified_requester(api_client, email="negar@example.com")
+    response = api_client.post(
+        "/api/v1/messages/support-requests/",
         {
-            "name": "نگار محمدی",
-            "email": "negar@example.com",
-            "kind": "general",
+            "intake_kind": "general",
+            "subject": "راهنمایی جست‌وجو",
             "message": "برای استفاده از بخش جست‌وجو راهنمایی می‌خواهم.",
         },
         format="json",
@@ -43,6 +51,7 @@ def test_public_contact_endpoint_creates_an_open_support_request(api_client: API
 
     assert response.status_code == 201
     support_request = SupportRequest.objects.get()
+    assert support_request.submitter == requester
     assert support_request.intake_kind == "general"
     assert support_request.status == SupportRequestStatus.OPEN
 
@@ -60,13 +69,12 @@ def test_declared_privacy_intake_routes_directly_to_restricted_triage(
     intake_kind: IntakeKind,
     priority: SupportPriority,
 ):
-    cache.clear()
-    response = csrf_client(api_client).post(
-        "/api/v1/contact/messages/",
+    authenticate_verified_requester(api_client, email="privacy-requester@example.com")
+    response = api_client.post(
+        "/api/v1/messages/support-requests/",
         {
-            "name": "Privacy requester",
-            "email": "privacy-requester@example.com",
-            "kind": intake_kind,
+            "intake_kind": intake_kind,
+            "subject": "Privacy request",
             "message": "Please handle this privacy-sensitive Support Request.",
         },
         format="json",
@@ -759,13 +767,12 @@ def test_manually_raised_urgency_can_be_corrected_with_an_audited_reason(
 def test_automatic_public_contact_removal_urgency_cannot_be_downgraded(
     api_client: APIClient,
 ):
-    cache.clear()
-    created = csrf_client(api_client).post(
-        "/api/v1/contact/messages/",
+    authenticate_verified_requester(api_client, email="exposed@example.com")
+    created = api_client.post(
+        "/api/v1/messages/support-requests/",
         {
-            "name": "Exposed requester",
-            "email": "exposed@example.com",
-            "kind": IntakeKind.PUBLIC_CONTACT_REMOVAL,
+            "intake_kind": IntakeKind.PUBLIC_CONTACT_REMOVAL,
+            "subject": "Public contact exposure",
             "message": "Remove my publicly exposed contact information immediately.",
         },
         format="json",

@@ -10,4 +10,8 @@ class HasVerifiedIdentifier(BasePermission):
 
     def has_permission(self, request: Request, view: APIView) -> bool:
         user = request.user
-        return isinstance(user, User) and (user.email_verified or user.phone_verified)
+        return (
+            isinstance(user, User)
+            and user.is_active
+            and (user.email_verified or user.phone_verified)
+        )

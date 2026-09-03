@@ -281,3 +281,78 @@ test("group labels do not disturb latest-activity ordering", async () => {
     expect.stringContaining("رویداد قدیمی خانه‌یاب"),
   ]);
 });
+
+test("renders a Support thread with safe links and lets the requester reply", async () => {
+  let replyBody = "";
+  const support = {
+    ...message,
+    id: "10000000-0000-4000-8000-000000000097",
+    kind: "support_request",
+    title: "مشکل حساب",
+    preview: "پاسخ اپراتور",
+    group: {
+      kind: "support_request",
+      id: "10000000-0000-4000-8000-000000000097",
+      label: "پشتیبانی",
+    },
+  };
+  server.use(
+    http.get("*/api/v1/messages/", () =>
+      HttpResponse.json({
+        count: 1,
+        next: null,
+        previous: null,
+        results: [support],
+      }),
+    ),
+    http.get("*/api/v1/messages/:messageId/", () =>
+      HttpResponse.json({
+        ...support,
+        body: support.preview,
+        read: true,
+        target: null,
+        public_status: "in_progress",
+        reply_allowed: true,
+        entries: [
+          {
+            id: "20000000-0000-4000-8000-000000000097",
+            kind: "operator_reply",
+            body: "راهنما در https://example.com/help است.",
+            created_at: support.created_at,
+            edited_at: null,
+          },
+        ],
+      }),
+    ),
+    http.post(
+      "*/api/v1/messages/support-requests/:messageId/replies/",
+      async ({ request }) => {
+        replyBody = ((await request.json()) as { body: string }).body;
+        return HttpResponse.json(
+          {
+            id: "30000000-0000-4000-8000-000000000097",
+            author_kind: "requester",
+            body: replyBody,
+            created_at: support.created_at,
+            edited_at: null,
+          },
+          { status: 201 },
+        );
+      },
+    ),
+  );
+  renderPage(`/messages/${support.id}`);
+  const user = userEvent.setup();
+
+  expect(await screen.findByText("وضعیت: در حال بررسی")).toBeVisible();
+  expect(screen.getAllByText("پاسخ اپراتور")).toHaveLength(2);
+  expect(
+    screen.getByRole("link", { name: "https://example.com/help" }),
+  ).toHaveAttribute("rel", "noopener noreferrer");
+  await user.type(
+    screen.getByRole("textbox", { name: "ادامه گفت‌وگو" }),
+    "سپاس، بررسی می‌کنم.",
+  );
+  await user.click(screen.getByRole("button", { name: "ارسال پیام" }));
+  await waitFor(() => expect(replyBody).toBe("سپاس، بررسی می‌کنم."));
+});

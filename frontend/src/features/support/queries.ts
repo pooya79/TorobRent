@@ -153,6 +153,39 @@ export async function addSupportNote(
   );
 }
 
+export async function postSupportReply(supportRequestId: string, body: string) {
+  return requireSupportCommandData(
+    api.POST(
+      "/api/v1/operator/support-requests/{support_request_id}/replies/",
+      {
+        params: { path: { support_request_id: supportRequestId } },
+        body: { body },
+      },
+    ),
+  );
+}
+
+export async function editSupportReply(
+  supportRequestId: string,
+  supportMessageId: string,
+  body: string,
+) {
+  return requireSupportCommandData(
+    api.PATCH(
+      "/api/v1/operator/support-requests/{support_request_id}/replies/{support_message_id}/",
+      {
+        params: {
+          path: {
+            support_request_id: supportRequestId,
+            support_message_id: supportMessageId,
+          },
+        },
+        body: { body },
+      },
+    ),
+  );
+}
+
 export async function recordSupportExternalContact(
   supportRequestId: string,
   input: SupportExternalContactInput,

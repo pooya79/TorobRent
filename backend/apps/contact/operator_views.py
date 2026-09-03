@@ -25,6 +25,7 @@ from apps.common.pagination import StandardPageNumberPagination
 from .models import (
     IntakeKind,
     SupportClassification,
+    SupportMessageAuthor,
     SupportPriority,
     SupportRequest,
     SupportRequestStatus,
@@ -39,6 +40,8 @@ from .serializers import (
     SupportPrivacyActionSerializer,
     SupportReassignmentSerializer,
     SupportReopenSerializer,
+    SupportReplyCreateSerializer,
+    SupportReplySerializer,
     SupportRequestNoteCreateSerializer,
     SupportRequestNoteSerializer,
     SupportRequestQueueSerializer,
@@ -49,8 +52,10 @@ from .serializers import (
 )
 from .services import (
     SupportRequestConflict,
+    add_support_message,
     add_support_request_note,
     claim_support_request,
+    edit_support_message,
     reassign_abandoned_support_request,
     record_external_contact,
     record_identity_verification,
@@ -320,6 +325,69 @@ class OperatorSupportRequestNoteView(APIView):
             SupportRequestNoteSerializer(note).data,
             status=status.HTTP_201_CREATED,
         )
+
+
+class OperatorSupportReplyView(APIView):
+    permission_classes = (CanHandleSupportRequests,)
+
+    @extend_schema(
+        summary="Post a requester-visible Support Reply",
+        request=SupportReplyCreateSerializer,
+        responses={201: SupportReplySerializer},
+    )
+    def post(self, request: Request, support_request_id: str) -> Response:
+        support_request = operator_support_request(
+            request=request, support_request_id=support_request_id
+        )
+        serializer = SupportReplyCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        reply = execute_support_command(
+            lambda: add_support_message(
+                support_request=support_request,
+                actor=cast(User, request.user),
+                body=serializer.validated_data["body"],
+                author_kind=SupportMessageAuthor.OPERATOR,
+            )
+        )
+        return Response(
+            SupportReplySerializer(reply, context={"request": request}).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class OperatorSupportReplyEditView(APIView):
+    permission_classes = (CanHandleSupportRequests,)
+
+    @extend_schema(
+        summary="Edit the assigned Operator's recent Support Reply",
+        request=SupportReplyCreateSerializer,
+        responses={200: SupportReplySerializer},
+    )
+    def patch(
+        self,
+        request: Request,
+        support_request_id: str,
+        support_message_id: str,
+    ) -> Response:
+        support_request = operator_support_request(
+            request=request, support_request_id=support_request_id
+        )
+        message = get_object_or_404(
+            support_request.messages,
+            id=support_message_id,
+            author=request.user,
+            author_kind=SupportMessageAuthor.OPERATOR,
+        )
+        serializer = SupportReplyCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        reply = execute_support_command(
+            lambda: edit_support_message(
+                support_message=message,
+                actor=cast(User, request.user),
+                body=serializer.validated_data["body"],
+            )
+        )
+        return Response(SupportReplySerializer(reply, context={"request": request}).data)
 
 
 class OperatorSupportExternalContactView(APIView):

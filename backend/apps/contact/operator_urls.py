@@ -4,6 +4,8 @@ from .operator_views import (
     OperatorSupportExternalContactView,
     OperatorSupportIdentityVerificationView,
     OperatorSupportPrivacyActionView,
+    OperatorSupportReplyEditView,
+    OperatorSupportReplyView,
     OperatorSupportRequestClaimView,
     OperatorSupportRequestDetailView,
     OperatorSupportRequestListView,
@@ -34,6 +36,16 @@ urlpatterns = [
         "<uuid:support_request_id>/notes/",
         OperatorSupportRequestNoteView.as_view(),
         name="notes",
+    ),
+    path(
+        "<uuid:support_request_id>/replies/",
+        OperatorSupportReplyView.as_view(),
+        name="replies",
+    ),
+    path(
+        "<uuid:support_request_id>/replies/<uuid:support_message_id>/",
+        OperatorSupportReplyEditView.as_view(),
+        name="reply-edit",
     ),
     path(
         "<uuid:support_request_id>/external-contacts/",
