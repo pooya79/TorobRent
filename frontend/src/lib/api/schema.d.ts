@@ -1770,7 +1770,20 @@ export interface components {
       readonly created_at: string;
       readonly read: boolean;
       readonly target: components["schemas"]["MessageTarget"] | null;
+      readonly group: components["schemas"]["MessageGroup"];
     };
+    MessageGroup: {
+      kind: components["schemas"]["MessageGroupKindEnum"];
+      /** Format: uuid */
+      id: string;
+      label: string;
+    };
+    /**
+     * @description * `submission` - submission
+     *     * `source_proposal` - source_proposal
+     * @enum {string}
+     */
+    MessageGroupKindEnum: "submission" | "source_proposal";
     /**
      * @description * `system_notification` - System Notification
      *     * `listing_inquiry` - Listing Inquiry
@@ -1788,6 +1801,7 @@ export interface components {
       /** Format: date-time */
       readonly created_at: string;
       readonly read: boolean;
+      readonly group: components["schemas"]["MessageGroup"];
     };
     MessageTarget: {
       label: string;

@@ -49,7 +49,11 @@ class MessageDetailView(APIView):
     def notification(self, request: Request, message_id: str) -> SystemNotification:
         return get_object_or_404(
             SystemNotification.objects.select_related(
-                "originating_event", "target_submission", "recipient"
+                "originating_event__submission",
+                "originating_source_proposal_event__proposal",
+                "target_submission",
+                "target_source_proposal",
+                "recipient",
             ),
             id=message_id,
             recipient=request.user,

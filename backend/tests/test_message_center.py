@@ -141,6 +141,11 @@ def test_verified_account_lists_notifications_without_submitter_onboarding(api_c
             "preview": "شماره تماس را اصلاح کنید.",
             "created_at": response.data["results"][0]["created_at"],
             "read": False,
+            "group": {
+                "kind": "submission",
+                "id": str(submission.id),
+                "label": "پیشنهاد ملک",
+            },
         }
     ]
     detail = api_client.get(f"/api/v1/messages/{SystemNotification.objects.get().id}/")
@@ -150,9 +155,7 @@ def test_verified_account_lists_notifications_without_submitter_onboarding(api_c
     submission.submitter.is_submitter = True
     submission.submitter.phone_verified_at = None
     submission.submitter.save(update_fields=("is_submitter", "phone_verified_at"))
-    email_only_detail = api_client.get(
-        f"/api/v1/messages/{SystemNotification.objects.get().id}/"
-    )
+    email_only_detail = api_client.get(f"/api/v1/messages/{SystemNotification.objects.get().id}/")
     assert email_only_detail.status_code == 200
     assert email_only_detail.data["target"] is None
 
@@ -187,6 +190,11 @@ def test_opening_detail_marks_read_and_account_can_mark_it_unread(api_client):
         "target": {
             "label": "مشاهده پیشنهاد",
             "href": f"/dashboard#submission-{submission.id}",
+        },
+        "group": {
+            "kind": "submission",
+            "id": str(submission.id),
+            "label": "پیشنهاد ملک",
         },
     }
     assert api_client.get("/api/v1/messages/").data["results"][0]["read"] is True

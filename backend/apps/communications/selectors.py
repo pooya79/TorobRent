@@ -9,7 +9,8 @@ def system_notifications_for(
     recipient: User, *, kind: str = "all", unread: bool = False
 ) -> QuerySet[SystemNotification]:
     notifications = SystemNotification.objects.filter(recipient=recipient).select_related(
-        "originating_event"
+        "originating_event__submission",
+        "originating_source_proposal_event__proposal",
     )
     if kind not in ("all", MessageKind.SYSTEM_NOTIFICATION):
         return notifications.none()

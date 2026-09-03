@@ -3821,14 +3821,41 @@ components:
           - $ref: '#/components/schemas/MessageTarget'
           - type: 'null'
           readOnly: true
+        group:
+          allOf:
+          - $ref: '#/components/schemas/MessageGroup'
+          readOnly: true
       required:
       - body
       - created_at
+      - group
       - id
       - kind
       - read
       - target
       - title
+    MessageGroup:
+      type: object
+      properties:
+        kind:
+          $ref: '#/components/schemas/MessageGroupKindEnum'
+        id:
+          type: string
+          format: uuid
+        label:
+          type: string
+      required:
+      - id
+      - kind
+      - label
+    MessageGroupKindEnum:
+      enum:
+      - submission
+      - source_proposal
+      type: string
+      description: |-
+        * `submission` - submission
+        * `source_proposal` - source_proposal
     MessageKindEnum:
       enum:
       - system_notification
@@ -3863,8 +3890,13 @@ components:
         read:
           type: boolean
           readOnly: true
+        group:
+          allOf:
+          - $ref: '#/components/schemas/MessageGroup'
+          readOnly: true
       required:
       - created_at
+      - group
       - id
       - kind
       - preview

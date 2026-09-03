@@ -6,6 +6,7 @@ from rest_framework.test import APIClient
 
 from apps.accounts.models import User
 from apps.catalog.models import Listing, Source
+from apps.communications.models import SystemNotification
 from apps.source_proposals.models import ExternalListingCandidate, SourceProposal
 
 
@@ -135,6 +136,9 @@ def test_operator_claims_and_requests_changes_then_representative_resumes(
     assert missing_reason.status_code == 400
     assert requested.status_code == 200
     assert requested.data["state"] == "changes_requested"
+    assert SystemNotification.objects.get().originating_source_proposal_event.new_state == (
+        "changes_requested"
+    )
 
     api_client.force_authenticate(representative)
     dashboard = api_client.get("/api/v1/source-proposals/")
@@ -202,6 +206,9 @@ def test_claim_and_revision_conflicts_prevent_concurrent_or_self_decisions(
     assert missing_reason.status_code == 400
     assert rejected.status_code == 200
     assert rejected.data["state"] == "rejected"
+    assert SystemNotification.objects.get().originating_source_proposal_event.new_state == (
+        "rejected"
+    )
     assert stale.status_code == 409
     assert stale.data["code"] == "review_decision_conflict"
     assert own_decision.status_code == 400
@@ -241,6 +248,9 @@ def test_approval_validates_source_without_publishing_a_listing(api_client: APIC
     assert ExternalListingCandidate.objects.filter(source_proposal=proposal).count() == 2
     proposal.refresh_from_db()
     assert proposal.source is not None
+    assert SystemNotification.objects.get().originating_source_proposal_event.new_state == (
+        "approved"
+    )
 
     api_client.force_authenticate(representative)
     dashboard = api_client.get("/api/v1/source-proposals/")

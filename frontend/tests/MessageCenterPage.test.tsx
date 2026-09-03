@@ -15,6 +15,11 @@ const message = {
   preview: "تصاویر را اصلاح کنید.",
   created_at: "2026-09-03T12:00:00Z",
   read: false,
+  group: {
+    kind: "submission",
+    id: "20000000-0000-4000-8000-000000000095",
+    label: "پیشنهاد ملک",
+  },
 };
 
 function renderPage(initialEntry = "/messages") {
@@ -181,4 +186,98 @@ test("keeps older pages reachable and renders stale targets as disabled in RTL",
   expect(screen.getByRole("link", { name: "بازگشت به پیام‌ها" })).toHaveClass(
     "md:hidden",
   );
+});
+
+test("visually groups source proposal outcomes while keeping each event readable", async () => {
+  const sourceProposalGroup = {
+    kind: "source_proposal",
+    id: "30000000-0000-4000-8000-000000000096",
+    label: "خانه‌یاب",
+  };
+  server.use(
+    http.get("*/api/v1/messages/", () =>
+      HttpResponse.json({
+        count: 2,
+        next: null,
+        previous: null,
+        results: [
+          {
+            ...message,
+            id: "10000000-0000-4000-8000-000000000096",
+            title: "منبع پیشنهادی شما رد شد",
+            preview: "مالکیت دامنه اثبات نشد.",
+            group: sourceProposalGroup,
+          },
+          {
+            ...message,
+            title: "منبع پیشنهادی نیازمند اصلاح است",
+            preview: "مدرک نمایندگی را تکمیل کنید.",
+            group: sourceProposalGroup,
+          },
+        ],
+      }),
+    ),
+  );
+
+  renderPage();
+
+  const group = await screen.findByRole("group", {
+    name: "منبع پیشنهادی خانه‌یاب",
+  });
+  expect(within(group).getByText("منبع پیشنهادی شما رد شد")).toBeVisible();
+  expect(
+    within(group).getByText("منبع پیشنهادی نیازمند اصلاح است"),
+  ).toBeVisible();
+});
+
+test("group labels do not disturb latest-activity ordering", async () => {
+  const firstGroup = {
+    kind: "source_proposal",
+    id: "30000000-0000-4000-8000-000000000096",
+    label: "خانه‌یاب",
+  };
+  const secondGroup = {
+    kind: "source_proposal",
+    id: "30000000-0000-4000-8000-000000000097",
+    label: "اجاره‌یار",
+  };
+  server.use(
+    http.get("*/api/v1/messages/", () =>
+      HttpResponse.json({
+        count: 3,
+        next: null,
+        previous: null,
+        results: [
+          {
+            ...message,
+            id: "1",
+            title: "رویداد جدید خانه‌یاب",
+            group: firstGroup,
+          },
+          {
+            ...message,
+            id: "2",
+            title: "رویداد اجاره‌یار",
+            group: secondGroup,
+          },
+          {
+            ...message,
+            id: "3",
+            title: "رویداد قدیمی خانه‌یاب",
+            group: firstGroup,
+          },
+        ],
+      }),
+    ),
+  );
+
+  renderPage();
+
+  const feed = await screen.findByRole("region", { name: "فهرست پیام‌ها" });
+  const links = await within(feed).findAllByRole("link");
+  expect(links.map((link) => link.textContent)).toEqual([
+    expect.stringContaining("رویداد جدید خانه‌یاب"),
+    expect.stringContaining("رویداد اجاره‌یار"),
+    expect.stringContaining("رویداد قدیمی خانه‌یاب"),
+  ]);
 });

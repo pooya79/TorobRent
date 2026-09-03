@@ -11,6 +11,7 @@ import {
   messageDetailQueryOptions,
   messagesQueryOptions,
   type MessageFilter,
+  type MessageSummary,
 } from "@/features/messages/queries";
 import { cn } from "@/lib/utils";
 
@@ -27,6 +28,26 @@ function filterFrom(value: string | null): MessageFilter {
 function pageFrom(value: string | null) {
   const page = Number(value);
   return Number.isInteger(page) && page > 0 ? page : 1;
+}
+
+function groupLabel(group: MessageSummary["group"]) {
+  return group.kind === "source_proposal"
+    ? `منبع پیشنهادی ${group.label}`
+    : group.label;
+}
+
+function groupMessages(messages: MessageSummary[]) {
+  const groups: { key: string; messages: MessageSummary[] }[] = [];
+  for (const [index, message] of messages.entries()) {
+    const groupKey = `${message.group.kind}:${message.group.id}`;
+    const previous = groups.at(-1);
+    if (previous?.key.startsWith(`${groupKey}:`)) {
+      previous.messages.push(message);
+    } else {
+      groups.push({ key: `${groupKey}:${index}`, messages: [message] });
+    }
+  }
+  return groups;
 }
 
 export function MessageCenterPage() {
@@ -130,53 +151,74 @@ export function MessageCenterPage() {
             </p>
           ) : (
             <>
-              <ol className="divide-border divide-y">
-                {feed.data.results.map((message) => (
-                  <li key={message.id}>
-                    <Link
-                      aria-current={
-                        message.id === messageId ? "page" : undefined
-                      }
-                      className={cn(
-                        "hover:bg-muted/60 flex min-h-28 gap-3 p-4 transition-colors",
-                        message.id === messageId && "bg-muted",
-                      )}
-                      to={`/messages/${message.id}${searchParams.size ? `?${searchParams}` : ""}`}
-                    >
-                      <span className="bg-primary/10 text-primary mt-1 flex size-9 shrink-0 items-center justify-center rounded-full">
-                        {message.read ? (
-                          <MailOpen className="size-4" aria-hidden="true" />
-                        ) : (
-                          <Mail className="size-4" aria-hidden="true" />
-                        )}
-                      </span>
-                      <span className="min-w-0 flex-1">
-                        <span className="flex items-start justify-between gap-2">
-                          <span
-                            className={cn(
-                              "font-medium",
-                              !message.read && "font-bold",
-                            )}
-                          >
-                            {message.title}
-                          </span>
-                          {!message.read ? (
-                            <span className="bg-primary mt-2 size-2 shrink-0 rounded-full">
-                              <span className="sr-only">خوانده‌نشده</span>
-                            </span>
-                          ) : null}
-                        </span>
-                        <span className="text-muted-foreground mt-1 line-clamp-2 text-sm">
-                          {message.preview}
-                        </span>
-                        <time className="text-muted-foreground mt-2 block text-xs">
-                          {new Date(message.created_at).toLocaleString("fa-IR")}
-                        </time>
-                      </span>
-                    </Link>
-                  </li>
-                ))}
-              </ol>
+              <div className="divide-border divide-y">
+                {groupMessages(feed.data.results).map(({ key, messages }) => {
+                  const group = messages[0]?.group;
+                  if (!group) return null;
+                  const label = groupLabel(group);
+                  return (
+                    <section aria-label={label} key={key} role="group">
+                      <h2 className="bg-muted/40 text-muted-foreground px-4 py-2 text-xs font-semibold">
+                        {label}
+                      </h2>
+                      <ol className="divide-border divide-y">
+                        {messages.map((message) => (
+                          <li key={message.id}>
+                            <Link
+                              aria-current={
+                                message.id === messageId ? "page" : undefined
+                              }
+                              className={cn(
+                                "hover:bg-muted/60 flex min-h-28 gap-3 p-4 transition-colors",
+                                message.id === messageId && "bg-muted",
+                              )}
+                              to={`/messages/${message.id}${searchParams.size ? `?${searchParams}` : ""}`}
+                            >
+                              <span className="bg-primary/10 text-primary mt-1 flex size-9 shrink-0 items-center justify-center rounded-full">
+                                {message.read ? (
+                                  <MailOpen
+                                    className="size-4"
+                                    aria-hidden="true"
+                                  />
+                                ) : (
+                                  <Mail className="size-4" aria-hidden="true" />
+                                )}
+                              </span>
+                              <span className="min-w-0 flex-1">
+                                <span className="flex items-start justify-between gap-2">
+                                  <span
+                                    className={cn(
+                                      "font-medium",
+                                      !message.read && "font-bold",
+                                    )}
+                                  >
+                                    {message.title}
+                                  </span>
+                                  {!message.read ? (
+                                    <span className="bg-primary mt-2 size-2 shrink-0 rounded-full">
+                                      <span className="sr-only">
+                                        خوانده‌نشده
+                                      </span>
+                                    </span>
+                                  ) : null}
+                                </span>
+                                <span className="text-muted-foreground mt-1 line-clamp-2 text-sm">
+                                  {message.preview}
+                                </span>
+                                <time className="text-muted-foreground mt-2 block text-xs">
+                                  {new Date(message.created_at).toLocaleString(
+                                    "fa-IR",
+                                  )}
+                                </time>
+                              </span>
+                            </Link>
+                          </li>
+                        ))}
+                      </ol>
+                    </section>
+                  );
+                })}
+              </div>
               {feed.data.previous || feed.data.next ? (
                 <nav
                   aria-label="صفحه‌بندی پیام‌ها"

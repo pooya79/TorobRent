@@ -67,9 +67,25 @@ class SystemNotification(models.Model):
         "submissions.SubmissionEvent",
         on_delete=models.PROTECT,
         related_name="system_notifications",
+        null=True,
+        blank=True,
+    )
+    originating_source_proposal_event = models.ForeignKey(
+        "source_proposals.SourceProposalEvent",
+        on_delete=models.PROTECT,
+        related_name="system_notifications",
+        null=True,
+        blank=True,
     )
     target_submission = models.ForeignKey(
         "submissions.Submission",
+        on_delete=models.SET_NULL,
+        related_name="system_notifications",
+        null=True,
+        blank=True,
+    )
+    target_source_proposal = models.ForeignKey(
+        "source_proposals.SourceProposal",
         on_delete=models.SET_NULL,
         related_name="system_notifications",
         null=True,
@@ -85,16 +101,37 @@ class SystemNotification(models.Model):
             models.UniqueConstraint(
                 fields=("recipient", "originating_event"),
                 name="one_system_notification_per_recipient_event",
-            )
+            ),
+            models.UniqueConstraint(
+                fields=("recipient", "originating_source_proposal_event"),
+                name="one_system_notification_per_recipient_source_proposal_event",
+            ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(
+                        originating_event__isnull=False,
+                        originating_source_proposal_event__isnull=True,
+                    )
+                    | models.Q(
+                        originating_event__isnull=True,
+                        originating_source_proposal_event__isnull=False,
+                    )
+                ),
+                name="system_notification_has_exactly_one_originating_event",
+            ),
         ]
 
     def __str__(self) -> str:
-        return f"{self.recipient_id}: {self.originating_event_id}"
+        event_id = self.originating_event_id or self.originating_source_proposal_event_id
+        return f"{self.recipient_id}: {event_id}"
 
     def save(self, *args: Any, **kwargs: Any) -> None:
         if not self._state.adding:
             raise ValidationError("System Notification history is immutable.")
         super().save(*args, **kwargs)
+
+    def delete(self, *args: Any, **kwargs: Any) -> tuple[int, dict[str, int]]:
+        raise ValidationError("System Notification history is immutable.")
 
 
 class SystemNotificationReadState(models.Model):

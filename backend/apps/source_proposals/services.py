@@ -11,6 +11,7 @@ from django.utils import timezone
 from apps.accounts.models import User
 from apps.catalog.models import TEHRAN_CITY_ID, Neighborhood, OutboundPolicy, PropertyType, Source
 from apps.catalog.services import ExternalListingSpec, materialize_external_listing
+from apps.communications.services import create_source_proposal_review_notification
 
 from .models import (
     ExternalListingCandidate,
@@ -452,7 +453,7 @@ def _record_review_decision(
     proposal.state = new_state
     proposal.pending_since = None
     proposal.save(update_fields=("state", "pending_since", "updated_at"))
-    SourceProposalEvent.objects.create(
+    decision = SourceProposalEvent.objects.create(
         proposal=proposal,
         actor=actor,
         revision=proposal.revision,
@@ -460,6 +461,7 @@ def _record_review_decision(
         new_state=new_state,
         reason=reason,
     )
+    create_source_proposal_review_notification(decision)
     claim.released_at = timezone.now()
     claim.save(update_fields=("released_at",))
     return proposal
