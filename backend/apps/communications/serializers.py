@@ -10,6 +10,7 @@ from apps.contact.models import (
     SupportMessage,
     SupportMessageAuthor,
     SupportRequest,
+    SupportRequestEvent,
     SupportRequestEventType,
     SupportRequestStatus,
 )
@@ -17,6 +18,27 @@ from apps.contact.models import (
 from .models import MessageKind, SystemNotification
 
 MessageItem = SystemNotification | SupportRequest
+PUBLIC_SUPPORT_EVENT_TYPES = (
+    SupportRequestEventType.ASSIGNED,
+    SupportRequestEventType.ESCALATED,
+    SupportRequestEventType.RELEASED,
+    SupportRequestEventType.REOPENED,
+    SupportRequestEventType.RESOLVED,
+)
+
+
+def public_status_for_event(event: SupportRequestEvent) -> str:
+    if event.event_type == SupportRequestEventType.RESOLVED:
+        return "resolved"
+    if event.event_type in (
+        SupportRequestEventType.ASSIGNED,
+        SupportRequestEventType.ESCALATED,
+    ) or (
+        event.event_type == SupportRequestEventType.REOPENED
+        and event.new_state == SupportRequestStatus.IN_PROGRESS
+    ):
+        return "in_progress"
+    return "received"
 
 
 class SupportRequestCreateSerializer(serializers.Serializer[Any]):
@@ -197,31 +219,13 @@ class MessageDetailSerializer(MessageSummarySerializer):
     def public_status_for(support_request: SupportRequest) -> str:
         event = (
             support_request.events
-            .filter(
-                event_type__in=(
-                    SupportRequestEventType.ASSIGNED,
-                    SupportRequestEventType.ESCALATED,
-                    SupportRequestEventType.RELEASED,
-                    SupportRequestEventType.REOPENED,
-                    SupportRequestEventType.RESOLVED,
-                )
-            )
+            .filter(event_type__in=PUBLIC_SUPPORT_EVENT_TYPES)
             .order_by("-created_at", "-id")
             .first()
         )
         if event is None:
             return "received"
-        if event.event_type == SupportRequestEventType.RESOLVED:
-            return "resolved"
-        if event.event_type in (
-            SupportRequestEventType.ASSIGNED,
-            SupportRequestEventType.ESCALATED,
-        ) or (
-            event.event_type == SupportRequestEventType.REOPENED
-            and event.new_state == SupportRequestStatus.IN_PROGRESS
-        ):
-            return "in_progress"
-        return "received"
+        return public_status_for_event(event)
 
     def get_public_status(self, item: MessageItem) -> str | None:
         if isinstance(item, SystemNotification):
@@ -291,32 +295,11 @@ class MessageDetailSerializer(MessageSummarySerializer):
                     and message.created_at >= timezone.now() - timedelta(minutes=15)
                 ),
             })
-        for event in item.events.filter(
-            event_type__in=(
-                SupportRequestEventType.ASSIGNED,
-                SupportRequestEventType.ESCALATED,
-                SupportRequestEventType.RELEASED,
-                SupportRequestEventType.REOPENED,
-                SupportRequestEventType.RESOLVED,
-            )
-        ):
+        for event in item.events.filter(event_type__in=PUBLIC_SUPPORT_EVENT_TYPES):
             entries.append({
                 "id": event.id,
                 "kind": "status",
-                "status": (
-                    "resolved"
-                    if event.event_type == SupportRequestEventType.RESOLVED
-                    else (
-                        "in_progress"
-                        if event.event_type
-                        in (
-                            SupportRequestEventType.ASSIGNED,
-                            SupportRequestEventType.ESCALATED,
-                        )
-                        or event.new_state == SupportRequestStatus.IN_PROGRESS
-                        else "received"
-                    )
-                ),
+                "status": public_status_for_event(event),
                 "created_at": event.created_at,
             })
         return sorted(entries, key=lambda entry: (entry["created_at"], str(entry["id"])))

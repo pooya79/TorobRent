@@ -1204,6 +1204,8 @@ def test_requester_message_and_competing_claims_preserve_one_handler_rule():
         intake_kind=IntakeKind.GENERAL,
         message="A requester message arrives while Operators claim the work.",
         account_linked_at_intake=True,
+        status=SupportRequestStatus.RESOLVED,
+        resolved_at=timezone.now() - timedelta(days=2),
     )
     permission = Permission.objects.get(codename="handle_general_support_requests")
     operators = [
@@ -1248,10 +1250,19 @@ def test_requester_message_and_competing_claims_preserve_one_handler_rule():
         results = [future.result() for future in futures]
 
     assert results[0] == 201
-    assert sorted(results[1:]) == [201, 409]
+    assert results[1:].count(201) <= 1
+    assert all(status_code in (201, 409) for status_code in results[1:])
     support_request.refresh_from_db()
-    assert support_request.status == SupportRequestStatus.IN_PROGRESS
-    assert support_request.assignee_id in {operator.id for operator in operators}
+    if results[1:].count(201) == 1:
+        assert support_request.status == SupportRequestStatus.IN_PROGRESS
+        assert support_request.assignee_id in {operator.id for operator in operators}
+    else:
+        assert support_request.status == SupportRequestStatus.OPEN
+        assert support_request.assignee_id is None
+        operator_client = APIClient()
+        operator_client.force_authenticate(operators[0])
+        queue = operator_client.get("/api/v1/operator/support-requests/?status=open")
+        assert str(support_request.id) in {item["id"] for item in queue.data["results"]}
     assert (
         support_request.messages.filter(
             author_kind=SupportMessageAuthor.REQUESTER,
@@ -1259,9 +1270,13 @@ def test_requester_message_and_competing_claims_preserve_one_handler_rule():
         ).count()
         == 1
     )
+    assert support_request.events.filter(
+        event_type=SupportRequestEventType.ASSIGNED,
+    ).count() == results[1:].count(201)
     assert (
         support_request.events.filter(
-            event_type=SupportRequestEventType.ASSIGNED,
+            event_type=SupportRequestEventType.REOPENED,
+            requester_initiated=True,
         ).count()
         == 1
     )

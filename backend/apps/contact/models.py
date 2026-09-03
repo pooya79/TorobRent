@@ -298,6 +298,7 @@ class SupportRequestEvent(AppendOnlyModel):
         on_delete=models.PROTECT,
         related_name="support_request_events",
     )
+    requester_initiated = models.BooleanField(default=False, editable=False)
     event_type = models.CharField(max_length=32, choices=SupportRequestEventType)
     prior_state = models.CharField(max_length=16, choices=SupportRequestStatus)
     new_state = models.CharField(max_length=16, choices=SupportRequestStatus)
@@ -365,7 +366,10 @@ class SupportRequestEvent(AppendOnlyModel):
         constraints = [
             models.CheckConstraint(
                 condition=(
-                    models.Q(event_type=SupportRequestEventType.REOPENED)
+                    models.Q(
+                        event_type=SupportRequestEventType.REOPENED,
+                        requester_initiated=True,
+                    )
                     | models.Q(actor__isnull=False)
                 ),
                 name="operational_support_event_requires_actor",

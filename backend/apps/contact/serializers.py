@@ -284,6 +284,7 @@ class SupportRequestEventSerializer(serializers.ModelSerializer[SupportRequestEv
         fields = (
             "id",
             "event_type",
+            "requester_initiated",
             "actor_id",
             "actor_reference",
             "actor_label",

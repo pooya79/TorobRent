@@ -6407,6 +6407,9 @@ components:
           readOnly: true
         event_type:
           $ref: '#/components/schemas/SupportRequestEventTypeEnum'
+        requester_initiated:
+          type: boolean
+          readOnly: true
         actor_id:
           type:
           - string
@@ -6500,6 +6503,7 @@ components:
       - new_state
       - prior_assignee_id
       - prior_state
+      - requester_initiated
     SupportRequestEventTypeEnum:
       enum:
       - assigned

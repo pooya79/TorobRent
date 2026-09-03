@@ -212,3 +212,69 @@ def test_redaction_migration_preserves_existing_support_content_and_history():
         assert migrated_submission.submitter_id == submitter.id
     finally:
         MigrationExecutor(connection).migrate(latest_targets)
+
+
+@pytest.mark.django_db(transaction=True)
+def test_requester_reopen_marker_migration_preserves_operator_audit_identity():
+    executor = MigrationExecutor(connection)
+    latest_targets = executor.loader.graph.leaf_nodes()
+    old_target = [("contact", "0013_alter_supportrequestevent_actor_and_more")]
+    new_target = [
+        (
+            "contact",
+            "0014_remove_supportrequestevent_operational_support_event_requires_actor_and_more",
+        )
+    ]
+
+    try:
+        executor.migrate(old_target)
+        old_apps = executor.loader.project_state(old_target).apps
+        SupportRequest = old_apps.get_model("contact", "SupportRequest")
+        SupportRequestEvent = old_apps.get_model("contact", "SupportRequestEvent")
+        User = old_apps.get_model("accounts", "User")
+        requester = User.objects.create(email="migration-requester@example.com")
+        operator = User.objects.create(email="migration-operator@example.com")
+        support_request = SupportRequest.objects.create(
+            submitter=requester,
+            name="Migration requester",
+            email=requester.email,
+            intake_kind="general",
+            message="Preserve requester and Operator reopen provenance.",
+        )
+        requester_reopen = SupportRequestEvent.objects.create(
+            support_request=support_request,
+            actor=requester,
+            event_type="reopened",
+            prior_state="resolved",
+            new_state="open",
+        )
+        redacted_requester_reopen = SupportRequestEvent.objects.create(
+            support_request=support_request,
+            actor=None,
+            event_type="reopened",
+            prior_state="resolved",
+            new_state="open",
+        )
+        operator_reopen = SupportRequestEvent.objects.create(
+            support_request=support_request,
+            actor=operator,
+            event_type="reopened",
+            prior_state="resolved",
+            new_state="in_progress",
+        )
+
+        executor = MigrationExecutor(connection)
+        executor.migrate(new_target)
+        new_apps = executor.loader.project_state(new_target).apps
+        SupportRequestEvent = new_apps.get_model("contact", "SupportRequestEvent")
+
+        assert SupportRequestEvent.objects.get(id=requester_reopen.id).requester_initiated is True
+        assert (
+            SupportRequestEvent.objects.get(id=redacted_requester_reopen.id).requester_initiated
+            is True
+        )
+        migrated_operator_reopen = SupportRequestEvent.objects.get(id=operator_reopen.id)
+        assert migrated_operator_reopen.requester_initiated is False
+        assert migrated_operator_reopen.actor_id == operator.id
+    finally:
+        MigrationExecutor(connection).migrate(latest_targets)

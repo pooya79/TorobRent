@@ -2876,6 +2876,7 @@ export interface components {
       /** Format: uuid */
       readonly id: string;
       event_type: components["schemas"]["SupportRequestEventTypeEnum"];
+      readonly requester_initiated: boolean;
       /** Format: uuid */
       readonly actor_id: string | null;
       /** Format: uuid */

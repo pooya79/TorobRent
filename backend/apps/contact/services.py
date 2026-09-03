@@ -149,6 +149,7 @@ def add_support_message(
             support_request=support_request,
             actor=actor,
             event_type=SupportRequestEventType.REOPENED,
+            requester_initiated=True,
             prior_state=prior_state,
             new_state=SupportRequestStatus.OPEN,
             classification=support_request.classification,
@@ -250,6 +251,7 @@ def redact_support_request_content(
             support_request=support_request,
             actor_id=requester_id,
             event_type=SupportRequestEventType.REOPENED,
+            requester_initiated=True,
         ).update(actor=None)
     SupportRequestNote._base_manager.filter(support_request=support_request).update(
         body="[Personal content redacted]"

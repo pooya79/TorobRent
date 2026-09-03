@@ -21,6 +21,7 @@ from apps.contact.models import (
     SupportMessageAuthor,
     SupportPrivacyAction,
     SupportRequest,
+    SupportRequestEvent,
     SupportRequestEventType,
     SupportRequestNote,
     SupportRequestStatus,
@@ -97,6 +98,7 @@ def test_privileged_redaction_removes_personal_content_without_rewriting_operati
     requester_reopen_event = support_request.events.create(
         actor=requester,
         event_type=SupportRequestEventType.REOPENED,
+        requester_initiated=True,
         prior_state=SupportRequestStatus.RESOLVED,
         new_state=SupportRequestStatus.OPEN,
         classification=SupportClassification.GUIDANCE,
@@ -217,6 +219,15 @@ def test_operator_support_messages_require_an_author_identity():
             author=None,
             author_kind=SupportMessageAuthor.OPERATOR,
             body="An Operator reply must retain its author identity.",
+        )
+    with pytest.raises(IntegrityError), transaction.atomic():
+        SupportRequestEvent.objects.create(
+            support_request=support_request,
+            actor=None,
+            event_type=SupportRequestEventType.REOPENED,
+            prior_state=SupportRequestStatus.RESOLVED,
+            new_state=SupportRequestStatus.IN_PROGRESS,
+            classification=SupportClassification.GUIDANCE,
         )
 
 
