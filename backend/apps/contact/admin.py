@@ -3,6 +3,7 @@ from typing import cast
 from django.contrib import admin
 from django.db.models import QuerySet
 from django.http import HttpRequest
+from unfold.admin import ModelAdmin
 
 from apps.accounts.models import User
 
@@ -11,7 +12,7 @@ from .services import redact_support_request_content
 
 
 @admin.register(SupportRequest)
-class SupportRequestAdmin(admin.ModelAdmin):  # type: ignore[type-arg]
+class SupportRequestAdmin(ModelAdmin):  # type: ignore[type-arg]
     list_display = (
         "name",
         "intake_kind",

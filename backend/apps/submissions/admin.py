@@ -5,6 +5,7 @@ from django.contrib import admin
 from django.http import HttpRequest
 from django.urls import reverse
 from django.utils.html import format_html
+from unfold.admin import ModelAdmin, TabularInline
 
 from apps.accounts.models import User
 
@@ -36,7 +37,7 @@ class SubmissionDecisionCorrectionAdminForm(forms.ModelForm):  # type: ignore[ty
         return original
 
 
-class SubmissionImageInline(admin.TabularInline):  # type: ignore[type-arg]
+class SubmissionImageInline(TabularInline):  # type: ignore[type-arg]
     model = SubmissionImage
     fields = ("preview", "status", "failure_reason", "position", "is_primary", "updated_at")
     readonly_fields = fields
@@ -60,7 +61,7 @@ class SubmissionImageInline(admin.TabularInline):  # type: ignore[type-arg]
 
 
 @admin.register(Submission)
-class SubmissionAdmin(admin.ModelAdmin):  # type: ignore[type-arg]
+class SubmissionAdmin(ModelAdmin):  # type: ignore[type-arg]
     list_display = ("id", "submitter", "role", "state", "current_step", "media_complete")
     list_filter = ("role", "state", "current_step", "media_complete")
     search_fields = ("id", "submitter__email", "address")
@@ -68,7 +69,7 @@ class SubmissionAdmin(admin.ModelAdmin):  # type: ignore[type-arg]
 
 
 @admin.register(SubmissionEvent)
-class SubmissionEventAdmin(admin.ModelAdmin):  # type: ignore[type-arg]
+class SubmissionEventAdmin(ModelAdmin):  # type: ignore[type-arg]
     form = SubmissionDecisionCorrectionAdminForm
     list_display = (
         "id",
@@ -117,7 +118,7 @@ class SubmissionEventAdmin(admin.ModelAdmin):  # type: ignore[type-arg]
 
 
 @admin.register(SubmissionImage)
-class SubmissionImageAdmin(admin.ModelAdmin):  # type: ignore[type-arg]
+class SubmissionImageAdmin(ModelAdmin):  # type: ignore[type-arg]
     list_display = ("id", "submission", "status", "position", "is_primary", "updated_at")
     list_filter = ("status", "is_primary")
     search_fields = ("id", "submission__id", "submission__submitter__email")

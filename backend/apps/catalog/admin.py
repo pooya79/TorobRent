@@ -9,6 +9,7 @@ from django.db.models import Count, Q, QuerySet
 from django.http import HttpRequest
 from django.utils import timezone
 from django.utils.translation import ngettext
+from unfold.admin import ModelAdmin
 
 from .models import (
     City,
@@ -146,27 +147,27 @@ class PropertyMergeActionForm(ActionForm):
 
 
 @admin.register(City)
-class CityAdmin(admin.ModelAdmin):  # type: ignore[type-arg]
+class CityAdmin(ModelAdmin):  # type: ignore[type-arg]
     list_display = ("name_fa", "source_code", "source_year", "reviewed")
     search_fields = ("name_fa", "source_code")
 
 
 @admin.register(District)
-class DistrictAdmin(admin.ModelAdmin):  # type: ignore[type-arg]
+class DistrictAdmin(ModelAdmin):  # type: ignore[type-arg]
     list_display = ("name_fa", "number", "city", "reviewed")
     list_filter = ("city", "reviewed")
     search_fields = ("name_fa", "source_code")
 
 
 @admin.register(Neighborhood)
-class NeighborhoodAdmin(admin.ModelAdmin):  # type: ignore[type-arg]
+class NeighborhoodAdmin(ModelAdmin):  # type: ignore[type-arg]
     list_display = ("name_fa", "district", "reviewed")
     list_filter = ("district__city", "district", "reviewed")
     search_fields = ("name_fa", "source_code")
 
 
 @admin.register(Source)
-class SourceAdmin(admin.ModelAdmin):  # type: ignore[type-arg]
+class SourceAdmin(ModelAdmin):  # type: ignore[type-arg]
     list_display = (
         "display_name",
         "domain",
@@ -180,7 +181,7 @@ class SourceAdmin(admin.ModelAdmin):  # type: ignore[type-arg]
 
 
 @admin.register(Property)
-class PropertyAdmin(admin.ModelAdmin):  # type: ignore[type-arg]
+class PropertyAdmin(ModelAdmin):  # type: ignore[type-arg]
     list_display = (
         "id",
         "property_type",
@@ -229,7 +230,7 @@ class PropertyAdmin(admin.ModelAdmin):  # type: ignore[type-arg]
 
 
 @admin.register(RentalTerms)
-class RentalTermsAdmin(admin.ModelAdmin):  # type: ignore[type-arg]
+class RentalTermsAdmin(ModelAdmin):  # type: ignore[type-arg]
     form = RentalTermsAdminForm
     list_display = ("id", "deposit_toman", "monthly_rent_toman", "currency")
     search_fields = ("id",)
@@ -244,7 +245,7 @@ class RentalTermsAdmin(admin.ModelAdmin):  # type: ignore[type-arg]
 
 
 @admin.register(Listing)
-class ListingAdmin(admin.ModelAdmin):  # type: ignore[type-arg]
+class ListingAdmin(ModelAdmin):  # type: ignore[type-arg]
     list_display = (
         "id",
         "property",
@@ -358,7 +359,7 @@ class ListingAdmin(admin.ModelAdmin):  # type: ignore[type-arg]
 
 
 @admin.register(ListingGroupingEvent)
-class ListingGroupingEventAdmin(admin.ModelAdmin):  # type: ignore[type-arg]
+class ListingGroupingEventAdmin(ModelAdmin):  # type: ignore[type-arg]
     list_display = (
         "created_at",
         "action",
@@ -389,7 +390,7 @@ class ListingGroupingEventAdmin(admin.ModelAdmin):  # type: ignore[type-arg]
 
 
 @admin.register(ProductEvent)
-class ProductEventAdmin(admin.ModelAdmin):  # type: ignore[type-arg]
+class ProductEventAdmin(ModelAdmin):  # type: ignore[type-arg]
     change_list_template = "admin/catalog/productevent/change_list.html"
     list_display = ("created_at", "event_type", "property", "listing", "source")
     list_filter = (EventPeriodFilter, "event_type", "property", "listing", "source")

@@ -1,12 +1,13 @@
 import pytest
+from django.contrib import admin
 from django.contrib.auth.models import Group, Permission
 from django.core.exceptions import ValidationError
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework.test import APIClient
 
-from apps.accounts.models import User
-from apps.accounts.services import anonymize_operator_account
+from apps.accounts.models import OperatorAccess, User
+from apps.accounts.services import anonymize_operator_account, update_operator_access
 from apps.contact.models import IntakeKind, SupportRequest, SupportRequestEvent
 from apps.contact.serializers import SupportRequestEventSerializer
 
@@ -157,6 +158,138 @@ def test_managed_operator_groups_are_independent_reusable_capability_bundles():
     assert not Permission.objects.filter(
         codename__in=("catalog_stewardship", "link_verification")
     ).exists()
+
+
+@pytest.mark.django_db
+def test_superuser_manages_operator_roles_through_the_dedicated_admin(client):
+    administrator = User.objects.create_superuser(
+        email="administrator@example.com", password="password"
+    )
+    account = User.objects.create_user(
+        email="new-operator@example.com",
+        password="password",
+        email_verified_at=timezone.now(),
+    )
+    ordinary_group = Group.objects.create(name="Content Editors")
+    account.groups.add(ordinary_group)
+    reviewer = Group.objects.get(name="Submission Reviewer")
+    support_lead = Group.objects.get(name="Support Lead")
+    client.force_login(administrator)
+    url = reverse("admin:accounts_operatoraccess_change", args=(account.pk,))
+
+    form_page = client.get(url)
+    changed = client.post(
+        url,
+        {
+            "is_active": "on",
+            "operator_roles": [reviewer.pk, support_lead.pk],
+            "_save": "Save",
+        },
+    )
+
+    account.refresh_from_db()
+    assert form_page.status_code == 200
+    assert b"Operator roles" in form_page.content
+    assert changed.status_code == 302
+    assert set(account.groups.values_list("name", flat=True)) == {
+        "Content Editors",
+        "Submission Reviewer",
+        "Support Lead",
+    }
+    assert set(account.operator_capabilities) == {
+        "handle_support",
+        "manage_operator_queues",
+        "review_submissions",
+    }
+    assert account.is_staff is False
+
+    removed_role = client.post(
+        url,
+        {
+            "is_active": "on",
+            "operator_roles": [support_lead.pk],
+            "_save": "Save",
+        },
+    )
+
+    account.refresh_from_db()
+    assert removed_role.status_code == 302
+    assert set(account.groups.values_list("name", flat=True)) == {
+        "Content Editors",
+        "Support Lead",
+    }
+
+
+@pytest.mark.django_db
+def test_operator_access_admin_rejects_unready_accounts_and_non_superusers(client):
+    administrator = User.objects.create_superuser(
+        email="administrator@example.com", password="password"
+    )
+    unverified = User.objects.create_user(
+        email="unverified-operator@example.com", password="password"
+    )
+    reviewer = Group.objects.get(name="Submission Reviewer")
+    url = reverse("admin:accounts_operatoraccess_change", args=(unverified.pk,))
+    client.force_login(administrator)
+
+    rejected = client.post(
+        url,
+        {
+            "is_active": "on",
+            "operator_roles": [reviewer.pk],
+            "_save": "Save",
+        },
+    )
+
+    unverified.refresh_from_db()
+    assert rejected.status_code == 200
+    assert not unverified.groups.filter(pk=reviewer.pk).exists()
+
+    staff = User.objects.create_user(
+        email="ordinary-staff@example.com",
+        password="password",
+        is_staff=True,
+        email_verified_at=timezone.now(),
+    )
+    client.force_login(staff)
+    assert client.get(url).status_code == 403
+
+
+@pytest.mark.django_db
+def test_operator_access_service_rejects_admin_admission_by_non_superuser():
+    staff = User.objects.create_user(
+        email="staff@example.com",
+        password="password",
+        is_staff=True,
+        email_verified_at=timezone.now(),
+    )
+    target = User.objects.create_user(
+        email="target@example.com",
+        password="password",
+        email_verified_at=timezone.now(),
+    )
+
+    with pytest.raises(ValidationError, match="Only active superusers"):
+        update_operator_access(
+            target=target,
+            actor=staff,
+            is_active=True,
+            is_staff=True,
+            roles=(),
+        )
+
+    target.refresh_from_db()
+    assert target.is_staff is False
+
+
+def test_all_project_admin_models_use_the_unfold_interface():
+    from unfold.admin import ModelAdmin
+
+    assert admin.site.is_registered(OperatorAccess)
+    assert all(
+        isinstance(model_admin, ModelAdmin)
+        for model_admin in admin.site._registry.values()  # noqa: SLF001
+    )
 
 
 @pytest.mark.django_db

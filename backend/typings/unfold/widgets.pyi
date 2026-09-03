@@ -1,0 +1,3 @@
+from django.forms import CheckboxSelectMultiple
+
+class UnfoldAdminCheckboxSelectMultipleWidget(CheckboxSelectMultiple): ...

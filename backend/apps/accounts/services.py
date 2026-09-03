@@ -119,6 +119,34 @@ def can_delete_operator_group(*, actor: User, group: Group) -> bool:
     )
 
 
+@transaction.atomic
+def update_operator_access(
+    *,
+    target: User,
+    actor: User,
+    is_active: bool,
+    is_staff: bool,
+    roles: Iterable[Group],
+) -> User:
+    if not actor.is_active or not actor.is_superuser:
+        raise ValidationError("Only active superusers may provision Operator access.")
+    locked_target = User.objects.select_for_update().get(pk=target.pk)
+    selected_roles = list(roles)
+    ordinary_groups = list(locked_target.groups.exclude(name__in=MANAGED_OPERATOR_GROUPS))
+    validate_operator_access_change(
+        actor=actor,
+        target=locked_target,
+        is_active=is_active,
+        groups=(*ordinary_groups, *selected_roles),
+        permissions=locked_target.user_permissions.select_related("content_type"),
+    )
+    locked_target.is_active = is_active
+    locked_target.is_staff = is_staff
+    locked_target.save(update_fields=("is_active", "is_staff"))
+    locked_target.groups.set([*ordinary_groups, *selected_roles])
+    return locked_target
+
+
 def _issue_phone_otp(
     *, user: User, phone: str, grants_submitter_eligibility: bool = False
 ) -> str | None:

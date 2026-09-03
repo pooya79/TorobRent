@@ -17,6 +17,7 @@ ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=["localhost", "127.0.0.1"])
 CSRF_TRUSTED_ORIGINS = env.list("CSRF_TRUSTED_ORIGINS", default=[])
 
 INSTALLED_APPS = [
+    "unfold",
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
@@ -93,6 +94,41 @@ LANGUAGE_CODE = "en-us"
 TIME_ZONE = "UTC"
 USE_I18N = True
 USE_TZ = True
+
+UNFOLD = {
+    "SITE_TITLE": "TorobRent administration",
+    "SITE_HEADER": "TorobRent",
+    "SITE_SUBHEADER": "Platform administration",
+    "SITE_SYMBOL": "shield_person",
+    "SITE_URL": "/",
+    "SHOW_BACK_BUTTON": True,
+    "SHOW_UI_WARNINGS": True,
+    "ENVIRONMENT": "config.admin.environment_callback",
+    "BORDER_RADIUS": "10px",
+    "COLORS": {
+        "primary": {
+            "50": "oklch(96.9% .015 12.422)",
+            "100": "oklch(94.1% .03 12.58)",
+            "200": "oklch(89.2% .058 10.001)",
+            "300": "oklch(81% .117 11.638)",
+            "400": "oklch(71.2% .194 13.428)",
+            "500": "oklch(64.5% .246 16.439)",
+            "600": "oklch(58.6% .253 17.585)",
+            "700": "oklch(51.4% .222 16.935)",
+            "800": "oklch(45.5% .188 13.697)",
+            "900": "oklch(41% .159 10.272)",
+            "950": "oklch(27.1% .105 12.094)",
+        },
+    },
+    "SIDEBAR": {
+        "show_search": True,
+        "show_all_applications": True,
+    },
+    "COMMAND": {
+        "search_models": True,
+        "show_history": True,
+    },
+}
 
 STATIC_URL = "/static/"
 STATIC_ROOT = BACKEND_DIR / "staticfiles"

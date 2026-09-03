@@ -1,10 +1,11 @@
 from django.contrib import admin
+from unfold.admin import ModelAdmin
 
 from .models import SourceProposal
 
 
 @admin.register(SourceProposal)
-class SourceProposalAdmin(admin.ModelAdmin):  # type: ignore[type-arg]
+class SourceProposalAdmin(ModelAdmin):  # type: ignore[type-arg]
     list_display = (
         "website_name",
         "normalized_domain",

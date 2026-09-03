@@ -36,6 +36,11 @@ audited break-glass repair. Submission decision repair appends a `SubmissionEven
 never edits the original decision. A break-glass operator must record the incident and reason in
 the appended domain event.
 
+The `Operator access` admin presents managed Operator groups as role bundles, shows their effective
+capabilities, and keeps Django `is_staff` admission visibly separate. The full User permission form
+remains available to superusers for exceptional direct permission overrides. Unfold supplies the
+shared visual shell for all registered admin models without changing this operational boundary.
+
 ## Privacy operations
 
 Account anonymization deactivates the account, removes its credentials, name, email identity, and

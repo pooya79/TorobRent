@@ -75,6 +75,14 @@ class User(AbstractUser):
         )
 
 
+class OperatorAccess(User):
+    class Meta:
+        proxy = True
+        default_permissions = ()
+        verbose_name = "Operator access"
+        verbose_name_plural = "Operator access"
+
+
 class PhoneVerificationChallenge(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="phone_challenges")
