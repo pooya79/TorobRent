@@ -3,7 +3,6 @@ from datetime import timedelta
 from typing import cast
 from uuid import UUID
 
-from asgiref.sync import sync_to_async
 from django.conf import settings
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db.models import F, Prefetch, Q, QuerySet
@@ -849,12 +848,12 @@ class SubmissionImageContentView(APIView):
         )
 
         async def stream_variant() -> AsyncIterator[bytes]:
-            processed = await sync_to_async(variant.file.open)("rb")
+            processed = variant.file.open("rb")
             try:
-                while chunk := await sync_to_async(processed.read)(64 * 1024):
+                while chunk := processed.read(64 * 1024):
                     yield chunk
             finally:
-                await sync_to_async(processed.close)()
+                processed.close()
 
         response = StreamingHttpResponse(stream_variant(), content_type="image/webp")
         response["Cache-Control"] = "private, max-age=300"
