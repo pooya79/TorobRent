@@ -1,5 +1,7 @@
-from collections.abc import Callable, Iterator
+import asyncio
+from collections.abc import AsyncIterator, Callable
 from datetime import timedelta
+from threading import Event, Semaphore, Thread
 from typing import cast
 from uuid import UUID
 
@@ -847,13 +849,44 @@ class SubmissionImageContentView(APIView):
             **ownership,
         )
 
-        def stream_variant() -> Iterator[bytes]:
-            processed = variant.file.open("rb")
+        async def stream_variant() -> AsyncIterator[bytes]:
+            loop = asyncio.get_running_loop()
+            chunks: asyncio.Queue[bytes | Exception | None] = asyncio.Queue()
+            slots = Semaphore(2)
+            stopped = Event()
+
+            def enqueue(item: bytes | Exception | None) -> None:
+                loop.call_soon_threadsafe(chunks.put_nowait, item)
+
+            def read_variant() -> None:
+                try:
+                    with variant.file.open("rb") as processed:
+                        while chunk := processed.read(64 * 1024):
+                            while not stopped.is_set() and not slots.acquire(timeout=0.1):
+                                pass
+                            if stopped.is_set():
+                                return
+                            enqueue(chunk)
+                except Exception as exc:  # pragma: no cover
+                    enqueue(exc)
+                finally:
+                    if not stopped.is_set():
+                        enqueue(None)
+
+            Thread(
+                target=read_variant,
+                name="submission-image-stream",
+                daemon=True,
+            ).start()
             try:
-                while chunk := processed.read(64 * 1024):
-                    yield chunk
+                while (item := await chunks.get()) is not None:
+                    if isinstance(item, Exception):
+                        raise item
+                    slots.release()
+                    yield item
             finally:
-                processed.close()
+                stopped.set()
+                slots.release()
 
         response = StreamingHttpResponse(stream_variant(), content_type="image/webp")
         response["Cache-Control"] = "private, max-age=300"

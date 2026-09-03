@@ -95,19 +95,49 @@ class MessageListView(APIView):
             )
             raise NotFound(message) from exc
 
-        start = page.start_index() - 1
-        end = page.end_index()
-        notifications = notifications.order_by("-created_at", "-id")[:end]
-        requests = requests.order_by("-public_updated_at", "-id")[:end]
-        items: list[SystemNotification | SupportRequest] = [*notifications, *requests]
-        items = sorted(
-            items,
-            key=lambda item: (
-                item.created_at if isinstance(item, SystemNotification) else item.public_updated_at,
-                str(item.id),
-            ),
-            reverse=True,
-        )[start:end]
+        start = (page.number - 1) * page_size
+        end = min(start + page_size, total)
+        notification_timeline = (
+            notifications
+            .order_by()
+            .annotate(
+                timeline_at=models.F("created_at"),
+                timeline_source=models.Value("notification", output_field=models.CharField()),
+            )
+            .values("id", "timeline_at", "timeline_source")
+        )
+        request_timeline = (
+            requests
+            .order_by()
+            .annotate(
+                timeline_at=models.F("public_updated_at"),
+                timeline_source=models.Value("support_request", output_field=models.CharField()),
+            )
+            .values("id", "timeline_at", "timeline_source")
+        )
+        timeline = list(
+            notification_timeline.union(request_timeline, all=True).order_by("-timeline_at", "-id")[
+                start:end
+            ]
+        )
+        notification_ids = [
+            item["id"] for item in timeline if item["timeline_source"] == "notification"
+        ]
+        request_ids = [
+            item["id"] for item in timeline if item["timeline_source"] == "support_request"
+        ]
+        notification_items = {
+            item.id: item for item in notifications.filter(id__in=notification_ids)
+        }
+        request_items = {item.id: item for item in requests.filter(id__in=request_ids)}
+        items: list[SystemNotification | SupportRequest] = [
+            (
+                notification_items[item["id"]]
+                if item["timeline_source"] == "notification"
+                else request_items[item["id"]]
+            )
+            for item in timeline
+        ]
         paginator.page = page
         paginator.request = request
         serialized = MessageSummarySerializer(items, many=True)  # type: ignore[arg-type]
