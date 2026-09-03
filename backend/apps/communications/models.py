@@ -16,6 +16,7 @@ class MessageKind(models.TextChoices):
 
 
 class ListingInquiryReplyUnavailableReason(models.TextChoices):
+    ACCOUNT_BLOCKED = "account_blocked", "Account blocked"
     LISTING_INACTIVE = "listing_inactive", "Listing inactive"
     RESPONSIBILITY_CHANGED = "responsibility_changed", "Responsibility changed"
 
@@ -151,6 +152,48 @@ class ListingInquiryMessage(models.Model):
 
     def __str__(self) -> str:
         return f"{self.inquiry_id}: {self.author_id}"
+
+
+class AccountBlock(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    lower_account = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="account_blocks_as_lower",
+    )
+    higher_account = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="account_blocks_as_higher",
+    )
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="created_account_blocks",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=("lower_account", "higher_account"),
+                name="one_account_block_per_pair",
+            ),
+            models.CheckConstraint(
+                condition=~models.Q(lower_account=models.F("higher_account")),
+                name="account_block_accounts_differ",
+            ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(created_by=models.F("lower_account"))
+                    | models.Q(created_by=models.F("higher_account"))
+                ),
+                name="account_block_created_by_participant",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.lower_account_id} — {self.higher_account_id}"
 
 
 class ImmutableSystemNotificationQuerySet(models.QuerySet["SystemNotification"]):

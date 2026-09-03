@@ -26,7 +26,7 @@ function renderPage(initialEntry = "/messages") {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
-  return render(
+  const rendered = render(
     <QueryClientProvider client={queryClient}>
       <MemoryRouter initialEntries={[initialEntry]}>
         <Routes>
@@ -36,6 +36,7 @@ function renderPage(initialEntry = "/messages") {
       </MemoryRouter>
     </QueryClientProvider>,
   );
+  return { ...rendered, queryClient };
 }
 
 function supportMessage(id: string, title: string, preview: string) {
@@ -661,6 +662,82 @@ test("shows the immutable Listing snapshot beside inactive current availability"
   expect(screen.getByText("وضعیت فعلی: غیرفعال")).toBeVisible();
   expect(
     screen.getByText("این آگهی فعال نیست و گفت‌وگو فعلا فقط خواندنی است."),
+  ).toBeVisible();
+  expect(
+    screen.queryByRole("textbox", { name: "ادامه گفت‌وگو" }),
+  ).not.toBeInTheDocument();
+});
+
+test("blocks the counterpart globally with an accessible confirmation", async () => {
+  let blockCount = 0;
+  const inquiry = {
+    ...message,
+    id: "10000000-0000-4000-8000-000000000109",
+    kind: "listing_inquiry",
+    title: "پرسش درباره آپارتمان",
+    preview: "پیام پیشین",
+    group: {
+      kind: "listing_inquiry",
+      id: "20000000-0000-4000-8000-000000000109",
+      label: "آپارتمان",
+    },
+  };
+  server.use(
+    http.get("*/api/v1/messages/", () =>
+      HttpResponse.json({
+        count: 1,
+        next: null,
+        previous: null,
+        results: [inquiry],
+      }),
+    ),
+    http.get("*/api/v1/messages/:messageId/", () =>
+      HttpResponse.json({
+        ...inquiry,
+        body: inquiry.preview,
+        read: true,
+        target: null,
+        public_status: null,
+        reply_allowed: true,
+        reply_unavailable_reason: null,
+        listing_context: null,
+        counterpart: {
+          display_name: "مالک",
+          role: "submitter",
+          identity_verified: false,
+        },
+        entries: [],
+      }),
+    ),
+    http.post("*/api/v1/messages/listing-inquiries/:messageId/block/", () => {
+      blockCount += 1;
+      return HttpResponse.json({ blocked: true });
+    }),
+  );
+  const { queryClient } = renderPage(`/messages/${inquiry.id}`);
+  queryClient.setQueryData(["catalog", "property", inquiry.group.id], {
+    cached: true,
+  });
+
+  await userEvent.click(
+    await screen.findByRole("button", { name: "مسدود کردن حساب" }),
+  );
+  expect(screen.getByRole("alertdialog")).toHaveTextContent(
+    "این مسدودسازی برای همه آگهی‌ها اعمال می‌شود",
+  );
+  await userEvent.click(
+    screen.getByRole("button", { name: "تأیید مسدودسازی" }),
+  );
+
+  await waitFor(() => expect(blockCount).toBe(1));
+  await waitFor(() =>
+    expect(
+      queryClient.getQueryState(["catalog", "property", inquiry.group.id])
+        ?.isInvalidated,
+    ).toBe(true),
+  );
+  expect(
+    await screen.findByText("ارتباط میان شما و این حساب مسدود شده است."),
   ).toBeVisible();
   expect(
     screen.queryByRole("textbox", { name: "ادامه گفت‌وگو" }),

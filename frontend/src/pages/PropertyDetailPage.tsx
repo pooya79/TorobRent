@@ -143,7 +143,14 @@ function ListingContinuation({
           این آگهی شماست
         </p>
       ) : null}
-      {listing.can_message_submitter ? (
+      {listing.contact_blocked ? (
+        <Alert>
+          <AlertDescription>
+            ارتباط میان شما و این ثبت‌کننده مسدود شده است.
+          </AlertDescription>
+        </Alert>
+      ) : null}
+      {listing.can_message_submitter && !listing.contact_blocked ? (
         <Button
           onClick={() => {
             if (!account?.authenticated || !account.verified) {
@@ -161,6 +168,8 @@ function ListingContinuation({
       ) : null}
       {listing.source.outbound_policy === "direct_contact" &&
         !listing.is_responsible_submitter &&
+        !listing.contact_blocked &&
+        listing.can_reveal_phone &&
         (phone ? (
           <a
             className="text-primary inline-flex min-h-11 items-center font-semibold"
@@ -169,10 +178,32 @@ function ListingContinuation({
             تماس با {phone}
           </a>
         ) : (
-          <Button disabled={pending} onClick={() => void revealPhone()}>
+          <Button
+            disabled={pending}
+            onClick={() => {
+              if (!account?.authenticated || !account.verified) {
+                onRequestAccess(() => void revealPhone());
+                return;
+              }
+              void revealPhone();
+            }}
+          >
             {pending ? "در حال دریافت شماره…" : "نمایش شماره تماس"}
           </Button>
         ))}
+      {listing.source.outbound_policy === "direct_contact" &&
+      !listing.is_responsible_submitter &&
+      !listing.contact_blocked &&
+      listing.can_reveal_phone ? (
+        <p className="text-muted-foreground text-xs">
+          شماره نمایش‌داده‌شده را نمی‌توان از کسی که آن را دیده پس گرفت.
+        </p>
+      ) : null}
+      {listing.phone_reveal_unavailable_reason === "phone_unavailable" ? (
+        <p className="text-muted-foreground text-sm">
+          شماره تماس تأییدشده این آگهی در دسترس نیست.
+        </p>
+      ) : null}
       {listing.source.outbound_policy === "external_link" && (
         <Button
           disabled={pending}

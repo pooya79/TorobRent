@@ -541,7 +541,7 @@ paths:
       tags:
       - v1
       security:
-      - {}
+      - cookieAuth: []
       responses:
         '200':
           content:
@@ -1063,6 +1063,28 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: A conversation already exists for this Renter and Listing
+  /api/v1/messages/listing-inquiries/{inquiry_id}/block/:
+    post:
+      operationId: v1_messages_listing_inquiries_block_create
+      summary: Block the other Listing Inquiry participant across every Listing
+      parameters:
+      - in: path
+        name: inquiry_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountBlock'
+          description: ''
   /api/v1/messages/listing-inquiries/{inquiry_id}/messages/{message_id}/:
     patch:
       operationId: v1_messages_listing_inquiries_messages_partial_update
@@ -3018,6 +3040,13 @@ paths:
           description: Request was throttled
 components:
   schemas:
+    AccountBlock:
+      type: object
+      properties:
+        blocked:
+          type: boolean
+      required:
+      - blocked
     ActiveFavoriteSummary:
       type: object
       properties:
@@ -3984,10 +4013,20 @@ components:
           type: boolean
         is_responsible_submitter:
           type: boolean
+        contact_blocked:
+          type: boolean
+        can_reveal_phone:
+          type: boolean
+        phone_reveal_unavailable_reason:
+          oneOf:
+          - $ref: '#/components/schemas/PhoneRevealUnavailableReasonEnum'
+          - $ref: '#/components/schemas/NullEnum'
       required:
       - availability_confirmed_at
       - available_until
       - can_message_submitter
+      - can_reveal_phone
+      - contact_blocked
       - continuation_url
       - description
       - disagreements
@@ -3996,6 +4035,7 @@ components:
       - is_negotiable
       - is_responsible_submitter
       - media_url
+      - phone_reveal_unavailable_reason
       - rental_terms
       - source
       - source_claims
@@ -4790,6 +4830,18 @@ components:
           type: string
       required:
       - phone
+    PhoneRevealUnavailableReasonEnum:
+      enum:
+      - self_owned
+      - account_blocked
+      - external_listing
+      - phone_unavailable
+      type: string
+      description: |-
+        * `self_owned` - self_owned
+        * `account_blocked` - account_blocked
+        * `external_listing` - external_listing
+        * `phone_unavailable` - phone_unavailable
     PhoneSourceEnum:
       enum:
       - account
@@ -5312,10 +5364,12 @@ components:
       - monthly_rent_toman
     ReplyUnavailableReasonEnum:
       enum:
+      - account_blocked
       - listing_inactive
       - responsibility_changed
       type: string
       description: |-
+        * `account_blocked` - Account blocked
         * `listing_inactive` - Listing inactive
         * `responsibility_changed` - Responsibility changed
     ReviewClaim:

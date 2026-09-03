@@ -68,6 +68,10 @@ class ListingInquiryCreatedSerializer(serializers.Serializer[Any]):
     href = serializers.CharField()
 
 
+class AccountBlockSerializer(serializers.Serializer[Any]):
+    blocked = serializers.BooleanField()
+
+
 class ListingInquiryMessageSerializer(serializers.Serializer[Any]):
     id = serializers.UUIDField()
     body = serializers.CharField()

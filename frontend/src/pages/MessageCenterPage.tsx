@@ -31,6 +31,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import {
+  blockListingInquiryCounterpart,
   markMessageUnread,
   editListingInquiryMessage,
   editSupportMessage,
@@ -151,6 +152,7 @@ export function MessageCenterPage() {
   const detailHeading = useRef<HTMLHeadingElement>(null);
   const [editingId, setEditingId] = useState<string>();
   const [pendingExternalHref, setPendingExternalHref] = useState<string>();
+  const [blockConfirmationOpen, setBlockConfirmationOpen] = useState(false);
   const markUnread = useMutation({
     mutationFn: () => {
       if (!messageId) throw new Error("Message id is required");
@@ -187,6 +189,29 @@ export function MessageCenterPage() {
     onSuccess: () => {
       setEditingId(undefined);
       void queryClient.invalidateQueries({ queryKey: ["messages"] });
+    },
+  });
+  const blockCounterpart = useMutation({
+    mutationFn: () => {
+      if (!messageId) throw new Error("Message id is required");
+      return blockListingInquiryCounterpart(messageId);
+    },
+    onSuccess: () => {
+      setBlockConfirmationOpen(false);
+      queryClient.setQueryData(
+        ["messages", "detail", messageId],
+        detail.data
+          ? {
+              ...detail.data,
+              reply_allowed: false,
+              reply_unavailable_reason: "account_blocked" as const,
+            }
+          : detail.data,
+      );
+      void queryClient.invalidateQueries({ queryKey: ["catalog", "property"] });
+      void queryClient.invalidateQueries({
+        queryKey: ["catalog", "properties"],
+      });
     },
   });
 
@@ -571,6 +596,17 @@ export function MessageCenterPage() {
                       <p className="text-muted-foreground mt-1 text-xs">
                         نام نمایشی؛ هویت تأییدشده نیست
                       </p>
+                      {detail.data.reply_unavailable_reason !==
+                      "account_blocked" ? (
+                        <Button
+                          className="mt-3"
+                          onClick={() => setBlockConfirmationOpen(true)}
+                          type="button"
+                          variant="outline"
+                        >
+                          مسدود کردن حساب
+                        </Button>
+                      ) : null}
                       {detail.data.listing_context ? (
                         <section
                           aria-label="اطلاعات آگهی"
@@ -729,9 +765,12 @@ export function MessageCenterPage() {
                         <Alert className="mt-6">
                           <AlertDescription>
                             {detail.data.reply_unavailable_reason ===
-                            "responsibility_changed"
-                              ? "مسئول آگهی تغییر کرده و این گفت‌وگو برای شرکت‌کنندگان اصلی فقط خواندنی است."
-                              : "این آگهی فعال نیست و گفت‌وگو فعلا فقط خواندنی است."}
+                            "account_blocked"
+                              ? "ارتباط میان شما و این حساب مسدود شده است."
+                              : detail.data.reply_unavailable_reason ===
+                                  "responsibility_changed"
+                                ? "مسئول آگهی تغییر کرده و این گفت‌وگو برای شرکت‌کنندگان اصلی فقط خواندنی است."
+                                : "این آگهی فعال نیست و گفت‌وگو فعلا فقط خواندنی است."}
                           </AlertDescription>
                         </Alert>
                       )}
@@ -776,6 +815,30 @@ export function MessageCenterPage() {
           )}
         </section>
       </div>
+      <AlertDialog
+        onOpenChange={setBlockConfirmationOpen}
+        open={blockConfirmationOpen}
+      >
+        <AlertDialogContent dir="rtl">
+          <AlertDialogHeader>
+            <AlertDialogTitle>مسدود کردن این حساب؟</AlertDialogTitle>
+            <AlertDialogDescription>
+              این مسدودسازی برای همه آگهی‌ها اعمال می‌شود و ارسال پیام و نمایش
+              شماره تماس تازه را در هر دو جهت متوقف می‌کند. تاریخچه فعلی باقی
+              می‌ماند.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>انصراف</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={blockCounterpart.isPending}
+              onClick={() => blockCounterpart.mutate()}
+            >
+              تأیید مسدودسازی
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <AlertDialog
         open={Boolean(pendingExternalHref)}
         onOpenChange={(open) => !open && setPendingExternalHref(undefined)}

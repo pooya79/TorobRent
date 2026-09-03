@@ -1,3 +1,4 @@
+import uuid
 from decimal import Decimal
 from typing import Any
 
@@ -506,6 +507,12 @@ class ListingPublicSerializer(serializers.Serializer[Any]):
     available_until = serializers.DateTimeField()
     can_message_submitter = serializers.BooleanField()
     is_responsible_submitter = serializers.BooleanField()
+    contact_blocked = serializers.BooleanField()
+    can_reveal_phone = serializers.BooleanField()
+    phone_reveal_unavailable_reason = serializers.ChoiceField(
+        choices=("self_owned", "account_blocked", "external_listing", "phone_unavailable"),
+        allow_null=True,
+    )
 
 
 class PropertyDetailSerializer(serializers.Serializer[Any]):
@@ -579,9 +586,39 @@ def source_disagreements(
     return disagreements
 
 
+def phone_reveal_unavailable_reason(
+    listing: Listing,
+    *,
+    viewer_id: uuid.UUID | None,
+    blocked_account_ids: set[uuid.UUID],
+) -> str | None:
+    submission = getattr(listing, "submission", None)
+    if submission is not None and submission.submitter_id == viewer_id:
+        return "self_owned"
+    if submission is not None and submission.submitter_id in blocked_account_ids:
+        return "account_blocked"
+    if (
+        not listing.source.is_builtin
+        or listing.source.outbound_policy != OutboundPolicy.DIRECT_CONTACT
+    ):
+        return "external_listing"
+    if (
+        not listing.direct_phone
+        or submission is None
+        or submission.state != "published"
+        or not submission.phone_publication_consent
+        or submission.contact_phone != listing.direct_phone
+    ):
+        return "phone_unavailable"
+    return None
+
+
 def property_detail_data(
-    property_: Property, listings: list[Listing], *, viewer_id: object | None = None
+    property_: Property, listings: list[Listing], *, viewer_id: uuid.UUID | None = None
 ) -> dict[str, Any]:
+    from apps.communications.selectors import blocked_counterpart_ids
+
+    blocked_account_ids = blocked_counterpart_ids(viewer_id) if viewer_id is not None else set()
     city = property_.city
     district = property_.district
     neighborhood = property_.neighborhood
@@ -651,12 +688,28 @@ def property_detail_data(
                 "is_convertible": listing.terms.is_convertible,
                 "availability_confirmed_at": listing.availability_confirmed_at,
                 "available_until": listing.available_until,
+                "contact_blocked": (
+                    getattr(listing, "submission", None) is not None
+                    and listing.submission.submitter_id in blocked_account_ids
+                ),
+                "can_reveal_phone": phone_reveal_unavailable_reason(
+                    listing,
+                    viewer_id=viewer_id,
+                    blocked_account_ids=blocked_account_ids,
+                )
+                is None,
+                "phone_reveal_unavailable_reason": phone_reveal_unavailable_reason(
+                    listing,
+                    viewer_id=viewer_id,
+                    blocked_account_ids=blocked_account_ids,
+                ),
                 "can_message_submitter": (
                     listing.source.is_builtin
                     and listing.source.outbound_policy == OutboundPolicy.DIRECT_CONTACT
                     and getattr(listing, "submission", None) is not None
                     and listing.submission.state == "published"
                     and listing.submission.submitter_id != viewer_id
+                    and listing.submission.submitter_id not in blocked_account_ids
                 ),
                 "is_responsible_submitter": (
                     getattr(listing, "submission", None) is not None

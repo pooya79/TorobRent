@@ -14,6 +14,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.accounts.models import User
+from apps.accounts.permissions import HasVerifiedIdentifier
 from apps.common.pagination import StandardPageNumberPagination
 from apps.common.serializers import ProblemSerializer
 from apps.contact.models import SupportMessage, SupportMessageAuthor, SupportRequest
@@ -30,9 +31,9 @@ from .models import (
     SystemNotification,
     SystemNotificationReadState,
 )
-from .permissions import HasVerifiedIdentifier
 from .selectors import listing_inquiries_for, system_notifications_for
 from .serializers import (
+    AccountBlockSerializer,
     ListingInquiryCreatedSerializer,
     ListingInquiryCreateSerializer,
     ListingInquiryMessageSerializer,
@@ -50,6 +51,7 @@ from .services import (
     ListingInquiryConflictError,
     ListingInquiryError,
     ListingInquiryQuotaExceeded,
+    block_listing_inquiry_counterpart,
     edit_listing_inquiry_message,
     reply_to_listing_inquiry,
     start_listing_inquiry,
@@ -378,6 +380,30 @@ class ListingInquiryReplyView(APIView):
             },
             status=status.HTTP_201_CREATED,
         )
+
+
+class ListingInquiryBlockView(APIView):
+    permission_classes = [HasVerifiedIdentifier]
+
+    @extend_schema(
+        summary="Block the other Listing Inquiry participant across every Listing",
+        request=None,
+        responses={200: AccountBlockSerializer},
+    )
+    def post(self, request: Request, inquiry_id: str) -> Response:
+        inquiry = get_object_or_404(
+            ListingInquiry.objects.filter(
+                models.Q(renter=request.user) | models.Q(submitter=request.user)
+            ),
+            id=inquiry_id,
+        )
+        execute_inquiry_command(
+            lambda: block_listing_inquiry_counterpart(
+                inquiry=inquiry,
+                actor=cast(User, request.user),
+            )
+        )
+        return Response({"blocked": True})
 
 
 class ListingInquiryMessageEditView(APIView):

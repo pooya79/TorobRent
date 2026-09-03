@@ -112,6 +112,9 @@ test("keeps the approved phone out of initial indexable content and reveals it e
   );
   expect(initialDocument).not.toContain("۰۹۱۲۱۲۳۴۵۶۷");
   expect(initialDocument).toContain("نمایش شماره تماس");
+  expect(initialDocument).toContain(
+    "شماره نمایش‌داده‌شده را نمی‌توان از کسی که آن را دیده پس گرفت",
+  );
 
   render(<PropertyDetailPage property={property} />);
   await userEvent.click(
@@ -124,6 +127,73 @@ test("keeps the approved phone out of initial indexable content and reveals it e
   expect(eventSession).toMatch(
     /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
   );
+});
+
+test("requires account access before revealing a phone number", async () => {
+  let resume: (() => void) | undefined;
+  let revealCount = 0;
+  server.use(
+    http.post(
+      `*/api/v1/catalog/listings/${property.listings[0]!.id}/phone-reveal/`,
+      () => {
+        revealCount += 1;
+        return HttpResponse.json({ phone: "۰۹۱۲۱۲۳۴۵۶۷" });
+      },
+    ),
+  );
+  render(
+    <PropertyDetailPage
+      property={property}
+      onRequestAccess={(intent) => {
+        resume = intent;
+      }}
+    />,
+  );
+
+  await userEvent.click(
+    screen.getByRole("button", { name: "نمایش شماره تماس" }),
+  );
+  expect(revealCount).toBe(0);
+  expect(resume).toBeTypeOf("function");
+
+  resume?.();
+  expect(
+    await screen.findByRole("link", { name: "تماس با ۰۹۱۲۱۲۳۴۵۶۷" }),
+  ).toBeVisible();
+  expect(revealCount).toBe(1);
+});
+
+test("explains a global Account Block without offering either contact path", () => {
+  render(
+    <PropertyDetailPage
+      property={{
+        ...property,
+        listings: property.listings.map((listing, index) =>
+          index === 0
+            ? {
+                ...listing,
+                can_message_submitter: false,
+                contact_blocked: true,
+              }
+            : listing,
+        ),
+      }}
+      account={{ authenticated: true, displayName: "رها", verified: true }}
+    />,
+  );
+
+  const direct = screen.getByRole("article", {
+    name: "آگهی منبع مستقیم ترب‌رنت",
+  });
+  expect(direct).toHaveTextContent(
+    "ارتباط میان شما و این ثبت‌کننده مسدود شده است",
+  );
+  expect(
+    within(direct).queryByRole("button", { name: "پیام به ثبت‌کننده" }),
+  ).not.toBeInTheDocument();
+  expect(
+    within(direct).queryByRole("button", { name: "نمایش شماره تماس" }),
+  ).not.toBeInTheDocument();
 });
 
 test("records a Property view and resolves external continuation through the API", async () => {
@@ -178,6 +248,9 @@ test("offers Listing Inquiry only for an eligible internal Listing and identifie
     within(direct).getByRole("button", { name: "پیام به ثبت‌کننده" }),
   ).toBeVisible();
   expect(
+    within(direct).getByRole("button", { name: "نمایش شماره تماس" }),
+  ).toBeVisible();
+  expect(
     within(external).queryByRole("button", { name: "پیام به ثبت‌کننده" }),
   ).not.toBeInTheDocument();
 
@@ -205,6 +278,36 @@ test("offers Listing Inquiry only for an eligible internal Listing and identifie
   ).not.toBeInTheDocument();
   expect(
     screen.queryByRole("button", { name: "نمایش شماره تماس" }),
+  ).not.toBeInTheDocument();
+});
+
+test("explains when an internal Listing has no revealable approved phone", () => {
+  render(
+    <PropertyDetailPage
+      property={{
+        ...property,
+        listings: property.listings.map((listing, index) =>
+          index === 0
+            ? {
+                ...listing,
+                can_reveal_phone: false,
+                phone_reveal_unavailable_reason: "phone_unavailable",
+              }
+            : listing,
+        ),
+      }}
+      account={{ authenticated: true, displayName: "رها", verified: true }}
+    />,
+  );
+
+  const direct = screen.getByRole("article", {
+    name: "آگهی منبع مستقیم ترب‌رنت",
+  });
+  expect(direct).toHaveTextContent(
+    "شماره تماس تأییدشده این آگهی در دسترس نیست",
+  );
+  expect(
+    within(direct).queryByRole("button", { name: "نمایش شماره تماس" }),
   ).not.toBeInTheDocument();
 });
 

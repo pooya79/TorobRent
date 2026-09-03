@@ -128,6 +128,15 @@ export async function replyToListingInquiry(inquiryId: string, body: string) {
   return data;
 }
 
+export async function blockListingInquiryCounterpart(inquiryId: string) {
+  const { data, error } = await api.POST(
+    "/api/v1/messages/listing-inquiries/{inquiry_id}/block/",
+    { params: { path: { inquiry_id: inquiryId } } },
+  );
+  if (error || !data) throw apiError(error);
+  return data;
+}
+
 export async function editListingInquiryMessage(
   inquiryId: string,
   messageId: string,

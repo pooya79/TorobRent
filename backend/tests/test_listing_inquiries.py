@@ -21,7 +21,12 @@ from apps.catalog.models import (
     RentalTerms,
     Source,
 )
-from apps.communications.models import ListingInquiry, ListingInquiryMessage, SystemNotification
+from apps.communications.models import (
+    AccountBlock,
+    ListingInquiry,
+    ListingInquiryMessage,
+    SystemNotification,
+)
 from apps.communications.services import lock_listing_inquiry_message_edits
 from apps.submissions.models import Submission, SubmissionState, SubmitterRole
 
@@ -114,10 +119,14 @@ def test_property_detail_exposes_only_eligible_listing_contact_affordances(
     owner_detail = api_client.get(f"/api/v1/catalog/properties/{listing.property_id}/")
 
     assert public_detail.data["listings"][0]["can_message_submitter"] is True
+    assert public_detail.data["listings"][0]["can_reveal_phone"] is True
+    assert public_detail.data["listings"][0]["phone_reveal_unavailable_reason"] is None
     assert public_detail.data["listings"][0]["is_responsible_submitter"] is False
     assert "submitter" not in public_detail.data["listings"][0]
     assert owner_detail.data["listings"][0]["can_message_submitter"] is False
     assert owner_detail.data["listings"][0]["is_responsible_submitter"] is True
+    assert owner_detail.data["listings"][0]["can_reveal_phone"] is False
+    assert owner_detail.data["listings"][0]["phone_reveal_unavailable_reason"] == "self_owned"
 
 
 @pytest.mark.django_db
@@ -680,6 +689,141 @@ def test_two_listings_for_one_property_create_distinct_inquiries(api_client: API
         first_listing.id,
         second_listing.id,
     }
+
+
+@pytest.mark.django_db
+def test_account_block_is_global_symmetric_and_preserves_existing_history(api_client: APIClient):
+    submitter = verified_user("submitter@example.com", "مالک")
+    renter = verified_user("renter@example.com", "رها")
+    first_listing = make_listing(submitter=submitter)
+    second_listing = make_listing(submitter=submitter, property_=first_listing.property)
+    reverse_listing = make_listing(submitter=renter, property_=first_listing.property)
+    api_client.force_authenticate(renter)
+    created = api_client.post(
+        "/api/v1/messages/listing-inquiries/",
+        {"listing_id": str(first_listing.id), "body": "پیام پیش از مسدودسازی"},
+        format="json",
+    )
+    inquiry_id = created.data["id"]
+
+    api_client.force_authenticate(submitter)
+    blocked = api_client.post(
+        f"/api/v1/messages/listing-inquiries/{inquiry_id}/block/", {}, format="json"
+    )
+    submitter_reply = api_client.post(
+        f"/api/v1/messages/listing-inquiries/{inquiry_id}/replies/",
+        {"body": "پیام تازه مالک"},
+        format="json",
+    )
+    reverse_inquiry = api_client.post(
+        "/api/v1/messages/listing-inquiries/",
+        {"listing_id": str(reverse_listing.id), "body": "پیام در جهت عکس"},
+        format="json",
+    )
+    reverse_phone_reveal = api_client.post(
+        f"/api/v1/catalog/listings/{reverse_listing.id}/phone-reveal/",
+        {},
+        format="json",
+        HTTP_X_TOROBRENT_EVENT_SESSION="10000000-0000-4000-8000-000000000098",
+    )
+    api_client.force_authenticate(renter)
+    renter_reply = api_client.post(
+        f"/api/v1/messages/listing-inquiries/{inquiry_id}/replies/",
+        {"body": "پیام تازه مستاجر"},
+        format="json",
+    )
+    another_listing = api_client.post(
+        "/api/v1/messages/listing-inquiries/",
+        {"listing_id": str(second_listing.id), "body": "دور زدن از آگهی دیگر"},
+        format="json",
+    )
+    phone_reveal = api_client.post(
+        f"/api/v1/catalog/listings/{second_listing.id}/phone-reveal/",
+        {},
+        format="json",
+        HTTP_X_TOROBRENT_EVENT_SESSION="10000000-0000-4000-8000-000000000099",
+    )
+    detail = api_client.get(f"/api/v1/messages/{inquiry_id}/")
+    property_detail = api_client.get(f"/api/v1/catalog/properties/{first_listing.property_id}/")
+
+    assert blocked.status_code == 200
+    assert blocked.data == {"blocked": True}
+    assert submitter_reply.status_code == renter_reply.status_code == 400
+    assert (
+        submitter_reply.data["errors"]["detail"][0]["code"]
+        == renter_reply.data["errors"]["detail"][0]["code"]
+        == "account_blocked"
+    )
+    assert another_listing.status_code == 400
+    assert another_listing.data["errors"]["detail"][0]["code"] == "account_blocked"
+    assert phone_reveal.status_code == 403
+    assert reverse_inquiry.status_code == 400
+    assert reverse_phone_reveal.status_code == 403
+    assert detail.status_code == 200
+    assert detail.data["reply_allowed"] is False
+    assert detail.data["reply_unavailable_reason"] == "account_blocked"
+    blocked_listing = next(
+        item for item in property_detail.data["listings"] if item["id"] == str(second_listing.id)
+    )
+    assert blocked_listing["contact_blocked"] is True
+    assert blocked_listing["can_message_submitter"] is False
+    assert blocked_listing["can_reveal_phone"] is False
+    assert blocked_listing["phone_reveal_unavailable_reason"] == "account_blocked"
+    assert [entry["body"] for entry in detail.data["entries"]] == ["پیام پیش از مسدودسازی"]
+    assert AccountBlock.objects.count() == 1
+
+
+@pytest.mark.django_db
+def test_repeated_account_block_requests_are_idempotent(api_client: APIClient):
+    submitter = verified_user("submitter@example.com", "مالک")
+    renter = verified_user("renter@example.com", "رها")
+    listing = make_listing(submitter=submitter)
+    api_client.force_authenticate(renter)
+    created = api_client.post(
+        "/api/v1/messages/listing-inquiries/",
+        {"listing_id": str(listing.id), "body": "پیام نخست"},
+        format="json",
+    )
+    block_url = f"/api/v1/messages/listing-inquiries/{created.data['id']}/block/"
+
+    first = api_client.post(block_url, {}, format="json")
+    api_client.force_authenticate(submitter)
+    repeated_by_counterpart = api_client.post(block_url, {}, format="json")
+
+    assert first.status_code == repeated_by_counterpart.status_code == 200
+    assert AccountBlock.objects.count() == 1
+
+
+@pytest.mark.django_db(transaction=True)
+def test_concurrent_account_block_requests_create_one_symmetric_block():
+    if connection.vendor != "postgresql":
+        pytest.skip("Account Block concurrency behavior is PostgreSQL-specific")
+    submitter = verified_user("submitter@example.com", "مالک")
+    renter = verified_user("renter@example.com", "رها")
+    listing = make_listing(submitter=submitter)
+    client = APIClient()
+    client.force_authenticate(renter)
+    created = client.post(
+        "/api/v1/messages/listing-inquiries/",
+        {"listing_id": str(listing.id), "body": "پیام نخست"},
+        format="json",
+    )
+    block_url = f"/api/v1/messages/listing-inquiries/{created.data['id']}/block/"
+
+    def block(account_id) -> int:
+        close_old_connections()
+        try:
+            thread_client = APIClient()
+            thread_client.force_authenticate(User.objects.get(id=account_id))
+            return thread_client.post(block_url, {}, format="json").status_code
+        finally:
+            close_old_connections()
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        responses = list(pool.map(block, (renter.id, submitter.id)))
+
+    assert responses == [200, 200]
+    assert AccountBlock.objects.count() == 1
 
 
 @pytest.mark.django_db(transaction=True)

@@ -15,11 +15,13 @@ from apps.source_proposals.models import SourceProposalEvent, SourceProposalStat
 from apps.submissions.models import SubmissionEvent, SubmissionState
 
 from .models import (
+    AccountBlock,
     ListingInquiry,
     ListingInquiryMessage,
     ListingInquiryReplyUnavailableReason,
     SystemNotification,
 )
+from .selectors import blocked_counterpart_ids
 
 
 class ListingInquiryError(Exception):
@@ -48,6 +50,7 @@ class ListingInquiryMessageEditDeniedReason(StrEnum):
     WRONG_AUTHOR = "listing_inquiry_message_edit_forbidden"
     LOCKED = "listing_inquiry_message_edit_locked"
     EXPIRED = "listing_inquiry_message_edit_window_expired"
+    ACCOUNT_BLOCKED = ListingInquiryReplyUnavailableReason.ACCOUNT_BLOCKED
     LISTING_INACTIVE = ListingInquiryReplyUnavailableReason.LISTING_INACTIVE
     RESPONSIBILITY_CHANGED = ListingInquiryReplyUnavailableReason.RESPONSIBILITY_CHANGED
 
@@ -55,6 +58,8 @@ class ListingInquiryMessageEditDeniedReason(StrEnum):
 def inquiry_reply_unavailable_reason(
     inquiry: ListingInquiry,
 ) -> ListingInquiryReplyUnavailableReason | None:
+    if accounts_are_blocked(inquiry.renter_id, inquiry.submitter_id):
+        return ListingInquiryReplyUnavailableReason.ACCOUNT_BLOCKED
     listing = inquiry.listing
     if (
         listing.state != ListingState.PUBLISHED
@@ -70,6 +75,35 @@ def inquiry_reply_unavailable_reason(
     if current_submitter_id != inquiry.submitter_id:
         return ListingInquiryReplyUnavailableReason.RESPONSIBILITY_CHANGED
     return None
+
+
+def accounts_are_blocked(first_account_id: uuid.UUID, second_account_id: uuid.UUID) -> bool:
+    return second_account_id in blocked_counterpart_ids(first_account_id)
+
+
+@transaction.atomic
+def block_listing_inquiry_counterpart(*, inquiry: ListingInquiry, actor: User) -> AccountBlock:
+    inquiry = ListingInquiry.objects.select_for_update().get(id=inquiry.id)
+    if actor.id not in (inquiry.renter_id, inquiry.submitter_id):
+        raise ListingInquiryError(
+            "این گفت‌وگو در دسترس شما نیست.",
+            code="listing_inquiry_forbidden",
+        )
+    lower_account_id, higher_account_id = sorted(
+        (inquiry.renter_id, inquiry.submitter_id), key=lambda account_id: account_id.int
+    )
+    list(
+        User.objects
+        .select_for_update()
+        .filter(id__in=(lower_account_id, higher_account_id))
+        .order_by("id")
+    )
+    block, _created = AccountBlock.objects.get_or_create(
+        lower_account_id=lower_account_id,
+        higher_account_id=higher_account_id,
+        defaults={"created_by": actor},
+    )
+    return block
 
 
 def inquiry_message_edit_denied_reason(
@@ -164,6 +198,11 @@ def start_listing_inquiry(
         raise ListingInquiryError(
             "این آگهی متعلق به خود شماست.",
             code="self_listing_inquiry",
+        )
+    if accounts_are_blocked(renter.id, submitter.id):
+        raise ListingInquiryError(
+            "ارتباط میان این دو حساب مسدود شده است.",
+            code=ListingInquiryReplyUnavailableReason.ACCOUNT_BLOCKED,
         )
     inquiry = ListingInquiry.objects.filter(renter=renter, listing=listing).first()
     if inquiry is not None:
@@ -261,6 +300,9 @@ def edit_listing_inquiry_message(
             ),
             ListingInquiryMessageEditDeniedReason.EXPIRED: (
                 "مهلت ۱۵ دقیقه‌ای ویرایش پیام پایان یافته است."
+            ),
+            ListingInquiryMessageEditDeniedReason.ACCOUNT_BLOCKED: (
+                "ارتباط میان این دو حساب مسدود شده است."
             ),
             ListingInquiryMessageEditDeniedReason.LISTING_INACTIVE: (
                 "این آگهی فعال نیست و گفت‌وگو فقط خواندنی است."

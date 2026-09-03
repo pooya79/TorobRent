@@ -414,6 +414,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/v1/messages/listing-inquiries/{inquiry_id}/block/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Block the other Listing Inquiry participant across every Listing */
+    post: operations["v1_messages_listing_inquiries_block_create"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/v1/messages/listing-inquiries/{inquiry_id}/messages/{message_id}/": {
     parameters: {
       query?: never;
@@ -1499,6 +1516,9 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
   schemas: {
+    AccountBlock: {
+      blocked: boolean;
+    };
     ActiveFavoriteSummary: {
       /** Format: uuid */
       id: string;
@@ -1908,6 +1928,11 @@ export interface components {
       available_until: string;
       can_message_submitter: boolean;
       is_responsible_submitter: boolean;
+      contact_blocked: boolean;
+      can_reveal_phone: boolean;
+      phone_reveal_unavailable_reason:
+        | components["schemas"]["PhoneRevealUnavailableReasonEnum"]
+        | components["schemas"]["NullEnum"];
     };
     Location: {
       city: string;
@@ -2248,6 +2273,18 @@ export interface components {
       phone: string;
     };
     /**
+     * @description * `self_owned` - self_owned
+     *     * `account_blocked` - account_blocked
+     *     * `external_listing` - external_listing
+     *     * `phone_unavailable` - phone_unavailable
+     * @enum {string}
+     */
+    PhoneRevealUnavailableReasonEnum:
+      | "self_owned"
+      | "account_blocked"
+      | "external_listing"
+      | "phone_unavailable";
+    /**
      * @description * `account` - شماره تأییدشده حساب
      *     * `alternate` - شماره تأییدشده دیگر
      * @enum {string}
@@ -2465,11 +2502,13 @@ export interface components {
       monthly_rent_toman: number;
     };
     /**
-     * @description * `listing_inactive` - Listing inactive
+     * @description * `account_blocked` - Account blocked
+     *     * `listing_inactive` - Listing inactive
      *     * `responsibility_changed` - Responsibility changed
      * @enum {string}
      */
-    ReplyUnavailableReasonEnum: "listing_inactive" | "responsibility_changed";
+    ReplyUnavailableReasonEnum:
+      "account_blocked" | "listing_inactive" | "responsibility_changed";
     ReviewClaim: {
       /** Format: uuid */
       readonly id: string;
@@ -4314,6 +4353,27 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  v1_messages_listing_inquiries_block_create: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        inquiry_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AccountBlock"];
         };
       };
     };

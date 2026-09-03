@@ -2,11 +2,11 @@ from rest_framework.permissions import BasePermission
 from rest_framework.request import Request
 from rest_framework.views import APIView
 
-from apps.accounts.models import User
+from .models import User
 
 
 class HasVerifiedIdentifier(BasePermission):
-    message = "برای مشاهده مرکز پیام باید ایمیل یا شماره تلفن حساب تأیید شده باشد."
+    message = "برای ادامه باید ایمیل یا شماره تلفن حساب تأیید شده باشد."
 
     def has_permission(self, request: Request, view: APIView) -> bool:
         user = request.user

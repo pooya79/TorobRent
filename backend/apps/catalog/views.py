@@ -12,13 +12,15 @@ from drf_spectacular.utils import (
     extend_schema,
     extend_schema_view,
 )
-from rest_framework.exceptions import NotFound
+from rest_framework.exceptions import NotFound, PermissionDenied
 from rest_framework.generics import ListAPIView
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.accounts.models import User
+from apps.accounts.permissions import HasVerifiedIdentifier
 from apps.common.pagination import StandardPageNumberPagination
 from apps.common.serializers import ProblemSerializer
 
@@ -347,8 +349,7 @@ class PropertyViewEventView(APIView):
 
 
 class ListingPhoneRevealView(APIView):
-    authentication_classes = []
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated, HasVerifiedIdentifier]
 
     @extend_schema(
         summary="Reveal the approved phone for an Active direct Listing",
@@ -374,6 +375,16 @@ class ListingPhoneRevealView(APIView):
             )
         except Listing.DoesNotExist as exc:
             raise NotFound("شماره تماس این آگهی در دسترس نیست.") from exc
+        if listing.submission.submitter_id == request.user.id:
+            raise NotFound("شماره تماس این آگهی در دسترس نیست.")
+        from apps.communications.services import accounts_are_blocked
+
+        user = cast(User, request.user)
+        if accounts_are_blocked(user.id, listing.submission.submitter_id):
+            raise PermissionDenied(
+                "ارتباط میان این دو حساب مسدود شده است.",
+                code="account_blocked",
+            )
         record_product_event(
             event_type=ProductEventType.PHONE_REVEAL,
             property_=listing.property,

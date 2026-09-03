@@ -94,6 +94,9 @@ export const propertyDetail: components["schemas"]["PropertyDetail"] = {
       available_until: "2026-09-20T10:00:00Z",
       can_message_submitter: true,
       is_responsible_submitter: false,
+      contact_blocked: false,
+      can_reveal_phone: true,
+      phone_reveal_unavailable_reason: null,
     },
     {
       id: "89e88c26-5a44-4587-905b-08418c9e9346",
@@ -133,6 +136,9 @@ export const propertyDetail: components["schemas"]["PropertyDetail"] = {
       available_until: "2026-09-19T09:00:00Z",
       can_message_submitter: false,
       is_responsible_submitter: false,
+      contact_blocked: false,
+      can_reveal_phone: false,
+      phone_reveal_unavailable_reason: "external_listing",
     },
   ],
 };

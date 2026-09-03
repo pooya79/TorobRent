@@ -20,6 +20,7 @@ from apps.catalog.models import (
     RentalTerms,
     Source,
 )
+from apps.communications.models import SystemNotification
 from apps.submissions.models import Submission, SubmissionState, SubmitterRole
 
 
@@ -95,6 +96,12 @@ def test_renter_reveals_only_the_submitter_approved_phone_from_an_active_direct_
     property_, direct_source, submitter = catalog
     listing = create_active_listing(property_=property_, source=direct_source)
     approve_listing_phone(listing=listing, submitter=submitter)
+    renter = User.objects.create_user(
+        email="renter@example.com",
+        password="password-value",
+        email_verified_at=timezone.now(),
+    )
+    api_client.force_authenticate(renter)
 
     detail = api_client.get(f"/api/v1/catalog/properties/{property_.id}/")
     response = api_client.post(
@@ -112,6 +119,35 @@ def test_renter_reveals_only_the_submitter_approved_phone_from_an_active_direct_
     assert event.property_id == property_.id
     assert event.listing_id == listing.id
     assert event.source_id == direct_source.id
+    assert not SystemNotification.objects.exists()
+
+
+@pytest.mark.django_db
+def test_phone_reveal_requires_an_active_account_with_a_verified_identifier(
+    api_client: APIClient,
+    catalog: tuple[Property, Source, User],
+):
+    property_, direct_source, submitter = catalog
+    listing = create_active_listing(property_=property_, source=direct_source)
+    approve_listing_phone(listing=listing, submitter=submitter)
+    reveal_url = f"/api/v1/catalog/listings/{listing.id}/phone-reveal/"
+
+    anonymous = api_client.post(reveal_url, {}, format="json", **event_headers())
+    unverified = User.objects.create_user(
+        email="unverified@example.com",
+        password="password-value",
+    )
+    api_client.force_authenticate(unverified)
+    without_verified_identifier = api_client.post(reveal_url, {}, format="json", **event_headers())
+    unverified.is_active = False
+    unverified.email_verified_at = timezone.now()
+    unverified.save(update_fields=("is_active", "email_verified_at"))
+    api_client.force_authenticate(unverified)
+    inactive = api_client.post(reveal_url, {}, format="json", **event_headers())
+
+    assert anonymous.status_code == 401
+    assert without_verified_identifier.status_code == inactive.status_code == 403
+    assert not ProductEvent.objects.exists()
 
 
 @pytest.mark.django_db
@@ -136,6 +172,12 @@ def test_inactive_direct_listings_cannot_reveal_contact(
     approve_listing_phone(listing=listing, submitter=submitter)
     setattr(listing, change, value)
     listing.save(update_fields=[change])
+    renter = User.objects.create_user(
+        email=f"renter-{uuid.uuid4()}@example.com",
+        password="password-value",
+        email_verified_at=timezone.now(),
+    )
+    api_client.force_authenticate(renter)
 
     response = api_client.post(
         f"/api/v1/catalog/listings/{listing.id}/phone-reveal/",
@@ -167,6 +209,13 @@ def test_unapproved_or_non_direct_listing_cannot_reveal_contact(
         direct_phone="",
         external_url="https://external.example/listing/1",
     )
+    renter = User.objects.create_user(
+        email="renter@example.com",
+        password="password-value",
+        email_verified_at=timezone.now(),
+    )
+    api_client.force_authenticate(renter)
+    detail = api_client.get(f"/api/v1/catalog/properties/{property_.id}/")
 
     for listing in (unapproved, external):
         response = api_client.post(
@@ -178,6 +227,15 @@ def test_unapproved_or_non_direct_listing_cannot_reveal_contact(
         assert response.status_code == 404
 
     assert ProductEvent.objects.count() == 0
+    contact_states = {
+        item["id"]: (
+            item["can_reveal_phone"],
+            item["phone_reveal_unavailable_reason"],
+        )
+        for item in detail.data["listings"]
+    }
+    assert contact_states[str(unapproved.id)] == (False, "phone_unavailable")
+    assert contact_states[str(external.id)] == (False, "external_listing")
 
 
 @pytest.mark.django_db

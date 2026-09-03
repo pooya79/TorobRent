@@ -1,6 +1,7 @@
 from django.urls import path
 
 from .views import (
+    ListingInquiryBlockView,
     ListingInquiryCreateView,
     ListingInquiryMessageEditView,
     ListingInquiryReplyView,
@@ -15,6 +16,11 @@ from .views import (
 app_name = "communications"
 
 urlpatterns = [
+    path(
+        "listing-inquiries/<uuid:inquiry_id>/block/",
+        ListingInquiryBlockView.as_view(),
+        name="listing-inquiry-block",
+    ),
     path(
         "listing-inquiries/",
         ListingInquiryCreateView.as_view(),
