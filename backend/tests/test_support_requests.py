@@ -11,13 +11,18 @@ from apps.accounts.models import User
 from apps.contact.models import (
     IntakeKind,
     SupportClassification,
+    SupportMessageAuthor,
     SupportPriority,
     SupportRequest,
     SupportRequestEvent,
     SupportRequestEventType,
     SupportRequestStatus,
 )
-from apps.contact.services import SupportRequestConflict, claim_support_request
+from apps.contact.services import (
+    SupportRequestConflict,
+    add_support_message,
+    claim_support_request,
+)
 
 
 def csrf_client(api_client: APIClient) -> APIClient:
@@ -1178,6 +1183,85 @@ def test_competing_support_request_claims_have_exactly_one_winner():
     assert (
         SupportRequestEvent.objects.filter(
             support_request=support_request,
+            event_type=SupportRequestEventType.ASSIGNED,
+        ).count()
+        == 1
+    )
+
+
+@pytest.mark.django_db(transaction=True)
+def test_requester_message_and_competing_claims_preserve_one_handler_rule():
+    if connection.vendor != "postgresql":
+        pytest.skip("row-lock concurrency behavior is PostgreSQL-specific")
+    requester = User.objects.create_user(
+        email="requester@example.com",
+        password="password",
+        email_verified_at=timezone.now(),
+    )
+    support_request = SupportRequest.objects.create(
+        submitter=requester,
+        name="Requester",
+        email=requester.email,
+        intake_kind=IntakeKind.GENERAL,
+        message="A requester message arrives while Operators claim the work.",
+        account_linked_at_intake=True,
+    )
+    permission = Permission.objects.get(codename="handle_general_support_requests")
+    operators = [
+        User.objects.create_user(
+            email=f"operator{index}@example.com",
+            password="password",
+            email_verified_at=timezone.now(),
+        )
+        for index in range(2)
+    ]
+    for operator in operators:
+        operator.user_permissions.add(permission)
+
+    def reply() -> str:
+        close_old_connections()
+        try:
+            add_support_message(
+                support_request=SupportRequest.objects.get(id=support_request.id),
+                actor=User.objects.get(id=requester.id),
+                body="Please also consider this new information.",
+                author_kind=SupportMessageAuthor.REQUESTER,
+            )
+        finally:
+            close_old_connections()
+        return "replied"
+
+    def claim(index: int) -> str:
+        close_old_connections()
+        try:
+            claim_support_request(
+                support_request=SupportRequest.objects.get(id=support_request.id),
+                actor=User.objects.get(id=operators[index].id),
+            )
+        except SupportRequestConflict:
+            return "lost"
+        finally:
+            close_old_connections()
+        return "won"
+
+    with ThreadPoolExecutor(max_workers=3) as pool:
+        futures = [pool.submit(reply), *(pool.submit(claim, index) for index in range(2))]
+        results = [future.result() for future in futures]
+
+    assert results.count("replied") == 1
+    assert results.count("won") == 1
+    support_request.refresh_from_db()
+    assert support_request.status == SupportRequestStatus.IN_PROGRESS
+    assert support_request.assignee_id in {operator.id for operator in operators}
+    assert (
+        support_request.messages.filter(
+            author_kind=SupportMessageAuthor.REQUESTER,
+            body="Please also consider this new information.",
+        ).count()
+        == 1
+    )
+    assert (
+        support_request.events.filter(
             event_type=SupportRequestEventType.ASSIGNED,
         ).count()
         == 1

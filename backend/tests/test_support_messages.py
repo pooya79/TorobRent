@@ -1,7 +1,7 @@
 from datetime import timedelta
 
 import pytest
-from django.contrib.auth.models import Group
+from django.contrib.auth.models import Group, Permission
 from django.utils import timezone
 
 from apps.accounts.models import User
@@ -252,6 +252,11 @@ def test_requester_reply_reopens_recent_resolution_and_ordinary_messages_edit_fo
     assert replied.status_code == 201
     support_request.refresh_from_db()
     assert support_request.status == SupportRequestStatus.OPEN
+    operator = support_operator()
+    api_client.force_authenticate(operator)
+    queue = api_client.get("/api/v1/operator/support-requests/?status=open")
+    assert str(support_request.id) in {item["id"] for item in queue.data["results"]}
+    api_client.force_authenticate(requester)
     edited = api_client.patch(
         f"/api/v1/messages/support-requests/{support_request.id}/messages/{replied.data['id']}/",
         {"body": "مشکل هنوز به طور کامل حل نشده است"},
@@ -269,6 +274,131 @@ def test_requester_reply_reopens_recent_resolution_and_ordinary_messages_edit_fo
         format="json",
     )
     assert expired.status_code == 409
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    ("resolved_ago", "reply_allowed", "reply_status"),
+    [
+        (timedelta(days=14) - timedelta(seconds=1), True, 201),
+        (timedelta(days=14) + timedelta(seconds=1), False, 409),
+    ],
+)
+def test_requester_reply_window_enforces_both_sides_of_the_14_day_boundary(
+    api_client,
+    resolved_ago: timedelta,
+    reply_allowed: bool,
+    reply_status: int,
+):
+    requester = verified_user()
+    support_request = SupportRequest.objects.create(
+        submitter=requester,
+        name="درخواست‌کننده",
+        email=requester.email,
+        intake_kind=IntakeKind.GENERAL,
+        subject="مرز زمانی",
+        message="پیام نخست",
+        account_linked_at_intake=True,
+        status=SupportRequestStatus.RESOLVED,
+        resolved_at=timezone.now() - resolved_ago,
+    )
+    api_client.force_authenticate(requester)
+
+    detail = api_client.get(f"/api/v1/messages/{support_request.id}/")
+    reply = api_client.post(
+        f"/api/v1/messages/support-requests/{support_request.id}/replies/",
+        {"body": "پیام در مرز زمانی"},
+        format="json",
+    )
+
+    assert detail.status_code == 200
+    assert detail.data["reply_allowed"] is reply_allowed
+    assert reply.status_code == reply_status
+
+
+@pytest.mark.django_db
+def test_reopened_privacy_request_remains_isolated_to_privacy_operators(api_client):
+    requester = verified_user()
+    support_request = SupportRequest.objects.create(
+        submitter=requester,
+        name="درخواست‌کننده",
+        email=requester.email,
+        intake_kind=IntakeKind.ACCOUNT_DELETION,
+        subject="حذف حساب",
+        message="درخواست حذف حساب",
+        account_linked_at_intake=True,
+        classification=SupportClassification.ACCOUNT_DELETION,
+        status=SupportRequestStatus.RESOLVED,
+        resolved_at=timezone.now() - timedelta(days=2),
+    )
+    api_client.force_authenticate(requester)
+    reopened = api_client.post(
+        f"/api/v1/messages/support-requests/{support_request.id}/replies/",
+        {"body": "درخواست من هنوز تکمیل نشده است."},
+        format="json",
+    )
+    assert reopened.status_code == 201
+
+    general_operator = support_operator()
+    api_client.force_authenticate(general_operator)
+    general_queue = api_client.get("/api/v1/operator/support-requests/")
+    assert str(support_request.id) not in {item["id"] for item in general_queue.data["results"]}
+    assert (
+        api_client.get(f"/api/v1/operator/support-requests/{support_request.id}/").status_code
+        == 404
+    )
+    assert (
+        api_client.post(
+            f"/api/v1/operator/support-requests/{support_request.id}/claim/"
+        ).status_code
+        == 404
+    )
+
+    privacy_operator = User.objects.create_user(
+        email="privacy@example.com",
+        password="password",
+        email_verified_at=timezone.now(),
+    )
+    privacy_operator.user_permissions.add(
+        Permission.objects.get(codename="handle_privacy_support_requests")
+    )
+    api_client.force_authenticate(privacy_operator)
+    privacy_queue = api_client.get("/api/v1/operator/support-requests/?status=open")
+    assert str(support_request.id) in {item["id"] for item in privacy_queue.data["results"]}
+    assert (
+        api_client.post(
+            f"/api/v1/operator/support-requests/{support_request.id}/claim/"
+        ).status_code
+        == 201
+    )
+    assert (
+        api_client.post(
+            f"/api/v1/operator/support-requests/{support_request.id}/replies/",
+            {"body": "پیام اپراتور حریم خصوصی"},
+            format="json",
+        ).status_code
+        == 201
+    )
+
+
+@pytest.mark.django_db
+def test_legacy_anonymous_request_is_not_linked_by_matching_account_email(api_client):
+    requester = verified_user("legacy@example.com")
+    legacy = SupportRequest.objects.create(
+        name="Legacy requester",
+        email="legacy@example.com",
+        intake_kind=IntakeKind.GENERAL,
+        subject="درخواست قدیمی",
+        message="این درخواست بدون حساب ثبت شده بود.",
+    )
+    api_client.force_authenticate(requester)
+
+    feed = api_client.get("/api/v1/messages/?kind=support_request")
+    detail = api_client.get(f"/api/v1/messages/{legacy.id}/")
+
+    assert feed.status_code == 200
+    assert str(legacy.id) not in {item["id"] for item in feed.data["results"]}
+    assert detail.status_code == 404
 
 
 @pytest.mark.django_db

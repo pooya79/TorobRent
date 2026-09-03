@@ -356,3 +356,155 @@ test("renders a Support thread with safe links and lets the requester reply", as
   await user.click(screen.getByRole("button", { name: "ارسال پیام" }));
   await waitFor(() => expect(replyBody).toBe("سپاس، بررسی می‌کنم."));
 });
+
+test("keeps an expired resolved Support thread readable and links to a new request", async () => {
+  const support = {
+    ...message,
+    id: "10000000-0000-4000-8000-000000000098",
+    kind: "support_request",
+    title: "درخواست قدیمی",
+    preview: "پاسخ نهایی اپراتور",
+    group: {
+      kind: "support_request",
+      id: "10000000-0000-4000-8000-000000000098",
+      label: "پشتیبانی",
+    },
+  };
+  server.use(
+    http.get("*/api/v1/messages/", () =>
+      HttpResponse.json({
+        count: 1,
+        next: null,
+        previous: null,
+        results: [support],
+      }),
+    ),
+    http.get("*/api/v1/messages/:messageId/", () =>
+      HttpResponse.json({
+        ...support,
+        body: support.preview,
+        read: true,
+        target: null,
+        public_status: "resolved",
+        reply_allowed: false,
+        entries: [
+          {
+            id: "20000000-0000-4000-8000-000000000098",
+            kind: "requester_message",
+            body: "متن درخواست قدیمی",
+            created_at: support.created_at,
+            edited_at: null,
+            editable: false,
+          },
+          {
+            id: "30000000-0000-4000-8000-000000000098",
+            kind: "operator_reply",
+            body: "پاسخ نهایی اپراتور",
+            created_at: "2026-09-03T13:00:00Z",
+            edited_at: null,
+            editable: false,
+          },
+        ],
+      }),
+    ),
+  );
+
+  renderPage(`/messages/${support.id}`);
+
+  expect(await screen.findByText("وضعیت: رسیدگی شد")).toBeVisible();
+  expect(screen.getByText("متن درخواست قدیمی")).toBeVisible();
+  expect(screen.getAllByText("پاسخ نهایی اپراتور")).toHaveLength(2);
+  expect(
+    screen.getByRole("link", { name: "ایجاد درخواست پشتیبانی جدید" }),
+  ).toHaveAttribute("href", "/messages/new/support");
+  expect(
+    screen.queryByRole("textbox", { name: "ادامه گفت‌وگو" }),
+  ).not.toBeInTheDocument();
+});
+
+test("shows a recently resolved Support thread as received after requester reply reopens it", async () => {
+  let reopened = false;
+  const support = {
+    ...message,
+    id: "10000000-0000-4000-8000-000000000099",
+    kind: "support_request",
+    title: "درخواست تازه رسیدگی‌شده",
+    preview: "پاسخ نهایی",
+    group: {
+      kind: "support_request",
+      id: "10000000-0000-4000-8000-000000000099",
+      label: "پشتیبانی",
+    },
+  };
+  server.use(
+    http.get("*/api/v1/messages/", () =>
+      HttpResponse.json({
+        count: 1,
+        next: null,
+        previous: null,
+        results: [support],
+      }),
+    ),
+    http.get("*/api/v1/messages/:messageId/", () =>
+      HttpResponse.json({
+        ...support,
+        body: support.preview,
+        read: true,
+        target: null,
+        public_status: reopened ? "received" : "resolved",
+        reply_allowed: true,
+        entries: [
+          {
+            id: "20000000-0000-4000-8000-000000000099",
+            kind: "operator_reply",
+            body: "پاسخ نهایی",
+            created_at: support.created_at,
+            edited_at: null,
+            editable: false,
+          },
+          ...(reopened
+            ? [
+                {
+                  id: "30000000-0000-4000-8000-000000000099",
+                  kind: "requester_message",
+                  body: "مشکل همچنان ادامه دارد.",
+                  created_at: "2026-09-03T13:00:00Z",
+                  edited_at: null,
+                  editable: true,
+                },
+              ]
+            : []),
+        ],
+      }),
+    ),
+    http.post(
+      "*/api/v1/messages/support-requests/:messageId/replies/",
+      () => {
+        reopened = true;
+        return HttpResponse.json(
+          {
+            id: "30000000-0000-4000-8000-000000000099",
+            author_kind: "requester",
+            body: "مشکل همچنان ادامه دارد.",
+            created_at: "2026-09-03T13:00:00Z",
+            edited_at: null,
+          },
+          { status: 201 },
+        );
+      },
+    ),
+  );
+  renderPage(`/messages/${support.id}`);
+  const user = userEvent.setup();
+
+  expect(await screen.findByText("وضعیت: رسیدگی شد")).toBeVisible();
+  await user.type(
+    screen.getByRole("textbox", { name: "ادامه گفت‌وگو" }),
+    "مشکل همچنان ادامه دارد.",
+  );
+  await user.click(screen.getByRole("button", { name: "ارسال پیام" }));
+
+  expect(await screen.findByText("وضعیت: دریافت شد")).toBeVisible();
+  expect(screen.getByText("مشکل همچنان ادامه دارد.")).toBeVisible();
+  expect(screen.getByRole("textbox", { name: "ادامه گفت‌وگو" })).toBeEnabled();
+});

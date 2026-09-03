@@ -475,8 +475,12 @@ export function MessageCenterPage() {
                       ) : (
                         <Alert className="mt-6">
                           <AlertDescription>
-                            مهلت ادامه این درخواست پایان یافته است. یک درخواست
-                            پشتیبانی جدید ایجاد کنید.
+                            <p>مهلت ادامه این درخواست پایان یافته است.</p>
+                            <Button asChild className="mt-3" size="sm">
+                              <Link to="/messages/new/support">
+                                ایجاد درخواست پشتیبانی جدید
+                              </Link>
+                            </Button>
                           </AlertDescription>
                         </Alert>
                       )}

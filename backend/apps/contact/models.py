@@ -153,7 +153,7 @@ class SupportRequest(models.Model):
         settings.AUTH_USER_MODEL,
         null=True,
         blank=True,
-        on_delete=models.SET_NULL,
+        on_delete=models.PROTECT,
         related_name="support_requests",
     )
     name = models.CharField(max_length=120)
@@ -254,6 +254,7 @@ class SupportMessage(models.Model):
     )
     author = models.ForeignKey(
         settings.AUTH_USER_MODEL,
+        null=True,
         on_delete=models.PROTECT,
         related_name="support_messages",
     )

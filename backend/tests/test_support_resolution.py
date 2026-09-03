@@ -4,6 +4,7 @@ import pytest
 from django.contrib.auth.models import Permission
 from django.core.exceptions import ValidationError
 from django.db import close_old_connections, connection
+from django.db.models.deletion import ProtectedError
 from django.utils import timezone
 from rest_framework.test import APIClient
 
@@ -16,6 +17,8 @@ from apps.contact.models import (
     SupportClassification,
     SupportExternalContact,
     SupportIdentityVerification,
+    SupportMessage,
+    SupportMessageAuthor,
     SupportPrivacyAction,
     SupportRequest,
     SupportRequestEventType,
@@ -64,12 +67,30 @@ def test_privileged_redaction_removes_personal_content_without_rewriting_operati
         email="administrator@example.com", password="password"
     )
     operator = operator_with_support_capability()
+    requester = User.objects.create_user(
+        email="personal.requester@example.com",
+        password="password",
+        email_verified_at=timezone.now(),
+    )
     support_request = assigned_request(
         operator=operator,
+        submitter=requester,
         name="Personal Requester Name",
         email="personal.requester@example.com",
         message="Personal Support Request content to remove.",
         escalation_destination="Privacy queue",
+    )
+    requester_message = SupportMessage.objects.create(
+        support_request=support_request,
+        author=requester,
+        author_kind=SupportMessageAuthor.REQUESTER,
+        body="A requester reply with personal content.",
+    )
+    operator_reply = SupportMessage.objects.create(
+        support_request=support_request,
+        author=operator,
+        author_kind=SupportMessageAuthor.OPERATOR,
+        body="An Operator reply containing personal content.",
     )
     original_event = support_request.events.create(
         actor=operator,
@@ -119,6 +140,8 @@ def test_privileged_redaction_removes_personal_content_without_rewriting_operati
     external_contact.refresh_from_db()
     identity_verification.refresh_from_db()
     privacy_action.refresh_from_db()
+    requester_message.refresh_from_db()
+    operator_reply.refresh_from_db()
     assert support_request.name == "Former requester"
     assert "personal.requester@example.com" not in support_request.email
     assert support_request.message == "[Personal Support Request content redacted]"
@@ -144,10 +167,46 @@ def test_privileged_redaction_removes_personal_content_without_rewriting_operati
     assert identity_verification.summary == "[Personal content redacted]"
     assert privacy_action.action == PrivacyActionType.DEFENSIVE_CONTACT_REMOVAL
     assert privacy_action.summary == "[Personal content redacted]"
+    assert requester_message.body == "[Personal content redacted]"
+    assert requester_message.author is None
+    assert requester_message.author_kind == SupportMessageAuthor.REQUESTER
+    assert operator_reply.body == "[Personal content redacted]"
+    assert operator_reply.author == operator
+    requester.delete()
+    assert SupportRequest.objects.filter(id=support_request.id).exists()
+    assert SupportMessage.objects.filter(id=requester_message.id).exists()
     assert support_request.events.filter(
         event_type=SupportRequestEventType.PERSONAL_CONTENT_REDACTED,
         actor=administrator,
     ).exists()
+
+
+@pytest.mark.django_db
+def test_account_deletion_cannot_bypass_redaction_for_a_legacy_linked_request():
+    requester = User.objects.create_user(
+        email="legacy.requester@example.com",
+        password="password",
+        email_verified_at=timezone.now(),
+    )
+    support_request = SupportRequest.objects.create(
+        submitter=requester,
+        name="Legacy requester",
+        email=requester.email,
+        intake_kind=IntakeKind.GENERAL,
+        message="Legacy personal content must be redacted before account deletion.",
+        account_linked_at_intake=True,
+    )
+
+    with pytest.raises(ProtectedError):
+        requester.delete()
+
+    requester.refresh_from_db()
+    support_request.refresh_from_db()
+    assert support_request.submitter == requester
+    assert support_request.personal_content_redacted_at is None
+    assert support_request.message == (
+        "Legacy personal content must be redacted before account deletion."
+    )
 
 
 @pytest.mark.django_db

@@ -254,7 +254,13 @@ def redact_support_request_content(
         summary="[Personal content redacted]"
     )
     SupportMessage.objects.filter(support_request=support_request).update(
-        body="[Personal content redacted]"
+        body="[Personal content redacted]",
+    )
+    SupportMessage.objects.filter(
+        support_request=support_request,
+        author_kind=SupportMessageAuthor.REQUESTER,
+    ).update(
+        author=None,
     )
     SupportPrivacyAction._base_manager.filter(support_request=support_request).update(
         summary="[Personal content redacted]"
