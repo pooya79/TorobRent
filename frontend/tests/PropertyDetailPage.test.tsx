@@ -283,6 +283,7 @@ test("chooses an explicitly unverified Display Name and opens the sent inquiry",
     screen.getByRole("button", { name: "پیام به ثبت‌کننده" }),
   );
   expect(screen.getByText(/هویت قانونی شما را تأیید نمی‌کند/)).toBeVisible();
+  expect(screen.getByText(/شماره تماس و پیوند مجاز است/)).toBeVisible();
   await userEvent.type(screen.getByLabelText("نام نمایشی"), "رها");
   await userEvent.type(
     screen.getByLabelText("پیام نخست"),

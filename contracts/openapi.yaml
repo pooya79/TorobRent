@@ -1063,6 +1063,39 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: A conversation already exists for this Renter and Listing
+  /api/v1/messages/listing-inquiries/{inquiry_id}/messages/{message_id}/:
+    patch:
+      operationId: v1_messages_listing_inquiries_messages_partial_update
+      summary: Edit your recent Listing Inquiry message
+      parameters:
+      - in: path
+        name: inquiry_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: message_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedMessageBody'
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListingInquiryMessage'
+          description: ''
   /api/v1/messages/listing-inquiries/{inquiry_id}/replies/:
     post:
       operationId: v1_messages_listing_inquiries_replies_create
@@ -1080,7 +1113,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/SupportMessageCreate'
+              $ref: '#/components/schemas/MessageBody'
         required: true
       security:
       - cookieAuth: []
@@ -1135,7 +1168,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/PatchedSupportMessageCreate'
+              $ref: '#/components/schemas/PatchedMessageBody'
       security:
       - cookieAuth: []
       responses:
@@ -1162,7 +1195,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/SupportMessageCreate'
+              $ref: '#/components/schemas/MessageBody'
         required: true
       security:
       - cookieAuth: []
@@ -3794,6 +3827,16 @@ components:
         * `general` - راهنمایی و پرسش
         * `account_deletion` - درخواست حذف حساب
         * `public_contact_removal` - حذف فوری اطلاعات تماس عمومی
+    ListingInquiryContext:
+      type: object
+      properties:
+        opening_snapshot:
+          $ref: '#/components/schemas/ListingInquiryOpeningSnapshot'
+        current_availability:
+          $ref: '#/components/schemas/ListingInquiryCurrentAvailability'
+      required:
+      - current_availability
+      - opening_snapshot
     ListingInquiryCounterpart:
       type: object
       properties:
@@ -3838,6 +3881,16 @@ components:
       required:
       - href
       - id
+    ListingInquiryCurrentAvailability:
+      type: object
+      properties:
+        is_active:
+          type: boolean
+        state:
+          type: string
+      required:
+      - is_active
+      - state
     ListingInquiryMessage:
       type: object
       properties:
@@ -3849,10 +3902,45 @@ components:
         created_at:
           type: string
           format: date-time
+        edited_at:
+          type:
+          - string
+          - 'null'
+          format: date-time
       required:
       - body
       - created_at
+      - edited_at
       - id
+    ListingInquiryOpeningSnapshot:
+      type: object
+      properties:
+        property_title:
+          type: string
+        area_sqm:
+          type: integer
+        rental_terms:
+          $ref: '#/components/schemas/ListingInquiryRentalTermsSnapshot'
+        source_display_name:
+          type: string
+      required:
+      - area_sqm
+      - property_title
+      - rental_terms
+      - source_display_name
+    ListingInquiryRentalTermsSnapshot:
+      type: object
+      properties:
+        deposit_rial:
+          type: integer
+        monthly_rent_rial:
+          type: integer
+        currency:
+          type: string
+      required:
+      - currency
+      - deposit_rial
+      - monthly_rent_rial
     ListingPublic:
       type: object
       properties:
@@ -4066,6 +4154,14 @@ components:
       - property_ids
       - south
       - west
+    MessageBody:
+      type: object
+      properties:
+        body:
+          type: string
+          maxLength: 2000
+      required:
+      - body
     MessageDetail:
       type: object
       properties:
@@ -4120,6 +4216,16 @@ components:
           - $ref: '#/components/schemas/ListingInquiryCounterpart'
           - type: 'null'
           readOnly: true
+        listing_context:
+          oneOf:
+          - $ref: '#/components/schemas/ListingInquiryContext'
+          - type: 'null'
+          readOnly: true
+        reply_unavailable_reason:
+          readOnly: true
+          oneOf:
+          - $ref: '#/components/schemas/ReplyUnavailableReasonEnum'
+          - $ref: '#/components/schemas/NullEnum'
       required:
       - body
       - counterpart
@@ -4128,10 +4234,12 @@ components:
       - group
       - id
       - kind
+      - listing_context
       - preview
       - public_status
       - read
       - reply_allowed
+      - reply_unavailable_reason
       - target
       - title
     MessageGroup:
@@ -4535,6 +4643,12 @@ components:
           format: email
       required:
       - email
+    PatchedMessageBody:
+      type: object
+      properties:
+        body:
+          type: string
+          maxLength: 2000
     PatchedMessageReadUpdate:
       type: object
       properties:
@@ -4634,12 +4748,6 @@ components:
           $ref: '#/components/schemas/ContactInput'
         review:
           $ref: '#/components/schemas/ReviewInput'
-    PatchedSupportMessageCreate:
-      type: object
-      properties:
-        body:
-          type: string
-          maxLength: 2000
     PatchedSupportReplyCreate:
       type: object
       properties:
@@ -5202,6 +5310,14 @@ components:
       - deposit_toman
       - monthly_rent_rial
       - monthly_rent_toman
+    ReplyUnavailableReasonEnum:
+      enum:
+      - listing_inactive
+      - responsibility_changed
+      type: string
+      description: |-
+        * `listing_inactive` - Listing inactive
+        * `responsibility_changed` - Responsibility changed
     ReviewClaim:
       type: object
       properties:
@@ -6254,14 +6370,6 @@ components:
       - edited_at
       - id
       - is_initial
-    SupportMessageCreate:
-      type: object
-      properties:
-        body:
-          type: string
-          maxLength: 2000
-      required:
-      - body
     SupportPriorityEnum:
       enum:
       - normal

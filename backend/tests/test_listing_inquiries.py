@@ -1,8 +1,10 @@
 from concurrent.futures import ThreadPoolExecutor
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
+from unittest.mock import patch
 
 import pytest
 from django.core.cache import cache
+from django.core.exceptions import ValidationError
 from django.core.management import call_command
 from django.db import close_old_connections, connection
 from django.test import override_settings
@@ -20,6 +22,7 @@ from apps.catalog.models import (
     Source,
 )
 from apps.communications.models import ListingInquiry, ListingInquiryMessage, SystemNotification
+from apps.communications.services import lock_listing_inquiry_message_edits
 from apps.submissions.models import Submission, SubmissionState, SubmitterRole
 
 
@@ -199,6 +202,59 @@ def test_listing_inquiry_is_private_and_resolves_current_display_names(
 
 
 @pytest.mark.django_db
+def test_inquiry_detail_keeps_opening_listing_snapshot_beside_current_availability(
+    api_client: APIClient,
+):
+    submitter = verified_user("submitter@example.com", "مالک")
+    renter = verified_user("renter@example.com", "رها")
+    listing = make_listing(submitter=submitter)
+    opening_title = listing.property.title
+    opening_source = listing.source.display_name
+    api_client.force_authenticate(renter)
+    created = api_client.post(
+        "/api/v1/messages/listing-inquiries/",
+        {"listing_id": str(listing.id), "body": "شرایط آگهی چیست؟"},
+        format="json",
+    )
+
+    listing.property.area_sqm = 125
+    listing.property.save(update_fields=("area_sqm",))
+    listing.terms.deposit_rial = 9_000_000_000
+    listing.terms.monthly_rent_rial = 250_000_000
+    listing.terms.save(update_fields=("deposit_rial", "monthly_rent_rial"))
+    listing.state = ListingState.UNAVAILABLE
+    listing.save(update_fields=("state",))
+    detail = api_client.get(f"/api/v1/messages/{created.data['id']}/")
+
+    assert detail.status_code == 200
+    assert detail.data["listing_context"] == {
+        "opening_snapshot": {
+            "property_title": opening_title,
+            "area_sqm": 90,
+            "rental_terms": {
+                "deposit_rial": 8_000_000_000,
+                "monthly_rent_rial": 200_000_000,
+                "currency": "IRR",
+            },
+            "source_display_name": opening_source,
+        },
+        "current_availability": {
+            "is_active": False,
+            "state": ListingState.UNAVAILABLE,
+        },
+    }
+    assert detail.data["reply_allowed"] is False
+    assert detail.data["reply_unavailable_reason"] == "listing_inactive"
+
+    inquiry = ListingInquiry.objects.get(id=created.data["id"])
+    inquiry.opening_property_title = "عنوان تغییرکرده"
+    with pytest.raises(ValidationError, match="immutable"):
+        inquiry.save()
+    with pytest.raises(ValidationError, match="immutable"):
+        ListingInquiry.objects.filter(id=inquiry.id).update(opening_area_sqm=1)
+
+
+@pytest.mark.django_db
 def test_inquiry_replies_update_latest_activity_and_participant_read_state(
     api_client: APIClient,
 ):
@@ -233,6 +289,121 @@ def test_inquiry_replies_update_latest_activity_and_participant_read_state(
     ]
     assert detail.data["read"] is True
     assert not SystemNotification.objects.exists()
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    "inactive_state",
+    [
+        ListingState.DRAFT,
+        ListingState.PENDING,
+        ListingState.EXPIRED,
+        ListingState.REJECTED,
+        ListingState.UNAVAILABLE,
+        ListingState.ARCHIVED,
+    ],
+)
+def test_every_inactive_listing_state_preserves_history_and_exact_reactivation_restores_replies(
+    api_client: APIClient,
+    inactive_state: str,
+):
+    submitter = verified_user("submitter@example.com", "مالک")
+    renter = verified_user("renter@example.com", "رها")
+    listing = make_listing(submitter=submitter)
+    api_client.force_authenticate(renter)
+    created = api_client.post(
+        "/api/v1/messages/listing-inquiries/",
+        {"listing_id": str(listing.id), "body": "پیام نخست"},
+        format="json",
+    )
+    reply_url = f"/api/v1/messages/listing-inquiries/{created.data['id']}/replies/"
+
+    listing.state = inactive_state
+    listing.save(update_fields=("state",))
+    rejected = api_client.post(reply_url, {"body": "پیام هنگام توقف"}, format="json")
+    readable = api_client.get(f"/api/v1/messages/{created.data['id']}/")
+
+    assert rejected.status_code == 400
+    assert rejected.data["errors"]["detail"][0]["code"] == "listing_inactive"
+    assert [entry["body"] for entry in readable.data["entries"]] == ["پیام نخست"]
+
+    listing.state = ListingState.PUBLISHED
+    listing.available_until = timezone.now() + timedelta(days=30)
+    listing.save(update_fields=("state", "available_until"))
+    restored = api_client.post(reply_url, {"body": "پیام پس از فعال‌سازی"}, format="json")
+
+    assert restored.status_code == 201
+    assert ListingInquiry.objects.count() == 1
+
+
+@pytest.mark.django_db
+def test_expired_availability_and_inactive_source_make_inquiry_read_only(api_client: APIClient):
+    submitter = verified_user("submitter@example.com", "مالک")
+    renter = verified_user("renter@example.com", "رها")
+    listing = make_listing(submitter=submitter)
+    api_client.force_authenticate(renter)
+    created = api_client.post(
+        "/api/v1/messages/listing-inquiries/",
+        {"listing_id": str(listing.id), "body": "پیام نخست"},
+        format="json",
+    )
+    reply_url = f"/api/v1/messages/listing-inquiries/{created.data['id']}/replies/"
+
+    listing.available_until = timezone.now()
+    listing.save(update_fields=("available_until",))
+    expired = api_client.post(reply_url, {"body": "پاسخ"}, format="json")
+    listing.available_until = timezone.now() + timedelta(days=30)
+    listing.save(update_fields=("available_until",))
+    listing.source.is_active = False
+    listing.source.save(update_fields=("is_active",))
+    inactive_source = api_client.post(reply_url, {"body": "پاسخ"}, format="json")
+
+    assert expired.status_code == inactive_source.status_code == 400
+    assert ListingInquiryMessage.objects.count() == 1
+
+
+@pytest.mark.django_db
+def test_responsibility_transfer_freezes_old_history_and_routes_new_inquiries_to_new_submitter(
+    api_client: APIClient,
+):
+    original_submitter = verified_user("original@example.com", "مالک نخست")
+    new_submitter = verified_user("new@example.com", "مالک تازه")
+    first_renter = verified_user("first-renter@example.com", "رها")
+    second_renter = verified_user("second-renter@example.com", "سارا")
+    listing = make_listing(submitter=original_submitter)
+    api_client.force_authenticate(first_renter)
+    old_inquiry = api_client.post(
+        "/api/v1/messages/listing-inquiries/",
+        {"listing_id": str(listing.id), "body": "پیام پیش از انتقال"},
+        format="json",
+    )
+
+    submission = listing.submission
+    submission.submitter = new_submitter
+    submission.save(update_fields=("submitter",))
+
+    old_reply_url = f"/api/v1/messages/listing-inquiries/{old_inquiry.data['id']}/replies/"
+    renter_reply = api_client.post(old_reply_url, {"body": "پاسخ پس از انتقال"}, format="json")
+    old_detail = api_client.get(f"/api/v1/messages/{old_inquiry.data['id']}/")
+    api_client.force_authenticate(original_submitter)
+    former_submitter_reply = api_client.post(
+        old_reply_url, {"body": "پاسخ مالک نخست"}, format="json"
+    )
+    api_client.force_authenticate(new_submitter)
+    transferred_detail = api_client.get(f"/api/v1/messages/{old_inquiry.data['id']}/")
+    api_client.force_authenticate(second_renter)
+    new_inquiry = api_client.post(
+        "/api/v1/messages/listing-inquiries/",
+        {"listing_id": str(listing.id), "body": "پیام پس از انتقال"},
+        format="json",
+    )
+
+    assert renter_reply.status_code == former_submitter_reply.status_code == 400
+    assert old_detail.data["reply_unavailable_reason"] == "responsibility_changed"
+    assert old_detail.data["counterpart"]["display_name"] == "مالک نخست"
+    assert transferred_detail.status_code == 404
+    assert new_inquiry.status_code == 201
+    assert ListingInquiry.objects.get(id=new_inquiry.data["id"]).submitter == new_submitter
 
 
 @pytest.mark.django_db
@@ -290,6 +461,42 @@ def test_cold_contact_quota_counts_new_listings_but_not_existing_thread_replies(
 
 
 @pytest.mark.django_db
+@override_settings(
+    LISTING_INQUIRY_COLD_HOURLY_LIMIT=5,
+    LISTING_INQUIRY_COLD_DAILY_LIMIT=20,
+    LISTING_INQUIRY_REPEATED_CONTENT_DAILY_LIMIT=1,
+)
+def test_repeated_opening_content_tightens_only_new_inquiry_initiation(api_client: APIClient):
+    submitter = verified_user("submitter@example.com", "مالک")
+    renter = verified_user("renter@example.com", "رها")
+    first_listing = make_listing(submitter=submitter)
+    second_listing = make_listing(submitter=submitter, property_=first_listing.property)
+    api_client.force_authenticate(renter)
+
+    first = api_client.post(
+        "/api/v1/messages/listing-inquiries/",
+        {"listing_id": str(first_listing.id), "body": " لطفا تماس بگیرید "},
+        format="json",
+    )
+    reply = api_client.post(
+        f"/api/v1/messages/listing-inquiries/{first.data['id']}/replies/",
+        {"body": "لطفا تماس بگیرید"},
+        format="json",
+    )
+    repeated = api_client.post(
+        "/api/v1/messages/listing-inquiries/",
+        {"listing_id": str(second_listing.id), "body": "لطفا   تماس بگیرید"},
+        format="json",
+    )
+
+    assert first.status_code == reply.status_code == 201
+    assert repeated.status_code == 429
+    assert repeated.data["code"] == "repeated_content_limit"
+    assert ListingInquiry.objects.count() == 1
+    assert ListingInquiryMessage.objects.count() == 2
+
+
+@pytest.mark.django_db
 def test_existing_listing_inquiry_must_use_the_throttled_reply_endpoint(
     api_client: APIClient,
 ):
@@ -313,6 +520,117 @@ def test_existing_listing_inquiry_must_use_the_throttled_reply_endpoint(
     assert repeated.status_code == 409
     assert "همان گفت‌وگو" in repeated.data["detail"]
     assert ListingInquiryMessage.objects.count() == 1
+
+
+@pytest.mark.django_db
+def test_message_author_can_edit_through_the_exact_15_minute_boundary(api_client: APIClient):
+    submitter = verified_user("submitter@example.com", "مالک")
+    renter = verified_user("renter@example.com", "رها")
+    listing = make_listing(submitter=submitter)
+    api_client.force_authenticate(renter)
+    created = api_client.post(
+        "/api/v1/messages/listing-inquiries/",
+        {"listing_id": str(listing.id), "body": "متن نخست"},
+        format="json",
+    )
+    message = ListingInquiryMessage.objects.get()
+    created_at = datetime(2026, 9, 3, 12, tzinfo=UTC)
+    ListingInquiryMessage.objects.filter(id=message.id).update(created_at=created_at)
+    edit_url = f"/api/v1/messages/listing-inquiries/{created.data['id']}/messages/{message.id}/"
+
+    with patch(
+        "apps.communications.services.timezone.now",
+        return_value=created_at + timedelta(minutes=15),
+    ):
+        edited = api_client.patch(edit_url, {"body": "متن اصلاح‌شده"}, format="json")
+
+    assert edited.status_code == 200
+    assert edited.data["body"] == "متن اصلاح‌شده"
+    assert edited.data["edited_at"] is not None
+    detail = api_client.get(f"/api/v1/messages/{created.data['id']}/")
+    assert detail.data["entries"][0]["edited_at"] is not None
+    assert detail.data["entries"][0]["editable"] is False
+
+
+@pytest.mark.django_db
+def test_unauthorized_expired_and_locked_message_edits_preserve_stored_content(
+    api_client: APIClient,
+):
+    submitter = verified_user("submitter@example.com", "مالک")
+    renter = verified_user("renter@example.com", "رها")
+    unrelated = verified_user("unrelated@example.com", "غریبه")
+    listing = make_listing(submitter=submitter)
+    api_client.force_authenticate(renter)
+    created = api_client.post(
+        "/api/v1/messages/listing-inquiries/",
+        {"listing_id": str(listing.id), "body": "متن اصلی"},
+        format="json",
+    )
+    message = ListingInquiryMessage.objects.get()
+    edit_url = f"/api/v1/messages/listing-inquiries/{created.data['id']}/messages/{message.id}/"
+
+    api_client.force_authenticate(submitter)
+    wrong_author = api_client.patch(edit_url, {"body": "تغییر مالک"}, format="json")
+    api_client.force_authenticate(unrelated)
+    unrelated_edit = api_client.patch(edit_url, {"body": "تغییر غریبه"}, format="json")
+    api_client.force_authenticate(renter)
+    ListingInquiryMessage.objects.filter(id=message.id).update(
+        created_at=timezone.now() - timedelta(minutes=15, microseconds=1)
+    )
+    expired = api_client.patch(edit_url, {"body": "تغییر دیرهنگام"}, format="json")
+    ListingInquiryMessage.objects.filter(id=message.id).update(created_at=timezone.now())
+    lock_listing_inquiry_message_edits(message=message)
+    locked = api_client.patch(edit_url, {"body": "تغییر محتوای گزارش‌شده"}, format="json")
+
+    assert wrong_author.status_code == 400
+    assert unrelated_edit.status_code == 404
+    assert expired.status_code == locked.status_code == 409
+    message.refresh_from_db()
+    assert message.body == "متن اصلی"
+
+
+@pytest.mark.django_db
+def test_listing_inquiry_text_contract_accepts_unicode_phone_links_and_exact_limit(
+    api_client: APIClient,
+):
+    submitter = verified_user("submitter@example.com", "مالک")
+    renter = verified_user("renter@example.com", "رها")
+    first_listing = make_listing(submitter=submitter)
+    second_listing = make_listing(submitter=submitter, property_=first_listing.property)
+    api_client.force_authenticate(renter)
+
+    allowed = api_client.post(
+        "/api/v1/messages/listing-inquiries/",
+        {
+            "listing_id": str(first_listing.id),
+            "body": "شماره ۰۹۱۲۱۲۳۴۵۶۷ و https://example.com/خانه\n" + "ش" * 1955,
+        },
+        format="json",
+    )
+    oversized = api_client.post(
+        "/api/v1/messages/listing-inquiries/",
+        {"listing_id": str(second_listing.id), "body": "ش" * 2001},
+        format="json",
+    )
+    message = ListingInquiryMessage.objects.get()
+    oversized_reply = api_client.post(
+        f"/api/v1/messages/listing-inquiries/{allowed.data['id']}/replies/",
+        {"body": "ش" * 2001},
+        format="json",
+    )
+    oversized_edit = api_client.patch(
+        f"/api/v1/messages/listing-inquiries/{allowed.data['id']}/messages/{message.id}/",
+        {"body": "ش" * 2001},
+        format="json",
+    )
+
+    assert allowed.status_code == 201
+    assert len(ListingInquiryMessage.objects.get().body) == 2000
+    assert oversized.status_code == 400
+    assert oversized_reply.status_code == oversized_edit.status_code == 400
+    assert ListingInquiry.objects.count() == 1
+    message.refresh_from_db()
+    assert len(message.body) == 2000
 
 
 @pytest.mark.django_db

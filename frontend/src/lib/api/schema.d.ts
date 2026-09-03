@@ -414,6 +414,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/v1/messages/listing-inquiries/{inquiry_id}/messages/{message_id}/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /** Edit your recent Listing Inquiry message */
+    patch: operations["v1_messages_listing_inquiries_messages_partial_update"];
+    trace?: never;
+  };
   "/api/v1/messages/listing-inquiries/{inquiry_id}/replies/": {
     parameters: {
       query?: never;
@@ -1821,6 +1838,10 @@ export interface components {
      * @enum {string}
      */
     IntakeKindEnum: "general" | "account_deletion" | "public_contact_removal";
+    ListingInquiryContext: {
+      opening_snapshot: components["schemas"]["ListingInquiryOpeningSnapshot"];
+      current_availability: components["schemas"]["ListingInquiryCurrentAvailability"];
+    };
     ListingInquiryCounterpart: {
       display_name: string;
       role: components["schemas"]["ListingInquiryCounterpartRoleEnum"];
@@ -1842,12 +1863,29 @@ export interface components {
       id: string;
       href: string;
     };
+    ListingInquiryCurrentAvailability: {
+      is_active: boolean;
+      state: string;
+    };
     ListingInquiryMessage: {
       /** Format: uuid */
       id: string;
       body: string;
       /** Format: date-time */
       created_at: string;
+      /** Format: date-time */
+      edited_at: string | null;
+    };
+    ListingInquiryOpeningSnapshot: {
+      property_title: string;
+      area_sqm: number;
+      rental_terms: components["schemas"]["ListingInquiryRentalTermsSnapshot"];
+      source_display_name: string;
+    };
+    ListingInquiryRentalTermsSnapshot: {
+      deposit_rial: number;
+      monthly_rent_rial: number;
+      currency: string;
     };
     ListingPublic: {
       /** Format: uuid */
@@ -1935,6 +1973,9 @@ export interface components {
       property_count: number;
       property_ids: string[];
     };
+    MessageBody: {
+      body: string;
+    };
     MessageDetail: {
       /** Format: uuid */
       readonly id: string;
@@ -1952,6 +1993,11 @@ export interface components {
       readonly entries: components["schemas"]["SupportThreadEntry"][];
       readonly counterpart:
         components["schemas"]["ListingInquiryCounterpart"] | null;
+      readonly listing_context:
+        components["schemas"]["ListingInquiryContext"] | null;
+      readonly reply_unavailable_reason:
+        | components["schemas"]["ReplyUnavailableReasonEnum"]
+        | components["schemas"]["NullEnum"];
     };
     MessageGroup: {
       kind: components["schemas"]["MessageGroupKindEnum"];
@@ -2137,6 +2183,9 @@ export interface components {
       /** Format: email */
       email: string;
     };
+    PatchedMessageBody: {
+      body?: string;
+    };
     PatchedMessageReadUpdate: {
       read?: boolean;
     };
@@ -2177,9 +2226,6 @@ export interface components {
       description?: string;
       contact?: components["schemas"]["ContactInput"];
       review?: components["schemas"]["ReviewInput"];
-    };
-    PatchedSupportMessageCreate: {
-      body?: string;
     };
     PatchedSupportReplyCreate: {
       body?: string;
@@ -2418,6 +2464,12 @@ export interface components {
       deposit_toman: number;
       monthly_rent_toman: number;
     };
+    /**
+     * @description * `listing_inactive` - Listing inactive
+     *     * `responsibility_changed` - Responsibility changed
+     * @enum {string}
+     */
+    ReplyUnavailableReasonEnum: "listing_inactive" | "responsibility_changed";
     ReviewClaim: {
       /** Format: uuid */
       readonly id: string;
@@ -2856,9 +2908,6 @@ export interface components {
       readonly created_at: string;
       /** Format: date-time */
       readonly edited_at: string | null;
-    };
-    SupportMessageCreate: {
-      body: string;
     };
     /**
      * @description * `normal` - عادی
@@ -4269,6 +4318,32 @@ export interface operations {
       };
     };
   };
+  v1_messages_listing_inquiries_messages_partial_update: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        inquiry_id: string;
+        message_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: {
+      content: {
+        "application/json": components["schemas"]["PatchedMessageBody"];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ListingInquiryMessage"];
+        };
+      };
+    };
+  };
   v1_messages_listing_inquiries_replies_create: {
     parameters: {
       query?: never;
@@ -4280,7 +4355,7 @@ export interface operations {
     };
     requestBody: {
       content: {
-        "application/json": components["schemas"]["SupportMessageCreate"];
+        "application/json": components["schemas"]["MessageBody"];
       };
     };
     responses: {
@@ -4329,7 +4404,7 @@ export interface operations {
     };
     requestBody?: {
       content: {
-        "application/json": components["schemas"]["PatchedSupportMessageCreate"];
+        "application/json": components["schemas"]["PatchedMessageBody"];
       };
     };
     responses: {
@@ -4354,7 +4429,7 @@ export interface operations {
     };
     requestBody: {
       content: {
-        "application/json": components["schemas"]["SupportMessageCreate"];
+        "application/json": components["schemas"]["MessageBody"];
       };
     };
     responses: {

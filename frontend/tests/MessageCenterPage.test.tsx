@@ -3,7 +3,7 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { MemoryRouter, Route, Routes } from "react-router";
-import { expect, test } from "vitest";
+import { expect, test, vi } from "vitest";
 
 import { MessageCenterPage } from "@/pages/MessageCenterPage";
 import { server } from "./server";
@@ -581,4 +581,210 @@ test("filters and continues a Listing Inquiry thread with current participant na
   await userEvent.click(screen.getByRole("button", { name: "ارسال پیام" }));
 
   await waitFor(() => expect(replyBody).toBe("برای فردا مناسب است؟"));
+});
+
+test("shows the immutable Listing snapshot beside inactive current availability", async () => {
+  const inquiry = {
+    ...message,
+    id: "10000000-0000-4000-8000-000000000100",
+    kind: "listing_inquiry",
+    title: "پرسش درباره آپارتمان در سعادت‌آباد",
+    preview: "آیا هنوز موجود است؟",
+    group: {
+      kind: "listing_inquiry",
+      id: "20000000-0000-4000-8000-000000000100",
+      label: "آپارتمان در سعادت‌آباد",
+    },
+  };
+  server.use(
+    http.get("*/api/v1/messages/", () =>
+      HttpResponse.json({
+        count: 1,
+        next: null,
+        previous: null,
+        results: [inquiry],
+      }),
+    ),
+    http.get("*/api/v1/messages/:messageId/", () =>
+      HttpResponse.json({
+        ...inquiry,
+        body: inquiry.preview,
+        read: true,
+        target: { label: "مشاهده ملک", href: "/properties/property/slug" },
+        public_status: null,
+        reply_allowed: false,
+        reply_unavailable_reason: "listing_inactive",
+        listing_context: {
+          opening_snapshot: {
+            property_title: "آپارتمان در سعادت‌آباد",
+            area_sqm: 90,
+            rental_terms: {
+              deposit_rial: 8_000_000_000,
+              monthly_rent_rial: 200_000_000,
+              currency: "IRR",
+            },
+            source_display_name: "ترب‌رنت",
+          },
+          current_availability: {
+            is_active: false,
+            state: "unavailable",
+          },
+        },
+        counterpart: {
+          display_name: "مالک",
+          role: "submitter",
+          identity_verified: false,
+        },
+        entries: [
+          {
+            id: "30000000-0000-4000-8000-000000000100",
+            kind: "renter_message",
+            body: inquiry.preview,
+            author_name: "رها",
+            mine: true,
+            created_at: inquiry.created_at,
+            edited_at: null,
+            editable: false,
+          },
+        ],
+      }),
+    ),
+  );
+
+  renderPage(`/messages/${inquiry.id}`);
+
+  expect(await screen.findByText("اطلاعات هنگام شروع گفت‌وگو")).toBeVisible();
+  expect(screen.getByText("۹۰ متر مربع")).toBeVisible();
+  expect(screen.getByText(/ودیعه.*۸۰۰٬۰۰۰٬۰۰۰ تومان/)).toBeVisible();
+  expect(screen.getByText(/اجاره ماهانه.*۲۰٬۰۰۰٬۰۰۰ تومان/)).toBeVisible();
+  expect(screen.getByText("منبع: ترب‌رنت")).toBeVisible();
+  expect(screen.getByText("وضعیت فعلی: غیرفعال")).toBeVisible();
+  expect(
+    screen.getByText("این آگهی فعال نیست و گفت‌وگو فعلا فقط خواندنی است."),
+  ).toBeVisible();
+  expect(
+    screen.queryByRole("textbox", { name: "ادامه گفت‌وگو" }),
+  ).not.toBeInTheDocument();
+});
+
+test("renders safe links as plain text content and visibly edits an ordinary inquiry message", async () => {
+  let editedBody = "";
+  localStorage.removeItem("listing-inquiry-off-platform-warning-acknowledged");
+  const openExternal = vi.spyOn(window, "open").mockImplementation(() => null);
+  const inquiry = {
+    ...message,
+    id: "10000000-0000-4000-8000-000000000101",
+    kind: "listing_inquiry",
+    title: "پرسش درباره خانه",
+    preview: "لینک",
+    group: {
+      kind: "listing_inquiry",
+      id: "20000000-0000-4000-8000-000000000101",
+      label: "خانه",
+    },
+  };
+  server.use(
+    http.get("*/api/v1/messages/", () =>
+      HttpResponse.json({
+        count: 1,
+        next: null,
+        previous: null,
+        results: [inquiry],
+      }),
+    ),
+    http.get("*/api/v1/messages/:messageId/", () =>
+      HttpResponse.json({
+        ...inquiry,
+        body: inquiry.preview,
+        read: true,
+        target: null,
+        public_status: null,
+        reply_allowed: true,
+        reply_unavailable_reason: null,
+        listing_context: {
+          opening_snapshot: {
+            property_title: "خانه",
+            area_sqm: 120,
+            rental_terms: {
+              deposit_rial: 1_000_000_000,
+              monthly_rent_rial: 100_000_000,
+              currency: "IRR",
+            },
+            source_display_name: "ترب‌رنت",
+          },
+          current_availability: { is_active: true, state: "published" },
+        },
+        counterpart: {
+          display_name: "مالک",
+          role: "submitter",
+          identity_verified: false,
+        },
+        entries: [
+          {
+            id: "30000000-0000-4000-8000-000000000101",
+            kind: "renter_message",
+            body: "<script>خطر</script> https://example.com/خانه ۰۹۱۲۱۲۳۴۵۶۷",
+            author_name: "رها",
+            mine: true,
+            created_at: inquiry.created_at,
+            edited_at: "2026-09-03T12:05:00Z",
+            editable: true,
+          },
+        ],
+      }),
+    ),
+    http.patch(
+      "*/api/v1/messages/listing-inquiries/:inquiryId/messages/:messageId/",
+      async ({ request }) => {
+        editedBody = ((await request.json()) as { body: string }).body;
+        return HttpResponse.json({
+          id: "30000000-0000-4000-8000-000000000101",
+          body: editedBody,
+          created_at: inquiry.created_at,
+          edited_at: "2026-09-03T12:10:00Z",
+        });
+      },
+    ),
+  );
+  renderPage(`/messages/${inquiry.id}`);
+  const user = userEvent.setup();
+
+  await screen.findByText("گفت‌وگو با مالک");
+  expect(document.querySelector("script")).not.toBeInTheDocument();
+  expect(screen.getByText(/<script>خطر<\/script>/)).toBeVisible();
+  const externalLink = screen.getByRole("link", {
+    name: "https://example.com/خانه",
+  });
+  expect(externalLink).toHaveAttribute("target", "_blank");
+  expect(externalLink).toHaveAttribute("rel", "noopener noreferrer");
+  expect(screen.getByText("ویرایش‌شده")).toBeVisible();
+
+  await user.click(externalLink);
+  expect(
+    await screen.findByText(/پیش از دنبال‌کردن پیوند یا تماس با شماره/),
+  ).toBeVisible();
+  expect(openExternal).not.toHaveBeenCalled();
+  await user.click(
+    screen.getByRole("button", { name: "متوجه شدم؛ ادامه به پیوند" }),
+  );
+  expect(openExternal).toHaveBeenCalledWith(
+    "https://example.com/خانه",
+    "_blank",
+    "noopener,noreferrer",
+  );
+
+  await user.click(externalLink);
+  expect(openExternal).toHaveBeenCalledTimes(2);
+  expect(
+    screen.queryByRole("alertdialog", {
+      name: "ادامه گفت‌وگو خارج از ترب‌رنت",
+    }),
+  ).not.toBeInTheDocument();
+
+  await user.click(screen.getByRole("button", { name: "ویرایش" }));
+  const editor = screen.getByRole("textbox", { name: "ویرایش پیام" });
+  await user.clear(editor);
+  await user.type(editor, "متن اصلاح‌شده");
+  await user.click(screen.getByRole("button", { name: "ذخیره ویرایش" }));
+  await waitFor(() => expect(editedBody).toBe("متن اصلاح‌شده"));
 });

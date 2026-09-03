@@ -4,6 +4,7 @@ import { ArrowRight, Building2, Clock3, MapPin } from "lucide-react";
 import { PageMain } from "@/components/layout/PageMain";
 import { roomCountLabels } from "@/features/catalog/property-taxonomy";
 import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import {
@@ -268,6 +269,13 @@ function ListingInquiryComposer({
               required
             />
           </div>
+          <Alert>
+            <AlertDescription>
+              شماره تماس و پیوند مجاز است؛ پیش از انتقال گفت‌وگو به خارج از
+              ترب‌رنت، هویت طرف مقابل و خطرهای ارتباط خارج از سامانه را بررسی
+              کنید.
+            </AlertDescription>
+          </Alert>
           {failed ? (
             <p className="text-destructive text-sm" role="alert">
               ارسال پیام انجام نشد. وضعیت حساب و آگهی را بررسی کنید.

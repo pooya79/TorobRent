@@ -128,6 +128,22 @@ export async function replyToListingInquiry(inquiryId: string, body: string) {
   return data;
 }
 
+export async function editListingInquiryMessage(
+  inquiryId: string,
+  messageId: string,
+  body: string,
+) {
+  const { data, error } = await api.PATCH(
+    "/api/v1/messages/listing-inquiries/{inquiry_id}/messages/{message_id}/",
+    {
+      params: { path: { inquiry_id: inquiryId, message_id: messageId } },
+      body: { body },
+    },
+  );
+  if (error || !data) throw apiError(error);
+  return data;
+}
+
 export const unreadMessageCountQuery = queryOptions({
   queryKey: ["messages", "unread-count"],
   queryFn: async () => {

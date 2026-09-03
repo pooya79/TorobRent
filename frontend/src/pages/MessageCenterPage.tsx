@@ -17,11 +17,22 @@ import {
 import { Link, useParams, useSearchParams } from "react-router";
 
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import {
   markMessageUnread,
+  editListingInquiryMessage,
   editSupportMessage,
   messageDetailQueryOptions,
   messagesQueryOptions,
@@ -68,13 +79,27 @@ const statusLabels = {
   resolved: "رسیدگی شد",
 } as const;
 
-function safeText(text: string): ReactNode[] {
+const OFF_PLATFORM_WARNING_KEY =
+  "listing-inquiry-off-platform-warning-acknowledged";
+
+function safeText(
+  text: string,
+  onExternalLink?: (href: string) => void,
+): ReactNode[] {
   return text.split(/(https?:\/\/[^\s]+)/gu).map((part, index) =>
     /^https?:\/\//u.test(part) ? (
       <a
         className="text-primary underline"
         href={part}
         key={`${part}-${index}`}
+        onClick={
+          onExternalLink
+            ? (event) => {
+                event.preventDefault();
+                onExternalLink(part);
+              }
+            : undefined
+        }
         rel="noopener noreferrer"
         target="_blank"
       >
@@ -84,6 +109,10 @@ function safeText(text: string): ReactNode[] {
       part
     ),
   );
+}
+
+function toman(rial: number) {
+  return (rial / 10).toLocaleString("fa-IR");
 }
 
 function groupMessages(messages: MessageSummary[]) {
@@ -110,6 +139,7 @@ export function MessageCenterPage() {
   const queryClient = useQueryClient();
   const detailHeading = useRef<HTMLHeadingElement>(null);
   const [editingId, setEditingId] = useState<string>();
+  const [pendingExternalHref, setPendingExternalHref] = useState<string>();
   const markUnread = useMutation({
     mutationFn: () => {
       if (!messageId) throw new Error("Message id is required");
@@ -138,6 +168,9 @@ export function MessageCenterPage() {
   const editMessage = useMutation({
     mutationFn: ({ id, body }: { id: string; body: string }) => {
       if (!messageId) throw new Error("Message id is required");
+      if (detail.data?.kind === "listing_inquiry") {
+        return editListingInquiryMessage(messageId, id, body);
+      }
       return editSupportMessage(messageId, id, body);
     },
     onSuccess: () => {
@@ -171,6 +204,21 @@ export function MessageCenterPage() {
     if (nextPage <= 1) nextParams.delete("page");
     else nextParams.set("page", String(nextPage));
     setSearchParams(nextParams);
+  }
+
+  function requestExternalNavigation(href: string) {
+    if (localStorage.getItem(OFF_PLATFORM_WARNING_KEY) === "true") {
+      window.open(href, "_blank", "noopener,noreferrer");
+      return;
+    }
+    setPendingExternalHref(href);
+  }
+
+  function continueExternalNavigation() {
+    if (!pendingExternalHref) return;
+    localStorage.setItem(OFF_PLATFORM_WARNING_KEY, "true");
+    window.open(pendingExternalHref, "_blank", "noopener,noreferrer");
+    setPendingExternalHref(undefined);
   }
 
   return (
@@ -510,6 +558,55 @@ export function MessageCenterPage() {
                       <p className="text-muted-foreground mt-1 text-xs">
                         نام نمایشی؛ هویت تأییدشده نیست
                       </p>
+                      {detail.data.listing_context ? (
+                        <section
+                          aria-label="اطلاعات آگهی"
+                          className="bg-muted/40 mt-5 rounded-lg border p-4"
+                        >
+                          <h3 className="font-semibold">
+                            اطلاعات هنگام شروع گفت‌وگو
+                          </h3>
+                          <p className="mt-2">
+                            {
+                              detail.data.listing_context.opening_snapshot
+                                .property_title
+                            }
+                          </p>
+                          <p className="text-muted-foreground mt-1 text-sm">
+                            {detail.data.listing_context.opening_snapshot.area_sqm.toLocaleString(
+                              "fa-IR",
+                            )}{" "}
+                            متر مربع
+                          </p>
+                          <p className="text-muted-foreground mt-1 text-sm">
+                            ودیعه:{" "}
+                            {toman(
+                              detail.data.listing_context.opening_snapshot
+                                .rental_terms.deposit_rial,
+                            )}{" "}
+                            تومان · اجاره ماهانه:{" "}
+                            {toman(
+                              detail.data.listing_context.opening_snapshot
+                                .rental_terms.monthly_rent_rial,
+                            )}{" "}
+                            تومان
+                          </p>
+                          <p className="text-muted-foreground mt-1 text-sm">
+                            منبع:{" "}
+                            {
+                              detail.data.listing_context.opening_snapshot
+                                .source_display_name
+                            }
+                          </p>
+                          <p className="mt-3 text-sm font-semibold">
+                            وضعیت فعلی:{" "}
+                            {detail.data.listing_context.current_availability
+                              .is_active
+                              ? "فعال"
+                              : "غیرفعال"}
+                          </p>
+                        </section>
+                      ) : null}
                       <ol
                         aria-label="رشته پرسش آگهی"
                         className="mt-6 space-y-3"
@@ -525,36 +622,106 @@ export function MessageCenterPage() {
                             <p className="mb-2 text-xs font-semibold">
                               {entry.author_name}
                             </p>
-                            <p className="leading-7 whitespace-pre-wrap">
-                              {safeText(entry.body ?? "")}
-                            </p>
+                            {editingId === entry.id ? (
+                              <form
+                                className="grid gap-2"
+                                onSubmit={(event) => {
+                                  event.preventDefault();
+                                  const body = new FormData(
+                                    event.currentTarget,
+                                  ).get("edited_body");
+                                  if (typeof body === "string" && body.trim()) {
+                                    editMessage.mutate({ id: entry.id, body });
+                                  }
+                                }}
+                              >
+                                <Label htmlFor={`edit-inquiry-${entry.id}`}>
+                                  ویرایش پیام
+                                </Label>
+                                <textarea
+                                  className="border-input min-h-24 rounded-md border p-3"
+                                  defaultValue={entry.body}
+                                  id={`edit-inquiry-${entry.id}`}
+                                  maxLength={2000}
+                                  name="edited_body"
+                                  required
+                                />
+                                <Button
+                                  className="justify-self-start"
+                                  size="sm"
+                                  type="submit"
+                                >
+                                  ذخیره ویرایش
+                                </Button>
+                              </form>
+                            ) : (
+                              <p className="leading-7 whitespace-pre-wrap">
+                                {safeText(
+                                  entry.body ?? "",
+                                  requestExternalNavigation,
+                                )}
+                              </p>
+                            )}
+                            {entry.edited_at ? (
+                              <span className="text-muted-foreground mt-2 block text-xs">
+                                ویرایش‌شده
+                              </span>
+                            ) : null}
+                            {entry.editable && editingId !== entry.id ? (
+                              <Button
+                                className="mt-2"
+                                onClick={() => setEditingId(entry.id)}
+                                size="sm"
+                                type="button"
+                                variant="ghost"
+                              >
+                                ویرایش
+                              </Button>
+                            ) : null}
                           </li>
                         ))}
                       </ol>
-                      <form className="mt-6 grid gap-3" onSubmit={submitReply}>
-                        <Label htmlFor="listing-inquiry-reply">
-                          ادامه گفت‌وگو
-                        </Label>
-                        <textarea
-                          className="border-input min-h-28 rounded-md border p-3"
-                          id="listing-inquiry-reply"
-                          maxLength={2000}
-                          name="body"
-                          required
-                        />
-                        <Button
-                          className="justify-self-start"
-                          disabled={reply.isPending}
-                          type="submit"
+                      {detail.data.reply_allowed ? (
+                        <form
+                          className="mt-6 grid gap-3"
+                          onSubmit={submitReply}
                         >
-                          {reply.isPending ? "در حال ارسال…" : "ارسال پیام"}
-                        </Button>
-                        {reply.isError ? (
-                          <p className="text-destructive text-sm" role="alert">
-                            ارسال پیام انجام نشد.
-                          </p>
-                        ) : null}
-                      </form>
+                          <Label htmlFor="listing-inquiry-reply">
+                            ادامه گفت‌وگو
+                          </Label>
+                          <textarea
+                            className="border-input min-h-28 rounded-md border p-3"
+                            id="listing-inquiry-reply"
+                            maxLength={2000}
+                            name="body"
+                            required
+                          />
+                          <Button
+                            className="justify-self-start"
+                            disabled={reply.isPending}
+                            type="submit"
+                          >
+                            {reply.isPending ? "در حال ارسال…" : "ارسال پیام"}
+                          </Button>
+                          {reply.isError ? (
+                            <p
+                              className="text-destructive text-sm"
+                              role="alert"
+                            >
+                              ارسال پیام انجام نشد.
+                            </p>
+                          ) : null}
+                        </form>
+                      ) : (
+                        <Alert className="mt-6">
+                          <AlertDescription>
+                            {detail.data.reply_unavailable_reason ===
+                            "responsibility_changed"
+                              ? "مسئول آگهی تغییر کرده و این گفت‌وگو برای شرکت‌کنندگان اصلی فقط خواندنی است."
+                              : "این آگهی فعال نیست و گفت‌وگو فعلا فقط خواندنی است."}
+                          </AlertDescription>
+                        </Alert>
+                      )}
                     </>
                   ) : (
                     <p className="mt-6 leading-8">{detail.data.body}</p>
@@ -596,6 +763,27 @@ export function MessageCenterPage() {
           )}
         </section>
       </div>
+      <AlertDialog
+        open={Boolean(pendingExternalHref)}
+        onOpenChange={(open) => !open && setPendingExternalHref(undefined)}
+      >
+        <AlertDialogContent dir="rtl">
+          <AlertDialogHeader className="text-right sm:text-right">
+            <AlertDialogTitle>ادامه گفت‌وگو خارج از ترب‌رنت</AlertDialogTitle>
+            <AlertDialogDescription>
+              پیش از دنبال‌کردن پیوند یا تماس با شماره، هویت طرف مقابل و خطرهای
+              ارتباط خارج از سامانه را بررسی کنید. ترب‌رنت پیش‌نمایش پیوند نمایش
+              نمی‌دهد و مسئول محتوای مقصد نیست.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="gap-2 sm:space-x-0">
+            <AlertDialogCancel>ماندن در ترب‌رنت</AlertDialogCancel>
+            <AlertDialogAction onClick={continueExternalNavigation}>
+              متوجه شدم؛ ادامه به پیوند
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </main>
   );
 }

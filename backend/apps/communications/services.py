@@ -1,17 +1,25 @@
 import uuid
-from datetime import timedelta
+from datetime import datetime, timedelta
+from enum import StrEnum
+from unicodedata import normalize
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.utils import timezone
+from django.utils.crypto import salted_hmac
 
 from apps.accounts.models import User
-from apps.catalog.models import Listing, OutboundPolicy
+from apps.catalog.models import Listing, ListingState, OutboundPolicy
 from apps.source_proposals.models import SourceProposalEvent, SourceProposalState
 from apps.submissions.models import SubmissionEvent, SubmissionState
 
-from .models import ListingInquiry, ListingInquiryMessage, SystemNotification
+from .models import (
+    ListingInquiry,
+    ListingInquiryMessage,
+    ListingInquiryReplyUnavailableReason,
+    SystemNotification,
+)
 
 
 class ListingInquiryError(Exception):
@@ -24,8 +32,62 @@ class ListingInquiryQuotaExceeded(ListingInquiryError):
     pass
 
 
-class ListingInquiryAlreadyExists(ListingInquiryError):
+class ListingInquiryConflictError(ListingInquiryError):
     pass
+
+
+class ListingInquiryAlreadyExists(ListingInquiryConflictError):
+    pass
+
+
+class ListingInquiryEditConflict(ListingInquiryConflictError):
+    pass
+
+
+class ListingInquiryMessageEditDeniedReason(StrEnum):
+    WRONG_AUTHOR = "listing_inquiry_message_edit_forbidden"
+    LOCKED = "listing_inquiry_message_edit_locked"
+    EXPIRED = "listing_inquiry_message_edit_window_expired"
+    LISTING_INACTIVE = ListingInquiryReplyUnavailableReason.LISTING_INACTIVE
+    RESPONSIBILITY_CHANGED = ListingInquiryReplyUnavailableReason.RESPONSIBILITY_CHANGED
+
+
+def inquiry_reply_unavailable_reason(
+    inquiry: ListingInquiry,
+) -> ListingInquiryReplyUnavailableReason | None:
+    listing = inquiry.listing
+    if (
+        listing.state != ListingState.PUBLISHED
+        or listing.available_until is None
+        or listing.available_until <= timezone.now()
+        or not listing.source.is_active
+    ):
+        return ListingInquiryReplyUnavailableReason.LISTING_INACTIVE
+    try:
+        current_submitter_id = listing.submission.submitter_id
+    except Listing.submission.RelatedObjectDoesNotExist:
+        return ListingInquiryReplyUnavailableReason.RESPONSIBILITY_CHANGED
+    if current_submitter_id != inquiry.submitter_id:
+        return ListingInquiryReplyUnavailableReason.RESPONSIBILITY_CHANGED
+    return None
+
+
+def inquiry_message_edit_denied_reason(
+    message: ListingInquiryMessage,
+    *,
+    actor_id: uuid.UUID | None,
+    now: datetime | None = None,
+) -> ListingInquiryMessageEditDeniedReason | None:
+    if message.author_id != actor_id:
+        return ListingInquiryMessageEditDeniedReason.WRONG_AUTHOR
+    if message.edit_locked_at is not None:
+        return ListingInquiryMessageEditDeniedReason.LOCKED
+    if message.created_at < (now or timezone.now()) - timedelta(minutes=15):
+        return ListingInquiryMessageEditDeniedReason.EXPIRED
+    unavailable_reason = inquiry_reply_unavailable_reason(message.inquiry)
+    if unavailable_reason is not None:
+        return ListingInquiryMessageEditDeniedReason(unavailable_reason)
+    return None
 
 
 def _eligible_listing(listing_id: uuid.UUID) -> Listing:
@@ -48,7 +110,16 @@ def _eligible_listing(listing_id: uuid.UUID) -> Listing:
         ) from exc
 
 
-def _enforce_cold_contact_quota(renter: User) -> None:
+def _opening_message_fingerprint(body: str) -> str:
+    normalized_body = " ".join(normalize("NFKC", body).casefold().split())
+    return salted_hmac(
+        "listing-inquiry-opening-message",
+        normalized_body,
+        algorithm="sha256",
+    ).hexdigest()
+
+
+def _enforce_cold_contact_quota(renter: User, *, message_fingerprint: str) -> None:
     now = timezone.now()
     hourly_limit = settings.LISTING_INQUIRY_COLD_HOURLY_LIMIT
     daily_limit = settings.LISTING_INQUIRY_COLD_DAILY_LIMIT
@@ -62,6 +133,18 @@ def _enforce_cold_contact_quota(renter: User) -> None:
         raise ListingInquiryQuotaExceeded(
             "سقف شروع گفت‌وگوهای تازه امروز پر شده است.",
             code="listing_inquiry_daily_limit",
+        )
+    repeated_content_limit = settings.LISTING_INQUIRY_REPEATED_CONTENT_DAILY_LIMIT
+    if (
+        inquiries.filter(
+            created_at__gte=now - timedelta(days=1),
+            opening_message_fingerprint=message_fingerprint,
+        ).count()
+        >= repeated_content_limit
+    ):
+        raise ListingInquiryQuotaExceeded(
+            "برای شروع گفت‌وگوهای تازه از یک متن تکراری استفاده نکنید.",
+            code="repeated_content_limit",
         )
 
 
@@ -89,11 +172,20 @@ def start_listing_inquiry(
             code="listing_inquiry_exists",
         )
     now = timezone.now()
-    _enforce_cold_contact_quota(renter)
+    message_fingerprint = _opening_message_fingerprint(body)
+    _enforce_cold_contact_quota(renter, message_fingerprint=message_fingerprint)
+    assert listing.property.area_sqm is not None
     inquiry = ListingInquiry.objects.create(
         listing=listing,
         renter=renter,
         submitter=submitter,
+        opening_property_title=listing.property.title,
+        opening_area_sqm=listing.property.area_sqm,
+        opening_deposit_rial=listing.terms.deposit_rial,
+        opening_monthly_rent_rial=listing.terms.monthly_rent_rial,
+        opening_currency=listing.terms.currency,
+        opening_source_display_name=listing.source.display_name,
+        opening_message_fingerprint=message_fingerprint,
         renter_read_at=now,
         latest_activity_at=now,
     )
@@ -112,12 +204,25 @@ def start_listing_inquiry(
 def reply_to_listing_inquiry(
     *, inquiry: ListingInquiry, actor: User, body: str
 ) -> ListingInquiryMessage:
-    inquiry = ListingInquiry.objects.select_for_update().get(id=inquiry.id)
+    inquiry = (
+        ListingInquiry.objects
+        .select_for_update()
+        .select_related("listing__source", "listing__submission")
+        .get(id=inquiry.id)
+    )
     if actor.id not in (inquiry.renter_id, inquiry.submitter_id):
         raise ListingInquiryError(
             "این گفت‌وگو در دسترس شما نیست.",
             code="listing_inquiry_forbidden",
         )
+    unavailable_reason = inquiry_reply_unavailable_reason(inquiry)
+    if unavailable_reason is not None:
+        error_message = (
+            "مسئولیت این آگهی تغییر کرده و این گفت‌وگو فقط خواندنی است."
+            if unavailable_reason == ListingInquiryReplyUnavailableReason.RESPONSIBILITY_CHANGED
+            else "این آگهی فعال نیست و تا فعال‌شدن دوباره امکان ارسال پیام ندارد."
+        )
+        raise ListingInquiryError(error_message, code=unavailable_reason)
     message = ListingInquiryMessage.objects.create(
         inquiry=inquiry,
         author=actor,
@@ -131,6 +236,59 @@ def reply_to_listing_inquiry(
         inquiry.submitter_read_at = message.created_at
         fields = ("latest_activity_at", "submitter_read_at")
     inquiry.save(update_fields=fields)
+    return message
+
+
+@transaction.atomic
+def edit_listing_inquiry_message(
+    *, message: ListingInquiryMessage, actor: User, body: str
+) -> ListingInquiryMessage:
+    message = (
+        ListingInquiryMessage.objects
+        .select_for_update()
+        .select_related("inquiry__listing__source", "inquiry__listing__submission")
+        .get(id=message.id)
+    )
+    now = timezone.now()
+    denied_reason = inquiry_message_edit_denied_reason(message, actor_id=actor.id, now=now)
+    if denied_reason is not None:
+        messages = {
+            ListingInquiryMessageEditDeniedReason.WRONG_AUTHOR: (
+                "فقط نویسنده پیام می‌تواند آن را ویرایش کند."
+            ),
+            ListingInquiryMessageEditDeniedReason.LOCKED: (
+                "محتوای ثبت‌شده برای بررسی قابل ویرایش نیست."
+            ),
+            ListingInquiryMessageEditDeniedReason.EXPIRED: (
+                "مهلت ۱۵ دقیقه‌ای ویرایش پیام پایان یافته است."
+            ),
+            ListingInquiryMessageEditDeniedReason.LISTING_INACTIVE: (
+                "این آگهی فعال نیست و گفت‌وگو فقط خواندنی است."
+            ),
+            ListingInquiryMessageEditDeniedReason.RESPONSIBILITY_CHANGED: (
+                "مسئولیت آگهی تغییر کرده و گفت‌وگو فقط خواندنی است."
+            ),
+        }
+        error_type = (
+            ListingInquiryError
+            if denied_reason == ListingInquiryMessageEditDeniedReason.WRONG_AUTHOR
+            else ListingInquiryEditConflict
+        )
+        raise error_type(messages[denied_reason], code=denied_reason)
+    message.body = body
+    message.edited_at = now
+    message.save(update_fields=("body", "edited_at"))
+    return message
+
+
+@transaction.atomic
+def lock_listing_inquiry_message_edits(
+    *, message: ListingInquiryMessage, locked_at: datetime | None = None
+) -> ListingInquiryMessage:
+    message = ListingInquiryMessage.objects.select_for_update().get(id=message.id)
+    if message.edit_locked_at is None:
+        message.edit_locked_at = locked_at or timezone.now()
+        message.save(update_fields=("edit_locked_at",))
     return message
 
 

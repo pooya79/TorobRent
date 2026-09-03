@@ -10,7 +10,13 @@ def listing_inquiries_for(participant: User, *, unread: bool = False) -> QuerySe
     inquiries = (
         ListingInquiry.objects
         .filter(models.Q(renter=participant) | models.Q(submitter=participant))
-        .select_related("listing__property", "renter", "submitter")
+        .select_related(
+            "listing__property",
+            "listing__source",
+            "listing__submission",
+            "renter",
+            "submitter",
+        )
         .prefetch_related("messages")
     )
     if unread:

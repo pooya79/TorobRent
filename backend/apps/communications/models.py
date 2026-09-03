@@ -15,6 +15,52 @@ class MessageKind(models.TextChoices):
     SUPPORT_REQUEST = "support_request", "Support Request"
 
 
+class ListingInquiryReplyUnavailableReason(models.TextChoices):
+    LISTING_INACTIVE = "listing_inactive", "Listing inactive"
+    RESPONSIBILITY_CHANGED = "responsibility_changed", "Responsibility changed"
+
+
+LISTING_INQUIRY_OPENING_ATTNAMES = frozenset({
+    "listing_id",
+    "renter_id",
+    "submitter_id",
+    "opening_property_title",
+    "opening_area_sqm",
+    "opening_deposit_rial",
+    "opening_monthly_rent_rial",
+    "opening_currency",
+    "opening_source_display_name",
+    "opening_message_fingerprint",
+})
+LISTING_INQUIRY_OPENING_FIELDS = LISTING_INQUIRY_OPENING_ATTNAMES | {
+    "listing",
+    "renter",
+    "submitter",
+}
+
+
+class ListingInquiryQuerySet(models.QuerySet["ListingInquiry"]):
+    def update(self, **kwargs: Any) -> int:
+        if LISTING_INQUIRY_OPENING_FIELDS.intersection(kwargs):
+            raise ValidationError("Listing Inquiry opening context is immutable.")
+        return super().update(**kwargs)
+
+    def bulk_update(
+        self,
+        objs: Iterable[ListingInquiry],
+        fields: Iterable[str],
+        batch_size: int | None = None,
+    ) -> int:
+        if LISTING_INQUIRY_OPENING_FIELDS.intersection(fields):
+            raise ValidationError("Listing Inquiry opening context is immutable.")
+        return super().bulk_update(objs, fields, batch_size)
+
+
+class ListingInquiryManager(models.Manager["ListingInquiry"]):
+    def get_queryset(self) -> ListingInquiryQuerySet:
+        return ListingInquiryQuerySet(self.model, using=self._db)
+
+
 class ListingInquiry(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     listing = models.ForeignKey(
@@ -35,13 +81,28 @@ class ListingInquiry(models.Model):
         related_name="submitter_listing_inquiries",
         editable=False,
     )
+    opening_property_title = models.CharField(max_length=255, editable=False)
+    opening_area_sqm = models.PositiveIntegerField(editable=False)
+    opening_deposit_rial = models.PositiveBigIntegerField(editable=False)
+    opening_monthly_rent_rial = models.PositiveBigIntegerField(editable=False)
+    opening_currency = models.CharField(max_length=3, default="IRR", editable=False)
+    opening_source_display_name = models.CharField(max_length=120, editable=False)
+    opening_message_fingerprint = models.CharField(max_length=64, editable=False)
     renter_read_at = models.DateTimeField(null=True, blank=True)
     submitter_read_at = models.DateTimeField(null=True, blank=True)
     latest_activity_at = models.DateTimeField(db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
+    objects: ClassVar[ListingInquiryManager] = ListingInquiryManager()
+
     class Meta:
         ordering = ("-latest_activity_at", "-id")
+        indexes = [
+            models.Index(
+                fields=("renter", "opening_message_fingerprint", "created_at"),
+                name="inquiry_repeated_content_idx",
+            )
+        ]
         constraints = [
             models.UniqueConstraint(
                 fields=("renter", "listing"),
@@ -55,6 +116,17 @@ class ListingInquiry(models.Model):
 
     def __str__(self) -> str:
         return f"{self.renter_id} -> {self.listing_id}"
+
+    def save(self, *args: Any, **kwargs: Any) -> None:
+        if not self._state.adding:
+            update_fields = kwargs.get("update_fields")
+            if update_fields is None or LISTING_INQUIRY_OPENING_FIELDS.intersection(update_fields):
+                opening_values = (
+                    type(self).objects.values(*LISTING_INQUIRY_OPENING_ATTNAMES).get(id=self.id)
+                )
+                if any(getattr(self, field) != value for field, value in opening_values.items()):
+                    raise ValidationError("Listing Inquiry opening context is immutable.")
+        super().save(*args, **kwargs)
 
 
 class ListingInquiryMessage(models.Model):
@@ -71,6 +143,8 @@ class ListingInquiryMessage(models.Model):
     )
     body = models.TextField(max_length=2000)
     created_at = models.DateTimeField(auto_now_add=True)
+    edited_at = models.DateTimeField(null=True, blank=True, editable=False)
+    edit_locked_at = models.DateTimeField(null=True, blank=True, editable=False)
 
     class Meta:
         ordering = ("created_at", "id")

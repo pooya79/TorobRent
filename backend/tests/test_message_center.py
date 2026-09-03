@@ -191,7 +191,9 @@ def test_opening_detail_marks_read_and_account_can_mark_it_unread(api_client):
         "read": True,
         "public_status": None,
         "reply_allowed": False,
+        "reply_unavailable_reason": None,
         "counterpart": None,
+        "listing_context": None,
         "entries": [],
         "target": {
             "label": "مشاهده پیشنهاد",

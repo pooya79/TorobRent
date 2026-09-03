@@ -2,6 +2,7 @@ from django.urls import path
 
 from .views import (
     ListingInquiryCreateView,
+    ListingInquiryMessageEditView,
     ListingInquiryReplyView,
     MessageDetailView,
     MessageListView,
@@ -23,6 +24,11 @@ urlpatterns = [
         "listing-inquiries/<uuid:inquiry_id>/replies/",
         ListingInquiryReplyView.as_view(),
         name="listing-inquiry-reply",
+    ),
+    path(
+        "listing-inquiries/<uuid:inquiry_id>/messages/<uuid:message_id>/",
+        ListingInquiryMessageEditView.as_view(),
+        name="listing-inquiry-message-edit",
     ),
     path("support-requests/", SupportRequestCreateView.as_view(), name="support-create"),
     path(

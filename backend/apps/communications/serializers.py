@@ -15,7 +15,13 @@ from apps.contact.models import (
     SupportRequestStatus,
 )
 
-from .models import ListingInquiry, MessageKind, SystemNotification
+from .models import (
+    ListingInquiry,
+    ListingInquiryReplyUnavailableReason,
+    MessageKind,
+    SystemNotification,
+)
+from .services import inquiry_message_edit_denied_reason, inquiry_reply_unavailable_reason
 
 MessageItem = SystemNotification | SupportRequest | ListingInquiry
 PUBLIC_SUPPORT_EVENT_TYPES = (
@@ -66,9 +72,10 @@ class ListingInquiryMessageSerializer(serializers.Serializer[Any]):
     id = serializers.UUIDField()
     body = serializers.CharField()
     created_at = serializers.DateTimeField()
+    edited_at = serializers.DateTimeField(allow_null=True)
 
 
-class SupportMessageCreateSerializer(serializers.Serializer[Any]):
+class MessageBodySerializer(serializers.Serializer[Any]):
     body = serializers.CharField(max_length=2000)
 
 
@@ -225,6 +232,8 @@ class MessageDetailSerializer(MessageSummarySerializer):
     reply_allowed = serializers.SerializerMethodField()
     entries = serializers.SerializerMethodField()
     counterpart = serializers.SerializerMethodField()
+    listing_context = serializers.SerializerMethodField()
+    reply_unavailable_reason = serializers.SerializerMethodField()
 
     def get_body(self, notification: MessageItem) -> str:
         return self.get_preview(notification)
@@ -292,10 +301,73 @@ class MessageDetailSerializer(MessageSummarySerializer):
         if isinstance(item, SystemNotification):
             return False
         if isinstance(item, ListingInquiry):
-            return True
+            return inquiry_reply_unavailable_reason(item) is None
         if item.status != SupportRequestStatus.RESOLVED:
             return True
         return bool(item.resolved_at and item.resolved_at >= timezone.now() - timedelta(days=14))
+
+    @extend_schema_field(
+        serializers.ChoiceField(
+            choices=ListingInquiryReplyUnavailableReason.choices,
+            allow_null=True,
+        )
+    )
+    def get_reply_unavailable_reason(self, item: MessageItem) -> str | None:
+        if not isinstance(item, ListingInquiry):
+            return None
+        return inquiry_reply_unavailable_reason(item)
+
+    @extend_schema_field(
+        inline_serializer(
+            name="ListingInquiryContext",
+            fields={
+                "opening_snapshot": inline_serializer(
+                    name="ListingInquiryOpeningSnapshot",
+                    fields={
+                        "property_title": serializers.CharField(),
+                        "area_sqm": serializers.IntegerField(),
+                        "rental_terms": inline_serializer(
+                            name="ListingInquiryRentalTermsSnapshot",
+                            fields={
+                                "deposit_rial": serializers.IntegerField(),
+                                "monthly_rent_rial": serializers.IntegerField(),
+                                "currency": serializers.CharField(),
+                            },
+                        ),
+                        "source_display_name": serializers.CharField(),
+                    },
+                ),
+                "current_availability": inline_serializer(
+                    name="ListingInquiryCurrentAvailability",
+                    fields={
+                        "is_active": serializers.BooleanField(),
+                        "state": serializers.CharField(),
+                    },
+                ),
+            },
+            allow_null=True,
+        )
+    )
+    def get_listing_context(self, item: MessageItem) -> dict[str, object] | None:
+        if not isinstance(item, ListingInquiry):
+            return None
+        unavailable_reason = inquiry_reply_unavailable_reason(item)
+        return {
+            "opening_snapshot": {
+                "property_title": item.opening_property_title,
+                "area_sqm": item.opening_area_sqm,
+                "rental_terms": {
+                    "deposit_rial": item.opening_deposit_rial,
+                    "monthly_rent_rial": item.opening_monthly_rent_rial,
+                    "currency": item.opening_currency,
+                },
+                "source_display_name": item.opening_source_display_name,
+            },
+            "current_availability": {
+                "is_active": unavailable_reason != "listing_inactive",
+                "state": item.listing.state,
+            },
+        }
 
     @extend_schema_field(
         inline_serializer(
@@ -340,6 +412,12 @@ class MessageDetailSerializer(MessageSummarySerializer):
                     ),
                     "body": message.body,
                     "created_at": message.created_at,
+                    "edited_at": message.edited_at,
+                    "editable": inquiry_message_edit_denied_reason(
+                        message,
+                        actor_id=user_id,
+                    )
+                    is None,
                     "author_name": message.author.display_name,
                     "mine": message.author_id == user_id,
                 }

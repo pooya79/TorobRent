@@ -8,7 +8,7 @@ from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from drf_spectacular.utils import OpenApiResponse, extend_schema, extend_schema_view
 from rest_framework import status
-from rest_framework.exceptions import APIException, NotFound, Throttled, ValidationError
+from rest_framework.exceptions import APIException, NotFound, ValidationError
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -24,27 +24,33 @@ from apps.contact.services import (
     edit_support_message,
 )
 
-from .models import ListingInquiry, SystemNotification, SystemNotificationReadState
+from .models import (
+    ListingInquiry,
+    ListingInquiryMessage,
+    SystemNotification,
+    SystemNotificationReadState,
+)
 from .permissions import HasVerifiedIdentifier
 from .selectors import listing_inquiries_for, system_notifications_for
 from .serializers import (
     ListingInquiryCreatedSerializer,
     ListingInquiryCreateSerializer,
     ListingInquiryMessageSerializer,
+    MessageBodySerializer,
     MessageDetailSerializer,
     MessageListQuerySerializer,
     MessageReadUpdateSerializer,
     MessageSummarySerializer,
-    SupportMessageCreateSerializer,
     SupportMessageSerializer,
     SupportRequestCreatedSerializer,
     SupportRequestCreateSerializer,
     UnreadCountSerializer,
 )
 from .services import (
-    ListingInquiryAlreadyExists,
+    ListingInquiryConflictError,
     ListingInquiryError,
     ListingInquiryQuotaExceeded,
+    edit_listing_inquiry_message,
     reply_to_listing_inquiry,
     start_listing_inquiry,
 )
@@ -70,13 +76,17 @@ class ListingInquiryConflict(ListingInquiryRequestError):
     status_code = status.HTTP_409_CONFLICT
 
 
+class ListingInquiryThrottle(ListingInquiryRequestError):
+    status_code = status.HTTP_429_TOO_MANY_REQUESTS
+
+
 def execute_inquiry_command[Result](command: Callable[[], Result]) -> Result:
     try:
         return command()
-    except ListingInquiryAlreadyExists as exc:
+    except ListingInquiryConflictError as exc:
         raise ListingInquiryConflict(exc) from None
     except ListingInquiryQuotaExceeded as exc:
-        raise Throttled(detail=str(exc), code=exc.code) from None
+        raise ListingInquiryThrottle(exc) from None
     except ListingInquiryError as exc:
         raise ListingInquiryRequestError(exc) from None
 
@@ -340,7 +350,7 @@ class ListingInquiryReplyView(APIView):
 
     @extend_schema(
         summary="Reply to a Listing Inquiry",
-        request=SupportMessageCreateSerializer,
+        request=MessageBodySerializer,
         responses={201: ListingInquiryMessageSerializer},
     )
     def post(self, request: Request, inquiry_id: str) -> Response:
@@ -350,7 +360,7 @@ class ListingInquiryReplyView(APIView):
             ),
             id=inquiry_id,
         )
-        serializer = SupportMessageCreateSerializer(data=request.data)
+        serializer = MessageBodySerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         message = execute_inquiry_command(
             lambda: reply_to_listing_inquiry(
@@ -364,9 +374,38 @@ class ListingInquiryReplyView(APIView):
                 "id": message.id,
                 "body": message.body,
                 "created_at": message.created_at,
+                "edited_at": message.edited_at,
             },
             status=status.HTTP_201_CREATED,
         )
+
+
+class ListingInquiryMessageEditView(APIView):
+    permission_classes = [HasVerifiedIdentifier]
+
+    @extend_schema(
+        summary="Edit your recent Listing Inquiry message",
+        request=MessageBodySerializer,
+        responses={200: ListingInquiryMessageSerializer},
+    )
+    def patch(self, request: Request, inquiry_id: str, message_id: str) -> Response:
+        message = get_object_or_404(
+            ListingInquiryMessage.objects.filter(
+                models.Q(inquiry__renter=request.user) | models.Q(inquiry__submitter=request.user)
+            ),
+            id=message_id,
+            inquiry_id=inquiry_id,
+        )
+        serializer = MessageBodySerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        message = execute_inquiry_command(
+            lambda: edit_listing_inquiry_message(
+                message=message,
+                actor=cast(User, request.user),
+                body=serializer.validated_data["body"],
+            )
+        )
+        return Response(ListingInquiryMessageSerializer(message).data)
 
 
 class SupportRequestCreateView(APIView):
@@ -399,14 +438,14 @@ class RequesterSupportReplyView(APIView):
 
     @extend_schema(
         summary="Reply to your Support Request",
-        request=SupportMessageCreateSerializer,
+        request=MessageBodySerializer,
         responses={201: SupportMessageSerializer},
     )
     def post(self, request: Request, support_request_id: str) -> Response:
         support_request = get_object_or_404(
             SupportRequest, id=support_request_id, submitter=request.user
         )
-        serializer = SupportMessageCreateSerializer(data=request.data)
+        serializer = MessageBodySerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         message: SupportMessage = execute_message_command(
             lambda: add_support_message(
@@ -424,7 +463,7 @@ class RequesterSupportMessageEditView(APIView):
 
     @extend_schema(
         summary="Edit your recent Support message",
-        request=SupportMessageCreateSerializer,
+        request=MessageBodySerializer,
         responses={200: SupportMessageSerializer},
     )
     def patch(self, request: Request, support_request_id: str, support_message_id: str) -> Response:
@@ -434,7 +473,7 @@ class RequesterSupportMessageEditView(APIView):
             support_request_id=support_request_id,
             support_request__submitter=request.user,
         )
-        serializer = SupportMessageCreateSerializer(data=request.data)
+        serializer = MessageBodySerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         message = execute_message_command(
             lambda: edit_support_message(
