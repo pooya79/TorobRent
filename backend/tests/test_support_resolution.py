@@ -3,7 +3,7 @@ from concurrent.futures import ThreadPoolExecutor
 import pytest
 from django.contrib.auth.models import Permission
 from django.core.exceptions import ValidationError
-from django.db import close_old_connections, connection
+from django.db import IntegrityError, close_old_connections, connection, transaction
 from django.db.models.deletion import ProtectedError
 from django.utils import timezone
 from rest_framework.test import APIClient
@@ -62,7 +62,9 @@ def assigned_request(*, operator: User, **overrides: object) -> SupportRequest:
 
 
 @pytest.mark.django_db
-def test_privileged_redaction_removes_personal_content_without_rewriting_operational_history():
+def test_privileged_redaction_removes_personal_content_without_rewriting_operational_history(
+    api_client: APIClient,
+):
     administrator = User.objects.create_superuser(
         email="administrator@example.com", password="password"
     )
@@ -91,6 +93,13 @@ def test_privileged_redaction_removes_personal_content_without_rewriting_operati
         author=operator,
         author_kind=SupportMessageAuthor.OPERATOR,
         body="An Operator reply containing personal content.",
+    )
+    requester_reopen_event = support_request.events.create(
+        actor=requester,
+        event_type=SupportRequestEventType.REOPENED,
+        prior_state=SupportRequestStatus.RESOLVED,
+        new_state=SupportRequestStatus.OPEN,
+        classification=SupportClassification.GUIDANCE,
     )
     original_event = support_request.events.create(
         actor=operator,
@@ -142,6 +151,7 @@ def test_privileged_redaction_removes_personal_content_without_rewriting_operati
     privacy_action.refresh_from_db()
     requester_message.refresh_from_db()
     operator_reply.refresh_from_db()
+    requester_reopen_event.refresh_from_db()
     assert support_request.name == "Former requester"
     assert "personal.requester@example.com" not in support_request.email
     assert support_request.message == "[Personal Support Request content redacted]"
@@ -172,13 +182,42 @@ def test_privileged_redaction_removes_personal_content_without_rewriting_operati
     assert requester_message.author_kind == SupportMessageAuthor.REQUESTER
     assert operator_reply.body == "[Personal content redacted]"
     assert operator_reply.author == operator
+    assert requester_reopen_event.actor is None
+    assert requester_reopen_event.event_type == SupportRequestEventType.REOPENED
+    assert requester_reopen_event.prior_state == SupportRequestStatus.RESOLVED
+    assert requester_reopen_event.new_state == SupportRequestStatus.OPEN
     requester.delete()
     assert SupportRequest.objects.filter(id=support_request.id).exists()
     assert SupportMessage.objects.filter(id=requester_message.id).exists()
+    api_client.force_authenticate(operator)
+    detail = api_client.get(f"/api/v1/operator/support-requests/{support_request.id}/")
+    redacted_reopen = next(
+        event
+        for event in detail.data["history"]
+        if str(event["id"]) == str(requester_reopen_event.id)
+    )
+    assert redacted_reopen["actor_id"] is None
+    assert redacted_reopen["actor_reference"] is None
+    assert redacted_reopen["actor_label"] is None
+    assert redacted_reopen["actor_email"] is None
     assert support_request.events.filter(
         event_type=SupportRequestEventType.PERSONAL_CONTENT_REDACTED,
         actor=administrator,
     ).exists()
+
+
+@pytest.mark.django_db
+def test_operator_support_messages_require_an_author_identity():
+    operator = operator_with_support_capability()
+    support_request = assigned_request(operator=operator)
+
+    with pytest.raises(IntegrityError), transaction.atomic():
+        SupportMessage.objects.create(
+            support_request=support_request,
+            author=None,
+            author_kind=SupportMessageAuthor.OPERATOR,
+            body="An Operator reply must retain its author identity.",
+        )
 
 
 @pytest.mark.django_db

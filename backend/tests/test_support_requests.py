@@ -20,7 +20,6 @@ from apps.contact.models import (
 )
 from apps.contact.services import (
     SupportRequestConflict,
-    add_support_message,
     claim_support_request,
 )
 
@@ -1218,38 +1217,38 @@ def test_requester_message_and_competing_claims_preserve_one_handler_rule():
     for operator in operators:
         operator.user_permissions.add(permission)
 
-    def reply() -> str:
+    def reply() -> int:
         close_old_connections()
         try:
-            add_support_message(
-                support_request=SupportRequest.objects.get(id=support_request.id),
-                actor=User.objects.get(id=requester.id),
-                body="Please also consider this new information.",
-                author_kind=SupportMessageAuthor.REQUESTER,
+            requester_client = APIClient()
+            requester_client.force_authenticate(User.objects.get(id=requester.id))
+            response = requester_client.post(
+                f"/api/v1/messages/support-requests/{support_request.id}/replies/",
+                {"body": "Please also consider this new information."},
+                format="json",
             )
         finally:
             close_old_connections()
-        return "replied"
+        return response.status_code
 
-    def claim(index: int) -> str:
+    def claim(index: int) -> int:
         close_old_connections()
         try:
-            claim_support_request(
-                support_request=SupportRequest.objects.get(id=support_request.id),
-                actor=User.objects.get(id=operators[index].id),
+            operator_client = APIClient()
+            operator_client.force_authenticate(User.objects.get(id=operators[index].id))
+            response = operator_client.post(
+                f"/api/v1/operator/support-requests/{support_request.id}/claim/"
             )
-        except SupportRequestConflict:
-            return "lost"
         finally:
             close_old_connections()
-        return "won"
+        return response.status_code
 
     with ThreadPoolExecutor(max_workers=3) as pool:
         futures = [pool.submit(reply), *(pool.submit(claim, index) for index in range(2))]
         results = [future.result() for future in futures]
 
-    assert results.count("replied") == 1
-    assert results.count("won") == 1
+    assert results[0] == 201
+    assert sorted(results[1:]) == [201, 409]
     support_request.refresh_from_db()
     assert support_request.status == SupportRequestStatus.IN_PROGRESS
     assert support_request.assignee_id in {operator.id for operator in operators}

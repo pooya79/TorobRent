@@ -38,6 +38,21 @@ function renderPage(initialEntry = "/messages") {
   );
 }
 
+function supportMessage(id: string, title: string, preview: string) {
+  return {
+    ...message,
+    id,
+    kind: "support_request",
+    title,
+    preview,
+    group: {
+      kind: "support_request",
+      id,
+      label: "پشتیبانی",
+    },
+  };
+}
+
 test("opens a notification on a stable detail route and can mark it unread", async () => {
   let markedUnread = false;
   server.use(
@@ -284,18 +299,11 @@ test("group labels do not disturb latest-activity ordering", async () => {
 
 test("renders a Support thread with safe links and lets the requester reply", async () => {
   let replyBody = "";
-  const support = {
-    ...message,
-    id: "10000000-0000-4000-8000-000000000097",
-    kind: "support_request",
-    title: "مشکل حساب",
-    preview: "پاسخ اپراتور",
-    group: {
-      kind: "support_request",
-      id: "10000000-0000-4000-8000-000000000097",
-      label: "پشتیبانی",
-    },
-  };
+  const support = supportMessage(
+    "10000000-0000-4000-8000-000000000097",
+    "مشکل حساب",
+    "پاسخ اپراتور",
+  );
   server.use(
     http.get("*/api/v1/messages/", () =>
       HttpResponse.json({
@@ -358,18 +366,11 @@ test("renders a Support thread with safe links and lets the requester reply", as
 });
 
 test("keeps an expired resolved Support thread readable and links to a new request", async () => {
-  const support = {
-    ...message,
-    id: "10000000-0000-4000-8000-000000000098",
-    kind: "support_request",
-    title: "درخواست قدیمی",
-    preview: "پاسخ نهایی اپراتور",
-    group: {
-      kind: "support_request",
-      id: "10000000-0000-4000-8000-000000000098",
-      label: "پشتیبانی",
-    },
-  };
+  const support = supportMessage(
+    "10000000-0000-4000-8000-000000000098",
+    "درخواست قدیمی",
+    "پاسخ نهایی اپراتور",
+  );
   server.use(
     http.get("*/api/v1/messages/", () =>
       HttpResponse.json({
@@ -424,18 +425,11 @@ test("keeps an expired resolved Support thread readable and links to a new reque
 
 test("shows a recently resolved Support thread as received after requester reply reopens it", async () => {
   let reopened = false;
-  const support = {
-    ...message,
-    id: "10000000-0000-4000-8000-000000000099",
-    kind: "support_request",
-    title: "درخواست تازه رسیدگی‌شده",
-    preview: "پاسخ نهایی",
-    group: {
-      kind: "support_request",
-      id: "10000000-0000-4000-8000-000000000099",
-      label: "پشتیبانی",
-    },
-  };
+  const support = supportMessage(
+    "10000000-0000-4000-8000-000000000099",
+    "درخواست تازه رسیدگی‌شده",
+    "پاسخ نهایی",
+  );
   server.use(
     http.get("*/api/v1/messages/", () =>
       HttpResponse.json({
@@ -477,22 +471,19 @@ test("shows a recently resolved Support thread as received after requester reply
         ],
       }),
     ),
-    http.post(
-      "*/api/v1/messages/support-requests/:messageId/replies/",
-      () => {
-        reopened = true;
-        return HttpResponse.json(
-          {
-            id: "30000000-0000-4000-8000-000000000099",
-            author_kind: "requester",
-            body: "مشکل همچنان ادامه دارد.",
-            created_at: "2026-09-03T13:00:00Z",
-            edited_at: null,
-          },
-          { status: 201 },
-        );
-      },
-    ),
+    http.post("*/api/v1/messages/support-requests/:messageId/replies/", () => {
+      reopened = true;
+      return HttpResponse.json(
+        {
+          id: "30000000-0000-4000-8000-000000000099",
+          author_kind: "requester",
+          body: "مشکل همچنان ادامه دارد.",
+          created_at: "2026-09-03T13:00:00Z",
+          edited_at: null,
+        },
+        { status: 201 },
+      );
+    }),
   );
   renderPage(`/messages/${support.id}`);
   const user = userEvent.setup();

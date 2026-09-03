@@ -267,11 +267,18 @@ class SupportMessage(models.Model):
     class Meta:
         ordering = ("created_at", "id")
         constraints = [
+            models.CheckConstraint(
+                condition=(
+                    models.Q(author_kind=SupportMessageAuthor.REQUESTER)
+                    | models.Q(author__isnull=False)
+                ),
+                name="operator_support_message_requires_author",
+            ),
             models.UniqueConstraint(
                 fields=("support_request",),
                 condition=models.Q(is_initial=True),
                 name="one_initial_message_per_support_request",
-            )
+            ),
         ]
 
     def __str__(self) -> str:
@@ -287,6 +294,7 @@ class SupportRequestEvent(AppendOnlyModel):
     )
     actor = models.ForeignKey(
         settings.AUTH_USER_MODEL,
+        null=True,
         on_delete=models.PROTECT,
         related_name="support_request_events",
     )
@@ -354,6 +362,15 @@ class SupportRequestEvent(AppendOnlyModel):
 
     class Meta:
         ordering = ("created_at", "id")
+        constraints = [
+            models.CheckConstraint(
+                condition=(
+                    models.Q(event_type=SupportRequestEventType.REOPENED)
+                    | models.Q(actor__isnull=False)
+                ),
+                name="operational_support_event_requires_actor",
+            )
+        ]
 
     def __str__(self) -> str:
         return f"{self.support_request_id}: {self.prior_state} → {self.new_state}"

@@ -219,6 +219,7 @@ def redact_support_request_content(
     if support_request.personal_content_redacted_at is not None:
         return support_request
 
+    requester_id = support_request.submitter_id
     support_request.submitter = None
     support_request.name = "Former requester"
     support_request.email = f"redacted-{support_request.id.hex}@anonymized.invalid"
@@ -244,6 +245,12 @@ def redact_support_request_content(
     SupportRequestEvent._base_manager.filter(support_request=support_request).update(
         resolution_summary="[Personal content redacted]",
     )
+    if requester_id is not None:
+        SupportRequestEvent._base_manager.filter(
+            support_request=support_request,
+            actor_id=requester_id,
+            event_type=SupportRequestEventType.REOPENED,
+        ).update(actor=None)
     SupportRequestNote._base_manager.filter(support_request=support_request).update(
         body="[Personal content redacted]"
     )

@@ -6408,15 +6408,21 @@ components:
         event_type:
           $ref: '#/components/schemas/SupportRequestEventTypeEnum'
         actor_id:
-          type: string
+          type:
+          - string
+          - 'null'
           format: uuid
           readOnly: true
         actor_reference:
-          type: string
+          type:
+          - string
+          - 'null'
           format: uuid
           readOnly: true
         actor_label:
-          type: string
+          type:
+          - string
+          - 'null'
           readOnly: true
         actor_email:
           type:

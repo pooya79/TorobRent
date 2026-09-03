@@ -200,6 +200,7 @@ class MessageDetailSerializer(MessageSummarySerializer):
             .filter(
                 event_type__in=(
                     SupportRequestEventType.ASSIGNED,
+                    SupportRequestEventType.ESCALATED,
                     SupportRequestEventType.RELEASED,
                     SupportRequestEventType.REOPENED,
                     SupportRequestEventType.RESOLVED,
@@ -212,7 +213,10 @@ class MessageDetailSerializer(MessageSummarySerializer):
             return "received"
         if event.event_type == SupportRequestEventType.RESOLVED:
             return "resolved"
-        if event.event_type == SupportRequestEventType.ASSIGNED or (
+        if event.event_type in (
+            SupportRequestEventType.ASSIGNED,
+            SupportRequestEventType.ESCALATED,
+        ) or (
             event.event_type == SupportRequestEventType.REOPENED
             and event.new_state == SupportRequestStatus.IN_PROGRESS
         ):
@@ -290,6 +294,7 @@ class MessageDetailSerializer(MessageSummarySerializer):
         for event in item.events.filter(
             event_type__in=(
                 SupportRequestEventType.ASSIGNED,
+                SupportRequestEventType.ESCALATED,
                 SupportRequestEventType.RELEASED,
                 SupportRequestEventType.REOPENED,
                 SupportRequestEventType.RESOLVED,
@@ -303,7 +308,11 @@ class MessageDetailSerializer(MessageSummarySerializer):
                     if event.event_type == SupportRequestEventType.RESOLVED
                     else (
                         "in_progress"
-                        if event.event_type == SupportRequestEventType.ASSIGNED
+                        if event.event_type
+                        in (
+                            SupportRequestEventType.ASSIGNED,
+                            SupportRequestEventType.ESCALATED,
+                        )
                         or event.new_state == SupportRequestStatus.IN_PROGRESS
                         else "received"
                     )

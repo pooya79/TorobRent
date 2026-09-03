@@ -178,6 +178,42 @@ def test_requester_thread_filters_internal_support_operations(api_client):
 
 
 @pytest.mark.django_db
+def test_direct_internal_escalation_maps_to_public_in_progress(api_client):
+    requester = verified_user()
+    operator = support_operator()
+    support_request = SupportRequest.objects.create(
+        submitter=requester,
+        name="درخواست‌کننده",
+        email=requester.email,
+        intake_kind=IntakeKind.GENERAL,
+        subject="نیازمند ارجاع",
+        message="این درخواست مستقیم ارجاع می‌شود.",
+        account_linked_at_intake=True,
+    )
+    triage_support_request(
+        support_request=support_request,
+        actor=operator,
+        classification=None,
+        priority=None,
+        new_status=SupportRequestStatus.ESCALATED,
+        escalation_destination="تیم تخصصی",
+        required_capability=SupportRequiredCapability.GENERAL,
+        reason="ارجاع داخلی مستقیم",
+    )
+    api_client.force_authenticate(requester)
+
+    response = api_client.get(f"/api/v1/messages/{support_request.id}/")
+
+    assert response.status_code == 200
+    assert response.data["public_status"] == "in_progress"
+    status_entries = [
+        entry["status"] for entry in response.data["entries"] if entry["kind"] == "status"
+    ]
+    assert status_entries == ["received", "in_progress"]
+    assert "ارجاع داخلی مستقیم" not in str(response.data)
+
+
+@pytest.mark.django_db
 def test_only_assigned_capable_operator_can_reply_and_reply_updates_feed_unread(api_client):
     requester = verified_user()
     assigned = support_operator()

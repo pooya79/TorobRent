@@ -2877,10 +2877,10 @@ export interface components {
       readonly id: string;
       event_type: components["schemas"]["SupportRequestEventTypeEnum"];
       /** Format: uuid */
-      readonly actor_id: string;
+      readonly actor_id: string | null;
       /** Format: uuid */
-      readonly actor_reference: string;
-      readonly actor_label: string;
+      readonly actor_reference: string | null;
+      readonly actor_label: string | null;
       /** Format: email */
       readonly actor_email: string | null;
       prior_state: components["schemas"]["SupportRequestStatusEnum"];

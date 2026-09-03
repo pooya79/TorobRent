@@ -270,9 +270,11 @@ class SupportRequestQueueSerializer(serializers.ModelSerializer[SupportRequest])
 
 class SupportRequestEventSerializer(serializers.ModelSerializer[SupportRequestEvent]):
     actor_reference = serializers.UUIDField(
-        source="actor.historical_actor_reference", read_only=True
+        source="actor.historical_actor_reference", read_only=True, allow_null=True
     )
-    actor_label = serializers.CharField(source="actor.historical_actor_label", read_only=True)
+    actor_label = serializers.CharField(
+        source="actor.historical_actor_label", read_only=True, allow_null=True
+    )
     actor_email = serializers.EmailField(
         source="actor.historical_actor_email", read_only=True, allow_null=True
     )
