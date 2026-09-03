@@ -8,6 +8,9 @@ export const server = setupServer(
     HttpResponse.json({ authenticated: false, csrf_token: "test-token" }),
   ),
   http.get("*/api/v1/system/ready/", () => HttpResponse.json({ status: "ok" })),
+  http.get("*/api/v1/messages/unread-count/", () =>
+    HttpResponse.json({ count: 0 }),
+  ),
   http.get("*/api/v1/catalog/locations/", () =>
     HttpResponse.json([
       {

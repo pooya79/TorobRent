@@ -985,6 +985,118 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: Request was throttled
+  /api/v1/messages/:
+    get:
+      operationId: v1_messages_list
+      summary: List Message Center items
+      parameters:
+      - in: query
+        name: kind
+        schema:
+          enum:
+          - all
+          - system_notification
+          - listing_inquiry
+          - support_request
+          type: string
+          default: all
+          minLength: 1
+        description: |-
+          * `all` - all
+          * `system_notification` - system_notification
+          * `listing_inquiry` - listing_inquiry
+          * `support_request` - support_request
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - in: query
+        name: unread
+        schema:
+          type: boolean
+          default: false
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedMessageSummaryList'
+          description: ''
+  /api/v1/messages/{message_id}/:
+    get:
+      operationId: v1_messages_retrieve
+      summary: Open a Message Center item
+      parameters:
+      - in: path
+        name: message_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageDetail'
+          description: ''
+    patch:
+      operationId: v1_messages_partial_update
+      summary: Change the read state of a Message Center item
+      parameters:
+      - in: path
+        name: message_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedMessageReadUpdate'
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageDetail'
+          description: ''
+  /api/v1/messages/unread-count/:
+    get:
+      operationId: v1_messages_unread_count_retrieve
+      summary: Count unread Message Center items
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnreadCount'
+          description: ''
   /api/v1/operator/external-listing-candidates/:
     get:
       operationId: v1_operator_external_listing_candidates_list
@@ -3680,6 +3792,94 @@ components:
       - property_ids
       - south
       - west
+    MessageDetail:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        kind:
+          allOf:
+          - $ref: '#/components/schemas/MessageKindEnum'
+          readOnly: true
+        title:
+          type: string
+          readOnly: true
+        body:
+          type: string
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        read:
+          type: boolean
+          readOnly: true
+        target:
+          oneOf:
+          - $ref: '#/components/schemas/MessageTarget'
+          - type: 'null'
+          readOnly: true
+      required:
+      - body
+      - created_at
+      - id
+      - kind
+      - read
+      - target
+      - title
+    MessageKindEnum:
+      enum:
+      - system_notification
+      - listing_inquiry
+      - support_request
+      type: string
+      description: |-
+        * `system_notification` - System Notification
+        * `listing_inquiry` - Listing Inquiry
+        * `support_request` - Support Request
+    MessageSummary:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        kind:
+          allOf:
+          - $ref: '#/components/schemas/MessageKindEnum'
+          readOnly: true
+        title:
+          type: string
+          readOnly: true
+        preview:
+          type: string
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        read:
+          type: boolean
+          readOnly: true
+      required:
+      - created_at
+      - id
+      - kind
+      - preview
+      - read
+      - title
+    MessageTarget:
+      type: object
+      properties:
+        label:
+          type: string
+        href:
+          type: string
+      required:
+      - href
+      - label
     NormalizedCorrectionsAudit:
       type: object
       properties:
@@ -3905,6 +4105,31 @@ components:
         * `direct_contact` - تماس مستقیم
         * `external_link` - پیوند منبع
         * `disabled` - غیرفعال
+    PaginatedMessageSummaryList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type:
+          - string
+          - 'null'
+          format: uri
+          example: http://api.example.org/properties/?page=2
+        previous:
+          type:
+          - string
+          - 'null'
+          format: uri
+          example: http://api.example.org/properties/?page=1
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/MessageSummary'
     PaginatedOperatorSubmissionQueueList:
       type: object
       required:
@@ -3974,6 +4199,11 @@ components:
           format: email
       required:
       - email
+    PatchedMessageReadUpdate:
+      type: object
+      properties:
+        read:
+          type: boolean
     PatchedSourceProposalDetails:
       type: object
       properties:
@@ -6294,6 +6524,14 @@ components:
       - property_type_label
       - saved_at
       - title
+    UnreadCount:
+      type: object
+      properties:
+        count:
+          type: integer
+          minimum: 0
+      required:
+      - count
     User:
       type: object
       properties:

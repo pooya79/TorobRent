@@ -30,6 +30,7 @@ INSTALLED_APPS = [
     "apps.common",
     "apps.accounts",
     "apps.catalog",
+    "apps.communications",
     "apps.contact",
     "apps.source_proposals",
     "apps.submissions",
@@ -187,6 +188,7 @@ SPECTACULAR_SETTINGS = {
             "apps.contact.models.IdentityVerificationMethod.choices"
         ),
         "IntakeKindEnum": "apps.contact.models.IntakeKind.choices",
+        "MessageKindEnum": "apps.communications.models.MessageKind.choices",
         "OutboundPolicyEnum": "apps.catalog.models.OutboundPolicy.choices",
         "PropertyTypeEnum": "apps.catalog.models.PropertyType.choices",
         "PrivacyActionTypeEnum": "apps.contact.models.PrivacyActionType.choices",

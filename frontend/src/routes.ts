@@ -11,6 +11,8 @@ export default [
   route("submitter/get-started", "routes/submitter-get-started.tsx"),
   route("forgot-password", "routes/forgot-password.tsx"),
   route("favorites", "pages/FavoritesPage.tsx"),
+  route("messages", "routes/messages.tsx"),
+  route("messages/:messageId", "routes/message-detail.tsx"),
   route("verify-email", "routes/verify-email.tsx"),
   route("reset-password", "routes/reset-password.tsx"),
   route("privacy", "routes/privacy.tsx"),

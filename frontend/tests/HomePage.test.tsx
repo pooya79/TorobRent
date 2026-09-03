@@ -275,7 +275,7 @@ test("recovers when the readiness check fails during startup", async () => {
   expect(attempts).toBe(3);
 });
 
-test("shows Renter controls and honest placeholders in the authenticated account menu", async () => {
+test("shows Renter controls and Message Center in the authenticated account menu", async () => {
   const user = userEvent.setup();
   server.use(
     http.get("*/api/v1/auth/session/", () =>
@@ -298,10 +298,10 @@ test("shows Renter controls and honest placeholders in the authenticated account
   renderHomeShell(queryClient);
 
   const navbar = screen.getByRole("banner", { name: "راهبری عمومی" });
-  const messages = await within(navbar).findByRole("button", {
-    name: "پیام‌ها — به‌زودی",
+  const messages = await within(navbar).findByRole("link", {
+    name: "پیام‌ها",
   });
-  expect(messages).toHaveAttribute("aria-disabled", "true");
+  expect(messages).toHaveAttribute("href", "/messages");
   expect(messages.querySelector("svg")).not.toBeNull();
   const favorites = within(navbar).getByRole("link", {
     name: "علاقه‌مندی‌ها",
@@ -320,12 +320,12 @@ test("shows Renter controls and honest placeholders in the authenticated account
   const account = screen.getByRole("menu", { name: "حساب کاربری" });
   expect(within(account).getByText("پویا اجاره‌جو")).toBeVisible();
   expect(within(account).getByText("renter@example.com")).toBeVisible();
-  for (const name of ["نمایه — به‌زودی", "پیام‌ها — به‌زودی"]) {
-    expect(within(account).getByRole("menuitem", { name })).toHaveAttribute(
-      "aria-disabled",
-      "true",
-    );
-  }
+  expect(
+    within(account).getByRole("menuitem", { name: "نمایه — به‌زودی" }),
+  ).toHaveAttribute("aria-disabled", "true");
+  expect(
+    within(account).getByRole("menuitem", { name: "پیام‌ها" }),
+  ).toHaveAttribute("href", "/messages");
   const profilePlaceholder = within(account).getByRole("menuitem", {
     name: "نمایه — به‌زودی",
   });
@@ -383,7 +383,7 @@ test("offers the Operator workspace only when the account holds an Operator Capa
   ).toHaveAttribute("href", "/operator");
 });
 
-test("keeps authenticated navigation and repeated account placeholders in the mobile menu", async () => {
+test("keeps authenticated navigation and repeated Message Center links in the mobile menu", async () => {
   const user = userEvent.setup();
   server.use(
     http.get("*/api/v1/auth/session/", () =>
@@ -411,8 +411,8 @@ test("keeps authenticated navigation and repeated account placeholders in the mo
   );
   const mobileMenu = screen.getByRole("dialog", { name: "راهبری ترب‌رنت" });
   expect(
-    within(mobileMenu).getAllByRole("button", {
-      name: "پیام‌ها — به‌زودی",
+    within(mobileMenu).getAllByRole("link", {
+      name: "پیام‌ها",
     }),
   ).toHaveLength(2);
   expect(

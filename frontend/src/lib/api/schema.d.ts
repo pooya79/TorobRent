@@ -379,6 +379,58 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/v1/messages/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List Message Center items */
+    get: operations["v1_messages_list"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/messages/{message_id}/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Open a Message Center item */
+    get: operations["v1_messages_retrieve"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /** Change the read state of a Message Center item */
+    patch: operations["v1_messages_partial_update"];
+    trace?: never;
+  };
+  "/api/v1/messages/unread-count/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Count unread Message Center items */
+    get: operations["v1_messages_unread_count_retrieve"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/v1/operator/external-listing-candidates/": {
     parameters: {
       query?: never;
@@ -1708,6 +1760,39 @@ export interface components {
       property_count: number;
       property_ids: string[];
     };
+    MessageDetail: {
+      /** Format: uuid */
+      readonly id: string;
+      readonly kind: components["schemas"]["MessageKindEnum"];
+      readonly title: string;
+      readonly body: string;
+      /** Format: date-time */
+      readonly created_at: string;
+      readonly read: boolean;
+      readonly target: components["schemas"]["MessageTarget"] | null;
+    };
+    /**
+     * @description * `system_notification` - System Notification
+     *     * `listing_inquiry` - Listing Inquiry
+     *     * `support_request` - Support Request
+     * @enum {string}
+     */
+    MessageKindEnum:
+      "system_notification" | "listing_inquiry" | "support_request";
+    MessageSummary: {
+      /** Format: uuid */
+      readonly id: string;
+      readonly kind: components["schemas"]["MessageKindEnum"];
+      readonly title: string;
+      readonly preview: string;
+      /** Format: date-time */
+      readonly created_at: string;
+      readonly read: boolean;
+    };
+    MessageTarget: {
+      label: string;
+      href: string;
+    };
     NormalizedCorrectionsAudit: {
       property?: components["schemas"]["AuditedNormalizedProperty"];
       source_metadata?: components["schemas"]["AuditedSourceMetadata"];
@@ -1801,6 +1886,21 @@ export interface components {
      * @enum {string}
      */
     OutboundPolicyEnum: "direct_contact" | "external_link" | "disabled";
+    PaginatedMessageSummaryList: {
+      /** @example 123 */
+      count: number;
+      /**
+       * Format: uri
+       * @example http://api.example.org/properties/?page=2
+       */
+      next?: string | null;
+      /**
+       * Format: uri
+       * @example http://api.example.org/properties/?page=1
+       */
+      previous?: string | null;
+      results: components["schemas"]["MessageSummary"][];
+    };
     PaginatedOperatorSubmissionQueueList: {
       /** @example 123 */
       count: number;
@@ -1838,6 +1938,9 @@ export interface components {
     PasswordResetRequest: {
       /** Format: email */
       email: string;
+    };
+    PatchedMessageReadUpdate: {
+      read?: boolean;
     };
     PatchedSourceProposalDetails: {
       website_name?: string;
@@ -2820,6 +2923,9 @@ export interface components {
       room_count?: number;
       /** Format: date-time */
       saved_at: string;
+    };
+    UnreadCount: {
+      count: number;
     };
     User: {
       /** Format: uuid */
@@ -3826,6 +3932,104 @@ export interface operations {
         };
         content: {
           "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  v1_messages_list: {
+    parameters: {
+      query?: {
+        /**
+         * @description * `all` - all
+         *     * `system_notification` - system_notification
+         *     * `listing_inquiry` - listing_inquiry
+         *     * `support_request` - support_request
+         */
+        kind?:
+          "all" | "system_notification" | "listing_inquiry" | "support_request";
+        /** @description A page number within the paginated result set. */
+        page?: number;
+        /** @description Number of results to return per page. */
+        page_size?: number;
+        unread?: boolean;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PaginatedMessageSummaryList"];
+        };
+      };
+    };
+  };
+  v1_messages_retrieve: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        message_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["MessageDetail"];
+        };
+      };
+    };
+  };
+  v1_messages_partial_update: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        message_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: {
+      content: {
+        "application/json": components["schemas"]["PatchedMessageReadUpdate"];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["MessageDetail"];
+        };
+      };
+    };
+  };
+  v1_messages_unread_count_retrieve: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["UnreadCount"];
         };
       };
     };

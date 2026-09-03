@@ -41,6 +41,7 @@ from apps.catalog.services import (
     replace_listing_images,
     replace_property_images,
 )
+from apps.communications.services import create_submission_review_notification
 
 from .audit_serializers import validate_decision_correction
 from .models import (
@@ -366,11 +367,6 @@ def _dispatch_decision_notification(notification_id: UUID) -> None:
                     )
                 )
         logger.exception("Could not dispatch Submission decision notification")
-
-
-def _schedule_decision_notification(decision: SubmissionEvent) -> None:
-    notification = SubmissionDecisionNotification.objects.create(decision=decision)
-    transaction.on_commit(partial(_dispatch_decision_notification, notification.id))
 
 
 def dispatch_pending_decision_notifications() -> int:
@@ -792,7 +788,7 @@ def request_submission_changes(
         reason=reason,
         review_claim=claim,
     )
-    _schedule_decision_notification(decision)
+    create_submission_review_notification(decision)
     _release_claim(claim, actor=actor, reason="Review decision completed.")
     return submission
 
@@ -814,7 +810,7 @@ def reject_submission(
         reason=reason,
         review_claim=claim,
     )
-    _schedule_decision_notification(decision)
+    create_submission_review_notification(decision)
     _release_claim(claim, actor=actor, reason="Review decision completed.")
     return submission
 
@@ -949,7 +945,7 @@ def approve_submission(
             ),
         },
     )
-    _schedule_decision_notification(decision)
+    create_submission_review_notification(decision)
     _release_claim(claim, actor=actor, reason="Review decision completed.")
     return submission
 

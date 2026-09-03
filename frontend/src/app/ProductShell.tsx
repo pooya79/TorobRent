@@ -40,6 +40,7 @@ import {
   type PropertySearchData,
   type PropertySearchPage,
 } from "@/features/catalog/property-search-cache";
+import { unreadMessageCountQuery } from "@/features/messages/queries";
 import { cn } from "@/lib/utils";
 import type { components } from "@/lib/api/schema";
 
@@ -110,12 +111,14 @@ function PrimaryNavigation({
   logout,
   mobile = false,
   onNavigate,
+  unreadCount,
 }: {
   authenticated: boolean;
   currentUser?: CurrentUser;
   logout: () => void;
   mobile?: boolean;
   onNavigate?: () => void;
+  unreadCount: number;
 }) {
   const links = (
     <>
@@ -149,6 +152,7 @@ function PrimaryNavigation({
             logout={logout}
             mobile={mobile}
             onNavigate={onNavigate}
+            unreadCount={unreadCount}
           />
         ) : (
           <span className="text-muted-foreground px-3 text-sm" role="status">
@@ -216,6 +220,41 @@ function ComingSoonControl({
   );
 }
 
+function messageLinkLabel(unreadCount: number) {
+  return unreadCount > 0
+    ? `پیام‌ها، ${unreadCount.toLocaleString("fa-IR")} خوانده‌نشده`
+    : "پیام‌ها";
+}
+
+function MessageCenterLink({
+  compact = false,
+  onNavigate,
+  unreadCount,
+}: {
+  compact?: boolean;
+  onNavigate?: () => void;
+  unreadCount: number;
+}) {
+  return (
+    <NavLink
+      aria-label={messageLinkLabel(unreadCount)}
+      className={navigationClass}
+      onClick={onNavigate}
+      to="/messages"
+    >
+      <span className="relative">
+        <MessageCircle className="size-5" aria-hidden="true" />
+        {unreadCount > 0 ? (
+          <span className="bg-primary text-primary-foreground absolute -end-3 -top-3 min-w-5 rounded-full px-1 text-center text-[0.65rem] leading-5">
+            {unreadCount.toLocaleString("fa-IR")}
+          </span>
+        ) : null}
+      </span>
+      <span className={cn(compact && "sr-only")}>پیام‌ها</span>
+    </NavLink>
+  );
+}
+
 function accountName(currentUser: CurrentUser) {
   return [currentUser.first_name, currentUser.last_name]
     .filter(Boolean)
@@ -238,10 +277,12 @@ function MobileAccountPanel({
   currentUser,
   logout,
   onNavigate,
+  unreadCount,
 }: {
   currentUser: CurrentUser;
   logout: () => void;
   onNavigate?: () => void;
+  unreadCount: number;
 }) {
   const isOperator = currentUser.operator_capabilities.length > 0;
 
@@ -255,7 +296,7 @@ function MobileAccountPanel({
         <AccountIdentity currentUser={currentUser} />
       </div>
       <ComingSoonControl label="نمایه" icon={UserRound} />
-      <ComingSoonControl label="پیام‌ها" icon={MessageCircle} />
+      <MessageCenterLink onNavigate={onNavigate} unreadCount={unreadCount} />
       <Button asChild className="justify-start px-3" variant="ghost">
         <NavLink onClick={onNavigate} to="/guide">
           راهنما
@@ -290,22 +331,25 @@ function AuthenticatedControls({
   logout,
   mobile,
   onNavigate,
+  unreadCount,
 }: {
   currentUser: CurrentUser;
   logout: () => void;
   mobile: boolean;
   onNavigate?: () => void;
+  unreadCount: number;
 }) {
   if (mobile) {
     return (
       <>
-        <ComingSoonControl label="پیام‌ها" icon={MessageCircle} />
+        <MessageCenterLink onNavigate={onNavigate} unreadCount={unreadCount} />
         <div className="border-border mt-3 border-t pt-3">
           <p className="px-3 py-2 text-sm font-semibold">حساب کاربری</p>
           <MobileAccountPanel
             currentUser={currentUser}
             logout={logout}
             onNavigate={onNavigate}
+            unreadCount={unreadCount}
           />
         </div>
       </>
@@ -314,8 +358,12 @@ function AuthenticatedControls({
 
   return (
     <>
-      <ComingSoonControl compact label="پیام‌ها" icon={MessageCircle} />
-      <AccountMenu currentUser={currentUser} logout={logout} />
+      <MessageCenterLink compact unreadCount={unreadCount} />
+      <AccountMenu
+        currentUser={currentUser}
+        logout={logout}
+        unreadCount={unreadCount}
+      />
     </>
   );
 }
@@ -323,9 +371,11 @@ function AuthenticatedControls({
 function AccountMenu({
   currentUser,
   logout,
+  unreadCount,
 }: {
   currentUser: CurrentUser;
   logout: () => void;
+  unreadCount: number;
 }) {
   const isOperator = currentUser.operator_capabilities.length > 0;
 
@@ -352,7 +402,17 @@ function AccountMenu({
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         <ComingSoonMenuItem label="نمایه" icon={UserRound} />
-        <ComingSoonMenuItem label="پیام‌ها" icon={MessageCircle} />
+        <DropdownMenuItem asChild>
+          <NavLink aria-label={messageLinkLabel(unreadCount)} to="/messages">
+            <MessageCircle aria-hidden="true" />
+            <span>پیام‌ها</span>
+            {unreadCount > 0 ? (
+              <span className="bg-primary text-primary-foreground ms-auto rounded-full px-2 py-0.5 text-xs">
+                {unreadCount.toLocaleString("fa-IR")}
+              </span>
+            ) : null}
+          </NavLink>
+        </DropdownMenuItem>
         <DropdownMenuItem asChild>
           <NavLink to="/guide">راهنما</NavLink>
         </DropdownMenuItem>
@@ -402,6 +462,14 @@ export function ProductShell({ children }: { children: ReactNode }) {
   const currentUser = useQuery({
     ...currentUserQuery,
     enabled: authenticated,
+  });
+  const unreadMessages = useQuery({
+    ...unreadMessageCountQuery,
+    enabled:
+      authenticated &&
+      Boolean(
+        currentUser.data?.email_verified || currentUser.data?.phone_verified,
+      ),
   });
   const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false);
   const logout = useMutation({
@@ -457,6 +525,7 @@ export function ProductShell({ children }: { children: ReactNode }) {
                 authenticated={authenticated}
                 currentUser={currentUser.data}
                 logout={() => logout.mutate()}
+                unreadCount={unreadMessages.data?.count ?? 0}
               />
             </div>
             <ThemeSwitcher />
@@ -491,6 +560,7 @@ export function ProductShell({ children }: { children: ReactNode }) {
                         logout.mutate();
                       }}
                       mobile
+                      unreadCount={unreadMessages.data?.count ?? 0}
                       onNavigate={() => setMobileNavigationOpen(false)}
                     />
                   </div>
