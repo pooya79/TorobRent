@@ -397,6 +397,40 @@ export interface paths {
     patch: operations["v1_messages_partial_update"];
     trace?: never;
   };
+  "/api/v1/messages/listing-inquiries/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Send the first message for an exact Listing */
+    post: operations["v1_messages_listing_inquiries_create"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/messages/listing-inquiries/{inquiry_id}/replies/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Reply to a Listing Inquiry */
+    post: operations["v1_messages_listing_inquiries_replies_create"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/v1/messages/support-requests/": {
     parameters: {
       query?: never;
@@ -1409,6 +1443,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/v1/users/me/display-name/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /** Choose the current Listing Inquiry Display Name */
+    put: operations["v1_users_me_display_name_update"];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/v1/users/me/submitter-onboarding/": {
     parameters: {
       query?: never;
@@ -1586,6 +1637,7 @@ export interface components {
       readonly phone: string | null;
       readonly first_name: string;
       readonly last_name: string;
+      readonly display_name: string;
       readonly email_verified: boolean;
       readonly phone_verified: boolean;
       readonly is_submitter: boolean;
@@ -1599,9 +1651,17 @@ export interface components {
     Detail: {
       detail: string;
     };
+    DisplayName: {
+      display_name: string;
+      identity_verified: boolean;
+    };
+    DisplayNameUpdate: {
+      display_name: string;
+    };
     EmailVerificationRequest: {
       /** Format: email */
       email: string;
+      return_to?: string;
     };
     ExactLocation: {
       /** Format: decimal */
@@ -1761,6 +1821,34 @@ export interface components {
      * @enum {string}
      */
     IntakeKindEnum: "general" | "account_deletion" | "public_contact_removal";
+    ListingInquiryCounterpart: {
+      display_name: string;
+      role: components["schemas"]["ListingInquiryCounterpartRoleEnum"];
+      identity_verified: boolean;
+    };
+    /**
+     * @description * `renter` - renter
+     *     * `submitter` - submitter
+     * @enum {string}
+     */
+    ListingInquiryCounterpartRoleEnum: "renter" | "submitter";
+    ListingInquiryCreate: {
+      /** Format: uuid */
+      listing_id: string;
+      body: string;
+    };
+    ListingInquiryCreated: {
+      /** Format: uuid */
+      id: string;
+      href: string;
+    };
+    ListingInquiryMessage: {
+      /** Format: uuid */
+      id: string;
+      body: string;
+      /** Format: date-time */
+      created_at: string;
+    };
     ListingPublic: {
       /** Format: uuid */
       id: string;
@@ -1780,6 +1868,8 @@ export interface components {
       availability_confirmed_at: string;
       /** Format: date-time */
       available_until: string;
+      can_message_submitter: boolean;
+      is_responsible_submitter: boolean;
     };
     Location: {
       city: string;
@@ -1860,6 +1950,8 @@ export interface components {
       readonly public_status: string | null;
       readonly reply_allowed: boolean;
       readonly entries: components["schemas"]["SupportThreadEntry"][];
+      readonly counterpart:
+        components["schemas"]["ListingInquiryCounterpart"] | null;
     };
     MessageGroup: {
       kind: components["schemas"]["MessageGroupKindEnum"];
@@ -1871,9 +1963,11 @@ export interface components {
      * @description * `submission` - submission
      *     * `source_proposal` - source_proposal
      *     * `support_request` - support_request
+     *     * `listing_inquiry` - listing_inquiry
      * @enum {string}
      */
-    MessageGroupKindEnum: "submission" | "source_proposal" | "support_request";
+    MessageGroupKindEnum:
+      "submission" | "source_proposal" | "support_request" | "listing_inquiry";
     /**
      * @description * `system_notification` - System Notification
      *     * `listing_inquiry` - Listing Inquiry
@@ -1972,7 +2066,7 @@ export interface components {
     OperatorSubmissionQueue: {
       /** Format: uuid */
       readonly id: string;
-      role: components["schemas"]["RoleEnum"];
+      role: components["schemas"]["Role02dEnum"];
       state?: components["schemas"]["SubmissionStateEnum"];
       readonly revision: number;
       /** Format: uuid */
@@ -2350,7 +2444,7 @@ export interface components {
      *     * `agent` - نماینده مالک
      * @enum {string}
      */
-    RoleEnum: "owner" | "agent";
+    Role02dEnum: "owner" | "agent";
     /**
      * @description * `submission` - Submission
      *     * `source_proposal` - Source Proposal
@@ -2496,7 +2590,7 @@ export interface components {
     Submission: {
       /** Format: uuid */
       readonly id: string;
-      role: components["schemas"]["RoleEnum"];
+      role: components["schemas"]["Role02dEnum"];
       state?: components["schemas"]["SubmissionStateEnum"];
       readonly revision: number;
       /** Format: uuid */
@@ -2550,7 +2644,7 @@ export interface components {
       phone: string;
     };
     SubmissionCreate: {
-      role: components["schemas"]["RoleEnum"];
+      role: components["schemas"]["Role02dEnum"];
       /** @default false */
       resume_existing: boolean;
     };
@@ -3051,15 +3145,23 @@ export interface components {
       /** Format: date-time */
       edited_at?: string | null;
       editable?: boolean;
+      author_name?: string;
+      mine?: boolean;
     };
     /**
      * @description * `requester_message` - requester_message
      *     * `operator_reply` - operator_reply
+     *     * `renter_message` - renter_message
+     *     * `submitter_message` - submitter_message
      *     * `status` - status
      * @enum {string}
      */
     SupportThreadEntryKindEnum:
-      "requester_message" | "operator_reply" | "status";
+      | "requester_message"
+      | "operator_reply"
+      | "renter_message"
+      | "submitter_message"
+      | "status";
     /**
      * @description * `received` - received
      *     * `in_progress` - in_progress
@@ -3113,6 +3215,7 @@ export interface components {
       readonly phone: string | null;
       readonly first_name: string;
       readonly last_name: string;
+      readonly display_name: string;
       readonly email_verified: boolean;
       readonly phone_verified: boolean;
       readonly is_submitter: boolean;
@@ -4130,6 +4233,63 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["MessageDetail"];
+        };
+      };
+    };
+  };
+  v1_messages_listing_inquiries_create: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ListingInquiryCreate"];
+      };
+    };
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ListingInquiryCreated"];
+        };
+      };
+      /** @description A conversation already exists for this Renter and Listing */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  v1_messages_listing_inquiries_replies_create: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        inquiry_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["SupportMessageCreate"];
+      };
+    };
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ListingInquiryMessage"];
         };
       };
     };
@@ -5784,6 +5944,29 @@ export interface operations {
         };
         content: {
           "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  v1_users_me_display_name_update: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["DisplayNameUpdate"];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["DisplayName"];
         };
       };
     };

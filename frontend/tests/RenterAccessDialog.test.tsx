@@ -134,6 +134,53 @@ test("verifies a phone Renter, updates the session, and resumes pending intent",
   );
 });
 
+test("keeps an existing unverified Renter in account access until verification", async () => {
+  const user = userEvent.setup();
+  let loginCount = 0;
+  server.use(
+    http.get("*/api/v1/auth/session/", () =>
+      HttpResponse.json({ authenticated: true, csrf_token: "rotated-token" }),
+    ),
+    http.post("*/api/v1/auth/login/", () => {
+      loginCount += 1;
+      return HttpResponse.json({
+        id: "10000000-0000-4000-8000-000000000057",
+        email: null,
+        phone: "09123456789",
+        first_name: "",
+        last_name: "",
+        display_name: "رها",
+        email_verified: false,
+        phone_verified: loginCount > 1,
+        is_submitter: false,
+      });
+    }),
+    http.post("*/api/v1/auth/phone-verification/request/", () =>
+      HttpResponse.json({
+        detail: "کد تأیید ارسال شد.",
+        development_otp: "314159",
+      }),
+    ),
+    http.post("*/api/v1/auth/verify-phone/", () =>
+      HttpResponse.json({ detail: "شماره تأیید شد." }),
+    ),
+  );
+  const { onResume } = renderAccess();
+
+  await user.click(screen.getByRole("button", { name: "علاقه‌مندی‌ها" }));
+  await user.type(screen.getByLabelText("ایمیل یا شماره تلفن"), "09123456789");
+  await user.type(screen.getByLabelText("گذرواژه"), "password");
+  await user.click(screen.getByRole("button", { name: "ورود و ادامه" }));
+
+  expect(await screen.findByLabelText("کد تأیید")).toBeVisible();
+  expect(onResume).not.toHaveBeenCalled();
+  await user.type(screen.getByLabelText("کد تأیید"), "314159");
+  await user.click(screen.getByRole("button", { name: "تأیید و ادامه" }));
+
+  await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  expect(onResume).toHaveBeenCalledOnce();
+});
+
 test("announces field validation errors without closing the login dialog", async () => {
   const user = userEvent.setup();
   server.use(

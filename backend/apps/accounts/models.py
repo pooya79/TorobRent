@@ -32,6 +32,7 @@ class User(AbstractUser):
         blank=True,
     )
     anonymized_at = models.DateTimeField(null=True, blank=True, editable=False)
+    display_name = models.CharField(max_length=120, blank=True, db_default="")
 
     USERNAME_FIELD: ClassVar[str] = "email"  # type: ignore[misc]
     REQUIRED_FIELDS: ClassVar[list[str]] = []
@@ -81,6 +82,23 @@ class OperatorAccess(User):
         default_permissions = ()
         verbose_name = "Operator access"
         verbose_name_plural = "Operator access"
+
+
+class DisplayNameHistory(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    account = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="display_name_history",
+    )
+    display_name = models.CharField(max_length=120)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ("created_at", "id")
+
+    def __str__(self) -> str:
+        return f"{self.account_id}: {self.display_name}"
 
 
 class PhoneVerificationChallenge(models.Model):

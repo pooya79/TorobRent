@@ -20,6 +20,8 @@ from .models import User
 from .serializers import (
     CurrentUserSerializer,
     DetailSerializer,
+    DisplayNameSerializer,
+    DisplayNameUpdateSerializer,
     EmailVerificationRequestSerializer,
     LoginSerializer,
     PasswordResetConfirmSerializer,
@@ -38,6 +40,7 @@ from .serializers import (
 from .services import (
     PhoneOwnershipConflict,
     PhoneVerificationResult,
+    choose_display_name,
     end_session,
     grant_submitter_eligibility,
     register_renter,
@@ -124,6 +127,22 @@ class CurrentUserView(APIView):
     )
     def get(self, request: Request) -> Response:
         return Response(CurrentUserSerializer(cast(User, request.user)).data)
+
+
+class DisplayNameView(APIView):
+    @extend_schema(
+        summary="Choose the current Listing Inquiry Display Name",
+        request=DisplayNameUpdateSerializer,
+        responses={200: DisplayNameSerializer},
+    )
+    def put(self, request: Request) -> Response:
+        serializer = DisplayNameUpdateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = choose_display_name(
+            account=cast(User, request.user),
+            display_name=serializer.validated_data["display_name"],
+        )
+        return Response({"display_name": user.display_name, "identity_verified": False})
 
 
 @method_decorator(csrf_protect, name="dispatch")
@@ -237,6 +256,7 @@ class EmailVerificationRequestView(APIView):
         request_email_verification(
             email=serializer.validated_data["email"],
             requesting_user=cast(User, request.user),
+            return_to=serializer.validated_data.get("return_to"),
         )
         return Response(
             {"detail": "اگر ایمیل قابل استفاده باشد، پیوند تأیید ارسال می‌شود."},

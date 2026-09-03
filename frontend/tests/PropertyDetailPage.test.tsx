@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { renderToString } from "react-dom/server";
@@ -159,5 +159,138 @@ test("records a Property view and resolves external continuation through the API
     expect(navigate).toHaveBeenCalledWith(
       "https://example-source.test/listings/42",
     ),
+  );
+});
+
+test("offers Listing Inquiry only for an eligible internal Listing and identifies the owner", () => {
+  const { rerender } = render(
+    <PropertyDetailPage
+      property={property}
+      account={{ authenticated: true, displayName: "رها", verified: true }}
+    />,
+  );
+
+  const direct = screen.getByRole("article", {
+    name: "آگهی منبع مستقیم ترب‌رنت",
+  });
+  const external = screen.getByRole("article", { name: "آگهی منبع نمونه" });
+  expect(
+    within(direct).getByRole("button", { name: "پیام به ثبت‌کننده" }),
+  ).toBeVisible();
+  expect(
+    within(external).queryByRole("button", { name: "پیام به ثبت‌کننده" }),
+  ).not.toBeInTheDocument();
+
+  rerender(
+    <PropertyDetailPage
+      property={{
+        ...property,
+        listings: property.listings.map((listing, index) =>
+          index === 0
+            ? {
+                ...listing,
+                can_message_submitter: false,
+                is_responsible_submitter: true,
+              }
+            : listing,
+        ),
+      }}
+      account={{ authenticated: true, displayName: "مالک", verified: true }}
+    />,
+  );
+
+  expect(screen.getByText("این آگهی شماست")).toBeVisible();
+  expect(
+    screen.queryByRole("button", { name: "پیام به ثبت‌کننده" }),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole("button", { name: "نمایش شماره تماس" }),
+  ).not.toBeInTheDocument();
+});
+
+test("restores the exact Listing composer after account access", async () => {
+  let resume: (() => void) | undefined;
+  render(
+    <PropertyDetailPage
+      property={property}
+      onRequestAccess={(intent) => {
+        resume = intent;
+      }}
+    />,
+  );
+
+  await userEvent.click(
+    screen.getByRole("button", { name: "پیام به ثبت‌کننده" }),
+  );
+  expect(resume).toBeTypeOf("function");
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+  resume?.();
+  expect(await screen.findByRole("dialog")).toHaveTextContent(
+    "منبع مستقیم ترب‌رنت",
+  );
+});
+
+test("restores the selected Listing composer after verification reload", async () => {
+  sessionStorage.setItem("listing-inquiry-intent", property.listings[0]!.id);
+
+  render(
+    <PropertyDetailPage
+      property={property}
+      account={{ authenticated: true, displayName: "رها", verified: true }}
+    />,
+  );
+
+  expect(await screen.findByRole("dialog")).toHaveTextContent(
+    "منبع مستقیم ترب‌رنت",
+  );
+  expect(sessionStorage.getItem("listing-inquiry-intent")).toBeNull();
+});
+
+test("chooses an explicitly unverified Display Name and opens the sent inquiry", async () => {
+  const navigate = vi.fn();
+  server.use(
+    http.put("*/api/v1/users/me/display-name/", async ({ request }) => {
+      expect(await request.json()).toEqual({ display_name: "رها" });
+      return HttpResponse.json({
+        display_name: "رها",
+        identity_verified: false,
+      });
+    }),
+    http.post("*/api/v1/messages/listing-inquiries/", async ({ request }) => {
+      expect(await request.json()).toEqual({
+        listing_id: property.listings[0]!.id,
+        body: "برای بازدید چه زمانی مناسب است؟",
+      });
+      return HttpResponse.json(
+        {
+          id: "5ad03176-83d3-4f6a-a448-349d21b51f85",
+          href: "/messages/thread",
+        },
+        { status: 201 },
+      );
+    }),
+  );
+  render(
+    <PropertyDetailPage
+      property={property}
+      account={{ authenticated: true, displayName: "", verified: true }}
+      onNavigateMessage={navigate}
+    />,
+  );
+
+  await userEvent.click(
+    screen.getByRole("button", { name: "پیام به ثبت‌کننده" }),
+  );
+  expect(screen.getByText(/هویت قانونی شما را تأیید نمی‌کند/)).toBeVisible();
+  await userEvent.type(screen.getByLabelText("نام نمایشی"), "رها");
+  await userEvent.type(
+    screen.getByLabelText("پیام نخست"),
+    "برای بازدید چه زمانی مناسب است؟",
+  );
+  await userEvent.click(screen.getByRole("button", { name: "ارسال پیام" }));
+
+  await waitFor(() =>
+    expect(navigate).toHaveBeenCalledWith("/messages/thread"),
   );
 });

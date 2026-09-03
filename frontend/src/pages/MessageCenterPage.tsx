@@ -1,5 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowRight, Bell, Headphones, Mail, MailOpen } from "lucide-react";
+import {
+  ArrowRight,
+  Bell,
+  Headphones,
+  Mail,
+  MailOpen,
+  MessageCircle,
+} from "lucide-react";
 import {
   useEffect,
   useRef,
@@ -19,6 +26,7 @@ import {
   messageDetailQueryOptions,
   messagesQueryOptions,
   replyToSupportRequest,
+  replyToListingInquiry,
   type MessageFilter,
   type MessageSummary,
 } from "@/features/messages/queries";
@@ -27,12 +35,14 @@ import { cn } from "@/lib/utils";
 const filters: { label: string; value: MessageFilter }[] = [
   { label: "همه", value: "all" },
   { label: "اعلان‌های سامانه", value: "system_notification" },
+  { label: "پرسش‌های آگهی", value: "listing_inquiry" },
   { label: "پشتیبانی", value: "support_request" },
   { label: "خوانده‌نشده", value: "unread" },
 ];
 
 function filterFrom(value: string | null): MessageFilter {
   return value === "system_notification" ||
+    value === "listing_inquiry" ||
     value === "support_request" ||
     value === "unread"
     ? value
@@ -46,6 +56,7 @@ function pageFrom(value: string | null) {
 
 function groupLabel(group: MessageSummary["group"]) {
   if (group.kind === "support_request") return group.label;
+  if (group.kind === "listing_inquiry") return `آگهی ${group.label}`;
   return group.kind === "source_proposal"
     ? `منبع پیشنهادی ${group.label}`
     : group.label;
@@ -115,6 +126,9 @@ export function MessageCenterPage() {
   const reply = useMutation({
     mutationFn: (body: string) => {
       if (!messageId) throw new Error("Message id is required");
+      if (detail.data?.kind === "listing_inquiry") {
+        return replyToListingInquiry(messageId, body);
+      }
       return replyToSupportRequest(messageId, body);
     },
     onSuccess: () => {
@@ -170,7 +184,8 @@ export function MessageCenterPage() {
         <p className="text-primary mb-2 text-sm font-semibold">حساب کاربری</p>
         <h1 className="text-3xl font-semibold tracking-tight">مرکز پیام</h1>
         <p className="text-muted-foreground mt-2">
-          اعلان‌ها و گفت‌وگوهای پشتیبانی حساب شما در اینجا نگهداری می‌شوند.
+          پرسش‌های آگهی، اعلان‌ها و گفت‌وگوهای پشتیبانی حساب شما در اینجا
+          نگهداری می‌شوند.
         </p>
         <Button asChild className="mt-4">
           <Link to="/messages/new/support">درخواست پشتیبانی جدید</Link>
@@ -343,6 +358,8 @@ export function MessageCenterPage() {
                   <div className="text-primary bg-primary/10 mb-4 flex size-11 items-center justify-center rounded-full">
                     {detail.data.kind === "support_request" ? (
                       <Headphones aria-hidden="true" />
+                    ) : detail.data.kind === "listing_inquiry" ? (
+                      <MessageCircle aria-hidden="true" />
                     ) : (
                       <Bell aria-hidden="true" />
                     )}
@@ -484,6 +501,60 @@ export function MessageCenterPage() {
                           </AlertDescription>
                         </Alert>
                       )}
+                    </>
+                  ) : detail.data.kind === "listing_inquiry" ? (
+                    <>
+                      <p className="mt-3 font-semibold">
+                        گفت‌وگو با {detail.data.counterpart?.display_name}
+                      </p>
+                      <p className="text-muted-foreground mt-1 text-xs">
+                        نام نمایشی؛ هویت تأییدشده نیست
+                      </p>
+                      <ol
+                        aria-label="رشته پرسش آگهی"
+                        className="mt-6 space-y-3"
+                      >
+                        {detail.data.entries.map((entry) => (
+                          <li
+                            className={cn(
+                              "rounded-lg border p-4",
+                              entry.mine ? "bg-primary/5 ms-6" : "me-6",
+                            )}
+                            key={entry.id}
+                          >
+                            <p className="mb-2 text-xs font-semibold">
+                              {entry.author_name}
+                            </p>
+                            <p className="leading-7 whitespace-pre-wrap">
+                              {safeText(entry.body ?? "")}
+                            </p>
+                          </li>
+                        ))}
+                      </ol>
+                      <form className="mt-6 grid gap-3" onSubmit={submitReply}>
+                        <Label htmlFor="listing-inquiry-reply">
+                          ادامه گفت‌وگو
+                        </Label>
+                        <textarea
+                          className="border-input min-h-28 rounded-md border p-3"
+                          id="listing-inquiry-reply"
+                          maxLength={2000}
+                          name="body"
+                          required
+                        />
+                        <Button
+                          className="justify-self-start"
+                          disabled={reply.isPending}
+                          type="submit"
+                        >
+                          {reply.isPending ? "در حال ارسال…" : "ارسال پیام"}
+                        </Button>
+                        {reply.isError ? (
+                          <p className="text-destructive text-sm" role="alert">
+                            ارسال پیام انجام نشد.
+                          </p>
+                        ) : null}
+                      </form>
                     </>
                   ) : (
                     <p className="mt-6 leading-8">{detail.data.body}</p>

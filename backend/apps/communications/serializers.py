@@ -15,9 +15,9 @@ from apps.contact.models import (
     SupportRequestStatus,
 )
 
-from .models import MessageKind, SystemNotification
+from .models import ListingInquiry, MessageKind, SystemNotification
 
-MessageItem = SystemNotification | SupportRequest
+MessageItem = SystemNotification | SupportRequest | ListingInquiry
 PUBLIC_SUPPORT_EVENT_TYPES = (
     SupportRequestEventType.ASSIGNED,
     SupportRequestEventType.ESCALATED,
@@ -52,6 +52,22 @@ class SupportRequestCreatedSerializer(serializers.Serializer[Any]):
     href = serializers.CharField()
 
 
+class ListingInquiryCreateSerializer(serializers.Serializer[Any]):
+    listing_id = serializers.UUIDField()
+    body = serializers.CharField(max_length=2000)
+
+
+class ListingInquiryCreatedSerializer(serializers.Serializer[Any]):
+    id = serializers.UUIDField()
+    href = serializers.CharField()
+
+
+class ListingInquiryMessageSerializer(serializers.Serializer[Any]):
+    id = serializers.UUIDField()
+    body = serializers.CharField()
+    created_at = serializers.DateTimeField()
+
+
 class SupportMessageCreateSerializer(serializers.Serializer[Any]):
     body = serializers.CharField(max_length=2000)
 
@@ -81,17 +97,23 @@ class MessageSummarySerializer(serializers.Serializer[MessageItem]):
 
     @extend_schema_field(serializers.ChoiceField(choices=MessageKind.choices))
     def get_kind(self, item: MessageItem) -> str:
-        return (
-            MessageKind.SYSTEM_NOTIFICATION
-            if isinstance(item, SystemNotification)
-            else MessageKind.SUPPORT_REQUEST
-        )
+        if isinstance(item, SystemNotification):
+            return MessageKind.SYSTEM_NOTIFICATION
+        if isinstance(item, ListingInquiry):
+            return MessageKind.LISTING_INQUIRY
+        return MessageKind.SUPPORT_REQUEST
 
     @extend_schema_field(serializers.DateTimeField())
     def get_created_at(self, item: MessageItem) -> datetime:
-        return item.created_at if isinstance(item, SystemNotification) else item.public_updated_at
+        if isinstance(item, SystemNotification):
+            return item.created_at
+        if isinstance(item, ListingInquiry):
+            return item.latest_activity_at
+        return item.public_updated_at
 
     def get_title(self, notification: MessageItem) -> str:
+        if isinstance(notification, ListingInquiry):
+            return f"پرسش درباره {notification.listing.property.title}"
         if isinstance(notification, SupportRequest):
             return notification.subject or notification.get_intake_kind_display()
         source_proposal_event = notification.originating_source_proposal_event
@@ -110,9 +132,16 @@ class MessageSummarySerializer(serializers.Serializer[MessageItem]):
         }[submission_event.new_state]
 
     def get_preview(self, notification: MessageItem) -> str:
+        if isinstance(notification, ListingInquiry):
+            latest_inquiry_message = notification.messages.last()
+            return latest_inquiry_message.body if latest_inquiry_message is not None else ""
         if isinstance(notification, SupportRequest):
-            latest = notification.messages.last()
-            return latest.body if latest is not None else notification.message
+            latest_support_message = notification.messages.last()
+            return (
+                latest_support_message.body
+                if latest_support_message is not None
+                else notification.message
+            )
         source_proposal_event = notification.originating_source_proposal_event
         event = source_proposal_event or notification.originating_event
         assert event is not None
@@ -125,6 +154,15 @@ class MessageSummarySerializer(serializers.Serializer[MessageItem]):
         return "نتیجه بررسی پیشنهاد شما ثبت شد."
 
     def get_read(self, notification: MessageItem) -> bool:
+        if isinstance(notification, ListingInquiry):
+            request = self.context.get("request")
+            user_id = getattr(getattr(request, "user", None), "id", None)
+            read_at = (
+                notification.renter_read_at
+                if user_id == notification.renter_id
+                else notification.submitter_read_at
+            )
+            return read_at is not None and read_at >= notification.latest_activity_at
         if isinstance(notification, SupportRequest):
             return (
                 notification.requester_read_at is not None
@@ -137,7 +175,12 @@ class MessageSummarySerializer(serializers.Serializer[MessageItem]):
             name="MessageGroup",
             fields={
                 "kind": serializers.ChoiceField(
-                    choices=("submission", "source_proposal", "support_request")
+                    choices=(
+                        "submission",
+                        "source_proposal",
+                        "support_request",
+                        "listing_inquiry",
+                    )
                 ),
                 "id": serializers.UUIDField(),
                 "label": serializers.CharField(),
@@ -145,6 +188,12 @@ class MessageSummarySerializer(serializers.Serializer[MessageItem]):
         )
     )
     def get_group(self, notification: MessageItem) -> dict[str, str]:
+        if isinstance(notification, ListingInquiry):
+            return {
+                "kind": "listing_inquiry",
+                "id": str(notification.listing_id),
+                "label": notification.listing.property.title,
+            }
         if isinstance(notification, SupportRequest):
             return {
                 "kind": "support_request",
@@ -175,6 +224,7 @@ class MessageDetailSerializer(MessageSummarySerializer):
     public_status = serializers.SerializerMethodField()
     reply_allowed = serializers.SerializerMethodField()
     entries = serializers.SerializerMethodField()
+    counterpart = serializers.SerializerMethodField()
 
     def get_body(self, notification: MessageItem) -> str:
         return self.get_preview(notification)
@@ -187,6 +237,12 @@ class MessageDetailSerializer(MessageSummarySerializer):
         )
     )
     def get_target(self, notification: MessageItem) -> dict[str, str] | None:
+        if isinstance(notification, ListingInquiry):
+            property_ = notification.listing.property
+            return {
+                "label": "مشاهده ملک",
+                "href": f"/properties/{property_.id}/{property_.canonical_slug}",
+            }
         if isinstance(notification, SupportRequest):
             return None
         if notification.originating_source_proposal_event is not None:
@@ -228,13 +284,15 @@ class MessageDetailSerializer(MessageSummarySerializer):
         return public_status_for_event(event)
 
     def get_public_status(self, item: MessageItem) -> str | None:
-        if isinstance(item, SystemNotification):
+        if isinstance(item, (SystemNotification, ListingInquiry)):
             return None
         return self.public_status_for(item)
 
     def get_reply_allowed(self, item: MessageItem) -> bool:
         if isinstance(item, SystemNotification):
             return False
+        if isinstance(item, ListingInquiry):
+            return True
         if item.status != SupportRequestStatus.RESOLVED:
             return True
         return bool(item.resolved_at and item.resolved_at >= timezone.now() - timedelta(days=14))
@@ -245,7 +303,13 @@ class MessageDetailSerializer(MessageSummarySerializer):
             fields={
                 "id": serializers.UUIDField(),
                 "kind": serializers.ChoiceField(
-                    choices=("requester_message", "operator_reply", "status")
+                    choices=(
+                        "requester_message",
+                        "operator_reply",
+                        "renter_message",
+                        "submitter_message",
+                        "status",
+                    )
                 ),
                 "body": serializers.CharField(required=False),
                 "status": serializers.ChoiceField(
@@ -254,6 +318,8 @@ class MessageDetailSerializer(MessageSummarySerializer):
                 "created_at": serializers.DateTimeField(),
                 "edited_at": serializers.DateTimeField(required=False, allow_null=True),
                 "editable": serializers.BooleanField(required=False),
+                "author_name": serializers.CharField(required=False),
+                "mine": serializers.BooleanField(required=False),
             },
             many=True,
         )
@@ -261,6 +327,24 @@ class MessageDetailSerializer(MessageSummarySerializer):
     def get_entries(self, item: MessageItem) -> list[dict[str, object]]:
         if isinstance(item, SystemNotification):
             return []
+        if isinstance(item, ListingInquiry):
+            request = self.context.get("request")
+            user_id = getattr(getattr(request, "user", None), "id", None)
+            return [
+                {
+                    "id": message.id,
+                    "kind": (
+                        "renter_message"
+                        if message.author_id == item.renter_id
+                        else "submitter_message"
+                    ),
+                    "body": message.body,
+                    "created_at": message.created_at,
+                    "author_name": message.author.display_name,
+                    "mine": message.author_id == user_id,
+                }
+                for message in item.messages.all()
+            ]
         messages = list(item.messages.all())
         entries: list[dict[str, object]] = [
             {
@@ -303,6 +387,34 @@ class MessageDetailSerializer(MessageSummarySerializer):
                 "created_at": event.created_at,
             })
         return sorted(entries, key=lambda entry: (entry["created_at"], str(entry["id"])))
+
+    @extend_schema_field(
+        inline_serializer(
+            name="ListingInquiryCounterpart",
+            fields={
+                "display_name": serializers.CharField(),
+                "role": serializers.ChoiceField(choices=("renter", "submitter")),
+                "identity_verified": serializers.BooleanField(),
+            },
+            allow_null=True,
+        )
+    )
+    def get_counterpart(self, item: MessageItem) -> dict[str, object] | None:
+        if not isinstance(item, ListingInquiry):
+            return None
+        request = self.context.get("request")
+        user_id = getattr(getattr(request, "user", None), "id", None)
+        if user_id == item.renter_id:
+            account = item.submitter
+            role = "submitter"
+        else:
+            account = item.renter
+            role = "renter"
+        return {
+            "display_name": account.display_name,
+            "role": role,
+            "identity_verified": False,
+        }
 
 
 class MessageReadUpdateSerializer(serializers.Serializer[Any]):

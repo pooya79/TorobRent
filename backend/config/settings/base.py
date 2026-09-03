@@ -139,6 +139,8 @@ STATIC_ROOT = BACKEND_DIR / "staticfiles"
 MEDIA_ROOT = BACKEND_DIR / "media"
 SUBMISSION_IMAGE_MAX_BYTES = env.int("SUBMISSION_IMAGE_MAX_BYTES", default=10 * 1024 * 1024)
 SUBMISSION_ABANDONED_IMAGE_HOURS = env.int("SUBMISSION_ABANDONED_IMAGE_HOURS", default=24)
+LISTING_INQUIRY_COLD_HOURLY_LIMIT = env.int("LISTING_INQUIRY_COLD_HOURLY_LIMIT", default=5)
+LISTING_INQUIRY_COLD_DAILY_LIMIT = env.int("LISTING_INQUIRY_COLD_DAILY_LIMIT", default=20)
 STORAGES = {
     "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
     "staticfiles": {"BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"},
@@ -168,6 +170,7 @@ REST_FRAMEWORK = {
         "password_reset_request": "5/hour",
         "password_reset_confirm": "10/hour",
         "contact": "5/hour",
+        "listing_inquiry_reply": env("LISTING_INQUIRY_REPLY_RATE", default="30/minute"),
     },
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
     "DEFAULT_PAGINATION_CLASS": "apps.common.pagination.StandardPageNumberPagination",

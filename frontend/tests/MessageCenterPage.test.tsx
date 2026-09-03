@@ -499,3 +499,86 @@ test("shows a recently resolved Support thread as received after requester reply
   expect(screen.getByText("مشکل همچنان ادامه دارد.")).toBeVisible();
   expect(screen.getByRole("textbox", { name: "ادامه گفت‌وگو" })).toBeEnabled();
 });
+
+test("filters and continues a Listing Inquiry thread with current participant names", async () => {
+  let replyBody = "";
+  const inquiry = {
+    ...message,
+    id: "10000000-0000-4000-8000-000000000099",
+    kind: "listing_inquiry",
+    title: "پرسش درباره آپارتمان در سعادت‌آباد",
+    preview: "آیا هنوز موجود است؟",
+    group: {
+      kind: "listing_inquiry",
+      id: "20000000-0000-4000-8000-000000000099",
+      label: "آپارتمان در سعادت‌آباد",
+    },
+  };
+  server.use(
+    http.get("*/api/v1/messages/", ({ request }) => {
+      expect(new URL(request.url).searchParams.get("kind")).toBe(
+        "listing_inquiry",
+      );
+      return HttpResponse.json({
+        count: 1,
+        next: null,
+        previous: null,
+        results: [inquiry],
+      });
+    }),
+    http.get("*/api/v1/messages/:messageId/", () =>
+      HttpResponse.json({
+        ...inquiry,
+        body: inquiry.preview,
+        read: true,
+        target: {
+          label: "مشاهده ملک",
+          href: "/properties/property/slug",
+        },
+        public_status: null,
+        reply_allowed: true,
+        counterpart: {
+          display_name: "مالک تازه",
+          role: "submitter",
+          identity_verified: false,
+        },
+        entries: [
+          {
+            id: "30000000-0000-4000-8000-000000000099",
+            kind: "renter_message",
+            body: "آیا هنوز موجود است؟",
+            author_name: "رها",
+            mine: true,
+            created_at: inquiry.created_at,
+          },
+        ],
+      }),
+    ),
+    http.post(
+      "*/api/v1/messages/listing-inquiries/:messageId/replies/",
+      async ({ request }) => {
+        replyBody = ((await request.json()) as { body: string }).body;
+        return HttpResponse.json(
+          {
+            id: "40000000-0000-4000-8000-000000000099",
+            body: replyBody,
+            created_at: "2026-09-03T13:00:00Z",
+          },
+          { status: 201 },
+        );
+      },
+    ),
+  );
+  renderPage(`/messages/${inquiry.id}?filter=listing_inquiry`);
+
+  expect(await screen.findByText("گفت‌وگو با مالک تازه")).toBeVisible();
+  expect(screen.getByText("نام نمایشی؛ هویت تأییدشده نیست")).toBeVisible();
+  expect(screen.getByText("رها")).toBeVisible();
+  await userEvent.type(
+    screen.getByRole("textbox", { name: "ادامه گفت‌وگو" }),
+    "برای فردا مناسب است؟",
+  );
+  await userEvent.click(screen.getByRole("button", { name: "ارسال پیام" }));
+
+  await waitFor(() => expect(replyBody).toBe("برای فردا مناسب است؟"));
+});

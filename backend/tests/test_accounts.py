@@ -488,7 +488,10 @@ def test_verified_phone_account_can_add_email_and_use_both_identifiers(api_clien
 
     requested = client.post(
         "/api/v1/auth/email-verification/request/",
-        {"email": "Second@Example.com"},
+        {
+            "email": "Second@Example.com",
+            "return_to": "/properties/listing-id/example?compose=listing-id",
+        },
         format="json",
     )
 
@@ -496,7 +499,11 @@ def test_verified_phone_account_can_add_email_and_use_both_identifiers(api_clien
     user.refresh_from_db()
     assert user.email == "second@example.com"
     assert user.email_verified_at is None
-    token = mail.outbox[-1].body.rsplit("/verify-email?token=", 1)[1].strip()
+    verification_path = mail.outbox[-1].body.rsplit("/verify-email?token=", 1)[1].strip()
+    assert (
+        "&returnTo=%2Fproperties%2Flisting-id%2Fexample%3Fcompose%3Dlisting-id" in verification_path
+    )
+    token = verification_path.split("&", 1)[0]
 
     verified = client.post("/api/v1/auth/verify-email/", {"token": token}, format="json")
     assert verified.status_code == 200

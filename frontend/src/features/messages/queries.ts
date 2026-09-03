@@ -9,7 +9,11 @@ export type MessageDetail = components["schemas"]["MessageDetail"];
 export type MessagePage = components["schemas"]["PaginatedMessageSummaryList"];
 
 export type MessageFilter =
-  "all" | "system_notification" | "support_request" | "unread";
+  | "all"
+  | "system_notification"
+  | "listing_inquiry"
+  | "support_request"
+  | "unread";
 
 export function messagesQueryOptions(filter: MessageFilter, page = 1) {
   return queryOptions({
@@ -20,9 +24,11 @@ export function messagesQueryOptions(filter: MessageFilter, page = 1) {
           ? { unread: true }
           : filter === "system_notification"
             ? { kind: "system_notification" as const }
-            : filter === "support_request"
-              ? { kind: "support_request" as const }
-              : undefined;
+            : filter === "listing_inquiry"
+              ? { kind: "listing_inquiry" as const }
+              : filter === "support_request"
+                ? { kind: "support_request" as const }
+                : undefined;
       const query = { ...filterQuery, ...(page > 1 ? { page } : {}) };
       const { data, error } = await api.GET("/api/v1/messages/", {
         params: { query },
@@ -86,6 +92,35 @@ export async function editSupportMessage(
           support_message_id: supportMessageId,
         },
       },
+      body: { body },
+    },
+  );
+  if (error || !data) throw apiError(error);
+  return data;
+}
+
+export async function chooseDisplayName(displayName: string) {
+  const { data, error } = await api.PUT("/api/v1/users/me/display-name/", {
+    body: { display_name: displayName },
+  });
+  if (error || !data) throw apiError(error);
+  return data;
+}
+
+export async function startListingInquiry(listingId: string, body: string) {
+  const { data, error } = await api.POST(
+    "/api/v1/messages/listing-inquiries/",
+    { body: { listing_id: listingId, body } },
+  );
+  if (error || !data) throw apiError(error);
+  return data;
+}
+
+export async function replyToListingInquiry(inquiryId: string, body: string) {
+  const { data, error } = await api.POST(
+    "/api/v1/messages/listing-inquiries/{inquiry_id}/replies/",
+    {
+      params: { path: { inquiry_id: inquiryId } },
       body: { body },
     },
   );

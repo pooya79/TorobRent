@@ -1,8 +1,32 @@
+from django.db import models
 from django.db.models import QuerySet
 
 from apps.accounts.models import User
 
-from .models import MessageKind, SystemNotification
+from .models import ListingInquiry, MessageKind, SystemNotification
+
+
+def listing_inquiries_for(participant: User, *, unread: bool = False) -> QuerySet[ListingInquiry]:
+    inquiries = (
+        ListingInquiry.objects
+        .filter(models.Q(renter=participant) | models.Q(submitter=participant))
+        .select_related("listing__property", "renter", "submitter")
+        .prefetch_related("messages")
+    )
+    if unread:
+        inquiries = inquiries.filter(
+            models.Q(
+                renter=participant,
+                renter_read_at__lt=models.F("latest_activity_at"),
+            )
+            | models.Q(renter=participant, renter_read_at__isnull=True)
+            | models.Q(
+                submitter=participant,
+                submitter_read_at__lt=models.F("latest_activity_at"),
+            )
+            | models.Q(submitter=participant, submitter_read_at__isnull=True)
+        )
+    return inquiries
 
 
 def system_notifications_for(

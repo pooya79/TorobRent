@@ -50,6 +50,7 @@ class UserSerializer(serializers.ModelSerializer[User]):
             "phone",
             "first_name",
             "last_name",
+            "display_name",
             "email_verified",
             "phone_verified",
             "is_submitter",
@@ -66,6 +67,21 @@ class CurrentUserSerializer(UserSerializer):
     class Meta(UserSerializer.Meta):
         fields = UserSerializer.Meta.fields + ("operator_capabilities",)
         read_only_fields = fields
+
+
+class DisplayNameUpdateSerializer(serializers.Serializer[Any]):
+    display_name = serializers.CharField(max_length=120)
+
+    def validate_display_name(self, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise serializers.ValidationError("نام نمایشی نمی‌تواند خالی باشد.")
+        return value
+
+
+class DisplayNameSerializer(serializers.Serializer[Any]):
+    display_name = serializers.CharField()
+    identity_verified = serializers.BooleanField()
 
 
 class SubmitterOnboardingStateSerializer(serializers.Serializer[Any]):
@@ -137,9 +153,18 @@ class RegistrationResponseSerializer(PhoneOtpResponseSerializer):
 
 class EmailVerificationRequestSerializer(serializers.Serializer[Any]):
     email = serializers.EmailField()
+    return_to = serializers.CharField(required=False, max_length=1000)
 
     def validate_email(self, value: str) -> str:
         return value.lower()
+
+    def validate_return_to(self, value: str) -> str:
+        unsafe_character = "\\" in value or any(
+            ord(character) < 32 or ord(character) == 127 for character in value
+        )
+        if not value.startswith("/") or value.startswith("//") or unsafe_character:
+            raise serializers.ValidationError("مقصد بازگشت معتبر نیست.")
+        return value
 
 
 class PasswordResetRequestSerializer(serializers.Serializer[Any]):

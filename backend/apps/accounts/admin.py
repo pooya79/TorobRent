@@ -22,7 +22,7 @@ from .capabilities import (
     MANAGED_OPERATOR_GROUPS,
     OperatorCapability,
 )
-from .models import OperatorAccess, User
+from .models import DisplayNameHistory, OperatorAccess, User
 from .services import (
     anonymize_operator_account,
     can_delete_operator_group,
@@ -153,6 +153,7 @@ class UserAdmin(DjangoUserAdmin, ModelAdmin):  # type: ignore[type-arg]
         "last_login",
         "date_joined",
     )
+
     actions = ("anonymize_selected_accounts",)
     fieldsets = (
         (None, {"fields": ("email", "phone", "password")}),
@@ -228,6 +229,27 @@ class UserAdmin(DjangoUserAdmin, ModelAdmin):  # type: ignore[type-arg]
             request,
             f"Anonymized {anonymized} former Operator account(s); skipped {skipped}.",
         )
+
+
+@admin.register(DisplayNameHistory)
+class DisplayNameHistoryAdmin(ModelAdmin):  # type: ignore[type-arg]
+    list_display = ("account", "display_name", "created_at")
+    search_fields = ("account__email", "account__phone", "display_name")
+    readonly_fields = ("account", "display_name", "created_at")
+    ordering = ("-created_at",)
+
+    def has_add_permission(self, request: HttpRequest) -> bool:
+        return False
+
+    def has_change_permission(
+        self, request: HttpRequest, obj: DisplayNameHistory | None = None
+    ) -> bool:
+        return False
+
+    def has_delete_permission(
+        self, request: HttpRequest, obj: DisplayNameHistory | None = None
+    ) -> bool:
+        return False
 
 
 @admin.register(OperatorAccess)

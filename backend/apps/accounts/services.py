@@ -17,7 +17,7 @@ from django.utils import timezone
 
 from .capabilities import CAPABILITY_PERMISSIONS, MANAGED_OPERATOR_GROUPS
 from .identifiers import AccountIdentifier
-from .models import PhoneVerificationChallenge, SubmitterOnboardingPath, User
+from .models import DisplayNameHistory, PhoneVerificationChallenge, SubmitterOnboardingPath, User
 from .sms import send_verification_code
 from .tokens import (
     make_email_verification_token,
@@ -267,7 +267,9 @@ def verify_email(token: str) -> bool:
     return True
 
 
-def request_email_verification(*, email: str, requesting_user: User) -> None:
+def request_email_verification(
+    *, email: str, requesting_user: User, return_to: str | None = None
+) -> None:
     with transaction.atomic():
         user = User.objects.select_for_update().get(pk=requesting_user.pk)
         if User.objects.filter(email=email).exclude(pk=user.pk).exists():
@@ -279,6 +281,8 @@ def request_email_verification(*, email: str, requesting_user: User) -> None:
         user.save(update_fields=["email", "email_verified_at"])
         token = make_email_verification_token(user)
     verification_url = f"{settings.FRONTEND_ORIGIN}/verify-email?token={token}"
+    if return_to is not None:
+        verification_url = f"{verification_url}&returnTo={quote(return_to, safe='')}"
     send_mail(
         "تأیید ایمیل ترب‌رنت",
         f"برای تأیید ایمیل خود این پیوند را باز کنید:\n{verification_url}",
@@ -354,6 +358,18 @@ def start_session(
 
 def end_session(request: HttpRequest) -> None:
     logout(request)
+
+
+@transaction.atomic
+def choose_display_name(*, account: User, display_name: str) -> User:
+    locked = User.objects.select_for_update().get(id=account.id)
+    if locked.display_name == display_name:
+        return locked
+    locked.display_name = display_name
+    locked.save(update_fields=("display_name",))
+    DisplayNameHistory.objects.create(account=locked, display_name=display_name)
+    account.refresh_from_db()
+    return locked
 
 
 def request_password_reset(email: str) -> None:

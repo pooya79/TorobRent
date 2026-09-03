@@ -504,6 +504,8 @@ class ListingPublicSerializer(serializers.Serializer[Any]):
     is_convertible = serializers.BooleanField()
     availability_confirmed_at = serializers.DateTimeField()
     available_until = serializers.DateTimeField()
+    can_message_submitter = serializers.BooleanField()
+    is_responsible_submitter = serializers.BooleanField()
 
 
 class PropertyDetailSerializer(serializers.Serializer[Any]):
@@ -577,7 +579,9 @@ def source_disagreements(
     return disagreements
 
 
-def property_detail_data(property_: Property, listings: list[Listing]) -> dict[str, Any]:
+def property_detail_data(
+    property_: Property, listings: list[Listing], *, viewer_id: object | None = None
+) -> dict[str, Any]:
     city = property_.city
     district = property_.district
     neighborhood = property_.neighborhood
@@ -647,6 +651,18 @@ def property_detail_data(property_: Property, listings: list[Listing]) -> dict[s
                 "is_convertible": listing.terms.is_convertible,
                 "availability_confirmed_at": listing.availability_confirmed_at,
                 "available_until": listing.available_until,
+                "can_message_submitter": (
+                    listing.source.is_builtin
+                    and listing.source.outbound_policy == OutboundPolicy.DIRECT_CONTACT
+                    and getattr(listing, "submission", None) is not None
+                    and listing.submission.state == "published"
+                    and listing.submission.submitter_id != viewer_id
+                ),
+                "is_responsible_submitter": (
+                    getattr(listing, "submission", None) is not None
+                    and listing.submission.state == "published"
+                    and listing.submission.submitter_id == viewer_id
+                ),
             }
             for listing in listings
         ],

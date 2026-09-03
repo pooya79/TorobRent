@@ -92,6 +92,8 @@ export const propertyDetail: components["schemas"]["PropertyDetail"] = {
       is_convertible: false,
       availability_confirmed_at: "2026-08-21T10:00:00Z",
       available_until: "2026-09-20T10:00:00Z",
+      can_message_submitter: true,
+      is_responsible_submitter: false,
     },
     {
       id: "89e88c26-5a44-4587-905b-08418c9e9346",
@@ -129,6 +131,8 @@ export const propertyDetail: components["schemas"]["PropertyDetail"] = {
       is_convertible: true,
       availability_confirmed_at: "2026-08-20T09:00:00Z",
       available_until: "2026-09-19T09:00:00Z",
+      can_message_submitter: false,
+      is_responsible_submitter: false,
     },
   ],
 };

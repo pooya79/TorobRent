@@ -15,6 +15,70 @@ class MessageKind(models.TextChoices):
     SUPPORT_REQUEST = "support_request", "Support Request"
 
 
+class ListingInquiry(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    listing = models.ForeignKey(
+        "catalog.Listing",
+        on_delete=models.PROTECT,
+        related_name="inquiries",
+        editable=False,
+    )
+    renter = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="renter_listing_inquiries",
+        editable=False,
+    )
+    submitter = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="submitter_listing_inquiries",
+        editable=False,
+    )
+    renter_read_at = models.DateTimeField(null=True, blank=True)
+    submitter_read_at = models.DateTimeField(null=True, blank=True)
+    latest_activity_at = models.DateTimeField(db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ("-latest_activity_at", "-id")
+        constraints = [
+            models.UniqueConstraint(
+                fields=("renter", "listing"),
+                name="one_listing_inquiry_per_renter_listing",
+            ),
+            models.CheckConstraint(
+                condition=~models.Q(renter=models.F("submitter")),
+                name="listing_inquiry_participants_differ",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.renter_id} -> {self.listing_id}"
+
+
+class ListingInquiryMessage(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    inquiry = models.ForeignKey(
+        ListingInquiry,
+        on_delete=models.CASCADE,
+        related_name="messages",
+    )
+    author = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="listing_inquiry_messages",
+    )
+    body = models.TextField(max_length=2000)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ("created_at", "id")
+
+    def __str__(self) -> str:
+        return f"{self.inquiry_id}: {self.author_id}"
+
+
 class ImmutableSystemNotificationQuerySet(models.QuerySet["SystemNotification"]):
     def update(self, **kwargs: Any) -> int:
         raise ValidationError("System Notification history is immutable.")

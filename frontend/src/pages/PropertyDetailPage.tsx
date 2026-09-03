@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { ArrowRight, Building2, Clock3, MapPin } from "lucide-react";
 
 import { PageMain } from "@/components/layout/PageMain";
@@ -7,15 +7,41 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import {
   recordPropertyView,
   resolveExternalContinuation,
   revealListingPhone,
 } from "@/features/catalog/continuation";
+import {
+  chooseDisplayName,
+  startListingInquiry,
+} from "@/features/messages/queries";
 import type { components } from "@/lib/api/schema";
 
 type PropertyDetail = components["schemas"]["PropertyDetail"];
 type FeatureState = components["schemas"]["FeatureStateEnum"];
 type Listing = PropertyDetail["listings"][number];
+type ListingInquiryAccount = {
+  authenticated: boolean;
+  verified: boolean;
+  displayName: string;
+};
+
+const LISTING_INQUIRY_INTENT_KEY = "listing-inquiry-intent";
+
+function rememberListingInquiryIntent(listingId: string) {
+  sessionStorage.setItem(LISTING_INQUIRY_INTENT_KEY, listingId);
+}
+
+function clearListingInquiryIntent() {
+  sessionStorage.removeItem(LISTING_INQUIRY_INTENT_KEY);
+}
 
 const featureLabels = {
   parking: "پارکینگ",
@@ -72,9 +98,15 @@ function formatClaimValue(value: unknown) {
 function ListingContinuation({
   listing,
   onNavigateExternal,
+  account,
+  onCompose,
+  onRequestAccess,
 }: {
   listing: Listing;
   onNavigateExternal: (url: string) => void;
+  account?: ListingInquiryAccount;
+  onCompose: () => void;
+  onRequestAccess: (intent: () => void) => void;
 }) {
   const [phone, setPhone] = useState<string>();
   const [pending, setPending] = useState(false);
@@ -105,7 +137,29 @@ function ListingContinuation({
 
   return (
     <div className="space-y-2">
+      {listing.is_responsible_submitter ? (
+        <p className="bg-muted rounded-md px-3 py-2 text-sm font-semibold">
+          این آگهی شماست
+        </p>
+      ) : null}
+      {listing.can_message_submitter ? (
+        <Button
+          onClick={() => {
+            if (!account?.authenticated || !account.verified) {
+              rememberListingInquiryIntent(listing.id);
+              onRequestAccess(onCompose);
+              return;
+            }
+            onCompose();
+          }}
+          type="button"
+          variant="outline"
+        >
+          پیام به ثبت‌کننده
+        </Button>
+      ) : null}
       {listing.source.outbound_policy === "direct_contact" &&
+        !listing.is_responsible_submitter &&
         (phone ? (
           <a
             className="text-primary inline-flex min-h-11 items-center font-semibold"
@@ -136,18 +190,142 @@ function ListingContinuation({
   );
 }
 
+function ListingInquiryComposer({
+  listing,
+  account,
+  onClose,
+  onNavigateMessage,
+}: {
+  listing: Listing;
+  account?: ListingInquiryAccount;
+  onClose: () => void;
+  onNavigateMessage: (href: string) => void;
+}) {
+  const [pending, setPending] = useState(false);
+  const [failed, setFailed] = useState(false);
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const body = form.get("body");
+    const displayName = form.get("display_name");
+    if (typeof body !== "string" || !body.trim()) return;
+    setPending(true);
+    setFailed(false);
+    try {
+      if (!account?.displayName) {
+        if (typeof displayName !== "string" || !displayName.trim()) return;
+        await chooseDisplayName(displayName.trim());
+      }
+      const inquiry = await startListingInquiry(listing.id, body.trim());
+      onNavigateMessage(inquiry.href);
+    } catch {
+      setFailed(true);
+    } finally {
+      setPending(false);
+    }
+  }
+
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent dir="rtl">
+        <div className="grid gap-2 pe-10">
+          <DialogTitle>پیام به ثبت‌کننده</DialogTitle>
+          <DialogDescription>
+            آگهی {listing.source.display_name} با ودیعه{" "}
+            {formatNumber(listing.rental_terms.deposit_toman)} تومان
+          </DialogDescription>
+        </div>
+        <form className="grid gap-4" onSubmit={(event) => void submit(event)}>
+          {!account?.displayName ? (
+            <div className="grid gap-2">
+              <Label htmlFor={`display-name-${listing.id}`}>نام نمایشی</Label>
+              <input
+                className="border-input h-11 rounded-md border px-3"
+                id={`display-name-${listing.id}`}
+                maxLength={120}
+                name="display_name"
+                required
+              />
+              <p className="text-muted-foreground text-sm">
+                این نام برای گفت‌وگو نمایش داده می‌شود و هویت قانونی شما را
+                تأیید نمی‌کند.
+              </p>
+            </div>
+          ) : (
+            <p className="text-muted-foreground text-sm">
+              پیام با نام نمایشی «{account.displayName}» ارسال می‌شود. این نام
+              هویت قانونی تأییدشده نیست.
+            </p>
+          )}
+          <div className="grid gap-2">
+            <Label htmlFor={`inquiry-body-${listing.id}`}>پیام نخست</Label>
+            <textarea
+              className="border-input min-h-32 rounded-md border p-3"
+              id={`inquiry-body-${listing.id}`}
+              maxLength={2000}
+              name="body"
+              required
+            />
+          </div>
+          {failed ? (
+            <p className="text-destructive text-sm" role="alert">
+              ارسال پیام انجام نشد. وضعیت حساب و آگهی را بررسی کنید.
+            </p>
+          ) : null}
+          <div className="flex justify-end gap-2">
+            <Button onClick={onClose} type="button" variant="ghost">
+              انصراف
+            </Button>
+            <Button disabled={pending} type="submit">
+              {pending ? "در حال ارسال…" : "ارسال پیام"}
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export function PropertyDetailPage({
   property,
   returnTo,
   onNavigateExternal = (url) => window.location.assign(url),
+  account,
+  onRequestAccess = (intent) => intent(),
+  onNavigateMessage = (href) => window.location.assign(href),
 }: {
   property: PropertyDetail;
   returnTo?: string | null;
   onNavigateExternal?: (url: string) => void;
+  account?: ListingInquiryAccount;
+  onRequestAccess?: (intent: () => void) => void;
+  onNavigateMessage?: (href: string) => void;
 }) {
+  const [composerListing, setComposerListing] = useState<Listing>();
+  const openComposer = useCallback((listing: Listing) => {
+    clearListingInquiryIntent();
+    setComposerListing(listing);
+  }, []);
   useEffect(() => {
     void recordPropertyView(property.id).catch(() => undefined);
   }, [property.id]);
+  useEffect(() => {
+    if (!account?.authenticated || !account.verified) return;
+    const listingId = sessionStorage.getItem(LISTING_INQUIRY_INTENT_KEY);
+    const listing = property.listings.find(
+      (candidate) =>
+        candidate.id === listingId && candidate.can_message_submitter,
+    );
+    if (!listing) return;
+    const restore = window.setTimeout(() => openComposer(listing), 0);
+    return () => window.clearTimeout(restore);
+  }, [
+    account?.authenticated,
+    account?.verified,
+    openComposer,
+    property.listings,
+  ]);
   const safeReturnTo = returnTo?.startsWith("/search") ? returnTo : "/search";
   const location = [
     property.location.city,
@@ -282,6 +460,9 @@ export function PropertyDetailPage({
                     <ListingContinuation
                       listing={listing}
                       onNavigateExternal={onNavigateExternal}
+                      account={account}
+                      onCompose={() => openComposer(listing)}
+                      onRequestAccess={onRequestAccess}
                     />
                   </CardContent>
                 </article>
@@ -290,6 +471,14 @@ export function PropertyDetailPage({
           </div>
         </section>
       </div>
+      {composerListing ? (
+        <ListingInquiryComposer
+          account={account}
+          listing={composerListing}
+          onClose={() => setComposerListing(undefined)}
+          onNavigateMessage={onNavigateMessage}
+        />
+      ) : null}
     </PageMain>
   );
 }

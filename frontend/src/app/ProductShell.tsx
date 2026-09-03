@@ -266,6 +266,11 @@ function AccountIdentity({ currentUser }: { currentUser: CurrentUser }) {
   return (
     <>
       {name ? <p className="font-semibold">{name}</p> : null}
+      {currentUser.display_name ? (
+        <p className="text-sm font-normal">
+          نام نمایشی: {currentUser.display_name}
+        </p>
+      ) : null}
       <p className="text-muted-foreground text-sm font-normal" dir="ltr">
         {currentUser.email ?? currentUser.phone}
       </p>

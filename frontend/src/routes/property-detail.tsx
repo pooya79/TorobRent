@@ -2,9 +2,10 @@ import {
   dehydrate,
   HydrationBoundary,
   QueryClient,
+  useQuery,
   useSuspenseQuery,
 } from "@tanstack/react-query";
-import { redirect, useLoaderData } from "react-router";
+import { redirect, useLoaderData, useNavigate } from "react-router";
 
 import {
   propertyDetailQueryOptions,
@@ -12,6 +13,8 @@ import {
 } from "@/features/catalog/queries";
 import type { components } from "@/lib/api/schema";
 import { PropertyDetailPage } from "@/pages/PropertyDetailPage";
+import { useRenterAccess } from "@/features/session/RenterAccessDialog";
+import { currentUserQuery, sessionQuery } from "@/features/session/queries";
 
 type PropertyDetail = components["schemas"]["PropertyDetail"];
 
@@ -119,5 +122,26 @@ function PropertyDetailQuery({
   const { data: property } = useSuspenseQuery(
     propertyDetailQueryOptions(baseUrl, propertyId),
   );
-  return <PropertyDetailPage property={property} returnTo={returnTo} />;
+  const session = useQuery(sessionQuery);
+  const currentUser = useQuery({
+    ...currentUserQuery,
+    enabled: session.data?.authenticated === true,
+  });
+  const { requestRenterAccess } = useRenterAccess();
+  const navigate = useNavigate();
+  return (
+    <PropertyDetailPage
+      property={property}
+      returnTo={returnTo}
+      account={{
+        authenticated: session.data?.authenticated === true,
+        verified: Boolean(
+          currentUser.data?.email_verified || currentUser.data?.phone_verified,
+        ),
+        displayName: currentUser.data?.display_name ?? "",
+      }}
+      onRequestAccess={requestRenterAccess}
+      onNavigateMessage={(href) => void navigate(href)}
+    />
+  );
 }

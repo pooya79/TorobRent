@@ -296,7 +296,7 @@ class PropertyDetailView(APIView):
             Listing.objects
             .active()
             .filter(property_id=property_id)
-            .select_related("source", "terms")
+            .select_related("source", "terms", "submission")
         )
         if not listings:
             raise NotFound("این ملک در دسترس نیست.")
@@ -306,7 +306,10 @@ class PropertyDetailView(APIView):
             )
         except Property.DoesNotExist as exc:
             raise NotFound("این ملک در دسترس نیست.") from exc
-        serializer = PropertyDetailSerializer(instance=property_detail_data(property_, listings))
+        viewer_id = request.user.pk if request.user.is_authenticated else None
+        serializer = PropertyDetailSerializer(
+            instance=property_detail_data(property_, listings, viewer_id=viewer_id)
+        )
         return Response(serializer.data)
 
 

@@ -7,6 +7,7 @@ import {
   type FormEvent,
   type ReactNode,
 } from "react";
+import { useLocation } from "react-router";
 
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -49,9 +50,11 @@ const RenterAccessContext = createContext<
 function AccessForm({
   mode,
   onAuthenticated,
+  returnTo,
 }: {
   mode: AccessMode;
   onAuthenticated: (user: User) => void;
+  returnTo: string;
 }) {
   const queryClient = useQueryClient();
   const content = accessContent[mode];
@@ -61,6 +64,40 @@ function AccessForm({
     developmentOtp?: string;
   }>();
   const [registrationResult, setRegistrationResult] = useState<string>();
+
+  async function continueAfterVerifiedAuthentication(
+    user: User,
+    credentials: { identifier: string; password: string },
+  ) {
+    if (user.email_verified || user.phone_verified) {
+      await finishAuthentication(user);
+      return;
+    }
+    if (user.phone) {
+      const { data, error } = await api.POST(
+        "/api/v1/auth/phone-verification/request/",
+        { body: { identifier: user.phone } },
+      );
+      if (error || !data) throw apiError(error);
+      setRegistrationResult(data.detail);
+      setPendingPhone({
+        ...credentials,
+        identifier: user.phone,
+        developmentOtp: data.development_otp,
+      });
+      return;
+    }
+    if (user.email) {
+      const { data, error } = await api.POST(
+        "/api/v1/auth/email-verification/request/",
+        { body: { email: user.email, return_to: returnTo } },
+      );
+      if (error || !data) throw apiError(error);
+      setRegistrationResult(
+        `${data.detail} پس از تأیید، دوباره وارد شوید تا ادامه دهید.`,
+      );
+    }
+  }
 
   async function finishAuthentication(user: User) {
     queryClient.setQueryData(
@@ -95,14 +132,18 @@ function AccessForm({
               body: { identifier, password },
             })
           : await api.POST("/api/v1/auth/renter-register/", {
-              body: { identifier, password },
+              body: {
+                identifier,
+                password,
+                ...(identifier.includes("@") ? { return_to: returnTo } : {}),
+              },
             });
       if (response.error || !response.data) throw apiError(response.error);
       return response.data;
     },
     onSuccess: async (data, variables) => {
       if ("id" in data) {
-        await finishAuthentication(data);
+        await continueAfterVerifiedAuthentication(data, variables);
         return;
       }
       setRegistrationResult(data.detail);
@@ -258,11 +299,13 @@ function RenterAccessDialog({
   onOpenChange,
   onAuthenticated,
   restoreFocus,
+  returnTo,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onAuthenticated: (user: User) => void;
   restoreFocus: () => void;
+  returnTo: string;
 }) {
   const [mode, setMode] = useState<AccessMode>("login");
   const content = accessContent[mode];
@@ -310,13 +353,19 @@ function RenterAccessDialog({
             ساخت حساب
           </Button>
         </div>
-        <AccessForm key={mode} mode={mode} onAuthenticated={onAuthenticated} />
+        <AccessForm
+          key={mode}
+          mode={mode}
+          onAuthenticated={onAuthenticated}
+          returnTo={returnTo}
+        />
       </DialogContent>
     </Dialog>
   );
 }
 
 export function RenterAccessProvider({ children }: { children: ReactNode }) {
+  const location = useLocation();
   const [open, setOpen] = useState(false);
   const pendingIntent = useRef<PendingIntent | undefined>(undefined);
   const restoreFocusTo = useRef<HTMLElement | null>(null);
@@ -339,6 +388,7 @@ export function RenterAccessProvider({ children }: { children: ReactNode }) {
         open={open}
         onOpenChange={setOpen}
         restoreFocus={() => restoreFocusTo.current?.focus()}
+        returnTo={`${location.pathname}${location.search}${location.hash}`}
         onAuthenticated={() => {
           const intent = pendingIntent.current;
           pendingIntent.current = undefined;
