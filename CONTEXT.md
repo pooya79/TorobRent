@@ -153,12 +153,54 @@ persists while the Property is unavailable and follows a merge, but ceases when 
 permanently removed.
 _Avoid_: Saved Listing, bookmark, like
 
+## Communication
+
+**Message Center**:
+An account holder's private in-app view of Listing Inquiries, Support Requests, and System
+Notifications. It unifies their presentation without making them the same kind of record.
+_Avoid_: Chat
+
+**Display Name**:
+An account holder's chosen public label within Listing Inquiries. It identifies a participant
+without asserting that TorobRent has verified their legal identity.
+_Avoid_: Legal name, verified name
+
+**Listing Inquiry**:
+A private conversation between an authenticated Renter and the Submitter responsible for one
+specific Listing. Other Listings for the same Property do not share the conversation.
+_Avoid_: Property inquiry, contact message
+
+**System Notification**:
+A non-replyable in-app notice informing an account holder about a TorobRent event and linking to
+the relevant domain object when one exists.
+_Avoid_: System message, automated conversation
+
+**Conversation Report**:
+A participant's request for an Operator to investigate a Listing Inquiry or one of its messages
+for abuse. Reporting preserves the relevant content for review.
+_Avoid_: Support Request, complaint message
+
+**Conversation Moderator**:
+An Operator with the independently granted responsibility to investigate Conversation Reports.
+The capability does not follow from authority to handle Support Requests.
+_Avoid_: Support Operator, message admin
+
+**Account Block**:
+A participant-controlled safety restriction preventing two accounts from contacting one another or
+revealing Listing phone numbers across TorobRent. It applies to the account pair, not one Listing.
+_Avoid_: Listing block, conversation archive
+
 ## Support
 
 **Support Request**:
-A person's request for guidance, account assistance, or a privacy-related action. A Support Request
-is handled by one Operator at a time and retains its operational history.
+A verified account holder's request for guidance, account assistance, or a privacy-related action.
+A Support Request is handled by one Operator at a time and retains its operational history.
 _Avoid_: Contact message, ticket
+
+**Support Reply**:
+A user-visible communication within a Support Request written by its requester or a handling
+Operator. Internal notes, classifications, assignments, and contact logs are not Support Replies.
+_Avoid_: Internal note, resolution summary
 
 **Intake Kind**:
 The requester's description of why they opened a Support Request. It guides initial routing but is
