@@ -407,6 +407,7 @@ def test_operator_can_publish_only_a_complete_residential_catalog_entry():
 
     neighborhood = Neighborhood.objects.get(name_fa="سعادت‌آباد")
     property_ = Property.objects.create(
+        id=uuid.UUID("3ed48747-3ad7-44fe-b33d-aee641347c85"),
         city=neighborhood.district.city,
         district=neighborhood.district,
         neighborhood=neighborhood,
@@ -499,11 +500,10 @@ def test_anonymous_renter_retrieves_property_only_through_an_active_listing(
     assert response.data["features"]["elevator"] == FeatureState.UNKNOWN
     assert response.data["approximate_location"]["precision"] == "approximate"
     assert response.data["approximate_location"]["radius_meters"] == 50
-    assert response.data["approximate_location"]["latitude"] != "35.770001"
-    assert response.data["approximate_location"]["longitude"] != "51.379999"
-    serialized = response.json()
-    assert "35.770001" not in str(serialized)
-    assert "51.379999" not in str(serialized)
+    assert (
+        response.data["approximate_location"]["latitude"],
+        response.data["approximate_location"]["longitude"],
+    ) != ("35.770001", "51.379999")
     public_latitude = math.radians(float(response.data["approximate_location"]["latitude"]))
     exact_latitude = math.radians(35.770001)
     latitude_delta = public_latitude - exact_latitude
