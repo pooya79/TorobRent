@@ -47,15 +47,13 @@ test("hydrates an authenticated account into the initial server render", async (
   vi.stubGlobal("window", undefined);
   vi.stubEnv("VITE_PROXY_TARGET", "http://backend.test");
 
-  const result = await loader(
-    {
-      request: new Request("http://frontend.test/", {
-        headers: { cookie: "sessionid=authenticated" },
-      }),
-      params: {},
-      context: {},
-    } as Parameters<typeof loader>[0],
-  );
+  const result = await loader({
+    request: new Request("http://frontend.test/", {
+      headers: { cookie: "sessionid=authenticated" },
+    }),
+    params: {},
+    context: {},
+  } as Parameters<typeof loader>[0]);
   const queryClient = new QueryClient();
   hydrate(queryClient, result.data.dehydratedState);
 

@@ -19,16 +19,14 @@ export function AppProviders({
   dehydratedState?: DehydratedState;
   csrfToken?: string;
 }) {
-  const [queryClient] = useState(
-    () => {
-      if (typeof window !== "undefined" && csrfToken) {
-        rememberCsrfToken(csrfToken);
-      }
-      return new QueryClient({
-        defaultOptions: { queries: { staleTime: 30_000, retry: 1 } },
-      });
-    },
-  );
+  const [queryClient] = useState(() => {
+    if (typeof window !== "undefined" && csrfToken) {
+      rememberCsrfToken(csrfToken);
+    }
+    return new QueryClient({
+      defaultOptions: { queries: { staleTime: 30_000, retry: 1 } },
+    });
+  });
   useEffect(() => {
     if (csrfToken) rememberCsrfToken(csrfToken);
   }, [csrfToken]);
