@@ -1,6 +1,7 @@
 from django.urls import path
 
 from .operator_views import (
+    ConversationEvidenceReleaseView,
     ConversationReportDecisionView,
     ConversationReportDetailView,
     ConversationReportListView,
@@ -19,5 +20,10 @@ urlpatterns = [
         "<uuid:report_id>/decision/",
         ConversationReportDecisionView.as_view(),
         name="report-decision",
+    ),
+    path(
+        "<uuid:report_id>/evidence-release/",
+        ConversationEvidenceReleaseView.as_view(),
+        name="report-evidence-release",
     ),
 ]

@@ -1,6 +1,8 @@
 import uuid
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import StrEnum
+from typing import TypedDict
 from unicodedata import normalize
 
 from django.conf import settings
@@ -16,10 +18,13 @@ from apps.submissions.models import SubmissionEvent, SubmissionState
 
 from .models import (
     AccountBlock,
+    ConversationEvidenceRetentionStatus,
     ConversationModerationEvent,
     ConversationModerationEventType,
     ConversationReport,
+    ConversationReportEvidenceHold,
     ConversationReportStatus,
+    ConversationReportTarget,
     InquiryInitiationSuspension,
     ListingInquiry,
     ListingInquiryMessage,
@@ -50,6 +55,37 @@ class ListingInquiryAlreadyExists(ListingInquiryConflictError):
 
 class ListingInquiryEditConflict(ListingInquiryConflictError):
     pass
+
+
+class FrozenConversationMessage(TypedDict):
+    id: str
+    author_id: str
+    author_display_name: str
+    body: str
+    created_at: str
+    edited_at: str | None
+
+
+class FrozenConversationParticipants(TypedDict):
+    renter_id: str
+    submitter_id: str
+
+
+class FrozenConversationEvidence(TypedDict):
+    inquiry_id: str
+    target_message_id: str | None
+    participants: FrozenConversationParticipants
+    messages: list[FrozenConversationMessage]
+
+
+MESSAGE_REPORT_CONTEXT_RADIUS = 2
+
+
+@dataclass(frozen=True)
+class ConversationReportDecisionOutcome:
+    report: ConversationReport
+    pair_restricted: bool
+    suspended_account_id: uuid.UUID | None
 
 
 @transaction.atomic
@@ -83,11 +119,15 @@ def report_listing_inquiry(
                 "پیام گزارش‌شده در این گفت‌وگو پیدا نشد.",
                 code="conversation_report_target_invalid",
             )
-    now = timezone.now()
-    ListingInquiryMessage.objects.filter(
-        id__in=[message.id for message in messages], edit_locked_at__isnull=True
-    ).update(edit_locked_at=now)
-    evidence = {
+    evidence_messages = messages
+    if target_message is not None:
+        target_index = messages.index(target_message)
+        evidence_messages = messages[
+            max(0, target_index - MESSAGE_REPORT_CONTEXT_RADIUS) : target_index
+            + MESSAGE_REPORT_CONTEXT_RADIUS
+            + 1
+        ]
+    evidence: FrozenConversationEvidence = {
         "inquiry_id": str(inquiry.id),
         "target_message_id": str(target_message.id) if target_message is not None else None,
         "participants": {
@@ -107,16 +147,27 @@ def report_listing_inquiry(
                     else None
                 ),
             }
-            for message in messages
+            for message in evidence_messages
         ],
     }
-    return ConversationReport.objects.create(
+    report = ConversationReport.objects.create(
         inquiry=inquiry,
         target_message=target_message,
         reporter=reporter,
+        reporter_display_name_snapshot=reporter.display_name,
+        target_kind=(
+            ConversationReportTarget.MESSAGE
+            if target_message is not None
+            else ConversationReportTarget.INQUIRY
+        ),
         explanation=explanation,
         evidence=evidence,
     )
+    ConversationReportEvidenceHold.objects.bulk_create([
+        ConversationReportEvidenceHold(report=report, message=message)
+        for message in evidence_messages
+    ])
+    return report
 
 
 @transaction.atomic
@@ -128,7 +179,7 @@ def decide_conversation_report(
     internal_note: str,
     restrict_pair: bool,
     suspend_account_id: uuid.UUID | None,
-) -> ConversationReport:
+) -> ConversationReportDecisionOutcome:
     report = (
         ConversationReport.objects.select_for_update().select_related("inquiry").get(id=report.id)
     )
@@ -138,7 +189,13 @@ def decide_conversation_report(
         restrict_pair or suspend_account_id is not None
     ):
         raise ValidationError("A dismissed report cannot apply restrictions.")
-    participant_ids = (report.inquiry.renter_id, report.inquiry.submitter_id)
+    if report.evidence is None:
+        raise ValidationError("This Conversation Report no longer has retained evidence.")
+    participants = report.evidence["participants"]
+    participant_ids = (
+        uuid.UUID(participants["renter_id"]),
+        uuid.UUID(participants["submitter_id"]),
+    )
     if suspend_account_id is not None and suspend_account_id not in participant_ids:
         raise ValidationError("The suspended account must be a report participant.")
 
@@ -146,7 +203,17 @@ def decide_conversation_report(
     report.decided_by = actor
     report.decided_at = timezone.now()
     report.internal_note = internal_note
-    report.save(update_fields=("status", "decided_by", "decided_at", "internal_note"))
+    if decision == ConversationReportStatus.UPHELD:
+        report.evidence_retention_status = ConversationEvidenceRetentionStatus.REQUIRED
+    report.save(
+        update_fields=(
+            "status",
+            "decided_by",
+            "decided_at",
+            "internal_note",
+            "evidence_retention_status",
+        )
+    )
     ConversationModerationEvent.objects.create(
         report=report,
         actor=actor,
@@ -157,43 +224,84 @@ def decide_conversation_report(
         ),
         internal_note=internal_note,
     )
-    if (
-        decision == ConversationReportStatus.DISMISSED
-        and not ConversationReport.objects.filter(
-            inquiry=report.inquiry,
-            status__in=(ConversationReportStatus.PENDING, ConversationReportStatus.UPHELD),
-        ).exists()
-    ):
-        evidence_message_ids = [
-            item["id"] for item in report.evidence.get("messages", []) if "id" in item
-        ]
-        ListingInquiryMessage.objects.filter(id__in=evidence_message_ids).update(
-            edit_locked_at=None
-        )
+    if decision == ConversationReportStatus.DISMISSED:
+        _release_conversation_report_evidence(report=report, actor=actor, internal_note="")
+    pair_restricted = False
     if restrict_pair:
         lower_id, higher_id = sorted(participant_ids, key=lambda account_id: account_id.int)
         list(User.objects.select_for_update().filter(id__in=participant_ids).order_by("id"))
-        ModeratedPairRestriction.objects.get_or_create(
+        _restriction, pair_restricted = ModeratedPairRestriction.objects.get_or_create(
             lower_account_id=lower_id,
             higher_account_id=higher_id,
             defaults={"report": report, "created_by": actor},
         )
-        ConversationModerationEvent.objects.create(
-            report=report,
-            actor=actor,
-            event_type=ConversationModerationEventType.PAIR_RESTRICTED,
-        )
+        if pair_restricted:
+            ConversationModerationEvent.objects.create(
+                report=report,
+                actor=actor,
+                event_type=ConversationModerationEventType.PAIR_RESTRICTED,
+            )
+    suspended_account_created = False
     if suspend_account_id is not None:
-        InquiryInitiationSuspension.objects.get_or_create(
+        list(User.objects.select_for_update().filter(id=suspend_account_id))
+        _suspension, suspended_account_created = InquiryInitiationSuspension.objects.get_or_create(
             account_id=suspend_account_id,
             defaults={"report": report, "created_by": actor},
         )
-        ConversationModerationEvent.objects.create(
-            report=report,
-            actor=actor,
-            event_type=ConversationModerationEventType.INITIATION_SUSPENDED,
-            metadata={"account_id": str(suspend_account_id)},
+        if suspended_account_created:
+            ConversationModerationEvent.objects.create(
+                report=report,
+                actor=actor,
+                event_type=ConversationModerationEventType.INITIATION_SUSPENDED,
+                metadata={"account_id": str(suspend_account_id)},
+            )
+    report.inquiry = None
+    report.target_message = None
+    report.reporter = None
+    report.save(update_fields=("inquiry", "target_message", "reporter"))
+    return ConversationReportDecisionOutcome(
+        report=report,
+        pair_restricted=pair_restricted,
+        suspended_account_id=suspend_account_id if suspended_account_created else None,
+    )
+
+
+def _release_conversation_report_evidence(
+    *, report: ConversationReport, actor: User, internal_note: str
+) -> None:
+    report.evidence_holds.all().delete()
+    report.evidence = None
+    report.reporter_display_name_snapshot = ""
+    report.evidence_retention_status = ConversationEvidenceRetentionStatus.RELEASED
+    report.evidence_released_at = timezone.now()
+    report.save(
+        update_fields=(
+            "evidence",
+            "reporter_display_name_snapshot",
+            "evidence_retention_status",
+            "evidence_released_at",
         )
+    )
+    ConversationModerationEvent.objects.create(
+        report=report,
+        actor=actor,
+        event_type=ConversationModerationEventType.EVIDENCE_RELEASED,
+        internal_note=internal_note,
+    )
+
+
+@transaction.atomic
+def release_conversation_report_evidence(
+    *, report: ConversationReport, actor: User, internal_note: str
+) -> ConversationReport:
+    report = ConversationReport.objects.select_for_update().get(id=report.id)
+    if report.evidence_retention_status != ConversationEvidenceRetentionStatus.REQUIRED:
+        raise ValidationError("This Conversation Report does not have a required evidence hold.")
+    _release_conversation_report_evidence(
+        report=report,
+        actor=actor,
+        internal_note=internal_note,
+    )
     return report
 
 
@@ -266,6 +374,8 @@ def inquiry_message_edit_denied_reason(
     if message.author_id != actor_id:
         return ListingInquiryMessageEditDeniedReason.WRONG_AUTHOR
     if message.edit_locked_at is not None:
+        return ListingInquiryMessageEditDeniedReason.LOCKED
+    if message.conversation_report_evidence_holds.exists():
         return ListingInquiryMessageEditDeniedReason.LOCKED
     if message.created_at < (now or timezone.now()) - timedelta(minutes=15):
         return ListingInquiryMessageEditDeniedReason.EXPIRED

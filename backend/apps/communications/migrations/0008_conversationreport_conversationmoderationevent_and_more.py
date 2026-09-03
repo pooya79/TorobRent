@@ -46,7 +46,28 @@ class Migration(migrations.Migration):
                     ),
                 ),
                 ("explanation", models.TextField(blank=True, max_length=2000)),
-                ("evidence", models.JSONField()),
+                ("evidence", models.JSONField(blank=True, null=True)),
+                ("reporter_display_name_snapshot", models.CharField(max_length=120)),
+                (
+                    "target_kind",
+                    models.CharField(
+                        choices=[("inquiry", "Inquiry"), ("message", "Message")],
+                        max_length=16,
+                    ),
+                ),
+                (
+                    "evidence_retention_status",
+                    models.CharField(
+                        choices=[
+                            ("investigation", "Investigation"),
+                            ("required", "Required"),
+                            ("released", "Released"),
+                        ],
+                        default="investigation",
+                        max_length=16,
+                    ),
+                ),
+                ("evidence_released_at", models.DateTimeField(blank=True, null=True)),
                 (
                     "status",
                     models.CharField(
@@ -75,6 +96,8 @@ class Migration(migrations.Migration):
                 (
                     "inquiry",
                     models.ForeignKey(
+                        blank=True,
+                        null=True,
                         on_delete=django.db.models.deletion.PROTECT,
                         related_name="reports",
                         to="communications.listinginquiry",
@@ -83,6 +106,8 @@ class Migration(migrations.Migration):
                 (
                     "reporter",
                     models.ForeignKey(
+                        blank=True,
+                        null=True,
                         on_delete=django.db.models.deletion.PROTECT,
                         related_name="conversation_reports",
                         to=settings.AUTH_USER_MODEL,
@@ -107,6 +132,42 @@ class Migration(migrations.Migration):
             },
         ),
         migrations.CreateModel(
+            name="ConversationReportEvidenceHold",
+            fields=[
+                (
+                    "id",
+                    models.UUIDField(
+                        default=uuid.uuid4, editable=False, primary_key=True, serialize=False
+                    ),
+                ),
+                ("created_at", models.DateTimeField(auto_now_add=True)),
+                (
+                    "message",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.PROTECT,
+                        related_name="conversation_report_evidence_holds",
+                        to="communications.listinginquirymessage",
+                    ),
+                ),
+                (
+                    "report",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="evidence_holds",
+                        to="communications.conversationreport",
+                    ),
+                ),
+            ],
+            options={
+                "constraints": [
+                    models.UniqueConstraint(
+                        fields=("report", "message"),
+                        name="one_evidence_hold_per_report_message",
+                    )
+                ],
+            },
+        ),
+        migrations.CreateModel(
             name="ConversationModerationEvent",
             fields=[
                 (
@@ -124,6 +185,7 @@ class Migration(migrations.Migration):
                             ("upheld", "Upheld"),
                             ("pair_restricted", "Pair restricted"),
                             ("initiation_suspended", "Initiation suspended"),
+                            ("evidence_released", "Evidence released"),
                         ],
                         max_length=24,
                     ),

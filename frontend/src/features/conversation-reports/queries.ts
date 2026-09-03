@@ -50,3 +50,18 @@ export async function decideConversationReport(
   if (error || !data) throw apiError(error);
   return data;
 }
+
+export async function releaseConversationReportEvidence(
+  reportId: string,
+  internalNote: string,
+) {
+  const { data, error } = await api.POST(
+    "/api/v1/operator/conversation-reports/{report_id}/evidence-release/",
+    {
+      params: { path: { report_id: reportId } },
+      body: { internal_note: internalNote },
+    },
+  );
+  if (error || !data) throw apiError(error);
+  return data;
+}

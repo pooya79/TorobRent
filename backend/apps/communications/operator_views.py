@@ -18,12 +18,14 @@ from .models import (
     ConversationReport,
 )
 from .operator_serializers import (
+    ConversationEvidenceReleaseResultSerializer,
+    ConversationEvidenceReleaseSerializer,
     ConversationReportDecisionResultSerializer,
     ConversationReportDecisionSerializer,
     ConversationReportDetailSerializer,
     ConversationReportQueueSerializer,
 )
-from .services import decide_conversation_report
+from .services import decide_conversation_report, release_conversation_report_evidence
 
 
 class ConversationModeratorView(APIView):
@@ -85,7 +87,7 @@ class ConversationReportDecisionView(ConversationModeratorView):
         serializer = ConversationReportDecisionSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         try:
-            report = decide_conversation_report(
+            outcome = decide_conversation_report(
                 report=report,
                 actor=cast(User, request.user),
                 **serializer.validated_data,
@@ -94,13 +96,42 @@ class ConversationReportDecisionView(ConversationModeratorView):
             from rest_framework.exceptions import ValidationError
 
             raise ValidationError(exc.messages) from None
-        suspended_account_id = serializer.validated_data.get("suspend_account_id")
+        report = outcome.report
         return Response({
             "id": str(report.id),
             "status": report.status,
-            "pair_restricted": serializer.validated_data["restrict_pair"],
+            "pair_restricted": outcome.pair_restricted,
             "suspended_account_id": (
-                str(suspended_account_id) if suspended_account_id is not None else None
+                str(outcome.suspended_account_id)
+                if outcome.suspended_account_id is not None
+                else None
             ),
             "decided_at": report.decided_at,
+        })
+
+
+class ConversationEvidenceReleaseView(ConversationModeratorView):
+    @extend_schema(
+        summary="Release retained Conversation Report evidence",
+        request=ConversationEvidenceReleaseSerializer,
+        responses={200: ConversationEvidenceReleaseResultSerializer},
+    )
+    def post(self, request: Request, report_id: str) -> Response:
+        report = get_object_or_404(ConversationReport, id=report_id)
+        serializer = ConversationEvidenceReleaseSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            report = release_conversation_report_evidence(
+                report=report,
+                actor=cast(User, request.user),
+                **serializer.validated_data,
+            )
+        except DjangoValidationError as exc:
+            from rest_framework.exceptions import ValidationError
+
+            raise ValidationError(exc.messages) from None
+        return Response({
+            "id": str(report.id),
+            "evidence_retention_status": report.evidence_retention_status,
+            "evidence_released_at": report.evidence_released_at,
         })

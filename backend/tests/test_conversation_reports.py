@@ -1,17 +1,19 @@
 import pytest
 from django.contrib.auth.models import Group, Permission
 from django.core.exceptions import ValidationError
-from django.utils import timezone
 from rest_framework.test import APIClient
 
 from apps.accounts.models import User
 from apps.communications.models import (
     ConversationModerationEvent,
     ConversationReport,
+    ConversationReportEvidenceHold,
     InquiryInitiationSuspension,
+    ListingInquiry,
     ListingInquiryMessage,
     ModeratedPairRestriction,
 )
+from apps.communications.services import lock_listing_inquiry_message_edits
 from tests.test_listing_inquiries import make_listing, verified_user
 
 
@@ -94,9 +96,52 @@ def test_participant_reports_a_message_and_freezes_report_evidence(api_client: A
     assert edited.data["code"] == "listing_inquiry_message_edit_locked"
     message.refresh_from_db()
     assert message.body == "پیام گزارش‌شده"
-    assert message.edit_locked_at <= timezone.now()
+    assert message.edit_locked_at is None
+    assert message.conversation_report_evidence_holds.filter(report=report).exists()
     surrounding_message.refresh_from_db()
-    assert surrounding_message.edit_locked_at <= timezone.now()
+    assert surrounding_message.edit_locked_at is None
+    assert surrounding_message.conversation_report_evidence_holds.filter(report=report).exists()
+
+
+@pytest.mark.django_db
+def test_message_report_freezes_only_a_bounded_surrounding_window(api_client: APIClient):
+    submitter = verified_user("submitter@example.com", "مالک")
+    renter = verified_user("renter@example.com", "رها")
+    _listing, inquiry_id, opening_message = start_inquiry(
+        api_client, renter=renter, submitter=submitter
+    )
+    inquiry = ListingInquiry.objects.get(id=inquiry_id)
+    messages = [opening_message]
+    for index in range(1, 8):
+        messages.append(
+            ListingInquiryMessage.objects.create(
+                inquiry=inquiry,
+                author=submitter if index % 2 else renter,
+                body=f"پیام {index}",
+            )
+        )
+    target = messages[4]
+    api_client.force_authenticate(renter)
+
+    response = api_client.post(
+        f"/api/v1/messages/listing-inquiries/{inquiry_id}/reports/",
+        {"message_id": str(target.id)},
+        format="json",
+    )
+
+    assert response.status_code == 201
+    report = ConversationReport.objects.get(id=response.data["id"])
+    expected_ids = [str(message.id) for message in messages[2:7]]
+    assert [item["id"] for item in report.evidence["messages"]] == expected_ids
+    assert set(
+        ConversationReportEvidenceHold.objects.filter(report=report).values_list(
+            "message_id", flat=True
+        )
+    ) == {message.id for message in messages[2:7]}
+    assert not ConversationReportEvidenceHold.objects.filter(
+        report=report,
+        message=messages[0],
+    ).exists()
 
 
 @pytest.mark.django_db
@@ -349,4 +394,129 @@ def test_dismissed_report_cannot_apply_restrictions_or_be_decided_twice(
         ConversationModerationEvent.objects.filter(report=report).values_list(
             "event_type", flat=True
         )
-    ) == ["dismissed"]
+    ) == ["dismissed", "evidence_released"]
+
+
+@pytest.mark.django_db
+def test_dismissal_releases_only_report_owned_holds_and_redacts_private_evidence(
+    api_client: APIClient,
+):
+    submitter = verified_user("submitter@example.com", "مالک")
+    renter = verified_user("renter@example.com", "رها")
+    _listing, inquiry_id, message = start_inquiry(api_client, renter=renter, submitter=submitter)
+    lock_listing_inquiry_message_edits(message=message)
+    created = api_client.post(
+        f"/api/v1/messages/listing-inquiries/{inquiry_id}/reports/",
+        {"message_id": str(message.id)},
+        format="json",
+    )
+    report = ConversationReport.objects.get(id=created.data["id"])
+    moderator = verified_user("moderator@example.com", "ناظر")
+    moderator.groups.add(Group.objects.get(name="Conversation Moderator"))
+    api_client.force_authenticate(moderator)
+
+    dismissed = api_client.post(
+        f"/api/v1/operator/conversation-reports/{report.id}/decision/",
+        {"decision": "dismissed"},
+        format="json",
+    )
+
+    assert dismissed.status_code == 200
+    report.refresh_from_db()
+    message.refresh_from_db()
+    assert report.inquiry is None
+    assert report.target_message is None
+    assert report.reporter is None
+    assert report.evidence is None
+    assert report.evidence_retention_status == "released"
+    assert report.evidence_released_at is not None
+    assert report.reporter_display_name_snapshot == ""
+    assert message.edit_locked_at is not None
+    assert not ConversationReportEvidenceHold.objects.filter(report=report).exists()
+    ListingInquiry.objects.get(id=inquiry_id).delete()
+    detail = api_client.get(f"/api/v1/operator/conversation-reports/{report.id}/")
+    assert detail.status_code == 200
+    assert detail.data["evidence"] is None
+    assert detail.data["target"] == "message"
+    assert detail.data["reporter"] == {"display_name": "حذف‌شده"}
+
+
+@pytest.mark.django_db
+def test_required_evidence_hold_can_be_released_with_a_durable_audit(api_client: APIClient):
+    submitter = verified_user("submitter@example.com", "مالک")
+    renter = verified_user("renter@example.com", "رها")
+    _listing, inquiry_id, message = start_inquiry(api_client, renter=renter, submitter=submitter)
+    created = api_client.post(
+        f"/api/v1/messages/listing-inquiries/{inquiry_id}/reports/",
+        {"message_id": str(message.id)},
+        format="json",
+    )
+    report = ConversationReport.objects.get(id=created.data["id"])
+    moderator = verified_user("moderator@example.com", "ناظر")
+    moderator.groups.add(Group.objects.get(name="Conversation Moderator"))
+    api_client.force_authenticate(moderator)
+    decision_url = f"/api/v1/operator/conversation-reports/{report.id}/decision/"
+    release_url = f"/api/v1/operator/conversation-reports/{report.id}/evidence-release/"
+
+    upheld = api_client.post(decision_url, {"decision": "upheld"}, format="json")
+    report.refresh_from_db()
+    frozen_evidence = report.evidence
+
+    assert upheld.status_code == 200
+    assert report.evidence_retention_status == "required"
+    assert frozen_evidence is not None
+    assert ConversationReportEvidenceHold.objects.filter(report=report).exists()
+    released = api_client.post(
+        release_url,
+        {"internal_note": "دوره نگهداری لازم پایان یافت."},
+        format="json",
+    )
+    assert released.status_code == 200
+    report.refresh_from_db()
+    assert report.evidence is None
+    assert report.evidence_retention_status == "released"
+    assert report.evidence_released_at is not None
+    assert not ConversationReportEvidenceHold.objects.filter(report=report).exists()
+    release_event = report.moderation_events.get(event_type="evidence_released")
+    assert release_event.actor == moderator
+    assert release_event.internal_note == "دوره نگهداری لازم پایان یافت."
+    repeated = api_client.post(release_url, {}, format="json")
+    assert repeated.status_code == 400
+
+
+@pytest.mark.django_db
+def test_repeated_restrictions_audit_only_actions_created_by_the_report(api_client: APIClient):
+    submitter = verified_user("submitter@example.com", "مالک")
+    renter = verified_user("renter@example.com", "رها")
+    _listing, inquiry_id, _message = start_inquiry(api_client, renter=renter, submitter=submitter)
+    report_url = f"/api/v1/messages/listing-inquiries/{inquiry_id}/reports/"
+    first = api_client.post(report_url, {}, format="json")
+    second = api_client.post(report_url, {}, format="json")
+    moderator = verified_user("moderator@example.com", "ناظر")
+    moderator.groups.add(Group.objects.get(name="Conversation Moderator"))
+    api_client.force_authenticate(moderator)
+    payload = {
+        "decision": "upheld",
+        "restrict_pair": True,
+        "suspend_account_id": str(renter.id),
+    }
+
+    first_decision = api_client.post(
+        f"/api/v1/operator/conversation-reports/{first.data['id']}/decision/",
+        payload,
+        format="json",
+    )
+    second_decision = api_client.post(
+        f"/api/v1/operator/conversation-reports/{second.data['id']}/decision/",
+        payload,
+        format="json",
+    )
+
+    assert first_decision.data["pair_restricted"] is True
+    assert first_decision.data["suspended_account_id"] == str(renter.id)
+    assert second_decision.data["pair_restricted"] is False
+    assert second_decision.data["suspended_account_id"] is None
+    second_report = ConversationReport.objects.get(id=second.data["id"])
+    assert list(second_report.moderation_events.values_list("event_type", flat=True)) == ["upheld"]
+    assert not hasattr(second_report, "pair_restriction")
+    assert not second_report.initiation_suspensions.exists()

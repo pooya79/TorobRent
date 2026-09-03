@@ -165,12 +165,25 @@ class ConversationReportDecision(models.TextChoices):
     UPHELD = ConversationReportStatus.UPHELD, "Upheld"
 
 
+class ConversationReportTarget(models.TextChoices):
+    INQUIRY = "inquiry", "Inquiry"
+    MESSAGE = "message", "Message"
+
+
+class ConversationEvidenceRetentionStatus(models.TextChoices):
+    INVESTIGATION = "investigation", "Investigation"
+    REQUIRED = "required", "Required"
+    RELEASED = "released", "Released"
+
+
 class ConversationReport(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     inquiry = models.ForeignKey(
         ListingInquiry,
         on_delete=models.PROTECT,
         related_name="reports",
+        null=True,
+        blank=True,
     )
     target_message = models.ForeignKey(
         ListingInquiryMessage,
@@ -183,9 +196,19 @@ class ConversationReport(models.Model):
         settings.AUTH_USER_MODEL,
         on_delete=models.PROTECT,
         related_name="conversation_reports",
+        null=True,
+        blank=True,
     )
+    reporter_display_name_snapshot = models.CharField(max_length=120)
+    target_kind = models.CharField(max_length=16, choices=ConversationReportTarget.choices)
     explanation = models.TextField(max_length=2000, blank=True)
-    evidence = models.JSONField()
+    evidence = models.JSONField(null=True, blank=True)
+    evidence_retention_status = models.CharField(
+        max_length=16,
+        choices=ConversationEvidenceRetentionStatus.choices,
+        default=ConversationEvidenceRetentionStatus.INVESTIGATION,
+    )
+    evidence_released_at = models.DateTimeField(null=True, blank=True)
     status = models.CharField(
         max_length=16,
         choices=ConversationReportStatus.choices,
@@ -212,12 +235,39 @@ class ConversationReport(models.Model):
         return f"{self.inquiry_id}: {self.status}"
 
 
+class ConversationReportEvidenceHold(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    report = models.ForeignKey(
+        ConversationReport,
+        on_delete=models.CASCADE,
+        related_name="evidence_holds",
+    )
+    message = models.ForeignKey(
+        ListingInquiryMessage,
+        on_delete=models.PROTECT,
+        related_name="conversation_report_evidence_holds",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=("report", "message"),
+                name="one_evidence_hold_per_report_message",
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.report_id}: {self.message_id}"
+
+
 class ConversationModerationEventType(models.TextChoices):
     INSPECTED = "inspected", "Inspected"
     DISMISSED = "dismissed", "Dismissed"
     UPHELD = "upheld", "Upheld"
     PAIR_RESTRICTED = "pair_restricted", "Pair restricted"
     INITIATION_SUSPENDED = "initiation_suspended", "Initiation suspended"
+    EVIDENCE_RELEASED = "evidence_released", "Evidence released"
 
 
 class ConversationModerationEventQuerySet(models.QuerySet["ConversationModerationEvent"]):

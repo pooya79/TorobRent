@@ -14,17 +14,25 @@ from .models import (
 )
 
 
+def _counterpart_ids(
+    pairs: QuerySet[AccountBlock] | QuerySet[ModeratedPairRestriction],
+    account_id: uuid.UUID,
+) -> set[uuid.UUID]:
+    return {
+        higher_id if lower_id == account_id else lower_id
+        for lower_id, higher_id in pairs.values_list("lower_account_id", "higher_account_id")
+    }
+
+
 def blocked_counterpart_ids(account_id: uuid.UUID) -> set[uuid.UUID]:
     blocks = AccountBlock.objects.filter(
         models.Q(lower_account_id=account_id) | models.Q(higher_account_id=account_id)
-    ).values_list("lower_account_id", "higher_account_id")
-    blocked = {higher_id if lower_id == account_id else lower_id for lower_id, higher_id in blocks}
+    )
+    blocked = _counterpart_ids(blocks, account_id)
     moderated = ModeratedPairRestriction.objects.filter(
         models.Q(lower_account_id=account_id) | models.Q(higher_account_id=account_id)
-    ).values_list("lower_account_id", "higher_account_id")
-    blocked.update(
-        higher_id if lower_id == account_id else lower_id for lower_id, higher_id in moderated
     )
+    blocked.update(_counterpart_ids(moderated, account_id))
     return blocked
 
 

@@ -601,6 +601,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/v1/operator/conversation-reports/{report_id}/evidence-release/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Release retained Conversation Report evidence */
+    post: operations["v1_operator_conversation_reports_evidence_release_create"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/v1/operator/external-listing-candidates/": {
     parameters: {
       query?: never;
@@ -1729,6 +1746,17 @@ export interface components {
       authorization_declared: boolean;
       phone_publication_consent: boolean;
     };
+    ConversationEvidenceRelease: {
+      /** @default  */
+      internal_note: string;
+    };
+    ConversationEvidenceReleaseResult: {
+      /** Format: uuid */
+      id: string;
+      evidence_retention_status: string;
+      /** Format: date-time */
+      evidence_released_at: string;
+    };
     ConversationModerationEvent: {
       /** Format: uuid */
       readonly id: string;
@@ -1745,6 +1773,7 @@ export interface components {
      *     * `upheld` - Upheld
      *     * `pair_restricted` - Pair restricted
      *     * `initiation_suspended` - Initiation suspended
+     *     * `evidence_released` - Evidence released
      * @enum {string}
      */
     ConversationModerationEventEventTypeEnum:
@@ -1752,7 +1781,8 @@ export interface components {
       | "dismissed"
       | "upheld"
       | "pair_restricted"
-      | "initiation_suspended";
+      | "initiation_suspended"
+      | "evidence_released";
     ConversationReportCreate: {
       /** Format: uuid */
       message_id?: string | null;
@@ -1800,7 +1830,10 @@ export interface components {
       /** Format: date-time */
       readonly created_at: string;
       explanation?: string;
-      evidence: unknown;
+      evidence: components["schemas"]["FrozenConversationEvidence"] | null;
+      evidence_retention_status?: components["schemas"]["EvidenceRetentionStatusEnum"];
+      /** Format: date-time */
+      evidence_released_at?: string | null;
       readonly reporter: {
         [key: string]: string;
       };
@@ -1862,6 +1895,13 @@ export interface components {
       email: string;
       return_to?: string;
     };
+    /**
+     * @description * `investigation` - Investigation
+     *     * `required` - Required
+     *     * `released` - Released
+     * @enum {string}
+     */
+    EvidenceRetentionStatusEnum: "investigation" | "required" | "released";
     ExactLocation: {
       /** Format: decimal */
       latitude: string;
@@ -1998,6 +2038,32 @@ export interface components {
     };
     Formatting: {
       description?: string;
+    };
+    FrozenConversationEvidence: {
+      /** Format: uuid */
+      inquiry_id: string;
+      /** Format: uuid */
+      target_message_id: string | null;
+      participants: components["schemas"]["FrozenConversationParticipants"];
+      messages: components["schemas"]["FrozenConversationMessage"][];
+    };
+    FrozenConversationMessage: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      author_id: string;
+      author_display_name: string;
+      body: string;
+      /** Format: date-time */
+      created_at: string;
+      /** Format: date-time */
+      edited_at: string | null;
+    };
+    FrozenConversationParticipants: {
+      /** Format: uuid */
+      renter_id: string;
+      /** Format: uuid */
+      submitter_id: string;
     };
     Health: {
       status: components["schemas"]["HealthStatusEnum"];
@@ -4798,6 +4864,31 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["ConversationReportDecisionResult"];
+        };
+      };
+    };
+  };
+  v1_operator_conversation_reports_evidence_release_create: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        report_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: {
+      content: {
+        "application/json": components["schemas"]["ConversationEvidenceRelease"];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ConversationEvidenceReleaseResult"];
         };
       };
     };

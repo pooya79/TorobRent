@@ -1348,6 +1348,33 @@ paths:
               schema:
                 $ref: '#/components/schemas/ConversationReportDecisionResult'
           description: ''
+  /api/v1/operator/conversation-reports/{report_id}/evidence-release/:
+    post:
+      operationId: v1_operator_conversation_reports_evidence_release_create
+      summary: Release retained Conversation Report evidence
+      parameters:
+      - in: path
+        name: report_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConversationEvidenceRelease'
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConversationEvidenceReleaseResult'
+          description: ''
   /api/v1/operator/external-listing-candidates/:
     get:
       operationId: v1_operator_external_listing_candidates_list
@@ -3486,6 +3513,28 @@ components:
       - phone_publication_consent
       - phone_source
       - phone_verified
+    ConversationEvidenceRelease:
+      type: object
+      properties:
+        internal_note:
+          type: string
+          default: ''
+          maxLength: 2000
+    ConversationEvidenceReleaseResult:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        evidence_retention_status:
+          type: string
+        evidence_released_at:
+          type: string
+          format: date-time
+      required:
+      - evidence_released_at
+      - evidence_retention_status
+      - id
     ConversationModerationEvent:
       type: object
       properties:
@@ -3518,6 +3567,7 @@ components:
       - upheld
       - pair_restricted
       - initiation_suspended
+      - evidence_released
       type: string
       description: |-
         * `inspected` - Inspected
@@ -3525,6 +3575,7 @@ components:
         * `upheld` - Upheld
         * `pair_restricted` - Pair restricted
         * `initiation_suspended` - Initiation suspended
+        * `evidence_released` - Evidence released
     ConversationReportCreate:
       type: object
       properties:
@@ -3625,7 +3676,17 @@ components:
         explanation:
           type: string
           maxLength: 2000
-        evidence: {}
+        evidence:
+          oneOf:
+          - $ref: '#/components/schemas/FrozenConversationEvidence'
+          - type: 'null'
+        evidence_retention_status:
+          $ref: '#/components/schemas/EvidenceRetentionStatusEnum'
+        evidence_released_at:
+          type:
+          - string
+          - 'null'
+          format: date-time
         reporter:
           type: object
           additionalProperties:
@@ -3785,6 +3846,16 @@ components:
           maxLength: 1000
       required:
       - email
+    EvidenceRetentionStatusEnum:
+      enum:
+      - investigation
+      - required
+      - released
+      type: string
+      description: |-
+        * `investigation` - Investigation
+        * `required` - Required
+        * `released` - Released
     ExactLocation:
       type: object
       properties:
@@ -4128,6 +4199,68 @@ components:
         description:
           type: string
           maxLength: 5000
+    FrozenConversationEvidence:
+      type: object
+      properties:
+        inquiry_id:
+          type: string
+          format: uuid
+        target_message_id:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        participants:
+          $ref: '#/components/schemas/FrozenConversationParticipants'
+        messages:
+          type: array
+          items:
+            $ref: '#/components/schemas/FrozenConversationMessage'
+      required:
+      - inquiry_id
+      - messages
+      - participants
+      - target_message_id
+    FrozenConversationMessage:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        author_id:
+          type: string
+          format: uuid
+        author_display_name:
+          type: string
+        body:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        edited_at:
+          type:
+          - string
+          - 'null'
+          format: date-time
+      required:
+      - author_display_name
+      - author_id
+      - body
+      - created_at
+      - edited_at
+      - id
+    FrozenConversationParticipants:
+      type: object
+      properties:
+        renter_id:
+          type: string
+          format: uuid
+        submitter_id:
+          type: string
+          format: uuid
+      required:
+      - renter_id
+      - submitter_id
     Health:
       type: object
       properties:

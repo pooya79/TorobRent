@@ -11,32 +11,10 @@ import {
   conversationReportQueryOptions,
   conversationReportQueueQueryOptions,
   decideConversationReport,
+  releaseConversationReportEvidence,
   type ConversationReportDecision,
 } from "@/features/conversation-reports/queries";
 import { errorMessage } from "@/lib/api/errors";
-
-type FrozenMessage = {
-  id: string;
-  author_id: string;
-  author_display_name: string;
-  body: string;
-  created_at: string;
-  edited_at: string | null;
-};
-
-type FrozenEvidence = {
-  participants: { renter_id: string; submitter_id: string };
-  messages: FrozenMessage[];
-  target_message_id: string | null;
-};
-
-function evidenceFrom(value: unknown): FrozenEvidence | undefined {
-  if (!value || typeof value !== "object") return undefined;
-  const evidence = value as Partial<FrozenEvidence>;
-  if (!evidence.participants || !Array.isArray(evidence.messages))
-    return undefined;
-  return evidence as FrozenEvidence;
-}
 
 const statusLabels = {
   pending: "در انتظار بررسی",
@@ -55,10 +33,18 @@ export function OperatorConversationReportsPage() {
   const queueItems = queue.data?.results ?? [];
   const activeId = selectedId ?? queueItems[0]?.id ?? "";
   const detail = useQuery(conversationReportQueryOptions(activeId));
-  const evidence = evidenceFrom(detail.data?.evidence);
+  const evidence = detail.data?.evidence;
   const decide = useMutation({
     mutationFn: (input: ConversationReportDecision) =>
       decideConversationReport(activeId, input),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: ["operator-conversation-reports"],
+      });
+    },
+  });
+  const releaseEvidence = useMutation({
+    mutationFn: () => releaseConversationReportEvidence(activeId, internalNote),
     onSuccess: async () => {
       await queryClient.invalidateQueries({
         queryKey: ["operator-conversation-reports"],
@@ -132,7 +118,7 @@ export function OperatorConversationReportsPage() {
             <AlertDescription>شواهد این گزارش در دسترس نیست.</AlertDescription>
           </Alert>
         ) : null}
-        {detail.data && evidence ? (
+        {detail.data ? (
           <div className="grid gap-6">
             <Card>
               <CardHeader>
@@ -147,38 +133,44 @@ export function OperatorConversationReportsPage() {
               </CardContent>
             </Card>
 
-            <section aria-labelledby="frozen-evidence-heading">
-              <h2
-                id="frozen-evidence-heading"
-                className="mb-3 text-xl font-semibold"
-              >
-                شواهد ثابت گزارش
-              </h2>
-              <ol className="grid gap-3">
-                {evidence.messages.map((message) => (
-                  <li key={message.id}>
-                    <Card
-                      className={
-                        evidence.target_message_id === message.id
-                          ? "border-primary"
-                          : undefined
-                      }
-                    >
-                      <CardContent className="space-y-2 pt-6">
-                        <strong>{message.author_display_name}</strong>
-                        <p className="whitespace-pre-wrap">{message.body}</p>
-                        <time
-                          dateTime={message.created_at}
-                          className="text-muted-foreground text-sm"
-                        >
-                          {new Date(message.created_at).toLocaleString("fa-IR")}
-                        </time>
-                      </CardContent>
-                    </Card>
-                  </li>
-                ))}
-              </ol>
-            </section>
+            {evidence ? (
+              <section aria-labelledby="frozen-evidence-heading">
+                <h2
+                  id="frozen-evidence-heading"
+                  className="mb-3 text-xl font-semibold"
+                >
+                  شواهد ثابت گزارش
+                </h2>
+                <ol className="grid gap-3">
+                  {evidence.messages.map((message) => (
+                    <li key={message.id}>
+                      <Card
+                        className={
+                          evidence.target_message_id === message.id
+                            ? "border-primary"
+                            : undefined
+                        }
+                      >
+                        <CardContent className="space-y-2 pt-6">
+                          <strong>{message.author_display_name}</strong>
+                          <p className="whitespace-pre-wrap">{message.body}</p>
+                          <time
+                            dateTime={message.created_at}
+                            className="text-muted-foreground text-sm"
+                          >
+                            {new Date(message.created_at).toLocaleString(
+                              "fa-IR",
+                            )}
+                          </time>
+                        </CardContent>
+                      </Card>
+                    </li>
+                  ))}
+                </ol>
+              </section>
+            ) : (
+              <p role="status">شواهد خصوصی این گزارش آزاد و حذف شده‌اند.</p>
+            )}
 
             <section aria-labelledby="audit-heading">
               <h2 id="audit-heading" className="mb-3 text-xl font-semibold">
@@ -196,7 +188,7 @@ export function OperatorConversationReportsPage() {
               </ol>
             </section>
 
-            {detail.data.status === "pending" ? (
+            {detail.data.status === "pending" && evidence ? (
               <Card>
                 <CardHeader>
                   <CardTitle>تصمیم نظارتی</CardTitle>
@@ -276,6 +268,33 @@ export function OperatorConversationReportsPage() {
                       ثبت تصمیم
                     </Button>
                   </form>
+                </CardContent>
+              </Card>
+            ) : null}
+            {detail.data.status === "upheld" &&
+            detail.data.evidence_retention_status === "required" ? (
+              <Card>
+                <CardHeader>
+                  <CardTitle>نگهداری شواهد</CardTitle>
+                </CardHeader>
+                <CardContent className="grid gap-3">
+                  <p>شواهد این پرونده تحت نگهداری لازم قرار دارند.</p>
+                  {releaseEvidence.error ? (
+                    <p role="alert" className="text-destructive">
+                      {errorMessage(
+                        releaseEvidence.error,
+                        "آزادسازی شواهد انجام نشد.",
+                      )}
+                    </p>
+                  ) : null}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={releaseEvidence.isPending}
+                    onClick={() => releaseEvidence.mutate()}
+                  >
+                    آزادسازی و حذف شواهد خصوصی
+                  </Button>
                 </CardContent>
               </Card>
             ) : null}
