@@ -39,6 +39,7 @@ import {
   messagesQueryOptions,
   replyToSupportRequest,
   replyToListingInquiry,
+  reportListingInquiry,
   type MessageFilter,
   type MessageSummary,
 } from "@/features/messages/queries";
@@ -153,6 +154,8 @@ export function MessageCenterPage() {
   const [editingId, setEditingId] = useState<string>();
   const [pendingExternalHref, setPendingExternalHref] = useState<string>();
   const [blockConfirmationOpen, setBlockConfirmationOpen] = useState(false);
+  const [reportTarget, setReportTarget] = useState<string | null>();
+  const [reportExplanation, setReportExplanation] = useState("");
   const markUnread = useMutation({
     mutationFn: () => {
       if (!messageId) throw new Error("Message id is required");
@@ -211,6 +214,23 @@ export function MessageCenterPage() {
       void queryClient.invalidateQueries({ queryKey: ["catalog", "property"] });
       void queryClient.invalidateQueries({
         queryKey: ["catalog", "properties"],
+      });
+    },
+  });
+  const reportConversation = useMutation({
+    mutationFn: () => {
+      if (!messageId) throw new Error("Message id is required");
+      return reportListingInquiry(
+        messageId,
+        reportTarget ?? null,
+        reportExplanation.trim(),
+      );
+    },
+    onSuccess: () => {
+      setReportTarget(undefined);
+      setReportExplanation("");
+      void queryClient.invalidateQueries({
+        queryKey: ["messages", "detail", messageId],
       });
     },
   });
@@ -596,17 +616,25 @@ export function MessageCenterPage() {
                       <p className="text-muted-foreground mt-1 text-xs">
                         نام نمایشی؛ هویت تأییدشده نیست
                       </p>
-                      {detail.data.reply_unavailable_reason !==
-                      "account_blocked" ? (
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {detail.data.reply_unavailable_reason !==
+                        "account_blocked" ? (
+                          <Button
+                            onClick={() => setBlockConfirmationOpen(true)}
+                            type="button"
+                            variant="outline"
+                          >
+                            مسدود کردن حساب
+                          </Button>
+                        ) : null}
                         <Button
-                          className="mt-3"
-                          onClick={() => setBlockConfirmationOpen(true)}
+                          onClick={() => setReportTarget(null)}
                           type="button"
                           variant="outline"
                         >
-                          مسدود کردن حساب
+                          گزارش گفت‌وگو
                         </Button>
-                      ) : null}
+                      </div>
                       {detail.data.listing_context ? (
                         <section
                           aria-label="اطلاعات آگهی"
@@ -727,6 +755,15 @@ export function MessageCenterPage() {
                                 ویرایش
                               </Button>
                             ) : null}
+                            <Button
+                              className="mt-2"
+                              onClick={() => setReportTarget(entry.id)}
+                              size="sm"
+                              type="button"
+                              variant="ghost"
+                            >
+                              گزارش پیام
+                            </Button>
                           </li>
                         ))}
                       </ol>
@@ -858,6 +895,53 @@ export function MessageCenterPage() {
               متوجه شدم؛ ادامه به پیوند
             </AlertDialogAction>
           </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <AlertDialog
+        open={reportTarget !== undefined}
+        onOpenChange={(open) => !open && setReportTarget(undefined)}
+      >
+        <AlertDialogContent dir="rtl">
+          <form
+            className="grid gap-5"
+            onSubmit={(event) => {
+              event.preventDefault();
+              reportConversation.mutate();
+            }}
+          >
+            <AlertDialogHeader className="text-right sm:text-right">
+              <AlertDialogTitle>
+                {reportTarget ? "گزارش این پیام" : "گزارش کل گفت‌وگو"}
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                محتوای مرتبط برای بررسی ثابت می‌شود. جزئیات هویت اپراتور و
+                یادداشت‌های داخلی نمایش داده نخواهد شد.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <div className="grid gap-2">
+              <Label htmlFor="conversation-report-explanation">
+                توضیح اختیاری
+              </Label>
+              <textarea
+                id="conversation-report-explanation"
+                className="border-input min-h-28 rounded-md border p-3"
+                maxLength={2000}
+                value={reportExplanation}
+                onChange={(event) => setReportExplanation(event.target.value)}
+              />
+            </div>
+            {reportConversation.isError ? (
+              <p className="text-destructive" role="alert">
+                ثبت گزارش انجام نشد.
+              </p>
+            ) : null}
+            <AlertDialogFooter>
+              <AlertDialogCancel type="button">انصراف</AlertDialogCancel>
+              <Button disabled={reportConversation.isPending} type="submit">
+                ثبت گزارش
+              </Button>
+            </AlertDialogFooter>
+          </form>
         </AlertDialogContent>
       </AlertDialog>
     </main>

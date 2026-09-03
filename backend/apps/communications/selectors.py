@@ -5,14 +5,27 @@ from django.db.models import QuerySet
 
 from apps.accounts.models import User
 
-from .models import AccountBlock, ListingInquiry, MessageKind, SystemNotification
+from .models import (
+    AccountBlock,
+    ListingInquiry,
+    MessageKind,
+    ModeratedPairRestriction,
+    SystemNotification,
+)
 
 
 def blocked_counterpart_ids(account_id: uuid.UUID) -> set[uuid.UUID]:
     blocks = AccountBlock.objects.filter(
         models.Q(lower_account_id=account_id) | models.Q(higher_account_id=account_id)
     ).values_list("lower_account_id", "higher_account_id")
-    return {higher_id if lower_id == account_id else lower_id for lower_id, higher_id in blocks}
+    blocked = {higher_id if lower_id == account_id else lower_id for lower_id, higher_id in blocks}
+    moderated = ModeratedPairRestriction.objects.filter(
+        models.Q(lower_account_id=account_id) | models.Q(higher_account_id=account_id)
+    ).values_list("lower_account_id", "higher_account_id")
+    blocked.update(
+        higher_id if lower_id == account_id else lower_id for lower_id, higher_id in moderated
+    )
+    return blocked
 
 
 def listing_inquiries_for(participant: User, *, unread: bool = False) -> QuerySet[ListingInquiry]:

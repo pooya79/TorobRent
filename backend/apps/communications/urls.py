@@ -5,6 +5,7 @@ from .views import (
     ListingInquiryCreateView,
     ListingInquiryMessageEditView,
     ListingInquiryReplyView,
+    ListingInquiryReportView,
     MessageDetailView,
     MessageListView,
     RequesterSupportMessageEditView,
@@ -30,6 +31,11 @@ urlpatterns = [
         "listing-inquiries/<uuid:inquiry_id>/replies/",
         ListingInquiryReplyView.as_view(),
         name="listing-inquiry-reply",
+    ),
+    path(
+        "listing-inquiries/<uuid:inquiry_id>/reports/",
+        ListingInquiryReportView.as_view(),
+        name="listing-inquiry-report",
     ),
     path(
         "listing-inquiries/<uuid:inquiry_id>/messages/<uuid:message_id>/",

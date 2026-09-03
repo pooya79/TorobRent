@@ -9,6 +9,7 @@ if TYPE_CHECKING:
 
 
 class OperatorCapability(models.TextChoices):
+    MODERATE_CONVERSATIONS = "moderate_conversations", "Conversation moderation"
     HANDLE_PRIVACY_REQUESTS = "handle_privacy_requests", "Privacy Support handling"
     HANDLE_SUPPORT = "handle_support", "General Support handling"
     MANAGE_OPERATOR_QUEUES = "manage_operator_queues", "Operator queue management"
@@ -17,6 +18,7 @@ class OperatorCapability(models.TextChoices):
 
 
 CAPABILITY_PERMISSIONS = {
+    OperatorCapability.MODERATE_CONVERSATIONS: "communications.moderate_conversation_reports",
     OperatorCapability.HANDLE_PRIVACY_REQUESTS: "accounts.handle_privacy_support_requests",
     OperatorCapability.HANDLE_SUPPORT: "accounts.handle_general_support_requests",
     OperatorCapability.MANAGE_OPERATOR_QUEUES: "accounts.manage_operator_queue",
@@ -25,6 +27,7 @@ CAPABILITY_PERMISSIONS = {
 }
 
 MANAGED_OPERATOR_GROUPS = frozenset({
+    "Conversation Moderator",
     "Submission Reviewer",
     "Submission Review Lead",
     "Source Proposal Reviewer",

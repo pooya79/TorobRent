@@ -99,7 +99,8 @@ export function OperatorOverviewPage() {
         {availableModules.map(({ description, icon: Icon, label, to }) => {
           const query =
             to === "/operator/submissions" ? submissionSummary : supportSummary;
-          const hasSummary = to !== "/operator/source-proposals";
+          const hasSummary =
+            to === "/operator/submissions" || to === "/operator/support";
           return (
             <Card key={to} className="shadow-none">
               <CardHeader>
@@ -118,7 +119,7 @@ export function OperatorOverviewPage() {
                   />
                 ) : (
                   <p className="text-muted-foreground mb-5 text-sm">
-                    Source Proposalهای در انتظار را از صف اختصاصی بررسی کنید.
+                    موارد در انتظار را از صف اختصاصی این بخش بررسی کنید.
                   </p>
                 )}
                 <Link

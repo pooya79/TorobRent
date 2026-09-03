@@ -877,3 +877,89 @@ test("renders safe links as plain text content and visibly edits an ordinary inq
   await user.click(screen.getByRole("button", { name: "ذخیره ویرایش" }));
   await waitFor(() => expect(editedBody).toBe("متن اصلاح‌شده"));
 });
+
+test("reports either one inquiry message or the whole conversation with an optional explanation", async () => {
+  const inquiry = {
+    ...message,
+    id: "10000000-0000-4000-8000-000000000102",
+    kind: "listing_inquiry",
+    title: "پرسش درباره خانه",
+    preview: "پیام قابل گزارش",
+    group: {
+      kind: "listing_inquiry",
+      id: "20000000-0000-4000-8000-000000000102",
+      label: "خانه",
+    },
+  };
+  const reported: unknown[] = [];
+  server.use(
+    http.get("*/api/v1/messages/", () =>
+      HttpResponse.json({
+        count: 1,
+        next: null,
+        previous: null,
+        results: [inquiry],
+      }),
+    ),
+    http.get("*/api/v1/messages/:messageId/", () =>
+      HttpResponse.json({
+        ...inquiry,
+        body: inquiry.preview,
+        read: true,
+        target: null,
+        public_status: null,
+        reply_allowed: true,
+        reply_unavailable_reason: null,
+        counterpart: {
+          display_name: "مالک",
+          role: "submitter",
+          identity_verified: false,
+        },
+        entries: [
+          {
+            id: "30000000-0000-4000-8000-000000000102",
+            kind: "renter_message",
+            body: inquiry.preview,
+            author_name: "رها",
+            mine: true,
+            created_at: inquiry.created_at,
+            edited_at: null,
+            editable: true,
+          },
+        ],
+      }),
+    ),
+    http.post(
+      "*/api/v1/messages/listing-inquiries/:inquiryId/reports/",
+      async ({ request }) => {
+        reported.push(await request.json());
+        return HttpResponse.json(
+          {
+            id: "40000000-0000-4000-8000-000000000102",
+            status: "pending",
+            target: reported.length === 1 ? "message" : "inquiry",
+            created_at: "2026-09-03T12:05:00Z",
+          },
+          { status: 201 },
+        );
+      },
+    ),
+  );
+  const user = userEvent.setup();
+  renderPage(`/messages/${inquiry.id}`);
+
+  await screen.findByText("گفت‌وگو با مالک");
+  await user.click(screen.getByRole("button", { name: "گزارش پیام" }));
+  await user.type(screen.getByLabelText("توضیح اختیاری"), "توضیح گزارش");
+  await user.click(screen.getByRole("button", { name: "ثبت گزارش" }));
+  await waitFor(() => expect(reported).toHaveLength(1));
+  expect(reported[0]).toEqual({
+    message_id: "30000000-0000-4000-8000-000000000102",
+    explanation: "توضیح گزارش",
+  });
+
+  await user.click(screen.getByRole("button", { name: "گزارش گفت‌وگو" }));
+  await user.click(screen.getByRole("button", { name: "ثبت گزارش" }));
+  await waitFor(() => expect(reported).toHaveLength(2));
+  expect(reported[1]).toEqual({ message_id: null, explanation: "" });
+});

@@ -137,6 +137,22 @@ export async function blockListingInquiryCounterpart(inquiryId: string) {
   return data;
 }
 
+export async function reportListingInquiry(
+  inquiryId: string,
+  messageId: string | null,
+  explanation: string,
+) {
+  const { data, error } = await api.POST(
+    "/api/v1/messages/listing-inquiries/{inquiry_id}/reports/",
+    {
+      params: { path: { inquiry_id: inquiryId } },
+      body: { message_id: messageId, explanation },
+    },
+  );
+  if (error || !data) throw apiError(error);
+  return data;
+}
+
 export async function editListingInquiryMessage(
   inquiryId: string,
   messageId: string,

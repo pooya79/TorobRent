@@ -21,6 +21,10 @@ urlpatterns = [
         include("apps.source_proposals.external_candidate_urls"),
     ),
     path("api/v1/operator/support-requests/", include("apps.contact.operator_urls")),
+    path(
+        "api/v1/operator/conversation-reports/",
+        include("apps.communications.operator_urls"),
+    ),
     path("api/v1/users/", include("apps.accounts.urls")),
     path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
 ]

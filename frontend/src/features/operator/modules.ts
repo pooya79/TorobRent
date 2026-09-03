@@ -2,6 +2,7 @@ import {
   ClipboardCheck,
   Globe2,
   Headphones,
+  MessageSquareWarning,
   type LucideIcon,
 } from "lucide-react";
 
@@ -19,6 +20,13 @@ export type OperatorModule = {
 };
 
 export const operatorModules = [
+  {
+    capabilities: ["moderate_conversations"],
+    description: "بررسی شواهد فقط از مسیر گزارش و ثبت اقدام‌های نظارتی",
+    icon: MessageSquareWarning,
+    label: "گزارش‌های گفت‌وگو",
+    to: "/operator/conversation-reports",
+  },
   {
     capabilities: ["review_source_proposals"],
     description: "اعتبارسنجی Source و رابطه نماینده آن",

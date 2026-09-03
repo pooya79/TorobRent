@@ -28,6 +28,7 @@ export default [
     route("submissions", "routes/operator-submissions.tsx"),
     route("source-proposals", "routes/operator-source-proposals.tsx"),
     route("support", "routes/operator-support.tsx"),
+    route("conversation-reports", "routes/operator-conversation-reports.tsx"),
     route("links", "routes/operator-links.tsx"),
     route("review", "routes/operator-review-redirect.tsx"),
   ]),

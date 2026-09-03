@@ -191,6 +191,12 @@ SPECTACULAR_SETTINGS = {
     "OAS_VERSION": "3.1.0",
     "SERVE_INCLUDE_SCHEMA": False,
     "ENUM_NAME_OVERRIDES": {
+        "ConversationReportDecisionEnum": (
+            "apps.communications.models.ConversationReportDecision.choices"
+        ),
+        "ConversationReportStatusEnum": (
+            "apps.communications.models.ConversationReportStatus.choices"
+        ),
         "ExternalContactChannelEnum": "apps.contact.models.ExternalContactChannel.choices",
         "FeatureStateEnum": "apps.catalog.models.FeatureState.choices",
         "IdentityVerificationMethodEnum": (

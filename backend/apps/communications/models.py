@@ -154,6 +154,130 @@ class ListingInquiryMessage(models.Model):
         return f"{self.inquiry_id}: {self.author_id}"
 
 
+class ConversationReportStatus(models.TextChoices):
+    PENDING = "pending", "Pending"
+    DISMISSED = "dismissed", "Dismissed"
+    UPHELD = "upheld", "Upheld"
+
+
+class ConversationReportDecision(models.TextChoices):
+    DISMISSED = ConversationReportStatus.DISMISSED, "Dismissed"
+    UPHELD = ConversationReportStatus.UPHELD, "Upheld"
+
+
+class ConversationReport(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    inquiry = models.ForeignKey(
+        ListingInquiry,
+        on_delete=models.PROTECT,
+        related_name="reports",
+    )
+    target_message = models.ForeignKey(
+        ListingInquiryMessage,
+        on_delete=models.PROTECT,
+        related_name="reports",
+        null=True,
+        blank=True,
+    )
+    reporter = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="conversation_reports",
+    )
+    explanation = models.TextField(max_length=2000, blank=True)
+    evidence = models.JSONField()
+    status = models.CharField(
+        max_length=16,
+        choices=ConversationReportStatus.choices,
+        default=ConversationReportStatus.PENDING,
+    )
+    decided_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="decided_conversation_reports",
+        null=True,
+        blank=True,
+    )
+    decided_at = models.DateTimeField(null=True, blank=True)
+    internal_note = models.TextField(max_length=2000, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ("-created_at", "-id")
+        permissions = [
+            ("moderate_conversation_reports", "Can moderate Conversation Reports"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.inquiry_id}: {self.status}"
+
+
+class ConversationModerationEventType(models.TextChoices):
+    INSPECTED = "inspected", "Inspected"
+    DISMISSED = "dismissed", "Dismissed"
+    UPHELD = "upheld", "Upheld"
+    PAIR_RESTRICTED = "pair_restricted", "Pair restricted"
+    INITIATION_SUSPENDED = "initiation_suspended", "Initiation suspended"
+
+
+class ConversationModerationEventQuerySet(models.QuerySet["ConversationModerationEvent"]):
+    def update(self, **kwargs: Any) -> int:
+        raise ValidationError("Conversation moderation history is append-only.")
+
+    def delete(self) -> tuple[int, dict[str, int]]:
+        raise ValidationError("Conversation moderation history is append-only.")
+
+    def bulk_update(
+        self,
+        objs: Iterable[ConversationModerationEvent],
+        fields: Iterable[str],
+        batch_size: int | None = None,
+    ) -> int:
+        raise ValidationError("Conversation moderation history is append-only.")
+
+
+class ConversationModerationEventManager(models.Manager["ConversationModerationEvent"]):
+    def get_queryset(self) -> ConversationModerationEventQuerySet:
+        return ConversationModerationEventQuerySet(self.model, using=self._db)
+
+
+class ConversationModerationEvent(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    report = models.ForeignKey(
+        ConversationReport,
+        on_delete=models.PROTECT,
+        related_name="moderation_events",
+    )
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="conversation_moderation_events",
+    )
+    event_type = models.CharField(
+        max_length=24,
+        choices=ConversationModerationEventType.choices,
+    )
+    internal_note = models.TextField(max_length=2000, blank=True)
+    metadata = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    objects: ClassVar[ConversationModerationEventManager] = ConversationModerationEventManager()
+
+    class Meta:
+        ordering = ("created_at", "id")
+
+    def __str__(self) -> str:
+        return f"{self.report_id}: {self.event_type}"
+
+    def save(self, *args: Any, **kwargs: Any) -> None:
+        if not self._state.adding:
+            raise ValidationError("Conversation moderation history is append-only.")
+        super().save(*args, **kwargs)
+
+    def delete(self, *args: Any, **kwargs: Any) -> tuple[int, dict[str, int]]:
+        raise ValidationError("Conversation moderation history is append-only.")
+
+
 class AccountBlock(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     lower_account = models.ForeignKey(
@@ -194,6 +318,69 @@ class AccountBlock(models.Model):
 
     def __str__(self) -> str:
         return f"{self.lower_account_id} — {self.higher_account_id}"
+
+
+class ModeratedPairRestriction(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    lower_account = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="moderated_restrictions_as_lower",
+    )
+    higher_account = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="moderated_restrictions_as_higher",
+    )
+    report = models.OneToOneField(
+        ConversationReport,
+        on_delete=models.PROTECT,
+        related_name="pair_restriction",
+    )
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="created_moderated_pair_restrictions",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=("lower_account", "higher_account"),
+                name="one_moderated_restriction_per_pair",
+            ),
+            models.CheckConstraint(
+                condition=~models.Q(lower_account=models.F("higher_account")),
+                name="moderated_restriction_accounts_differ",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.lower_account_id} — {self.higher_account_id}"
+
+
+class InquiryInitiationSuspension(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    account = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="inquiry_initiation_suspension",
+    )
+    report = models.ForeignKey(
+        ConversationReport,
+        on_delete=models.PROTECT,
+        related_name="initiation_suspensions",
+    )
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="created_inquiry_initiation_suspensions",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self) -> str:
+        return f"Suspended {self.account_id}"
 
 
 class ImmutableSystemNotificationQuerySet(models.QuerySet["SystemNotification"]):

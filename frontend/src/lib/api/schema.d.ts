@@ -465,6 +465,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/v1/messages/listing-inquiries/{inquiry_id}/reports/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Report a Listing Inquiry or one of its messages */
+    post: operations["v1_messages_listing_inquiries_reports_create"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/v1/messages/support-requests/": {
     parameters: {
       query?: never;
@@ -527,6 +544,57 @@ export interface paths {
     get: operations["v1_messages_unread_count_retrieve"];
     put?: never;
     post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/operator/conversation-reports/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List Conversation Reports */
+    get: operations["v1_operator_conversation_reports_list"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/operator/conversation-reports/{report_id}/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Inspect evidence for one Conversation Report */
+    get: operations["v1_operator_conversation_reports_retrieve"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/operator/conversation-reports/{report_id}/decision/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Decide a Conversation Report and apply proportionate restrictions */
+    post: operations["v1_operator_conversation_reports_decision_create"];
     delete?: never;
     options?: never;
     head?: never;
@@ -1661,6 +1729,100 @@ export interface components {
       authorization_declared: boolean;
       phone_publication_consent: boolean;
     };
+    ConversationModerationEvent: {
+      /** Format: uuid */
+      readonly id: string;
+      event_type: components["schemas"]["ConversationModerationEventEventTypeEnum"];
+      readonly actor_label: string;
+      internal_note?: string;
+      metadata?: unknown;
+      /** Format: date-time */
+      readonly created_at: string;
+    };
+    /**
+     * @description * `inspected` - Inspected
+     *     * `dismissed` - Dismissed
+     *     * `upheld` - Upheld
+     *     * `pair_restricted` - Pair restricted
+     *     * `initiation_suspended` - Initiation suspended
+     * @enum {string}
+     */
+    ConversationModerationEventEventTypeEnum:
+      | "inspected"
+      | "dismissed"
+      | "upheld"
+      | "pair_restricted"
+      | "initiation_suspended";
+    ConversationReportCreate: {
+      /** Format: uuid */
+      message_id?: string | null;
+      /** @default  */
+      explanation: string;
+    };
+    ConversationReportCreated: {
+      /** Format: uuid */
+      id: string;
+      status: string;
+      target: components["schemas"]["TargetEnum"];
+      /** Format: date-time */
+      created_at: string;
+    };
+    ConversationReportDecision: {
+      decision: components["schemas"]["ConversationReportDecisionEnum"];
+      /** @default  */
+      internal_note: string;
+      /** @default false */
+      restrict_pair: boolean;
+      /** Format: uuid */
+      suspend_account_id?: string | null;
+    };
+    /**
+     * @description * `dismissed` - Dismissed
+     *     * `upheld` - Upheld
+     * @enum {string}
+     */
+    ConversationReportDecisionEnum: "dismissed" | "upheld";
+    ConversationReportDecisionResult: {
+      /** Format: uuid */
+      id: string;
+      status: components["schemas"]["ConversationReportDecisionEnum"];
+      pair_restricted: boolean;
+      /** Format: uuid */
+      suspended_account_id: string | null;
+      /** Format: date-time */
+      decided_at: string;
+    };
+    ConversationReportDetail: {
+      /** Format: uuid */
+      readonly id: string;
+      status?: components["schemas"]["ConversationReportStatusEnum"];
+      readonly target: string;
+      /** Format: date-time */
+      readonly created_at: string;
+      explanation?: string;
+      evidence: unknown;
+      readonly reporter: {
+        [key: string]: string;
+      };
+      readonly pair_restricted: boolean;
+      readonly suspended_account_ids: string[];
+      readonly audit_history: components["schemas"]["ConversationModerationEvent"][];
+    };
+    ConversationReportQueue: {
+      /** Format: uuid */
+      readonly id: string;
+      status?: components["schemas"]["ConversationReportStatusEnum"];
+      readonly target: string;
+      /** Format: date-time */
+      readonly created_at: string;
+    };
+    /**
+     * @description * `pending` - Pending
+     *     * `dismissed` - Dismissed
+     *     * `upheld` - Upheld
+     * @enum {string}
+     */
+    ConversationReportStatusEnum: "pending" | "dismissed" | "upheld";
     /**
      * @description * `IRR` - IRR
      * @enum {string}
@@ -2091,7 +2253,8 @@ export interface components {
     };
     NullEnum: null;
     /**
-     * @description * `handle_privacy_requests` - Privacy Support handling
+     * @description * `moderate_conversations` - Conversation moderation
+     *     * `handle_privacy_requests` - Privacy Support handling
      *     * `handle_support` - General Support handling
      *     * `manage_operator_queues` - Operator queue management
      *     * `review_submissions` - Submission Review
@@ -2099,6 +2262,7 @@ export interface components {
      * @enum {string}
      */
     OperatorCapabilitiesEnum:
+      | "moderate_conversations"
       | "handle_privacy_requests"
       | "handle_support"
       | "manage_operator_queues"
@@ -2155,6 +2319,21 @@ export interface components {
      * @enum {string}
      */
     OutboundPolicyEnum: "direct_contact" | "external_link" | "disabled";
+    PaginatedConversationReportQueueList: {
+      /** @example 123 */
+      count: number;
+      /**
+       * Format: uri
+       * @example http://api.example.org/properties/?page=2
+       */
+      next?: string | null;
+      /**
+       * Format: uri
+       * @example http://api.example.org/properties/?page=1
+       */
+      previous?: string | null;
+      results: components["schemas"]["ConversationReportQueue"][];
+    };
     PaginatedMessageSummaryList: {
       /** @example 123 */
       count: number;
@@ -3275,6 +3454,12 @@ export interface components {
       name: string;
       label: string;
     };
+    /**
+     * @description * `inquiry` - inquiry
+     *     * `message` - message
+     * @enum {string}
+     */
+    TargetEnum: "inquiry" | "message";
     Token: {
       token: string;
     };
@@ -4429,6 +4614,31 @@ export interface operations {
       };
     };
   };
+  v1_messages_listing_inquiries_reports_create: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        inquiry_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: {
+      content: {
+        "application/json": components["schemas"]["ConversationReportCreate"];
+      };
+    };
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ConversationReportCreated"];
+        };
+      };
+    };
+  };
   v1_messages_support_requests_create: {
     parameters: {
       query?: never;
@@ -4518,6 +4728,76 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["UnreadCount"];
+        };
+      };
+    };
+  };
+  v1_operator_conversation_reports_list: {
+    parameters: {
+      query?: {
+        /** @description A page number within the paginated result set. */
+        page?: number;
+        /** @description Number of results to return per page. */
+        page_size?: number;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PaginatedConversationReportQueueList"];
+        };
+      };
+    };
+  };
+  v1_operator_conversation_reports_retrieve: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        report_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ConversationReportDetail"];
+        };
+      };
+    };
+  };
+  v1_operator_conversation_reports_decision_create: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        report_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ConversationReportDecision"];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ConversationReportDecisionResult"];
         };
       };
     };

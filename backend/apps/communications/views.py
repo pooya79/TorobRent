@@ -34,6 +34,8 @@ from .models import (
 from .selectors import listing_inquiries_for, system_notifications_for
 from .serializers import (
     AccountBlockSerializer,
+    ConversationReportCreatedSerializer,
+    ConversationReportCreateSerializer,
     ListingInquiryCreatedSerializer,
     ListingInquiryCreateSerializer,
     ListingInquiryMessageSerializer,
@@ -54,6 +56,7 @@ from .services import (
     block_listing_inquiry_counterpart,
     edit_listing_inquiry_message,
     reply_to_listing_inquiry,
+    report_listing_inquiry,
     start_listing_inquiry,
 )
 
@@ -404,6 +407,42 @@ class ListingInquiryBlockView(APIView):
             )
         )
         return Response({"blocked": True})
+
+
+class ListingInquiryReportView(APIView):
+    permission_classes = [HasVerifiedIdentifier]
+
+    @extend_schema(
+        summary="Report a Listing Inquiry or one of its messages",
+        request=ConversationReportCreateSerializer,
+        responses={201: ConversationReportCreatedSerializer},
+    )
+    def post(self, request: Request, inquiry_id: str) -> Response:
+        inquiry = get_object_or_404(
+            ListingInquiry.objects.filter(
+                models.Q(renter=request.user) | models.Q(submitter=request.user)
+            ),
+            id=inquiry_id,
+        )
+        serializer = ConversationReportCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        report = execute_inquiry_command(
+            lambda: report_listing_inquiry(
+                inquiry=inquiry,
+                reporter=cast(User, request.user),
+                target_message_id=serializer.validated_data.get("message_id"),
+                explanation=serializer.validated_data["explanation"],
+            )
+        )
+        return Response(
+            {
+                "id": report.id,
+                "status": report.status,
+                "target": "message" if report.target_message_id else "inquiry",
+                "created_at": report.created_at,
+            },
+            status=status.HTTP_201_CREATED,
+        )
 
 
 class ListingInquiryMessageEditView(APIView):

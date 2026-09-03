@@ -1146,6 +1146,33 @@ paths:
               schema:
                 $ref: '#/components/schemas/ListingInquiryMessage'
           description: ''
+  /api/v1/messages/listing-inquiries/{inquiry_id}/reports/:
+    post:
+      operationId: v1_messages_listing_inquiries_reports_create
+      summary: Report a Listing Inquiry or one of its messages
+      parameters:
+      - in: path
+        name: inquiry_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConversationReportCreate'
+      security:
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConversationReportCreated'
+          description: ''
   /api/v1/messages/support-requests/:
     post:
       operationId: v1_messages_support_requests_create
@@ -1242,6 +1269,84 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/UnreadCount'
+          description: ''
+  /api/v1/operator/conversation-reports/:
+    get:
+      operationId: v1_operator_conversation_reports_list
+      summary: List Conversation Reports
+      parameters:
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedConversationReportQueueList'
+          description: ''
+  /api/v1/operator/conversation-reports/{report_id}/:
+    get:
+      operationId: v1_operator_conversation_reports_retrieve
+      summary: Inspect evidence for one Conversation Report
+      parameters:
+      - in: path
+        name: report_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConversationReportDetail'
+          description: ''
+  /api/v1/operator/conversation-reports/{report_id}/decision/:
+    post:
+      operationId: v1_operator_conversation_reports_decision_create
+      summary: Decide a Conversation Report and apply proportionate restrictions
+      parameters:
+      - in: path
+        name: report_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConversationReportDecision'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConversationReportDecisionResult'
           description: ''
   /api/v1/operator/external-listing-candidates/:
     get:
@@ -3381,6 +3486,203 @@ components:
       - phone_publication_consent
       - phone_source
       - phone_verified
+    ConversationModerationEvent:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        event_type:
+          $ref: '#/components/schemas/ConversationModerationEventEventTypeEnum'
+        actor_label:
+          type: string
+          readOnly: true
+        internal_note:
+          type: string
+          maxLength: 2000
+        metadata: {}
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - actor_label
+      - created_at
+      - event_type
+      - id
+    ConversationModerationEventEventTypeEnum:
+      enum:
+      - inspected
+      - dismissed
+      - upheld
+      - pair_restricted
+      - initiation_suspended
+      type: string
+      description: |-
+        * `inspected` - Inspected
+        * `dismissed` - Dismissed
+        * `upheld` - Upheld
+        * `pair_restricted` - Pair restricted
+        * `initiation_suspended` - Initiation suspended
+    ConversationReportCreate:
+      type: object
+      properties:
+        message_id:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        explanation:
+          type: string
+          default: ''
+          maxLength: 2000
+    ConversationReportCreated:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        status:
+          type: string
+        target:
+          $ref: '#/components/schemas/TargetEnum'
+        created_at:
+          type: string
+          format: date-time
+      required:
+      - created_at
+      - id
+      - status
+      - target
+    ConversationReportDecision:
+      type: object
+      properties:
+        decision:
+          $ref: '#/components/schemas/ConversationReportDecisionEnum'
+        internal_note:
+          type: string
+          default: ''
+          maxLength: 2000
+        restrict_pair:
+          type: boolean
+          default: false
+        suspend_account_id:
+          type:
+          - string
+          - 'null'
+          format: uuid
+      required:
+      - decision
+    ConversationReportDecisionEnum:
+      enum:
+      - dismissed
+      - upheld
+      type: string
+      description: |-
+        * `dismissed` - Dismissed
+        * `upheld` - Upheld
+    ConversationReportDecisionResult:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        status:
+          $ref: '#/components/schemas/ConversationReportDecisionEnum'
+        pair_restricted:
+          type: boolean
+        suspended_account_id:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        decided_at:
+          type: string
+          format: date-time
+      required:
+      - decided_at
+      - id
+      - pair_restricted
+      - status
+      - suspended_account_id
+    ConversationReportDetail:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        status:
+          $ref: '#/components/schemas/ConversationReportStatusEnum'
+        target:
+          type: string
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        explanation:
+          type: string
+          maxLength: 2000
+        evidence: {}
+        reporter:
+          type: object
+          additionalProperties:
+            type: string
+          readOnly: true
+        pair_restricted:
+          type: boolean
+          readOnly: true
+        suspended_account_ids:
+          type: array
+          items:
+            type: string
+          readOnly: true
+        audit_history:
+          type: array
+          items:
+            $ref: '#/components/schemas/ConversationModerationEvent'
+          readOnly: true
+      required:
+      - audit_history
+      - created_at
+      - evidence
+      - id
+      - pair_restricted
+      - reporter
+      - suspended_account_ids
+      - target
+    ConversationReportQueue:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        status:
+          $ref: '#/components/schemas/ConversationReportStatusEnum'
+        target:
+          type: string
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - created_at
+      - id
+      - target
+    ConversationReportStatusEnum:
+      enum:
+      - pending
+      - dismissed
+      - upheld
+      type: string
+      description: |-
+        * `pending` - Pending
+        * `dismissed` - Dismissed
+        * `upheld` - Upheld
     CurrencyEnum:
       enum:
       - IRR
@@ -4430,6 +4732,7 @@ components:
       type: 'null'
     OperatorCapabilitiesEnum:
       enum:
+      - moderate_conversations
       - handle_privacy_requests
       - handle_support
       - manage_operator_queues
@@ -4437,6 +4740,7 @@ components:
       - review_source_proposals
       type: string
       description: |-
+        * `moderate_conversations` - Conversation moderation
         * `handle_privacy_requests` - Privacy Support handling
         * `handle_support` - General Support handling
         * `manage_operator_queues` - Operator queue management
@@ -4589,6 +4893,31 @@ components:
         * `direct_contact` - تماس مستقیم
         * `external_link` - پیوند منبع
         * `disabled` - غیرفعال
+    PaginatedConversationReportQueueList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type:
+          - string
+          - 'null'
+          format: uri
+          example: http://api.example.org/properties/?page=2
+        previous:
+          type:
+          - string
+          - 'null'
+          format: uri
+          example: http://api.example.org/properties/?page=1
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/ConversationReportQueue'
     PaginatedMessageSummaryList:
       type: object
       required:
@@ -7180,6 +7509,14 @@ components:
       - id
       - label
       - name
+    TargetEnum:
+      enum:
+      - inquiry
+      - message
+      type: string
+      description: |-
+        * `inquiry` - inquiry
+        * `message` - message
     Token:
       type: object
       properties:

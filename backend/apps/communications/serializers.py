@@ -68,6 +68,23 @@ class ListingInquiryCreatedSerializer(serializers.Serializer[Any]):
     href = serializers.CharField()
 
 
+class ConversationReportCreateSerializer(serializers.Serializer[Any]):
+    message_id = serializers.UUIDField(required=False, allow_null=True)
+    explanation = serializers.CharField(
+        max_length=2000,
+        required=False,
+        allow_blank=True,
+        default="",
+    )
+
+
+class ConversationReportCreatedSerializer(serializers.Serializer[Any]):
+    id = serializers.UUIDField()
+    status = serializers.CharField()
+    target = serializers.ChoiceField(choices=("inquiry", "message"))
+    created_at = serializers.DateTimeField()
+
+
 class AccountBlockSerializer(serializers.Serializer[Any]):
     blocked = serializers.BooleanField()
 

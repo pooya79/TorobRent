@@ -16,6 +16,7 @@ type Capability =
   | "handle_privacy_requests"
   | "handle_support"
   | "manage_operator_queues"
+  | "moderate_conversations"
   | "review_submissions"
   | "review_source_proposals";
 
@@ -76,6 +77,14 @@ function renderWorkspace(
                 element={
                   <OperatorCapabilityRoute capability="handle_support">
                     <h1>درخواست‌های پشتیبانی</h1>
+                  </OperatorCapabilityRoute>
+                }
+              />
+              <Route
+                path="operator/conversation-reports"
+                element={
+                  <OperatorCapabilityRoute capability="moderate_conversations">
+                    <h1>صف گزارش‌های گفت‌وگو</h1>
                   </OperatorCapabilityRoute>
                 }
               />
@@ -153,6 +162,18 @@ test("shows Source Proposal validation only for its dedicated capability", async
   ).toBeVisible();
   expect(
     screen.queryByRole("link", { name: "بررسی Submissionها" }),
+  ).not.toBeInTheDocument();
+});
+
+test("shows the Conversation Report queue only for its dedicated capability", async () => {
+  renderWorkspace("/operator/conversation-reports", ["moderate_conversations"]);
+
+  expect(
+    await screen.findByRole("heading", { name: "صف گزارش‌های گفت‌وگو" }),
+  ).toBeVisible();
+  expect(screen.getByRole("link", { name: "گزارش‌های گفت‌وگو" })).toBeVisible();
+  expect(
+    screen.queryByRole("link", { name: "پشتیبانی" }),
   ).not.toBeInTheDocument();
 });
 

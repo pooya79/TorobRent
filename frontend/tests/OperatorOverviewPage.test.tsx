@@ -20,6 +20,7 @@ function renderOverview(
     | "handle_privacy_requests"
     | "handle_support"
     | "manage_operator_queues"
+    | "moderate_conversations"
     | "review_submissions"
     | "review_source_proposals"
   )[],
@@ -84,6 +85,20 @@ test("shows parallel workload summaries only for modules the Operator may access
   ).toBeVisible();
   expect(supportSummary).toHaveBeenCalledOnce();
   expect(submissionSummary).not.toHaveBeenCalled();
+});
+
+test("shows Conversation Reports only for the dedicated moderation capability", async () => {
+  renderOverview(["moderate_conversations"]);
+
+  expect(
+    await screen.findByRole("link", { name: "گزارش‌های گفت‌وگو" }),
+  ).toBeVisible();
+  expect(
+    screen.queryByRole("link", { name: "پشتیبانی" }),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole("link", { name: "بررسی Submissionها" }),
+  ).not.toBeInTheDocument();
 });
 
 test("polls accessible queues and their overview summaries every thirty seconds", () => {
