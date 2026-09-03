@@ -1,9 +1,12 @@
+import { dehydrate, QueryClient } from "@tanstack/react-query";
 import {
+  data,
   isRouteErrorResponse,
   Links,
   Meta,
   Scripts,
   ScrollRestoration,
+  useLoaderData,
   useLocation,
 } from "react-router";
 
@@ -11,8 +14,62 @@ import { AppProviders } from "@/app/AppProviders";
 import { ProductShell } from "@/app/ProductShell";
 import { RouteFocus } from "@/app/RouteFocus";
 import { THEME_BOOTSTRAP_SCRIPT, THEME_COLORS } from "@/app/ThemeProvider";
+import { currentUserQuery, sessionQuery } from "@/features/session/queries";
+import { createApiClient } from "@/lib/api/client";
 import type { Route } from "./+types/root";
 import "./styles.css";
+
+export async function loader({ request }: Route.LoaderArgs) {
+  const queryClient = new QueryClient();
+  const responseHeaders = new Headers({ "Cache-Control": "private, no-store" });
+  let csrfToken: string | undefined;
+
+  if (typeof window === "undefined") {
+    const requestUrl = new URL(request.url);
+    const baseUrl = process.env.VITE_PROXY_TARGET ?? requestUrl.origin;
+    const api = createApiClient(baseUrl);
+    const cookie = request.headers.get("cookie");
+    const forwardedHeaders = cookie ? { cookie } : undefined;
+
+    try {
+      const sessionResponse = await api.GET("/api/v1/auth/session/", {
+        headers: forwardedHeaders,
+      });
+      for (const setCookie of sessionResponse.response.headers.getSetCookie()) {
+        responseHeaders.append("Set-Cookie", setCookie);
+      }
+
+      if (!sessionResponse.error && sessionResponse.data) {
+        const session = sessionResponse.data;
+        csrfToken = session.csrf_token;
+        queryClient.setQueryData(sessionQuery.queryKey, session);
+
+        if (session.authenticated) {
+          const currentUserResponse = await api.GET("/api/v1/users/me/", {
+            headers: forwardedHeaders,
+          });
+          if (!currentUserResponse.error && currentUserResponse.data) {
+            queryClient.setQueryData(
+              currentUserQuery.queryKey,
+              currentUserResponse.data,
+            );
+          }
+        }
+      }
+    } catch {
+      // Keep the public shell available and let React Query retry in the browser.
+    }
+  }
+
+  return data(
+    { csrfToken, dehydratedState: dehydrate(queryClient) },
+    { headers: responseHeaders },
+  );
+}
+
+export function headers({ loaderHeaders }: Route.HeadersArgs) {
+  return loaderHeaders;
+}
 
 function isNotFoundError(error: unknown) {
   return isRouteErrorResponse(error) && error.status === 404;
@@ -79,9 +136,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
 export default function App() {
   const { pathname } = useLocation();
+  const { csrfToken, dehydratedState } = useLoaderData<typeof loader>();
   const routeContent = <RouteFocus />;
   return (
-    <AppProviders>
+    <AppProviders csrfToken={csrfToken} dehydratedState={dehydratedState}>
       {pathname === "/operator" || pathname.startsWith("/operator/") ? (
         routeContent
       ) : (

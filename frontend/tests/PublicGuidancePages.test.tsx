@@ -263,15 +263,8 @@ test("explains deletion and prompt public-contact removal boundaries", () => {
   ).toBeVisible();
 });
 
-test("pre-renders public guidance with Persian metadata", () => {
-  expect(routerConfig.prerender).toEqual([
-    "/about",
-    "/guide",
-    "/contact",
-    "/advertise",
-    "/privacy",
-    "/terms",
-  ]);
+test("serves public guidance dynamically with Persian metadata", () => {
+  expect(routerConfig).not.toHaveProperty("prerender");
   const routeMetadata = [
     [aboutMeta(), "معرفی فارسی ترب‌رنت"],
     [guideMeta(), "راهنمای فارسی جست‌وجو"],

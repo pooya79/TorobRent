@@ -113,6 +113,8 @@ services:
         VITE_NESHAN_MAP_KEY: ${VITE_NESHAN_MAP_KEY}
         VITE_OPENSTREETMAP_TILE_URL: ${VITE_OPENSTREETMAP_TILE_URL:-}
     restart: unless-stopped
+    environment:
+      VITE_PROXY_TARGET: http://backend:8000
     expose:
       - "3000"
     depends_on:
