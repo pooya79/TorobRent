@@ -9,6 +9,7 @@ dependencies = [
   "django>=6.1,<6.2",
   "django-environ>=0.14,<0.15",
   "django-redis>=7.0,<8",
+  "django-unfold>=0.94,<1",
   "djangorestframework>=3.18,<3.19",
   "drf-spectacular>=0.30,<0.31",
   "drf-spectacular-sidecar>=2026.7,<2027",
@@ -51,6 +52,7 @@ ignore = ["DJ001"]
 [tool.mypy]
 python_version = "3.14"
 plugins = ["mypy_django_plugin.main", "mypy_drf_plugin.main"]
+mypy_path = "typings"
 strict = true
 exclude = ["migrations"]
 
