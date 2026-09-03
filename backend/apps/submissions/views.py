@@ -60,6 +60,7 @@ from .services import (
     approve_submission,
     claim_submission_review,
     create_or_resume_submission_draft,
+    delete_submission_draft,
     force_release_submission_review_claim,
     reject_submission,
     release_submission_review_claim,
@@ -129,8 +130,11 @@ class SubmissionListCreateView(APIView):
     )
     def get(self, request: Request) -> Response:
         user = cast(User, request.user)
-        submissions = user.submissions.select_related("listing").prefetch_related(
-            "images__variants__asset", "events__actor", "events__notification"
+        submissions = (
+            user.submissions
+            .filter(discarded_at__isnull=True)
+            .select_related("listing")
+            .prefetch_related("images__variants__asset", "events__actor", "events__notification")
         )
         return Response(SubmissionSerializer(submissions, many=True).data)
 
@@ -162,12 +166,28 @@ class SubmissionDetailView(APIView):
                 "images__variants__asset", "events__notification"
             ),
             id=submission_id,
+            discarded_at__isnull=True,
             submitter=request.user,
         )
 
     @extend_schema(summary="Resume a Submission draft", responses=SubmissionSerializer)
     def get(self, request: Request, submission_id: str) -> Response:
         return Response(SubmissionSerializer(self.get_object(request, submission_id)).data)
+
+    @extend_schema(
+        summary="Discard a Submission draft",
+        request=None,
+        responses={204: None},
+    )
+    def delete(self, request: Request, submission_id: str) -> Response:
+        try:
+            delete_submission_draft(
+                submission=self.get_object(request, submission_id),
+                actor=cast(User, request.user),
+            )
+        except SubmissionAccessDenied as exc:
+            raise PermissionDenied(str(exc)) from None
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
     @extend_schema(
         summary="Save a completed Submission step",
@@ -204,7 +224,12 @@ class SubmissionSubmitView(APIView):
         responses=SubmissionSerializer,
     )
     def post(self, request: Request, submission_id: str) -> Response:
-        submission = get_object_or_404(Submission, id=submission_id, submitter=request.user)
+        submission = get_object_or_404(
+            Submission,
+            id=submission_id,
+            discarded_at__isnull=True,
+            submitter=request.user,
+        )
         try:
             submission = submit_for_review(submission=submission, actor=cast(User, request.user))
         except DjangoValidationError as exc:
@@ -224,7 +249,12 @@ class SubmissionContactVerificationRequestView(APIView):
         },
     )
     def post(self, request: Request, submission_id: str) -> Response:
-        submission = get_object_or_404(Submission, id=submission_id, submitter=request.user)
+        submission = get_object_or_404(
+            Submission,
+            id=submission_id,
+            discarded_at__isnull=True,
+            submitter=request.user,
+        )
         serializer = SubmissionContactVerificationRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         try:
@@ -261,6 +291,7 @@ class SubmissionContactVerificationView(APIView):
         submission = get_object_or_404(
             Submission.objects.select_related("submitter"),
             id=submission_id,
+            discarded_at__isnull=True,
             submitter=request.user,
         )
         serializer = SubmissionContactVerificationSerializer(data=request.data)
@@ -286,6 +317,7 @@ class SubmissionConfirmAvailabilityView(APIView):
         submission = get_object_or_404(
             Submission.objects.select_related("listing"),
             id=submission_id,
+            discarded_at__isnull=True,
             submitter=request.user,
             listing__isnull=False,
         )
@@ -307,6 +339,7 @@ def change_listing_availability(
     submission = get_object_or_404(
         Submission.objects.select_related("listing"),
         id=submission_id,
+        discarded_at__isnull=True,
         submitter=request.user,
         listing__isnull=False,
     )
@@ -690,7 +723,12 @@ class SubmissionImageListCreateView(APIView):
         responses={201: SubmissionImageSerializer},
     )
     def post(self, request: Request, submission_id: str) -> Response:
-        submission = get_object_or_404(Submission, id=submission_id, submitter=request.user)
+        submission = get_object_or_404(
+            Submission,
+            id=submission_id,
+            discarded_at__isnull=True,
+            submitter=request.user,
+        )
         serializer = SubmissionImageUploadSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         try:
@@ -710,7 +748,12 @@ class SubmissionImageListCreateView(APIView):
         responses=SubmissionImageSerializer(many=True),
     )
     def patch(self, request: Request, submission_id: str) -> Response:
-        submission = get_object_or_404(Submission, id=submission_id, submitter=request.user)
+        submission = get_object_or_404(
+            Submission,
+            id=submission_id,
+            discarded_at__isnull=True,
+            submitter=request.user,
+        )
         serializer = SubmissionImageOrderSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         try:
@@ -727,7 +770,12 @@ class SubmissionImageListCreateView(APIView):
 class SubmissionImageDetailView(APIView):
     @extend_schema(summary="Remove an image from a Submission", responses={204: None})
     def delete(self, request: Request, submission_id: str, image_id: str) -> Response:
-        submission = get_object_or_404(Submission, id=submission_id, submitter=request.user)
+        submission = get_object_or_404(
+            Submission,
+            id=submission_id,
+            discarded_at__isnull=True,
+            submitter=request.user,
+        )
         get_object_or_404(SubmissionImage, id=image_id, submission=submission)
         try:
             remove_submission_image_for_actor(
@@ -753,6 +801,7 @@ class SubmissionImageRetryView(APIView):
             SubmissionImage,
             id=image_id,
             submission_id=submission_id,
+            submission__discarded_at__isnull=True,
             submission__submitter=request.user,
         )
         serializer = SubmissionImageUploadSerializer(data=request.data)
@@ -783,7 +832,14 @@ class SubmissionImageContentView(APIView):
     ) -> StreamingHttpResponse:
         user = cast(User, request.user)
         can_review = has_capability(user, OperatorCapability.REVIEW_SUBMISSIONS)
-        ownership = {"image__submission__submitter": user} if not can_review else {}
+        ownership = (
+            {
+                "image__submission__submitter": user,
+                "image__submission__discarded_at__isnull": True,
+            }
+            if not can_review
+            else {}
+        )
         variant = get_object_or_404(
             SubmissionImageVariant,
             image__submission_id=submission_id,

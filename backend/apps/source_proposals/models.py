@@ -73,6 +73,7 @@ class SourceProposal(models.Model):
     preview_confirmed = models.BooleanField(default=False)
     needs_reconciliation = models.BooleanField(default=False, editable=False)
     pending_since = models.DateTimeField(null=True, blank=True, editable=False)
+    discarded_at = models.DateTimeField(null=True, blank=True, editable=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -83,11 +84,12 @@ class SourceProposal(models.Model):
             models.UniqueConstraint(
                 fields=("submitter", "normalized_domain"),
                 condition=models.Q(
+                    discarded_at__isnull=True,
                     state__in=(
                         SourceProposalState.DRAFT,
                         SourceProposalState.PENDING,
                         SourceProposalState.CHANGES_REQUESTED,
-                    )
+                    ),
                 )
                 & ~models.Q(normalized_domain=""),
                 name="one_open_source_proposal_per_account_domain",
@@ -96,6 +98,10 @@ class SourceProposal(models.Model):
 
     def __str__(self) -> str:
         return self.website_name or f"Source Proposal {self.id}"
+
+    @property
+    def can_discard(self) -> bool:
+        return self.state == SourceProposalState.DRAFT and self.discarded_at is None
 
 
 class ImmutableSourceProposalEventQuerySet(models.QuerySet["SourceProposalEvent"]):

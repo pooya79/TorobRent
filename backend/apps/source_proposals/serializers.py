@@ -134,11 +134,14 @@ class SourceProposalSerializer(serializers.ModelSerializer[SourceProposal]):
         )
 
     def get_available_actions(self, proposal: SourceProposal) -> list[str]:
-        return (
-            ["edit"]
-            if proposal.state in (SourceProposalState.DRAFT, SourceProposalState.CHANGES_REQUESTED)
-            else []
-        )
+        if proposal.state == SourceProposalState.DRAFT:
+            actions = ["edit"]
+            if proposal.can_discard:
+                actions.append("delete")
+            return actions
+        if proposal.state == SourceProposalState.CHANGES_REQUESTED:
+            return ["edit"]
+        return []
 
     @extend_schema_field(SimulatedSourceProposalPreviewSerializer(allow_null=True))
     def get_preview(self, proposal: SourceProposal) -> dict[str, Any] | None:
@@ -188,6 +191,7 @@ class OperatorSourceProposalSerializer(SourceProposalSerializer):
         return (
             SourceProposal.objects
             .filter(
+                discarded_at__isnull=True,
                 normalized_domain=proposal.normalized_domain,
                 state__in=(
                     SourceProposalState.DRAFT,

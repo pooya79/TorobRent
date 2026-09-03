@@ -38,9 +38,11 @@ from apps.submissions.models import (
     MediaAsset,
     Submission,
     SubmissionContactVerificationChallenge,
+    SubmissionEvent,
     SubmissionImage,
     SubmissionImageStatus,
     SubmissionImageVariant,
+    SubmissionState,
 )
 from apps.submissions.tasks import cleanup_abandoned_submission_images
 
@@ -104,6 +106,44 @@ def test_verified_submitter_can_create_an_owner_draft(api_client: APIClient):
         "authorization_declared": False,
         "phone_publication_consent": False,
     }
+
+
+@pytest.mark.django_db
+def test_submitter_can_delete_only_a_submission_draft(
+    api_client: APIClient,
+):
+    submitter = User.objects.create_user(
+        phone="09123456789",
+        password="correct-horse-battery",
+        phone_verified_at=timezone.now(),
+        is_submitter=True,
+    )
+    removable_id = create_draft(api_client, submitter)
+    removable = Submission.objects.get(id=removable_id)
+    SubmissionEvent.objects.create(
+        submission=removable,
+        actor=submitter,
+        revision=1,
+        prior_state=SubmissionState.CHANGES_REQUESTED,
+        new_state=SubmissionState.DRAFT,
+        reason="نسخه جدید برای ویرایش ایجاد شد.",
+    )
+
+    listed = api_client.get("/api/v1/submissions/")
+
+    removed = api_client.delete(f"/api/v1/submissions/{removable_id}/")
+
+    assert "delete" in listed.data[0]["available_actions"]
+    assert removed.status_code == 204
+    assert api_client.get(f"/api/v1/submissions/{removable_id}/").status_code == 404
+
+    protected_id = create_draft(api_client, submitter)
+    Submission.objects.filter(id=protected_id).update(state=SubmissionState.PENDING)
+
+    protected = api_client.delete(f"/api/v1/submissions/{protected_id}/")
+
+    assert protected.status_code == 403
+    assert api_client.get(f"/api/v1/submissions/{protected_id}/").status_code == 200
 
 
 @pytest.mark.django_db

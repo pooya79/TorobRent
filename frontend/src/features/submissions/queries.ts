@@ -67,6 +67,13 @@ export function submissionQueryOptions(submissionId: string) {
   });
 }
 
+export async function removeSubmissionDraft(submissionId: string) {
+  const { error } = await api.DELETE("/api/v1/submissions/{submission_id}/", {
+    params: { path: { submission_id: submissionId } },
+  });
+  if (error) throw apiError(error);
+}
+
 export async function createSubmission(
   role: "owner" | "agent",
   resumeExisting: boolean,

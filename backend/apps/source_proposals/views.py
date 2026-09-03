@@ -21,6 +21,7 @@ from .serializers import (
 )
 from .services import (
     SourceProposalAccessDenied,
+    delete_source_proposal_draft,
     generate_simulated_preview,
     resume_or_create_source_proposal,
     save_source_proposal_details,
@@ -36,7 +37,7 @@ class SourceProposalListCreateView(APIView):
     )
     def get(self, request: Request) -> Response:
         proposals = SourceProposal.objects.filter(
-            submitter=cast(User, request.user)
+            submitter=cast(User, request.user), discarded_at__isnull=True
         ).prefetch_related("events__actor")
         return Response(SourceProposalSerializer(proposals, many=True).data)
 
@@ -63,11 +64,31 @@ class SourceProposalListCreateView(APIView):
 
 class SourceProposalDetailView(APIView):
     def get_object(self, request: Request, proposal_id: str) -> SourceProposal:
-        return get_object_or_404(SourceProposal, id=proposal_id, submitter=request.user)
+        return get_object_or_404(
+            SourceProposal,
+            id=proposal_id,
+            discarded_at__isnull=True,
+            submitter=request.user,
+        )
 
     @extend_schema(summary="Resume a Source Proposal", responses=SourceProposalSerializer)
     def get(self, request: Request, proposal_id: str) -> Response:
         return Response(SourceProposalSerializer(self.get_object(request, proposal_id)).data)
+
+    @extend_schema(
+        summary="Discard a Source Proposal draft",
+        request=None,
+        responses={204: None},
+    )
+    def delete(self, request: Request, proposal_id: str) -> Response:
+        try:
+            delete_source_proposal_draft(
+                proposal=self.get_object(request, proposal_id),
+                actor=cast(User, request.user),
+            )
+        except SourceProposalAccessDenied as exc:
+            raise PermissionDenied(str(exc)) from None
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
     @extend_schema(
         summary="Save Source Proposal website and authority details",
@@ -97,7 +118,12 @@ class SourceProposalPreviewView(APIView):
         responses=SourceProposalSerializer,
     )
     def post(self, request: Request, proposal_id: str) -> Response:
-        proposal = get_object_or_404(SourceProposal, id=proposal_id, submitter=request.user)
+        proposal = get_object_or_404(
+            SourceProposal,
+            id=proposal_id,
+            discarded_at__isnull=True,
+            submitter=request.user,
+        )
         try:
             proposal = generate_simulated_preview(proposal=proposal, actor=cast(User, request.user))
         except SourceProposalAccessDenied as exc:
@@ -116,7 +142,12 @@ class SourceProposalDraftView(APIView):
     def patch(self, request: Request, proposal_id: str) -> Response:
         serializer = SourceProposalDraftSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        proposal = get_object_or_404(SourceProposal, id=proposal_id, submitter=request.user)
+        proposal = get_object_or_404(
+            SourceProposal,
+            id=proposal_id,
+            discarded_at__isnull=True,
+            submitter=request.user,
+        )
         try:
             proposal = save_source_proposal_draft(
                 proposal=proposal,
@@ -139,7 +170,12 @@ class SourceProposalSubmitView(APIView):
     def post(self, request: Request, proposal_id: str) -> Response:
         serializer = SourceProposalSubmitSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        proposal = get_object_or_404(SourceProposal, id=proposal_id, submitter=request.user)
+        proposal = get_object_or_404(
+            SourceProposal,
+            id=proposal_id,
+            discarded_at__isnull=True,
+            submitter=request.user,
+        )
         try:
             proposal = submit_source_proposal(proposal=proposal, actor=cast(User, request.user))
         except SourceProposalAccessDenied as exc:

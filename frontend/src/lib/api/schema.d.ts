@@ -954,7 +954,8 @@ export interface paths {
     get: operations["v1_source_proposals_retrieve"];
     put?: never;
     post?: never;
-    delete?: never;
+    /** Discard a Source Proposal draft */
+    delete: operations["v1_source_proposals_destroy"];
     options?: never;
     head?: never;
     /** Save Source Proposal website and authority details */
@@ -1041,7 +1042,8 @@ export interface paths {
     get: operations["v1_submissions_retrieve"];
     put?: never;
     post?: never;
-    delete?: never;
+    /** Discard a Submission draft */
+    delete: operations["v1_submissions_destroy"];
     options?: never;
     head?: never;
     /** Save a completed Submission step */
@@ -4738,6 +4740,26 @@ export interface operations {
       };
     };
   };
+  v1_source_proposals_destroy: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        proposal_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description No response body */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
   v1_source_proposals_partial_update: {
     parameters: {
       query?: never;
@@ -4902,6 +4924,26 @@ export interface operations {
         content: {
           "application/json": components["schemas"]["Submission"];
         };
+      };
+    };
+  };
+  v1_submissions_destroy: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        submission_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description No response body */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
       };
     };
   };

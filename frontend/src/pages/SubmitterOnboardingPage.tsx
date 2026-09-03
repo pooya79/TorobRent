@@ -8,7 +8,7 @@ import {
 } from "react-router";
 
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { sessionQuery } from "@/features/session/queries";
+import { currentUserQuery, sessionQuery } from "@/features/session/queries";
 import { safeInternalReturnTo } from "@/features/session/return-destination";
 import { SubmitterPhoneGate } from "@/features/session/SubmitterPhoneGate";
 import {
@@ -17,12 +17,14 @@ import {
 } from "@/features/session/SubmitterPathChoice";
 import { api } from "@/lib/api/client";
 import { apiError, errorMessage } from "@/lib/api/errors";
+import type { components } from "@/lib/api/schema";
 
 type OnboardingState = {
   eligible: boolean;
   phone_verified: boolean;
   selected_path: SubmitterOnboardingPath | null;
 };
+type CurrentUser = components["schemas"]["CurrentUser"];
 
 const onboardingQueryKey = ["submitter-onboarding"] as const;
 
@@ -30,7 +32,6 @@ function onboardingDestination(
   path: SubmitterOnboardingPath | null | undefined,
   returnTo: string | null | undefined,
 ) {
-  if (path === "submission") return returnTo ?? "/add-submission";
   return path && returnTo ? returnTo : null;
 }
 
@@ -65,11 +66,28 @@ export function SubmitterOnboardingPage() {
     },
     onSuccess: (data, selectedPath) => {
       queryClient.setQueryData(onboardingQueryKey, data);
-      const destination =
-        selectedPath === "source_proposal"
-          ? (returnTo ?? "/source-proposal")
-          : onboardingDestination(selectedPath, returnTo);
-      if (destination) void navigate(destination, { replace: true });
+      queryClient.setQueryData<CurrentUser>(
+        currentUserQuery.queryKey,
+        (current) =>
+          current
+            ? {
+                ...current,
+                is_submitter: data.eligible,
+                phone_verified: data.phone_verified,
+              }
+            : current,
+      );
+      void queryClient.invalidateQueries({
+        queryKey: currentUserQuery.queryKey,
+      });
+      const destination = returnTo
+        ? onboardingDestination(selectedPath, returnTo)
+        : selectedPath === "submission"
+          ? "/add-submission"
+          : selectedPath === "source_proposal"
+            ? "/source-proposal"
+            : null;
+      if (destination) void navigate(destination);
     },
   });
   useEffect(() => {
@@ -83,14 +101,6 @@ export function SubmitterOnboardingPage() {
     }
   }, [onboarding.data, update]);
 
-  useEffect(() => {
-    const destination = onboardingDestination(
-      onboarding.data?.selected_path,
-      returnTo,
-    );
-    if (destination) void navigate(destination, { replace: true });
-  }, [navigate, onboarding.data?.selected_path, returnTo]);
-
   if (session.isPending) return <LoadingState />;
 
   if (!session.data?.authenticated) {
@@ -103,7 +113,9 @@ export function SubmitterOnboardingPage() {
     );
   }
 
-  if (onboarding.isPending || update.isPending) return <LoadingState />;
+  const isActivatingSubmitter =
+    update.isPending && update.variables === undefined;
+  if (onboarding.isPending || isActivatingSubmitter) return <LoadingState />;
 
   if (onboarding.error || update.error) {
     return (
@@ -142,7 +154,11 @@ export function SubmitterOnboardingPage() {
   return (
     <PageFrame>
       <SubmitterPathChoice
-        selectedPath={onboarding.data.selected_path}
+        selectedPath={
+          update.isPending && update.variables
+            ? update.variables
+            : onboarding.data.selected_path
+        }
         pending={update.isPending}
         onSelect={(path) => update.mutate(path)}
       />

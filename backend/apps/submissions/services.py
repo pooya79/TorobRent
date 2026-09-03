@@ -215,6 +215,7 @@ def create_or_resume_submission_draft(
             .filter(
                 submitter=submitter,
                 role=role,
+                discarded_at__isnull=True,
                 state__in=(SubmissionState.DRAFT, SubmissionState.CHANGES_REQUESTED),
             )
             .order_by("-updated_at")
@@ -230,6 +231,15 @@ def create_or_resume_submission_draft(
         ),
         True,
     )
+
+
+@transaction.atomic
+def delete_submission_draft(*, submission: Submission, actor: User) -> None:
+    locked = Submission.objects.select_for_update().get(id=submission.id)
+    if locked.submitter_id != actor.id or not locked.can_discard:
+        raise SubmissionAccessDenied("فقط پیش‌نویس قابل حذف است.")
+    locked.discarded_at = timezone.now()
+    locked.save(update_fields=("discarded_at", "updated_at"))
 
 
 PROPERTY_FIELDS = (

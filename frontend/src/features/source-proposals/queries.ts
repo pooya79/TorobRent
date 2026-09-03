@@ -40,6 +40,14 @@ export async function getSourceProposal(proposalId: string) {
   return data;
 }
 
+export async function removeSourceProposalDraft(proposalId: string) {
+  const { error } = await api.DELETE(
+    "/api/v1/source-proposals/{proposal_id}/",
+    { params: { path: { proposal_id: proposalId } } },
+  );
+  if (error) throw apiError(error);
+}
+
 export async function autosaveSourceProposalDraft(
   proposalId: string,
   body: SourceProposalDraft,

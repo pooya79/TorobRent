@@ -4,7 +4,11 @@ from django.utils import timezone
 from rest_framework.test import APIClient
 
 from apps.accounts.models import User
-from apps.source_proposals.models import SourceProposal
+from apps.source_proposals.models import (
+    SourceProposal,
+    SourceProposalEvent,
+    SourceProposalState,
+)
 
 
 def authenticate_submitter(api_client: APIClient, *, email: str = "source@example.com") -> User:
@@ -34,7 +38,40 @@ def test_verified_submitter_creates_then_resumes_one_source_proposal_draft(
     assert resumed.data == created.data
     assert created.data["state"] == "draft"
     assert created.data["current_step"] == "details"
-    assert created.data["available_actions"] == ["edit"]
+    assert created.data["available_actions"] == ["edit", "delete"]
+
+
+@pytest.mark.django_db
+def test_submitter_can_delete_only_a_source_proposal_draft(
+    api_client: APIClient,
+):
+    authenticate_submitter(api_client)
+    removable = api_client.post("/api/v1/source-proposals/", {}, format="json")
+    proposal = SourceProposal.objects.get(id=removable.data["id"])
+    SourceProposalEvent.objects.create(
+        proposal=proposal,
+        actor=proposal.submitter,
+        revision=1,
+        prior_state=SourceProposalState.CHANGES_REQUESTED,
+        new_state=SourceProposalState.DRAFT,
+        reason="نسخه جدید برای ویرایش ایجاد شد.",
+    )
+
+    listed = api_client.get("/api/v1/source-proposals/")
+
+    removed = api_client.delete(f"/api/v1/source-proposals/{removable.data['id']}/")
+
+    assert "delete" in listed.data[0]["available_actions"]
+    assert removed.status_code == 204
+    assert api_client.get(f"/api/v1/source-proposals/{removable.data['id']}/").status_code == 404
+
+    protected = api_client.post("/api/v1/source-proposals/", {}, format="json")
+    SourceProposal.objects.filter(id=protected.data["id"]).update(state=SourceProposalState.PENDING)
+
+    rejected = api_client.delete(f"/api/v1/source-proposals/{protected.data['id']}/")
+
+    assert rejected.status_code == 403
+    assert api_client.get(f"/api/v1/source-proposals/{protected.data['id']}/").status_code == 200
 
 
 @pytest.mark.django_db

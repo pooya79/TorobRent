@@ -205,6 +205,10 @@ test("persists and restores the Source Proposal choice", async () => {
 
 test("continues the Register one Property choice into the relationship step", async () => {
   const user = userEvent.setup();
+  let finishSaving: (() => void) | undefined;
+  const saving = new Promise<void>((resolve) => {
+    finishSaving = resolve;
+  });
   server.use(
     http.get("*/api/v1/auth/session/", () =>
       HttpResponse.json({ authenticated: true, csrf_token: "test-token" }),
@@ -216,13 +220,14 @@ test("continues the Register one Property choice into the relationship step", as
         selected_path: null,
       }),
     ),
-    http.post("*/api/v1/users/me/submitter-onboarding/", () =>
-      HttpResponse.json({
+    http.post("*/api/v1/users/me/submitter-onboarding/", async () => {
+      await saving;
+      return HttpResponse.json({
         eligible: true,
         phone_verified: true,
         selected_path: "submission",
-      }),
-    ),
+      });
+    }),
   );
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
@@ -241,8 +246,17 @@ test("continues the Register one Property choice into the relationship step", as
     </QueryClientProvider>,
   );
 
-  await user.click(await screen.findByRole("button", { name: /ثبت یک ملک/ }));
+  const propertyPath = await screen.findByRole("button", {
+    name: /ثبت یک ملک/,
+  });
+  await user.click(propertyPath);
 
+  expect(screen.queryByText("در حال بررسی حساب…")).toBeNull();
+  expect(screen.getByRole("status")).toHaveTextContent(
+    "در حال آماده‌سازی مسیر…",
+  );
+
+  finishSaving?.();
   expect(await screen.findByText("/add-submission")).toBeVisible();
 });
 
@@ -297,7 +311,7 @@ test("resumes a safe protected destination after the path is saved", async () =>
   expect(await screen.findByText("/add-submission?step=contact")).toBeVisible();
 });
 
-test("resumes without another click when the path was already saved", async () => {
+test("keeps a protected destination chooser open when a path was already saved", async () => {
   server.use(
     http.get("*/api/v1/auth/session/", () =>
       HttpResponse.json({ authenticated: true, csrf_token: "test-token" }),
@@ -325,13 +339,17 @@ test("resumes without another click when the path was already saved", async () =
             path="submitter/get-started"
             element={<SubmitterOnboardingPage />}
           />
-          <Route path="add-submission" element={<LocationProbe />} />
         </Routes>
       </MemoryRouter>
     </QueryClientProvider>,
   );
 
-  expect(await screen.findByText("/add-submission?step=contact")).toBeVisible();
+  expect(
+    await screen.findByRole("button", { name: /ثبت یک ملک/ }),
+  ).toHaveAttribute("aria-pressed", "true");
+  expect(
+    screen.getByRole("button", { name: /معرفی وب‌سایت اجاره/ }),
+  ).toBeVisible();
 });
 
 test("shows a private support path when the phone belongs to another account", async () => {

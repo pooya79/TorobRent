@@ -149,6 +149,7 @@ class Submission(models.Model):
     phone_publication_consent = models.BooleanField(default=False)
     review_data = models.JSONField(default=dict, blank=True)
     pending_since = models.DateTimeField(null=True, blank=True, db_index=True, editable=False)
+    discarded_at = models.DateTimeField(null=True, blank=True, editable=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -158,6 +159,10 @@ class Submission(models.Model):
 
     def __str__(self) -> str:
         return f"{self.get_role_display()}: {self.id}"
+
+    @property
+    def can_discard(self) -> bool:
+        return self.state == SubmissionState.DRAFT and self.discarded_at is None
 
 
 class SubmissionContactVerificationChallenge(models.Model):

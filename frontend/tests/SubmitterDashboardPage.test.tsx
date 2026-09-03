@@ -9,6 +9,7 @@ import { SubmitterDashboardPage } from "@/pages/SubmitterDashboardPage";
 import { server } from "./server";
 
 test("shows Source Proposals separately with status and next action", async () => {
+  const user = userEvent.setup();
   server.use(
     http.get("*/api/v1/submissions/", () => HttpResponse.json([])),
     http.get("*/api/v1/source-proposals/", () =>
@@ -27,11 +28,15 @@ test("shows Source Proposals separately with status and next action", async () =
           preview: { simulated: true },
           preview_confirmed: false,
           pending_since: null,
-          available_actions: ["edit"],
+          available_actions: ["edit", "delete"],
           created_at: "2026-08-31T08:00:00Z",
           updated_at: "2026-08-31T09:00:00Z",
         },
       ]),
+    ),
+    http.delete(
+      "*/api/v1/source-proposals/:proposalId/",
+      () => new HttpResponse(null, { status: 204 }),
     ),
   );
   const queryClient = new QueryClient({
@@ -48,6 +53,11 @@ test("shows Source Proposals separately with status and next action", async () =
   expect(
     await screen.findByRole("heading", { name: "پیشنهادهای منبع" }),
   ).toBeVisible();
+  expect(screen.getByRole("link", { name: "پیشنهاد تازه" })).toHaveAttribute(
+    "href",
+    "/submitter/get-started",
+  );
+  expect(screen.queryByRole("link", { name: "معرفی وب‌سایت" })).toBeNull();
   expect(await screen.findByText("خانه‌یاب")).toBeVisible();
   expect(screen.getByText("پیش‌نویس")).toBeVisible();
   expect(
@@ -56,6 +66,15 @@ test("shows Source Proposals separately with status and next action", async () =
     "href",
     "/source-proposal?proposal=10000000-0000-4000-8000-000000000087",
   );
+
+  await user.click(
+    screen.getByRole("button", { name: "حذف پیش‌نویس خانه‌یاب" }),
+  );
+  await user.click(screen.getByRole("button", { name: "حذف پیش‌نویس" }));
+
+  expect(
+    await screen.findByText("هنوز وب‌سایتی معرفی نکرده‌اید."),
+  ).toBeVisible();
 });
 
 test("shows a Source Proposal review outcome, reason, revision, and next action", async () => {
@@ -133,6 +152,7 @@ test("shows a Source Proposal review outcome, reason, revision, and next action"
 });
 
 test("lists the Submitter's draft state and server-backed resume action", async () => {
+  const user = userEvent.setup();
   server.use(
     http.get("*/api/v1/submissions/", () =>
       HttpResponse.json([
@@ -152,11 +172,15 @@ test("lists the Submitter's draft state and server-backed resume action", async 
           description: "",
           contact: null,
           review: {},
-          available_actions: ["edit", "submit"],
+          available_actions: ["edit", "submit", "delete"],
           created_at: "2026-08-22T08:00:00Z",
           updated_at: "2026-08-22T09:00:00Z",
         },
       ]),
+    ),
+    http.delete(
+      "*/api/v1/submissions/:submissionId/",
+      () => new HttpResponse(null, { status: 204 }),
     ),
   );
   const queryClient = new QueryClient({
@@ -185,6 +209,19 @@ test("lists the Submitter's draft state and server-backed resume action", async 
     "href",
     "/add-submission?submission=10000000-0000-4000-8000-000000000010&step=review",
   );
+
+  await user.click(
+    screen.getByRole("button", {
+      name: "حذف پیش‌نویس ملک در سعادت‌آباد",
+    }),
+  );
+  await user.click(screen.getByRole("button", { name: "حذف پیش‌نویس" }));
+
+  expect(
+    await screen.findByText(
+      "هنوز Submissionی ندارید. نخستین پیش‌نویس را بسازید.",
+    ),
+  ).toBeVisible();
 });
 
 test("shows current review state, reason, history, and the available edit action", async () => {

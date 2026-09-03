@@ -658,7 +658,10 @@ class SubmissionSerializer(ClaimStatusMixin, serializers.ModelSerializer[Submiss
 
     def get_available_actions(self, submission: Submission) -> list[str]:
         if submission.state == SubmissionState.DRAFT:
-            return ["edit", "submit"]
+            actions = ["edit", "submit"]
+            if submission.can_discard:
+                actions.append("delete")
+            return actions
         if submission.state == SubmissionState.PUBLISHED:
             listing = submission.listing
             if listing is None:

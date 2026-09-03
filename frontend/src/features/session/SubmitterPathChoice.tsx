@@ -81,7 +81,9 @@ export function SubmitterPathChoice({
                       className="text-primary mt-4 font-semibold"
                       role="status"
                     >
-                      این مسیر برای ادامه ذخیره شده است.
+                      {pending
+                        ? "در حال آماده‌سازی مسیر…"
+                        : "این مسیر برای ادامه ذخیره شده است."}
                     </p>
                   ) : null}
                 </CardContent>

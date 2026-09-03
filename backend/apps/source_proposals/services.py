@@ -159,6 +159,7 @@ def resume_or_create_source_proposal(
         .select_for_update()
         .filter(
             submitter=submitter,
+            discarded_at__isnull=True,
             state__in=(SourceProposalState.DRAFT, SourceProposalState.CHANGES_REQUESTED),
         )
         .first()
@@ -168,11 +169,22 @@ def resume_or_create_source_proposal(
     if start_new:
         return SourceProposal.objects.create(submitter=submitter), True
     pending = SourceProposal.objects.filter(
-        submitter=submitter, state=SourceProposalState.PENDING
+        submitter=submitter,
+        discarded_at__isnull=True,
+        state=SourceProposalState.PENDING,
     ).first()
     if pending is not None:
         return pending, False
     return SourceProposal.objects.create(submitter=submitter), True
+
+
+@transaction.atomic
+def delete_source_proposal_draft(*, proposal: SourceProposal, actor: User) -> None:
+    locked = SourceProposal.objects.select_for_update().get(id=proposal.id)
+    if locked.submitter_id != actor.id or not locked.can_discard:
+        raise SourceProposalAccessDenied("فقط پیش‌نویس قابل حذف است.")
+    locked.discarded_at = timezone.now()
+    locked.save(update_fields=("discarded_at", "updated_at"))
 
 
 def normalize_public_domain(url: str) -> str:
@@ -205,6 +217,7 @@ def _ensure_account_domain_available(
         SourceProposal.objects
         .filter(
             submitter=actor,
+            discarded_at__isnull=True,
             normalized_domain=normalized_domain,
             state__in=(
                 SourceProposalState.DRAFT,
@@ -270,6 +283,7 @@ def save_source_proposal_details(
     locked.needs_reconciliation = (
         SourceProposal.objects
         .filter(
+            discarded_at__isnull=True,
             normalized_domain=normalized_domain,
             state__in=(
                 SourceProposalState.DRAFT,

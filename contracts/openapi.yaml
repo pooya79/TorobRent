@@ -2056,6 +2056,23 @@ paths:
               schema:
                 $ref: '#/components/schemas/SourceProposal'
           description: ''
+    delete:
+      operationId: v1_source_proposals_destroy
+      summary: Discard a Source Proposal draft
+      parameters:
+      - in: path
+        name: proposal_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
   /api/v1/source-proposals/{proposal_id}/draft/:
     patch:
       operationId: v1_source_proposals_draft_partial_update
@@ -2224,6 +2241,23 @@ paths:
               schema:
                 $ref: '#/components/schemas/Submission'
           description: ''
+    delete:
+      operationId: v1_submissions_destroy
+      summary: Discard a Submission draft
+      parameters:
+      - in: path
+        name: submission_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
   /api/v1/submissions/{submission_id}/archive/:
     post:
       operationId: v1_submissions_archive_create

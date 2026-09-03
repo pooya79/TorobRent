@@ -1,17 +1,33 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Clock3, Globe2, Plus } from "lucide-react";
+import { ArrowLeft, Clock3, Globe2, Plus, Trash2 } from "lucide-react";
 import { Link } from "react-router";
 
 import { PageMain } from "@/components/layout/PageMain";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { sourceProposalsQueryOptions } from "@/features/source-proposals/queries";
+import {
+  removeSourceProposalDraft,
+  type SourceProposal,
+  sourceProposalsQueryOptions,
+} from "@/features/source-proposals/queries";
 import {
   archiveListing,
   confirmListingAvailability,
   markListingUnavailable,
+  removeSubmissionDraft,
   type Submission,
   submissionsQueryOptions,
 } from "@/features/submissions/queries";
@@ -37,6 +53,27 @@ export function SubmitterDashboardPage() {
   const submissions = useQuery(submissionsQueryOptions);
   const sourceProposals = useQuery(sourceProposalsQueryOptions);
   const queryClient = useQueryClient();
+  const draftRemoval = useMutation({
+    mutationFn: (target: {
+      kind: "submission" | "source_proposal";
+      id: string;
+    }) =>
+      target.kind === "submission"
+        ? removeSubmissionDraft(target.id)
+        : removeSourceProposalDraft(target.id),
+    onSuccess: (_data, target) => {
+      if (target.kind === "submission") {
+        queryClient.setQueryData<Submission[]>(["submissions"], (current) =>
+          current?.filter((submission) => submission.id !== target.id),
+        );
+        return;
+      }
+      queryClient.setQueryData<SourceProposal[]>(
+        ["source-proposals"],
+        (current) => current?.filter((proposal) => proposal.id !== target.id),
+      );
+    },
+  });
   const availabilityAction = useMutation({
     mutationFn: ({
       submissionId,
@@ -72,27 +109,31 @@ export function SubmitterDashboardPage() {
           </p>
         </div>
         <Button asChild className="rounded-full">
-          <Link to="/add-submission?new=1">
-            <Plus aria-hidden="true" /> ثبت آگهی تازه
+          <Link to="/submitter/get-started">
+            <Plus aria-hidden="true" /> پیشنهاد تازه
           </Link>
         </Button>
       </header>
 
+      {draftRemoval.isError && (
+        <Alert className="mb-6" variant="destructive">
+          <AlertDescription>
+            {errorMessage(
+              draftRemoval.error,
+              "حذف پیش‌نویس انجام نشد. دوباره تلاش کنید.",
+            )}
+          </AlertDescription>
+        </Alert>
+      )}
+
       <section className="mb-10" aria-labelledby="source-proposals-heading">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h2 id="source-proposals-heading" className="text-xl font-semibold">
-              پیشنهادهای منبع
-            </h2>
-            <p className="text-muted-foreground mt-1 text-sm">
-              وب‌سایت‌هایی که برای اعتبارسنجی اپراتور معرفی کرده‌اید.
-            </p>
-          </div>
-          <Button asChild variant="outline">
-            <Link to="/source-proposal?new=1">
-              <Globe2 aria-hidden="true" /> معرفی وب‌سایت
-            </Link>
-          </Button>
+        <div className="mb-4">
+          <h2 id="source-proposals-heading" className="text-xl font-semibold">
+            پیشنهادهای منبع
+          </h2>
+          <p className="text-muted-foreground mt-1 text-sm">
+            وب‌سایت‌هایی که برای اعتبارسنجی اپراتور معرفی کرده‌اید.
+          </p>
         </div>
         {sourceProposals.isError && (
           <Alert variant="destructive">
@@ -116,6 +157,7 @@ export function SubmitterDashboardPage() {
             const sourceState = sourceProposalStateLabels[state];
             const history = proposal.history ?? [];
             const canEdit = proposal.available_actions.includes("edit");
+            const canDelete = proposal.available_actions.includes("delete");
             return (
               <Card className="shadow-none" key={proposal.id}>
                 <CardContent className="flex flex-col gap-4 sm:flex-row sm:items-center">
@@ -168,17 +210,31 @@ export function SubmitterDashboardPage() {
                       </section>
                     )}
                   </div>
-                  {canEdit && (
-                    <Button asChild variant="outline">
-                      <Link
-                        to={`/source-proposal?proposal=${proposal.id}`}
-                        aria-label={`${state === "changes_requested" ? "اصلاح" : "ادامه"} Source Proposal ${title}`}
-                      >
-                        {state === "changes_requested" ? "اصلاح" : "ادامه"}{" "}
-                        <ArrowLeft aria-hidden="true" />
-                      </Link>
-                    </Button>
-                  )}
+                  <div className="flex flex-wrap gap-2">
+                    {canEdit && (
+                      <Button asChild variant="outline">
+                        <Link
+                          to={`/source-proposal?proposal=${proposal.id}`}
+                          aria-label={`${state === "changes_requested" ? "اصلاح" : "ادامه"} Source Proposal ${title}`}
+                        >
+                          {state === "changes_requested" ? "اصلاح" : "ادامه"}{" "}
+                          <ArrowLeft aria-hidden="true" />
+                        </Link>
+                      </Button>
+                    )}
+                    {canDelete && (
+                      <DeleteDraftDialog
+                        label={title}
+                        pending={draftRemoval.isPending}
+                        onDelete={() =>
+                          draftRemoval.mutate({
+                            kind: "source_proposal",
+                            id: proposal.id,
+                          })
+                        }
+                      />
+                    )}
+                  </div>
                 </CardContent>
               </Card>
             );
@@ -214,6 +270,8 @@ export function SubmitterDashboardPage() {
             submission.state === "draft";
           const canSubmit =
             submission.available_actions?.includes("submit") ?? false;
+          const canDelete =
+            submission.available_actions?.includes("delete") ?? false;
           const canConfirmAvailability =
             submission.available_actions?.includes("confirm_availability") ??
             false;
@@ -279,6 +337,18 @@ export function SubmitterDashboardPage() {
                           <ArrowLeft aria-hidden="true" />
                         </Link>
                       </Button>
+                    )}
+                    {canDelete && (
+                      <DeleteDraftDialog
+                        label={title}
+                        pending={draftRemoval.isPending}
+                        onDelete={() =>
+                          draftRemoval.mutate({
+                            kind: "submission",
+                            id: submission.id,
+                          })
+                        }
+                      />
                     )}
                     {canConfirmAvailability && (
                       <Button
@@ -400,6 +470,49 @@ export function SubmitterDashboardPage() {
         })}
       </section>
     </PageMain>
+  );
+}
+
+function DeleteDraftDialog({
+  label,
+  pending,
+  onDelete,
+}: {
+  label: string;
+  pending: boolean;
+  onDelete: () => void;
+}) {
+  return (
+    <AlertDialog>
+      <AlertDialogTrigger asChild>
+        <Button
+          aria-label={`حذف پیش‌نویس ${label}`}
+          disabled={pending}
+          type="button"
+          variant="outline"
+        >
+          <Trash2 aria-hidden="true" /> حذف
+        </Button>
+      </AlertDialogTrigger>
+      <AlertDialogContent dir="rtl">
+        <AlertDialogHeader>
+          <AlertDialogTitle>پیش‌نویس حذف شود؟</AlertDialogTitle>
+          <AlertDialogDescription>
+            پیش‌نویس «{label}» برای همیشه حذف می‌شود و قابل بازیابی نیست.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>انصراف</AlertDialogCancel>
+          <AlertDialogAction
+            className="bg-destructive hover:bg-destructive/90 text-white"
+            disabled={pending}
+            onClick={onDelete}
+          >
+            حذف پیش‌نویس
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }
 
