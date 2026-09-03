@@ -669,7 +669,7 @@ test("shows the immutable Listing snapshot beside inactive current availability"
 
 test("renders safe links as plain text content and visibly edits an ordinary inquiry message", async () => {
   let editedBody = "";
-  localStorage.removeItem("listing-inquiry-off-platform-warning-acknowledged");
+  localStorage.clear();
   const openExternal = vi.spyOn(window, "open").mockImplementation(() => null);
   const inquiry = {
     ...message,
@@ -755,6 +755,7 @@ test("renders safe links as plain text content and visibly edits an ordinary inq
   const externalLink = screen.getByRole("link", {
     name: "https://example.com/خانه",
   });
+  const phoneLink = screen.getByRole("link", { name: "۰۹۱۲۱۲۳۴۵۶۷" });
   expect(externalLink).toHaveAttribute("target", "_blank");
   expect(externalLink).toHaveAttribute("rel", "noopener noreferrer");
   expect(screen.getByText("ویرایش‌شده")).toBeVisible();
@@ -772,6 +773,11 @@ test("renders safe links as plain text content and visibly edits an ordinary inq
     "_blank",
     "noopener,noreferrer",
   );
+  expect(
+    localStorage.getItem(
+      `listing-inquiry-off-platform-warning-acknowledged:${inquiry.id}:submitter`,
+    ),
+  ).toBe("true");
 
   await user.click(externalLink);
   expect(openExternal).toHaveBeenCalledTimes(2);
@@ -780,6 +786,12 @@ test("renders safe links as plain text content and visibly edits an ordinary inq
       name: "ادامه گفت‌وگو خارج از ترب‌رنت",
     }),
   ).not.toBeInTheDocument();
+  await user.click(phoneLink);
+  expect(openExternal).toHaveBeenLastCalledWith(
+    "tel:09121234567",
+    "_blank",
+    "noopener,noreferrer",
+  );
 
   await user.click(screen.getByRole("button", { name: "ویرایش" }));
   const editor = screen.getByRole("textbox", { name: "ویرایش پیام" });

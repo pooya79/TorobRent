@@ -82,33 +82,44 @@ const statusLabels = {
 const OFF_PLATFORM_WARNING_KEY =
   "listing-inquiry-off-platform-warning-acknowledged";
 
+function phoneHref(text: string) {
+  if (!/^(?:\+?98|0|۰)(?:[\s-]?[0-9۰-۹]){9,12}$/u.test(text)) return;
+  const latinDigits = text.replace(/[۰-۹]/gu, (digit) =>
+    String("۰۱۲۳۴۵۶۷۸۹".indexOf(digit)),
+  );
+  return `tel:${latinDigits.replace(/[\s-]/gu, "")}`;
+}
+
 function safeText(
   text: string,
   onExternalLink?: (href: string) => void,
 ): ReactNode[] {
-  return text.split(/(https?:\/\/[^\s]+)/gu).map((part, index) =>
-    /^https?:\/\//u.test(part) ? (
-      <a
-        className="text-primary underline"
-        href={part}
-        key={`${part}-${index}`}
-        onClick={
-          onExternalLink
-            ? (event) => {
-                event.preventDefault();
-                onExternalLink(part);
-              }
-            : undefined
-        }
-        rel="noopener noreferrer"
-        target="_blank"
-      >
-        {part}
-      </a>
-    ) : (
-      part
-    ),
-  );
+  return text
+    .split(/(https?:\/\/[^\s]+|(?:\+?98|0|۰)(?:[\s-]?[0-9۰-۹]){9,12})/gu)
+    .map((part, index) => {
+      const href = /^https?:\/\//u.test(part) ? part : phoneHref(part);
+      return href ? (
+        <a
+          className="text-primary underline"
+          href={href}
+          key={`${part}-${index}`}
+          onClick={
+            onExternalLink
+              ? (event) => {
+                  event.preventDefault();
+                  onExternalLink(href);
+                }
+              : undefined
+          }
+          rel="noopener noreferrer"
+          target={href.startsWith("http") ? "_blank" : undefined}
+        >
+          {part}
+        </a>
+      ) : (
+        part
+      );
+    });
 }
 
 function toman(rial: number) {
@@ -207,7 +218,8 @@ export function MessageCenterPage() {
   }
 
   function requestExternalNavigation(href: string) {
-    if (localStorage.getItem(OFF_PLATFORM_WARNING_KEY) === "true") {
+    const participantKey = `${OFF_PLATFORM_WARNING_KEY}:${messageId}:${detail.data?.counterpart?.role}`;
+    if (localStorage.getItem(participantKey) === "true") {
       window.open(href, "_blank", "noopener,noreferrer");
       return;
     }
@@ -216,7 +228,8 @@ export function MessageCenterPage() {
 
   function continueExternalNavigation() {
     if (!pendingExternalHref) return;
-    localStorage.setItem(OFF_PLATFORM_WARNING_KEY, "true");
+    const participantKey = `${OFF_PLATFORM_WARNING_KEY}:${messageId}:${detail.data?.counterpart?.role}`;
+    localStorage.setItem(participantKey, "true");
     window.open(pendingExternalHref, "_blank", "noopener,noreferrer");
     setPendingExternalHref(undefined);
   }
