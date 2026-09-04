@@ -614,11 +614,14 @@ export function MessageCenterPage() {
                         گفت‌وگو با {detail.data.counterpart?.display_name}
                       </p>
                       <p className="text-muted-foreground mt-1 text-xs">
-                        نام نمایشی؛ هویت تأییدشده نیست
+                        {detail.data.counterpart?.deleted
+                          ? "هویت این حساب حذف شده است"
+                          : "نام نمایشی؛ هویت تأییدشده نیست"}
                       </p>
                       <div className="mt-3 flex flex-wrap gap-2">
-                        {detail.data.reply_unavailable_reason !==
-                        "account_blocked" ? (
+                        {!detail.data.counterpart?.deleted &&
+                        detail.data.reply_unavailable_reason !==
+                          "account_blocked" ? (
                           <Button
                             onClick={() => setBlockConfirmationOpen(true)}
                             type="button"
@@ -802,12 +805,15 @@ export function MessageCenterPage() {
                         <Alert className="mt-6">
                           <AlertDescription>
                             {detail.data.reply_unavailable_reason ===
-                            "account_blocked"
-                              ? "ارتباط میان شما و این حساب مسدود شده است."
+                            "account_deleted"
+                              ? "حساب طرف گفت‌وگو حذف شده و این گفت‌وگو فقط خواندنی است."
                               : detail.data.reply_unavailable_reason ===
-                                  "responsibility_changed"
-                                ? "مسئول آگهی تغییر کرده و این گفت‌وگو برای شرکت‌کنندگان اصلی فقط خواندنی است."
-                                : "این آگهی فعال نیست و گفت‌وگو فعلا فقط خواندنی است."}
+                                  "account_blocked"
+                                ? "ارتباط میان شما و این حساب مسدود شده است."
+                                : detail.data.reply_unavailable_reason ===
+                                    "responsibility_changed"
+                                  ? "مسئول آگهی تغییر کرده و این گفت‌وگو برای شرکت‌کنندگان اصلی فقط خواندنی است."
+                                  : "این آگهی فعال نیست و گفت‌وگو فعلا فقط خواندنی است."}
                           </AlertDescription>
                         </Alert>
                       )}

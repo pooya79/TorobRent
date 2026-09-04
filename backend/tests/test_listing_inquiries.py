@@ -206,6 +206,7 @@ def test_listing_inquiry_is_private_and_resolves_current_display_names(
         "display_name": "رهای تازه",
         "role": "renter",
         "identity_verified": False,
+        "deleted": False,
     }
     assert detail.data["entries"][0]["body"] == "آیا هنوز موجود است؟"
 

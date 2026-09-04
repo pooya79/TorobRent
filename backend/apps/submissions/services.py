@@ -102,6 +102,8 @@ def verified_public_contact_phone(*, submitter: User, value: str) -> str | None:
 
 def submission_contact_phone_is_verified(submission: Submission) -> bool:
     if submission.contact_phone_source == ContactPhoneSource.ACCOUNT:
+        if submission.submitter is None:
+            return False
         return (
             verified_public_contact_phone(
                 submitter=submission.submitter,
@@ -120,7 +122,10 @@ def request_submission_contact_verification(
     if normalized_phone is None:
         raise ValidationError("شماره تلفن همراه معتبر وارد کنید.")
     submission = (
-        Submission.objects.select_for_update().select_related("submitter").get(id=submission.id)
+        Submission.objects
+        .select_for_update(of=("self",))
+        .select_related("submitter")
+        .get(id=submission.id)
     )
     if submission.submitter_id != actor.id:
         raise ValidationError("فقط ثبت‌کننده می‌تواند شماره تماس را تأیید کند.")
@@ -386,7 +391,7 @@ def deliver_decision_notification(notification_id: str) -> bool:
     with transaction.atomic():
         notification = (
             SubmissionDecisionNotification.objects
-            .select_for_update()
+            .select_for_update(of=("self",))
             .select_related("decision__submission__submitter")
             .get(id=notification_id)
         )
@@ -396,6 +401,8 @@ def deliver_decision_notification(notification_id: str) -> bool:
         submission = notification.decision.submission
         dashboard_url = f"{settings.FRONTEND_ORIGIN}/dashboard#submission-{submission.id}"
         try:
+            if submission.submitter is None:
+                raise ValueError("The Submitter account has been deleted.")
             if submission.submitter.email is None:
                 raise ValueError("The Submitter account has no email delivery address.")
             sent_count = EmailMessage(

@@ -16,6 +16,7 @@ class MessageKind(models.TextChoices):
 
 
 class ListingInquiryReplyUnavailableReason(models.TextChoices):
+    ACCOUNT_DELETED = "account_deleted", "Account deleted"
     ACCOUNT_BLOCKED = "account_blocked", "Account blocked"
     LISTING_INACTIVE = "listing_inactive", "Listing inactive"
     RESPONSIBILITY_CHANGED = "responsibility_changed", "Responsibility changed"
@@ -23,8 +24,6 @@ class ListingInquiryReplyUnavailableReason(models.TextChoices):
 
 LISTING_INQUIRY_OPENING_ATTNAMES = frozenset({
     "listing_id",
-    "renter_id",
-    "submitter_id",
     "opening_property_title",
     "opening_area_sqm",
     "opening_deposit_rial",
@@ -35,8 +34,6 @@ LISTING_INQUIRY_OPENING_ATTNAMES = frozenset({
 })
 LISTING_INQUIRY_OPENING_FIELDS = LISTING_INQUIRY_OPENING_ATTNAMES | {
     "listing",
-    "renter",
-    "submitter",
 }
 
 
@@ -72,15 +69,17 @@ class ListingInquiry(models.Model):
     )
     renter = models.ForeignKey(
         settings.AUTH_USER_MODEL,
-        on_delete=models.PROTECT,
+        on_delete=models.SET_NULL,
         related_name="renter_listing_inquiries",
         editable=False,
+        null=True,
     )
     submitter = models.ForeignKey(
         settings.AUTH_USER_MODEL,
-        on_delete=models.PROTECT,
+        on_delete=models.SET_NULL,
         related_name="submitter_listing_inquiries",
         editable=False,
+        null=True,
     )
     opening_property_title = models.CharField(max_length=255, editable=False)
     opening_area_sqm = models.PositiveIntegerField(editable=False)
@@ -129,6 +128,10 @@ class ListingInquiry(models.Model):
                     raise ValidationError("Listing Inquiry opening context is immutable.")
         super().save(*args, **kwargs)
 
+    @property
+    def has_deleted_participant(self) -> bool:
+        return self.renter_id is None or self.submitter_id is None
+
 
 class ListingInquiryMessage(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -139,8 +142,9 @@ class ListingInquiryMessage(models.Model):
     )
     author = models.ForeignKey(
         settings.AUTH_USER_MODEL,
-        on_delete=models.PROTECT,
+        on_delete=models.SET_NULL,
         related_name="listing_inquiry_messages",
+        null=True,
     )
     body = models.TextField(max_length=2000)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -194,7 +198,7 @@ class ConversationReport(models.Model):
     )
     reporter = models.ForeignKey(
         settings.AUTH_USER_MODEL,
-        on_delete=models.PROTECT,
+        on_delete=models.SET_NULL,
         related_name="conversation_reports",
         null=True,
         blank=True,
@@ -332,17 +336,17 @@ class AccountBlock(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     lower_account = models.ForeignKey(
         settings.AUTH_USER_MODEL,
-        on_delete=models.PROTECT,
+        on_delete=models.CASCADE,
         related_name="account_blocks_as_lower",
     )
     higher_account = models.ForeignKey(
         settings.AUTH_USER_MODEL,
-        on_delete=models.PROTECT,
+        on_delete=models.CASCADE,
         related_name="account_blocks_as_higher",
     )
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
-        on_delete=models.PROTECT,
+        on_delete=models.CASCADE,
         related_name="created_account_blocks",
     )
     created_at = models.DateTimeField(auto_now_add=True)
@@ -374,12 +378,12 @@ class ModeratedPairRestriction(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     lower_account = models.ForeignKey(
         settings.AUTH_USER_MODEL,
-        on_delete=models.PROTECT,
+        on_delete=models.CASCADE,
         related_name="moderated_restrictions_as_lower",
     )
     higher_account = models.ForeignKey(
         settings.AUTH_USER_MODEL,
-        on_delete=models.PROTECT,
+        on_delete=models.CASCADE,
         related_name="moderated_restrictions_as_higher",
     )
     report = models.OneToOneField(
@@ -414,7 +418,7 @@ class InquiryInitiationSuspension(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     account = models.OneToOneField(
         settings.AUTH_USER_MODEL,
-        on_delete=models.PROTECT,
+        on_delete=models.CASCADE,
         related_name="inquiry_initiation_suspension",
     )
     report = models.ForeignKey(

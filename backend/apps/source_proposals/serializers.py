@@ -90,7 +90,7 @@ class SimulatedSourceProposalPreviewSerializer(serializers.Serializer[Any]):
 
 
 class SourceProposalEventSerializer(serializers.ModelSerializer[SourceProposalEvent]):
-    actor_label = serializers.EmailField(source="actor.email", read_only=True)
+    actor_label = serializers.SerializerMethodField()
 
     class Meta:
         model = SourceProposalEvent
@@ -103,6 +103,11 @@ class SourceProposalEventSerializer(serializers.ModelSerializer[SourceProposalEv
             "reason",
             "created_at",
         )
+
+    def get_actor_label(self, event: SourceProposalEvent) -> str:
+        if event.actor is None:
+            return "Former account"
+        return event.actor.email or str(event.actor_id)
 
 
 class SourceProposalSerializer(serializers.ModelSerializer[SourceProposal]):

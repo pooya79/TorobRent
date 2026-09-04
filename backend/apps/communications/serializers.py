@@ -429,6 +429,7 @@ class MessageDetailSerializer(MessageSummarySerializer):
                     "kind": (
                         "renter_message"
                         if message.author_id == item.renter_id
+                        or (message.author_id is None and item.renter_id is None)
                         else "submitter_message"
                     ),
                     "body": message.body,
@@ -439,7 +440,9 @@ class MessageDetailSerializer(MessageSummarySerializer):
                         actor_id=user_id,
                     )
                     is None,
-                    "author_name": message.author.display_name,
+                    "author_name": (
+                        message.author.display_name if message.author is not None else "حساب حذف‌شده"
+                    ),
                     "mine": message.author_id == user_id,
                 }
                 for message in item.messages.all()
@@ -494,6 +497,7 @@ class MessageDetailSerializer(MessageSummarySerializer):
                 "display_name": serializers.CharField(),
                 "role": serializers.ChoiceField(choices=("renter", "submitter")),
                 "identity_verified": serializers.BooleanField(),
+                "deleted": serializers.BooleanField(),
             },
             allow_null=True,
         )
@@ -510,9 +514,10 @@ class MessageDetailSerializer(MessageSummarySerializer):
             account = item.renter
             role = "renter"
         return {
-            "display_name": account.display_name,
+            "display_name": account.display_name if account is not None else "حساب حذف‌شده",
             "role": role,
             "identity_verified": False,
+            "deleted": account is None,
         }
 
 

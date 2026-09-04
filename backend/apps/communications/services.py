@@ -2,7 +2,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import StrEnum
-from typing import TypedDict
+from typing import TypedDict, cast
 from unicodedata import normalize
 
 from django.conf import settings
@@ -107,7 +107,17 @@ def report_listing_inquiry(
             "این گفت‌وگو در دسترس شما نیست.",
             code="listing_inquiry_forbidden",
         )
+    if inquiry.has_deleted_participant:
+        raise ListingInquiryError(
+            "حساب طرف گفت‌وگو حذف شده است.",
+            code=ListingInquiryReplyUnavailableReason.ACCOUNT_DELETED,
+        )
     messages = list(inquiry.messages.all())
+    if any(message.author is None for message in messages):
+        raise ListingInquiryError(
+            "حساب طرف گفت‌وگو حذف شده است.",
+            code=ListingInquiryReplyUnavailableReason.ACCOUNT_DELETED,
+        )
     target_message = None
     if target_message_id is not None:
         target_message = next(
@@ -138,7 +148,7 @@ def report_listing_inquiry(
             {
                 "id": str(message.id),
                 "author_id": str(message.author_id),
-                "author_display_name": message.author.display_name,
+                "author_display_name": cast(User, message.author).display_name,
                 "body": message.body,
                 "created_at": message.created_at.isoformat().replace("+00:00", "Z"),
                 "edited_at": (
@@ -180,8 +190,14 @@ def decide_conversation_report(
     restrict_pair: bool,
     suspend_account_id: uuid.UUID | None,
 ) -> ConversationReportDecisionOutcome:
+    retained_inquiry_id = report.inquiry_id
+    if retained_inquiry_id is not None:
+        ListingInquiry.objects.select_for_update().filter(id=retained_inquiry_id).first()
     report = (
-        ConversationReport.objects.select_for_update().select_related("inquiry").get(id=report.id)
+        ConversationReport.objects
+        .select_for_update(of=("self",))
+        .select_related("inquiry")
+        .get(id=report.id)
     )
     if report.status != ConversationReportStatus.PENDING:
         raise ValidationError("This Conversation Report has already been decided.")
@@ -259,6 +275,8 @@ def decide_conversation_report(
     report.target_message = None
     report.reporter = None
     report.save(update_fields=("inquiry", "target_message", "reporter"))
+    if retained_inquiry_id is not None:
+        cleanup_listing_inquiry(inquiry_id=retained_inquiry_id)
     return ConversationReportDecisionOutcome(
         report=report,
         pair_restricted=pair_restricted,
@@ -294,6 +312,11 @@ def _release_conversation_report_evidence(
 def release_conversation_report_evidence(
     *, report: ConversationReport, actor: User, internal_note: str
 ) -> ConversationReport:
+    retained_inquiry_id = (
+        uuid.UUID(report.evidence["inquiry_id"]) if report.evidence is not None else None
+    )
+    if retained_inquiry_id is not None:
+        ListingInquiry.objects.select_for_update().filter(id=retained_inquiry_id).first()
     report = ConversationReport.objects.select_for_update().get(id=report.id)
     if report.evidence_retention_status != ConversationEvidenceRetentionStatus.REQUIRED:
         raise ValidationError("This Conversation Report does not have a required evidence hold.")
@@ -302,6 +325,8 @@ def release_conversation_report_evidence(
         actor=actor,
         internal_note=internal_note,
     )
+    if retained_inquiry_id is not None:
+        cleanup_listing_inquiry(inquiry_id=retained_inquiry_id)
     return report
 
 
@@ -309,6 +334,7 @@ class ListingInquiryMessageEditDeniedReason(StrEnum):
     WRONG_AUTHOR = "listing_inquiry_message_edit_forbidden"
     LOCKED = "listing_inquiry_message_edit_locked"
     EXPIRED = "listing_inquiry_message_edit_window_expired"
+    ACCOUNT_DELETED = ListingInquiryReplyUnavailableReason.ACCOUNT_DELETED
     ACCOUNT_BLOCKED = ListingInquiryReplyUnavailableReason.ACCOUNT_BLOCKED
     LISTING_INACTIVE = ListingInquiryReplyUnavailableReason.LISTING_INACTIVE
     RESPONSIBILITY_CHANGED = ListingInquiryReplyUnavailableReason.RESPONSIBILITY_CHANGED
@@ -317,6 +343,10 @@ class ListingInquiryMessageEditDeniedReason(StrEnum):
 def inquiry_reply_unavailable_reason(
     inquiry: ListingInquiry,
 ) -> ListingInquiryReplyUnavailableReason | None:
+    if inquiry.has_deleted_participant:
+        return ListingInquiryReplyUnavailableReason.ACCOUNT_DELETED
+    assert inquiry.renter_id is not None
+    assert inquiry.submitter_id is not None
     if accounts_are_blocked(inquiry.renter_id, inquiry.submitter_id):
         return ListingInquiryReplyUnavailableReason.ACCOUNT_BLOCKED
     listing = inquiry.listing
@@ -341,6 +371,19 @@ def accounts_are_blocked(first_account_id: uuid.UUID, second_account_id: uuid.UU
 
 
 @transaction.atomic
+def cleanup_listing_inquiry(*, inquiry_id: uuid.UUID, using: str = "default") -> bool:
+    inquiry = ListingInquiry.objects.using(using).select_for_update().filter(id=inquiry_id).first()
+    if inquiry is None or inquiry.renter_id is not None or inquiry.submitter_id is not None:
+        return False
+    if inquiry.reports.exists():
+        return False
+    if inquiry.messages.filter(conversation_report_evidence_holds__isnull=False).exists():
+        return False
+    inquiry.delete(using=using)
+    return True
+
+
+@transaction.atomic
 def block_listing_inquiry_counterpart(*, inquiry: ListingInquiry, actor: User) -> AccountBlock:
     inquiry = ListingInquiry.objects.select_for_update().get(id=inquiry.id)
     if actor.id not in (inquiry.renter_id, inquiry.submitter_id):
@@ -348,6 +391,13 @@ def block_listing_inquiry_counterpart(*, inquiry: ListingInquiry, actor: User) -
             "این گفت‌وگو در دسترس شما نیست.",
             code="listing_inquiry_forbidden",
         )
+    if inquiry.has_deleted_participant:
+        raise ListingInquiryError(
+            "حساب طرف گفت‌وگو حذف شده است.",
+            code=ListingInquiryReplyUnavailableReason.ACCOUNT_DELETED,
+        )
+    assert inquiry.renter_id is not None
+    assert inquiry.submitter_id is not None
     lower_account_id, higher_account_id = sorted(
         (inquiry.renter_id, inquiry.submitter_id), key=lambda account_id: account_id.int
     )
@@ -396,6 +446,7 @@ def _eligible_listing(listing_id: uuid.UUID) -> Listing:
                 source__is_builtin=True,
                 source__outbound_policy=OutboundPolicy.DIRECT_CONTACT,
                 submission__state=SubmissionState.PUBLISHED,
+                submission__submitter__isnull=False,
             )
         )
     except (Listing.DoesNotExist, ValidationError, ValueError) as exc:
@@ -460,6 +511,7 @@ def start_listing_inquiry(
         )
     listing = _eligible_listing(listing_id)
     submitter = listing.submission.submitter
+    assert submitter is not None
     if renter.id == submitter.id:
         raise ListingInquiryError(
             "این آگهی متعلق به خود شماست.",
@@ -511,7 +563,7 @@ def reply_to_listing_inquiry(
 ) -> ListingInquiryMessage:
     inquiry = (
         ListingInquiry.objects
-        .select_for_update()
+        .select_for_update(of=("self",))
         .select_related("listing__source", "listing__submission")
         .get(id=inquiry.id)
     )
@@ -550,7 +602,7 @@ def edit_listing_inquiry_message(
 ) -> ListingInquiryMessage:
     message = (
         ListingInquiryMessage.objects
-        .select_for_update()
+        .select_for_update(of=("self",))
         .select_related("inquiry__listing__source", "inquiry__listing__submission")
         .get(id=message.id)
     )
@@ -566,6 +618,9 @@ def edit_listing_inquiry_message(
             ),
             ListingInquiryMessageEditDeniedReason.EXPIRED: (
                 "مهلت ۱۵ دقیقه‌ای ویرایش پیام پایان یافته است."
+            ),
+            ListingInquiryMessageEditDeniedReason.ACCOUNT_DELETED: (
+                "حساب طرف گفت‌وگو حذف شده و گفت‌وگو فقط خواندنی است."
             ),
             ListingInquiryMessageEditDeniedReason.ACCOUNT_BLOCKED: (
                 "ارتباط میان این دو حساب مسدود شده است."

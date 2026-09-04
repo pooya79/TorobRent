@@ -1,3 +1,4 @@
+import uuid
 from collections.abc import Mapping
 from datetime import timedelta
 from typing import Any, cast
@@ -475,13 +476,9 @@ class SubmissionWorkloadSummarySerializer(serializers.Serializer[dict[str, int]]
 
 
 class SubmissionEventSerializer(serializers.ModelSerializer[SubmissionEvent]):
-    actor_reference = serializers.UUIDField(
-        source="actor.historical_actor_reference", read_only=True
-    )
-    actor_label = serializers.CharField(source="actor.historical_actor_label", read_only=True)
-    actor_email = serializers.EmailField(
-        source="actor.historical_actor_email", read_only=True, allow_null=True
-    )
+    actor_reference = serializers.SerializerMethodField()
+    actor_label = serializers.SerializerMethodField()
+    actor_email = serializers.SerializerMethodField()
     reviewed_revision = serializers.IntegerField(source="revision", read_only=True)
     review_claim_id = serializers.UUIDField(read_only=True, allow_null=True)
     corrects_id = serializers.UUIDField(read_only=True, allow_null=True)
@@ -511,6 +508,17 @@ class SubmissionEventSerializer(serializers.ModelSerializer[SubmissionEvent]):
             "notification",
             "created_at",
         )
+
+    @extend_schema_field(serializers.UUIDField(allow_null=True))
+    def get_actor_reference(self, event: SubmissionEvent) -> uuid.UUID | None:
+        return event.actor.historical_actor_reference if event.actor is not None else None
+
+    def get_actor_label(self, event: SubmissionEvent) -> str:
+        return event.actor.historical_actor_label if event.actor is not None else "Former account"
+
+    @extend_schema_field(serializers.EmailField(allow_null=True))
+    def get_actor_email(self, event: SubmissionEvent) -> str | None:
+        return event.actor.historical_actor_email if event.actor is not None else None
 
     @extend_schema_field(SubmissionDecisionNotificationSerializer(allow_null=True))
     def get_notification(self, event: SubmissionEvent) -> dict[str, Any] | None:
@@ -754,7 +762,9 @@ class SubmissionSerializer(ClaimStatusMixin, serializers.ModelSerializer[Submiss
             "phone": phone,
             "phone_source": submission.contact_phone_source,
             "phone_verified": submission_contact_phone_is_verified(submission),
-            "account_phone": submission.submitter.phone or "",
+            "account_phone": (
+                submission.submitter.phone if submission.submitter is not None else ""
+            ),
             "authorization_declared": submission.authorization_declared,
             "phone_publication_consent": submission.phone_publication_consent,
         }

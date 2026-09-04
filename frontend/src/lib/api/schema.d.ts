@@ -2094,6 +2094,7 @@ export interface components {
       display_name: string;
       role: components["schemas"]["ListingInquiryCounterpartRoleEnum"];
       identity_verified: boolean;
+      deleted: boolean;
     };
     /**
      * @description * `renter` - renter
@@ -2747,13 +2748,17 @@ export interface components {
       monthly_rent_toman: number;
     };
     /**
-     * @description * `account_blocked` - Account blocked
+     * @description * `account_deleted` - Account deleted
+     *     * `account_blocked` - Account blocked
      *     * `listing_inactive` - Listing inactive
      *     * `responsibility_changed` - Responsibility changed
      * @enum {string}
      */
     ReplyUnavailableReasonEnum:
-      "account_blocked" | "listing_inactive" | "responsibility_changed";
+      | "account_deleted"
+      | "account_blocked"
+      | "listing_inactive"
+      | "responsibility_changed";
     ReviewClaim: {
       /** Format: uuid */
       readonly id: string;
@@ -2857,7 +2862,6 @@ export interface components {
     SourceProposalEvent: {
       /** Format: uuid */
       readonly id: string;
-      /** Format: email */
       readonly actor_label: string;
       /** Format: int64 */
       revision: number;
@@ -3027,7 +3031,7 @@ export interface components {
       readonly id: string;
       event_type?: components["schemas"]["SubmissionEventEventTypeEnum"];
       /** Format: uuid */
-      readonly actor_reference: string;
+      readonly actor_reference: string | null;
       readonly actor_label: string;
       /** Format: email */
       readonly actor_email: string | null;

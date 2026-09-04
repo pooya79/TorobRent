@@ -9,6 +9,7 @@ from django.core.exceptions import ValidationError
 from django.db import models
 
 from apps.catalog.models import FeatureState, PropertyType
+from apps.common.deletion import set_null_in_immutable_history
 from apps.common.media import MediaVariantKind
 
 
@@ -79,8 +80,9 @@ class Submission(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     submitter = models.ForeignKey(
         settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
+        on_delete=models.SET_NULL,
         related_name="submissions",
+        null=True,
     )
     role = models.CharField(max_length=8, choices=SubmitterRole)
     state = models.CharField(max_length=20, choices=SubmissionState, default=SubmissionState.DRAFT)
@@ -236,8 +238,9 @@ class SubmissionEvent(models.Model):
     )
     actor = models.ForeignKey(
         settings.AUTH_USER_MODEL,
-        on_delete=models.PROTECT,
+        on_delete=set_null_in_immutable_history,
         related_name="submission_events",
+        null=True,
     )
     event_type = models.CharField(
         max_length=24,

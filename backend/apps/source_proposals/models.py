@@ -8,6 +8,7 @@ from django.core.exceptions import ValidationError
 from django.db import models
 
 from apps.catalog.models import PropertyType
+from apps.common.deletion import set_null_in_immutable_history
 
 
 class SourceProposalState(models.TextChoices):
@@ -41,8 +42,9 @@ class SourceProposal(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     submitter = models.ForeignKey(
         settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
+        on_delete=models.SET_NULL,
         related_name="source_proposals",
+        null=True,
     )
     state = models.CharField(
         max_length=24, choices=SourceProposalState, default=SourceProposalState.DRAFT
@@ -117,8 +119,9 @@ class SourceProposalEvent(models.Model):
     proposal = models.ForeignKey(SourceProposal, on_delete=models.PROTECT, related_name="events")
     actor = models.ForeignKey(
         settings.AUTH_USER_MODEL,
-        on_delete=models.PROTECT,
+        on_delete=set_null_in_immutable_history,
         related_name="source_proposal_events",
+        null=True,
     )
     revision = models.PositiveIntegerField()
     prior_state = models.CharField(max_length=24, choices=SourceProposalState)

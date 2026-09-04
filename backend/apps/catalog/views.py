@@ -369,6 +369,7 @@ class ListingPhoneRevealView(APIView):
                     source__outbound_policy=OutboundPolicy.DIRECT_CONTACT,
                     direct_phone__gt="",
                     submission__state="published",
+                    submission__submitter__isnull=False,
                     submission__phone_publication_consent=True,
                     submission__contact_phone=F("direct_phone"),
                 )
@@ -380,6 +381,7 @@ class ListingPhoneRevealView(APIView):
         from apps.communications.services import accounts_are_blocked
 
         user = cast(User, request.user)
+        assert listing.submission.submitter_id is not None
         if accounts_are_blocked(user.id, listing.submission.submitter_id):
             raise PermissionDenied(
                 "ارتباط میان این دو حساب مسدود شده است.",

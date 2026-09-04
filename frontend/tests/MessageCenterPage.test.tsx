@@ -668,6 +668,60 @@ test("shows the immutable Listing snapshot beside inactive current availability"
   ).not.toBeInTheDocument();
 });
 
+test("renders a deleted inquiry participant neutrally without account actions", async () => {
+  const inquiry = {
+    ...message,
+    id: "10000000-0000-4000-8000-000000000110",
+    kind: "listing_inquiry",
+    title: "پرسش درباره آپارتمان",
+    preview: "پیام پیشین",
+    group: {
+      kind: "listing_inquiry",
+      id: "20000000-0000-4000-8000-000000000110",
+      label: "آپارتمان",
+    },
+  };
+  server.use(
+    http.get("*/api/v1/messages/", () =>
+      HttpResponse.json({
+        count: 1,
+        next: null,
+        previous: null,
+        results: [inquiry],
+      }),
+    ),
+    http.get("*/api/v1/messages/:messageId/", () =>
+      HttpResponse.json({
+        ...inquiry,
+        body: inquiry.preview,
+        read: true,
+        target: null,
+        public_status: null,
+        reply_allowed: false,
+        reply_unavailable_reason: "account_deleted",
+        listing_context: null,
+        counterpart: {
+          display_name: "حساب حذف‌شده",
+          role: "renter",
+          identity_verified: false,
+          deleted: true,
+        },
+        entries: [],
+      }),
+    ),
+  );
+
+  renderPage(`/messages/${inquiry.id}`);
+
+  expect(await screen.findByText("گفت‌وگو با حساب حذف‌شده")).toBeVisible();
+  expect(
+    screen.getByText("حساب طرف گفت‌وگو حذف شده و این گفت‌وگو فقط خواندنی است."),
+  ).toBeVisible();
+  expect(
+    screen.queryByRole("button", { name: "مسدود کردن حساب" }),
+  ).not.toBeInTheDocument();
+});
+
 test("blocks the counterpart globally with an accessible confirmation", async () => {
   let blockCount = 0;
   const inquiry = {
