@@ -65,6 +65,12 @@ A stored, Operator-reviewed image representing a Property independently of the L
 selected for its Rental Terms.
 _Avoid_: Listing image, advertisement image
 
+**External Listing Image**:
+A processed image obtained from an external Source and retained with the External Listing whose
+advertisement supplied it. It remains source-specific unless separately accepted as a Property
+Image.
+_Avoid_: Property Image, hotlinked image
+
 **Listing**:
 One source's advertisement of a Property, including source-specific rental terms and a route to
 continue with that source. Several Listings can refer to the same Property.
@@ -87,6 +93,33 @@ _Avoid_: Published listing
 **Source**:
 The website or direct TorobRent channel from which a Listing originates.
 _Avoid_: Provider
+
+**Source Assignment**:
+An Operator-approved, exclusive, and revocable association between one external Source and one
+Source Representative. It expresses who may introduce rental information from the Source on
+TorobRent, not legal ownership of the website or domain.
+_Avoid_: Domain ownership, Source ownership
+
+**Source Profile**:
+A versioned, Operator-approved description of how TorobRent extracts rental information for one
+Source. A Source has one profile lineage with at most one active approved version, whose review
+mode determines whether future Extraction Runs require approval.
+_Avoid_: Crawler configuration, scraping rule
+
+**Extraction Request**:
+A Source Representative's request for TorobRent to process a URL belonging to their Source
+Assignment.
+_Avoid_: Crawl request, Submission
+
+**Source Discovery**:
+A bounded examination of an approved external Source that identifies rental pages and groups their
+structural patterns before its Source Profile is proposed or applied.
+_Avoid_: Extraction, crawling
+
+**Extraction Run**:
+One recorded execution of a Source Profile for an Extraction Request, including its outcome and
+the External Listing candidates it produces.
+_Avoid_: Crawl, import
 
 **Source Proposal**:
 A Submitter's request for TorobRent to validate an external Source and discover its rental
