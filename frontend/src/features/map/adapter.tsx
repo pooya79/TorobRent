@@ -36,6 +36,10 @@ export type MapPropertyPreview = {
 export type MapMarker = {
   propertyId: string;
   label: string;
+  mapPrices: {
+    deposit: string;
+    monthlyRent: string;
+  };
   approximateLocation: ApproximateLocation;
   preview: MapPropertyPreview;
 };
@@ -87,6 +91,13 @@ type FakeMapAdapterOptions = {
 
 function formatNumber(value: number) {
   return new Intl.NumberFormat("fa-IR").format(value);
+}
+
+export function formatMapPrice(valueInToman: number) {
+  const divisor = valueInToman >= 1_000_000_000 ? 1_000_000_000 : 1_000_000;
+  return new Intl.NumberFormat("fa-IR", {
+    maximumFractionDigits: 1,
+  }).format(valueInToman / divisor);
 }
 
 export function createFakeMapAdapter({
@@ -164,7 +175,7 @@ export function createFakeMapAdapter({
           <div key={marker.propertyId}>
             <button
               type="button"
-              className="whitespace-pre-line"
+              className="relative flex h-7 items-center justify-center rounded-md bg-[#e00b41] px-2 text-[11px] font-bold text-white after:absolute after:top-full after:left-1/2 after:-translate-x-1/2 after:border-x-4 after:border-t-4 after:border-x-transparent after:border-t-[#e00b41] after:content-['']"
               aria-label={`انتخاب ${marker.preview.title}، ${marker.label.replace("\n", "، ")}`}
               aria-pressed={selectedPropertyId === marker.propertyId}
               onClick={() => {
@@ -173,7 +184,11 @@ export function createFakeMapAdapter({
                 onViewportChange(effectiveInitialViewport, "programmatic");
               }}
             >
-              {marker.label}
+              <span aria-hidden="true" dir="ltr">
+                {marker.mapPrices.deposit}
+                <span className="mx-1 opacity-60">|</span>
+                {marker.mapPrices.monthlyRent}
+              </span>
             </button>
             <p>
               {marker.approximateLocation.precision === "approximate"

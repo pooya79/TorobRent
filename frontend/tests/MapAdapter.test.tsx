@@ -2,13 +2,18 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { expect, test, vi } from "vitest";
 
-import { createFakeMapAdapter, type MapMarker } from "@/features/map/adapter";
+import {
+  createFakeMapAdapter,
+  formatMapPrice,
+  type MapMarker,
+} from "@/features/map/adapter";
 import { NeshanMapAdapter } from "@/features/map/NeshanMapAdapter";
 import { OpenStreetMapAdapter } from "@/features/map/OpenStreetMapAdapter";
 
 const marker: MapMarker = {
   propertyId: "property-1",
   label: "ودیعه ۱ میلیارد، اجاره ۲۵ میلیون تومان",
+  mapPrices: { deposit: "۱", monthlyRent: "۲۵" },
   approximateLocation: {
     center: { latitude: 35.7665, longitude: 51.4749 },
     radiusMeters: 50,
@@ -27,6 +32,15 @@ const marker: MapMarker = {
     detailHref: "/properties/property-1",
   },
 };
+
+test.each([
+  [25_000_000, "۲۵"],
+  [950_000_000, "۹۵۰"],
+  [1_000_000_000, "۱"],
+  [3_500_000_000, "۳٫۵"],
+])("formats %i toman as a compact map price", (value, expected) => {
+  expect(formatMapPrice(value)).toBe(expected);
+});
 
 test("the fake adapter deterministically exposes the TorobRent map contract", async () => {
   const user = userEvent.setup();
@@ -77,6 +91,7 @@ test("the fake adapter deterministically exposes the TorobRent map contract", as
     screen.getByRole("application", { name: "نقشه تعاملی ملک‌ها" }),
   ).toBeVisible();
   expect(screen.getByText("محدوده تقریبی ۵۰ متر")).toBeVisible();
+  expect(screen.getByText("۱", { exact: false })).toHaveTextContent("۱|۲۵");
 
   await user.click(
     screen.getByRole("button", {

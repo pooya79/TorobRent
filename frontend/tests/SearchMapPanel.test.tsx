@@ -46,6 +46,7 @@ test("offers a keyboard-operable textual fallback for mapped Properties", async 
   const marker: MapMarker = {
     propertyId: "property-1",
     label: "ودیعه و اجاره یک Active Listing",
+    mapPrices: { deposit: "۱", monthlyRent: "۲۵" },
     approximateLocation: {
       center: { latitude: 35.7665, longitude: 51.4749 },
       radiusMeters: 50,

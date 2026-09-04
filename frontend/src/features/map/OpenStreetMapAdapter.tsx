@@ -91,25 +91,40 @@ function viewportFromMap(map: Map): MapViewport | null {
 }
 
 function markerStyle(selected: boolean, label: string, showLabel: boolean) {
-  return new Style({
+  const color = selected ? "#222222" : "#e00b41";
+  const marker = new Style({
     image: new CircleStyle({
-      radius: selected ? 10 : 8,
-      fill: new Fill({ color: selected ? "#222222" : "#e00b41" }),
-      stroke: new Stroke({ color: "#ffffff", width: 3 }),
+      radius: selected ? 6 : 5,
+      fill: new Fill({ color }),
+      stroke: new Stroke({ color: "#ffffff", width: 2 }),
     }),
-    text: showLabel
-      ? new Text({
-          text: label,
-          offsetY: -38,
-          textAlign: "center",
-          font: "600 12px system-ui",
-          fill: new Fill({ color: "#18181b" }),
-          backgroundFill: new Fill({ color: "rgba(255, 255, 255, 0.96)" }),
-          backgroundStroke: new Stroke({ color: "#e4e4e7", width: 1 }),
-          padding: [5, 7, 5, 7],
-        })
-      : undefined,
   });
+  if (!showLabel) return marker;
+  const [deposit = "", monthlyRent = ""] = label.split("|");
+  return [
+    marker,
+    new Style({
+      text: new Text({
+        text: `\u2066${deposit} | ${monthlyRent}\u2069`,
+        offsetY: -23,
+        textAlign: "center",
+        font: "700 10px system-ui",
+        fill: new Fill({ color: "#ffffff" }),
+        backgroundFill: new Fill({ color }),
+        backgroundStroke: new Stroke({ color: "#ffffff", width: 1.5 }),
+        padding: [5, 7, 5, 7],
+      }),
+    }),
+    new Style({
+      text: new Text({
+        text: "▼",
+        offsetY: -9,
+        textAlign: "center",
+        font: "700 11px system-ui",
+        fill: new Fill({ color }),
+      }),
+    }),
+  ];
 }
 
 function clusterStyle(propertyCount: number) {
@@ -280,7 +295,9 @@ export function OpenStreetMapAdapter({
         const selected = propertyId === selectedPropertyId;
         return markerStyle(
           selected,
-          marker?.label ?? "",
+          marker
+            ? `${marker.mapPrices.deposit}|${marker.mapPrices.monthlyRent}`
+            : "",
           Boolean(marker) && markerLabelIsVisible(),
         );
       },

@@ -47,6 +47,7 @@ import type {
   MapMarker,
   MapViewport,
 } from "@/features/map/adapter";
+import { formatMapPrice } from "@/features/map/adapter";
 import { configuredMapAdapter } from "@/features/map/configured-adapter";
 import { SearchMapPanel } from "@/features/map/SearchMapPanel";
 import {
@@ -154,6 +155,10 @@ function toMapMarker(
   return {
     propertyId: property.id,
     label: `ودیعه ${card.rentalTerms.depositLabel}\nاجاره ماهانه ${card.rentalTerms.monthlyRentLabel}`,
+    mapPrices: {
+      deposit: formatMapPrice(property.rental_terms.deposit_toman),
+      monthlyRent: formatMapPrice(property.rental_terms.monthly_rent_toman),
+    },
     approximateLocation: {
       center: {
         latitude: Number(location.latitude),

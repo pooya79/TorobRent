@@ -49,10 +49,12 @@ export function FavoriteButton({
   propertyId,
   propertyTitle,
   isFavorite,
+  className,
 }: {
   propertyId: string;
   propertyTitle: string;
   isFavorite: boolean;
+  className?: string;
 }) {
   const queryClient = useQueryClient();
   const session = useQuery(sessionQuery);
@@ -142,7 +144,10 @@ export function FavoriteButton({
     <>
       <button
         type="button"
-        className="bg-card text-foreground focus-visible:ring-ring absolute top-3 right-3 z-10 flex size-10 items-center justify-center rounded-full shadow-sm focus-visible:ring-2 focus-visible:outline-none"
+        className={cn(
+          "bg-card text-foreground focus-visible:ring-ring absolute top-3 right-3 z-10 flex size-10 items-center justify-center rounded-full shadow-sm focus-visible:ring-2 focus-visible:outline-none",
+          className,
+        )}
         aria-label={accessibleName}
         aria-pressed={isFavorite}
         aria-busy={!session.data}

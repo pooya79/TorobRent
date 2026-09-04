@@ -870,7 +870,8 @@ test("selects a marker, highlights its loaded card, and opens the complete previ
     name: "پیش‌نمایش آپارتمان در سعادت‌آباد",
   });
   expect(preview).toHaveFocus();
-  expect(within(preview).getByRole("img")).toHaveAttribute(
+  const previewImage = within(preview).getByRole("img");
+  expect(previewImage).toHaveAttribute(
     "src",
     "/media/reviewed-media/property-primary.webp",
   );
@@ -879,11 +880,14 @@ test("selects a marker, highlights its loaded card, and opens the complete previ
   expect(preview).toHaveTextContent("ودیعه ۱٬۰۰۰٬۰۰۰٬۰۰۰ تومان");
   expect(preview).toHaveTextContent("اجاره ماهانه ۲۵٬۰۰۰٬۰۰۰ تومان");
   expect(preview).toHaveTextContent("۲ آگهی فعال");
-  expect(
-    within(preview).getByRole("button", {
-      name: "ذخیره آپارتمان در سعادت‌آباد در علاقه‌مندی‌ها",
-    }),
-  ).toBeVisible();
+  const previewFavorite = within(preview).getByRole("button", {
+    name: "ذخیره آپارتمان در سعادت‌آباد در علاقه‌مندی‌ها",
+  });
+  expect(previewFavorite).toBeVisible();
+  expect(previewFavorite.parentElement).toBe(
+    within(preview).getByRole("button", { name: "بستن پیش‌نمایش" })
+      .parentElement,
+  );
   expect(
     within(preview).getByRole("link", {
       name: "مشاهده آپارتمان در سعادت‌آباد",

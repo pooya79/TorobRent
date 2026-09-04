@@ -173,16 +173,23 @@ export function SearchMapPanel({
               className="bg-card absolute inset-x-3 bottom-3 z-10 max-h-[75%] overflow-y-auto rounded-t-2xl border p-4 shadow-xl sm:bottom-8 sm:rounded-xl"
             >
               <div className="relative grid gap-3 sm:grid-cols-[7rem_1fr]">
-                <Button
-                  type="button"
-                  size="icon"
-                  variant="ghost"
-                  className="absolute top-0 left-0 z-20"
-                  aria-label="بستن پیش‌نمایش"
-                  onClick={closePreview}
-                >
-                  <X aria-hidden="true" />
-                </Button>
+                <div className="absolute top-0 left-0 z-20 flex flex-row-reverse items-center gap-1">
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="ghost"
+                    aria-label="بستن پیش‌نمایش"
+                    onClick={closePreview}
+                  >
+                    <X aria-hidden="true" />
+                  </Button>
+                  <FavoriteButton
+                    propertyId={previewPropertyId ?? ""}
+                    propertyTitle={preview.title}
+                    isFavorite={preview.isFavorite}
+                    className="static"
+                  />
+                </div>
                 <div className="bg-muted aspect-[4/3] overflow-hidden rounded-lg">
                   {preview.image ? (
                     <img
@@ -198,12 +205,7 @@ export function SearchMapPanel({
                     </div>
                   )}
                 </div>
-                <div className="relative min-w-0 pe-12">
-                  <FavoriteButton
-                    propertyId={previewPropertyId ?? ""}
-                    propertyTitle={preview.title}
-                    isFavorite={preview.isFavorite}
-                  />
+                <div className="min-w-0 sm:ps-24">
                   <h3 className="font-semibold">{preview.title}</h3>
                   <p className="text-muted-foreground mt-1 text-sm">
                     {preview.locationLabel}
