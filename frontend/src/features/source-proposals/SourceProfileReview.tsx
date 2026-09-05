@@ -10,6 +10,7 @@ import type { components } from "@/lib/api/schema";
 import {
   approveSourceProfile,
   editSourceProfile,
+  repairSourceProfile,
   type OperatorSourceProposal,
 } from "./queries";
 
@@ -140,6 +141,30 @@ export function SourceProfileReview({
             onUpdate={onUpdate}
           />
         )}
+      {(proposal.profile_repairs ?? []).length > 0 && (
+        <div className="grid gap-3" aria-label="تاریخچه اصلاح هوشمند">
+          <h4 className="font-medium">تاریخچه اصلاح هوشمند</h4>
+          {proposal.profile_repairs.map((repair) => (
+            <div key={repair.id} className="rounded-md border p-3 text-sm">
+              <p>
+                {repair.selected_fields
+                  .map((field: string) => fields[field] ?? field)
+                  .join("، ")}
+              </p>
+              <p role="status">{repair.detail}</p>
+              <details>
+                <summary>جزئیات درخواست</summary>
+                <p dir="ltr" className="break-all">
+                  {repair.model} · {repair.started_at}
+                </p>
+                <pre dir="ltr" className="overflow-x-auto text-xs">
+                  {JSON.stringify(repair, null, 2)}
+                </pre>
+              </details>
+            </div>
+          ))}
+        </div>
+      )}
       {versions.length > 1 && (
         <details>
           <summary>تاریخچه نسخه‌های پروفایل</summary>
@@ -159,8 +184,12 @@ function ProfileEvidence({ version }: { version: Version }) {
         پروفایل منبع — نسخه {version.number.toLocaleString("fa-IR")}
       </h3>
       <p className="text-muted-foreground text-sm">
-        {version.provenance === "manual" ? "اصلاح دستی" : "پیشنهاد کشف"} ·{" "}
-        {version.created_by_label || "سامانه"}
+        {version.provenance === "llm"
+          ? "اصلاح هوشمند"
+          : version.provenance === "manual"
+            ? "اصلاح دستی"
+            : "پیشنهاد کشف"}{" "}
+        · {version.created_by_label || "سامانه"}
       </p>
       {version.decision_reason && <p>{version.decision_reason}</p>}
       <p>
@@ -286,6 +315,8 @@ function ProfileEditor({
   version: Version;
   onUpdate: (proposal: OperatorSourceProposal) => void;
 }) {
+  const [selectedFields, setSelectedFields] = useState<string[]>([]);
+  const [requestId, setRequestId] = useState(() => crypto.randomUUID());
   const [field, setField] = useState("city");
   const [kind, setKind] = useState("css");
   const [locator, setLocator] = useState("");
@@ -344,9 +375,78 @@ function ProfileEditor({
     },
     onSuccess: onUpdate,
   });
-  const busy = edit.isPending || approve.isPending;
+  const repair = useMutation({
+    mutationFn: () =>
+      repairSourceProfile(proposal.id, {
+        ...common,
+        request_id: requestId,
+        selected_fields: selectedFields,
+      }),
+    retry: false,
+    onSuccess: (updated) => {
+      setRequestId(crypto.randomUUID());
+      onUpdate(updated);
+    },
+  });
+  const busy = edit.isPending || approve.isPending || repair.isPending;
+  const pendingRepair = proposal.profile_repairs?.some(
+    (attempt) => attempt.parent === version.id && attempt.outcome === "pending",
+  );
   return (
     <div className="grid gap-4">
+      <fieldset
+        disabled={busy || pendingRepair}
+        className="grid gap-3 rounded-md border p-3"
+      >
+        <legend className="px-1 font-medium">
+          اصلاح هوشمند فیلدهای انتخاب‌شده
+        </legend>
+        <p className="text-sm">
+          یک تا چهار فیلد را انتخاب کنید. فقط شواهد محدود و بدون شماره تماس برای
+          مدل ارسال می‌شود. هر اصلاح موفق نسخه تازه‌ای می‌سازد که نیازمند بررسی
+          شماست.
+        </p>
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          {Object.entries(fields).map(([name, label]) => (
+            <label key={name} className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                aria-label={`اصلاح هوشمند ${label}`}
+                checked={selectedFields.includes(name)}
+                disabled={
+                  selectedFields.length >= 4 && !selectedFields.includes(name)
+                }
+                onChange={(event) => {
+                  setSelectedFields((current) =>
+                    event.target.checked
+                      ? [...current, name]
+                      : current.filter((field) => field !== name),
+                  );
+                  setRequestId(crypto.randomUUID());
+                }}
+              />
+              {label}
+            </label>
+          ))}
+        </div>
+        <Button
+          type="button"
+          disabled={!selectedFields.length || busy || pendingRepair}
+          onClick={() => repair.mutate()}
+        >
+          {repair.isPending ? "در حال اصلاح…" : "درخواست اصلاح هوشمند"}
+        </Button>
+      </fieldset>
+      {repair.error && (
+        <Alert variant="destructive">
+          <AlertDescription>
+            {errorMessage(
+              repair.error,
+              "اصلاح انجام نشد؛ پرونده را تازه کنید.",
+            )}
+          </AlertDescription>
+        </Alert>
+      )}
       <form
         className="grid gap-3"
         onSubmit={(event) => {

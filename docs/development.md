@@ -110,3 +110,37 @@ JPEG, PNG, and WebP uploads are validated by content and are limited to 10 MiB b
 metadata-free responsive WebP variants, while Celery beat removes temporary uploads abandoned for
 more than 24 hours. Media is served only through authenticated application endpoints, never as a
 public media directory.
+
+## Explicit Source Profile repair
+
+Set `SOURCE_PROFILE_REPAIR_API_KEY` and `SOURCE_PROFILE_REPAIR_MODEL` to enable the Operator's
+**درخواست اصلاح هوشمند** action. Choose a model available to your account that supports Chat
+Completions and strict structured outputs. Empty settings leave manual editing available and
+return an audited `not_configured` outcome for explicit repair requests. Compose passes these
+settings to the backend; host-based development must export them in its shell. No test uses real
+credentials or calls the model service.
+
+The action accepts one to four explicitly selected fields and a client-generated request UUID.
+Repeating the same request returns the retained case state without another model call. Another
+request for the same version is refused while an attempt is pending. Each new attempt requires a
+new explicit Operator action. Discovery, retries, drift, extraction and scheduled tasks do not
+import the repair workflow or call the model.
+
+The adapter makes one HTTPS request to OpenAI Chat Completions with strict JSON output, tools
+disabled, storage disabled, a 20-second transport deadline, a 4,096-token output cap, and a 64 KiB
+response cap. Its schema accepts only bounded CSS or JSON-LD field rules; manual editing retains
+the broader existing declarative language. See the
+[official structured-output contract](https://developers.openai.com/api/docs/guides/structured-outputs).
+
+Model input contains only the selected fields' observation locators and snippets from up to five
+training samples, with three observations per field/sample. Locators are capped at 300 characters
+and snippets at 240 after phone, email and URL redaction. Raw HTML, page URLs, other fields and
+held-out samples are excluded. Source Profile validation still uses the retained original training
+and held-out split. All core fields and the selected fields must pass before a new proposed
+version is created; approval remains a separate Operator decision.
+
+Immutable request/result records retain actor, parent, selected fields, model, prompt/schema
+versions, SHA-256 of the exact redacted evidence, bounded redacted structured output, validation,
+start/finish times, duration and outcome. Failures preserve prior versions and the active pointer.
+If a process dies after recording the request, its history shows `interrupted` after 60 seconds;
+refresh the case and explicitly submit a new request if appropriate. No recovery task retries it.

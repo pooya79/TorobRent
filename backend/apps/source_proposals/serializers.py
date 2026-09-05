@@ -12,6 +12,7 @@ from .models import (
     ExternalListingCandidateReviewClaim,
     InventoryRange,
     SourceAssignment,
+    SourceProfileRepair,
     SourceProfileVersion,
     SourceProposal,
     SourceProposalEvent,
@@ -416,17 +417,84 @@ class SourceProfileVersionSerializer(serializers.ModelSerializer[SourceProfileVe
         return version.profile.active_version_id == version.pk
 
 
+class SourceProfileRepairSerializer(serializers.ModelSerializer[SourceProfileRepair]):
+    selected_fields = serializers.ListField(child=serializers.CharField(), read_only=True)
+    outcome = serializers.SerializerMethodField()
+    detail = serializers.SerializerMethodField()
+    structured_result = serializers.JSONField(
+        source="result.structured_result", read_only=True, default=None, allow_null=True
+    )
+    validation = serializers.JSONField(source="result.validation", read_only=True, default=dict)
+    result_version = serializers.UUIDField(
+        source="result.result_version_id", read_only=True, default=None, allow_null=True
+    )
+    duration_ms = serializers.IntegerField(
+        source="result.duration_ms", read_only=True, default=None, allow_null=True
+    )
+    finished_at = serializers.DateTimeField(
+        source="result.finished_at", read_only=True, default=None, allow_null=True
+    )
+
+    class Meta:
+        model = SourceProfileRepair
+        fields = (
+            "id",
+            "parent",
+            "actor",
+            "selected_fields",
+            "model",
+            "prompt_version",
+            "schema_version",
+            "evidence_sha256",
+            "started_at",
+            "finished_at",
+            "outcome",
+            "detail",
+            "structured_result",
+            "validation",
+            "result_version",
+            "duration_ms",
+        )
+
+    def get_outcome(self, repair: SourceProfileRepair) -> str:
+        from .profile_repair import REPAIR_STALE_SECONDS
+
+        if hasattr(repair, "result"):
+            return repair.result.outcome
+        return (
+            "interrupted"
+            if (timezone.now() - repair.started_at).total_seconds() > REPAIR_STALE_SECONDS
+            else "pending"
+        )
+
+    def get_detail(self, repair: SourceProfileRepair) -> str:
+        if hasattr(repair, "result"):
+            return repair.result.detail
+        if self.get_outcome(repair) == "interrupted":
+            return "درخواست ناتمام ماند؛ پرونده را تازه کنید و در صورت نیاز درخواست تازه‌ای بدهید."
+        return "اصلاح در حال انجام است؛ پرونده را تازه کنید."
+
+
 class OperatorSourceProposalSerializer(SourceProposalSerializer):
     needs_reconciliation = serializers.SerializerMethodField()
     discovery = serializers.SerializerMethodField()
     profile_versions = serializers.SerializerMethodField()
+    profile_repairs = serializers.SerializerMethodField()
 
     class Meta(SourceProposalSerializer.Meta):
         fields = SourceProposalSerializer.Meta.fields + (  # type: ignore[assignment]
             "needs_reconciliation",
             "discovery",
             "profile_versions",
+            "profile_repairs",
         )
+
+    @extend_schema_field(SourceProfileRepairSerializer(many=True))
+    def get_profile_repairs(self, proposal: SourceProposal) -> list[dict[str, Any]]:
+        repairs = SourceProfileRepair.objects.filter(
+            parent__reservation__proposal=proposal
+        ).select_related("result")
+        return list(SourceProfileRepairSerializer(repairs, many=True).data)
 
     @extend_schema_field(SourceProfileVersionSerializer(many=True))
     def get_profile_versions(self, proposal: SourceProposal) -> list[dict[str, Any]]:
@@ -547,3 +615,12 @@ class SourceProfileEditSerializer(serializers.Serializer[Any]):
 class SourceProfileApprovalSerializer(SourceProposalApprovalSerializer):
     reviewed_profile_version = serializers.UUIDField()
     review_mode = serializers.ChoiceField(choices=("approval_required", "automatic"))
+
+
+class SourceProfileRepairRequestSerializer(serializers.Serializer[Any]):
+    request_id = serializers.UUIDField()
+    reviewed_revision = serializers.IntegerField(min_value=1)
+    reviewed_profile_version = serializers.UUIDField()
+    selected_fields = serializers.ListField(
+        child=serializers.CharField(max_length=40), min_length=1, max_length=4
+    )

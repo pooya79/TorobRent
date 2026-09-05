@@ -288,3 +288,7 @@ LOGGING = {
     "handlers": {"console": {"class": "logging.StreamHandler", "formatter": "json"}},
     "root": {"handlers": ["console"], "level": env("LOG_LEVEL", default="INFO")},
 }
+
+# Only the explicit Operator repair endpoint consumes these credentials.
+SOURCE_PROFILE_REPAIR_API_KEY = env("SOURCE_PROFILE_REPAIR_API_KEY", default="")
+SOURCE_PROFILE_REPAIR_MODEL = env("SOURCE_PROFILE_REPAIR_MODEL", default="")

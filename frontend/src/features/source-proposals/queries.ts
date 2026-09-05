@@ -241,3 +241,15 @@ export async function approveSourceProfile(
   if (error || !data) throw apiError(error);
   return data;
 }
+
+export async function repairSourceProfile(
+  proposalId: string,
+  body: components["schemas"]["SourceProfileRepairRequest"],
+) {
+  const { data, error } = await api.POST(
+    "/api/v1/operator/source-proposals/{proposal_id}/profile/repair/",
+    { params: { path: { proposal_id: proposalId } }, body },
+  );
+  if (error || !data) throw apiError(error);
+  return data;
+}
