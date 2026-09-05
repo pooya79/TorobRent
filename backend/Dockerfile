@@ -2,15 +2,17 @@ FROM ghcr.io/astral-sh/uv:0.12.5 AS uv
 
 FROM python:3.14.7-slim AS base
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 UV_LINK_MODE=copy \
-    PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+    TOROBRENT_CHROMIUM_PATH=/usr/bin/chromium
 WORKDIR /app/backend
 COPY --from=uv /uv /uvx /bin/
 COPY backend/pyproject.toml backend/uv.lock ./
 
 FROM base AS browser-runtime
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends chromium fonts-liberation \
+    && rm -rf /var/lib/apt/lists/*
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --locked --no-dev --no-editable
-RUN uv run playwright install --with-deps chromium && chmod -R a+rX /ms-playwright
 
 FROM browser-runtime AS development
 RUN --mount=type=cache,target=/root/.cache/uv \
