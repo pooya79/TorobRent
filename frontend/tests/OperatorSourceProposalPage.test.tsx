@@ -638,7 +638,26 @@ test("requires field selection for explicit repair and shows failure history", a
 });
 
 test("keeps approved Source cases available for run monitoring", async () => {
+  const user = userEvent.setup();
+  let reviewBody: unknown;
   server.use(
+    http.get("*/api/v1/users/me/", () =>
+      HttpResponse.json({
+        id: "operator",
+        operator_capabilities: ["review_source_proposals"],
+      }),
+    ),
+    http.post(
+      "*/api/v1/operator/source-proposals/:proposalId/profile/review/",
+      async ({ request }) => {
+        reviewBody = await request.json();
+        return HttpResponse.json({
+          ...proposal,
+          revision: 2,
+          discovery_stage: "queued",
+        });
+      },
+    ),
     http.get("*/api/v1/operator/source-proposals/", () =>
       HttpResponse.json([
         {
@@ -646,6 +665,7 @@ test("keeps approved Source cases available for run monitoring", async () => {
           state: "approved",
           assignment: {
             id: 8,
+            review_operator: "operator",
             state: "active",
             source: { domain: "khaneh.example", display_name: "خانه‌یاب" },
             active_profile_version: { id: "version", number: 1 },
@@ -693,6 +713,23 @@ test("keeps approved Source cases available for run monitoring", async () => {
   expect(screen.getByText("در حال استخراج")).toBeVisible();
   expect(screen.queryByRole("button", { name: "شروع بررسی" })).toBeNull();
   expect(screen.queryByRole("button", { name: "درخواست استخراج" })).toBeNull();
+  expect(
+    screen.getByRole("button", { name: "آغاز بررسی نسخه تازه پروفایل" }),
+  ).toBeVisible();
+  const begin = screen.getByRole("button", {
+    name: "آغاز بررسی نسخه تازه پروفایل",
+  });
+  expect(begin).toBeDisabled();
+  await user.click(
+    screen.getByRole("checkbox", {
+      name: "دریافت دوباره صفحات و بررسی نسخه تازه پروفایل را تأیید می‌کنم.",
+    }),
+  );
+  await user.click(begin);
+  expect(reviewBody).toEqual({ reviewed_revision: 1, confirmed: true });
+  expect(
+    await screen.findByRole("button", { name: "تأیید نشانی و شروع کشف" }),
+  ).toBeDisabled();
 });
 
 test("reviews run samples and sends one revision-checked batch approval", async () => {

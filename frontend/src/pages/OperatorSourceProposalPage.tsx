@@ -8,11 +8,12 @@ import { PageMain } from "@/components/layout/PageMain";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   claimSourceProposal,
+  startSourceProfileReview,
   releaseSourceProposal,
   claimExternalListingCandidate,
   decideExternalListingCandidate,
@@ -77,6 +78,15 @@ function ProposalReviewCard({
       ),
     onSuccess: (updated) => {
       if (updated.state !== "pending") setClaimed(false);
+      onDecisionSuccess(updated);
+    },
+  });
+
+  const profileReview = useMutation({
+    mutationFn: () => startSourceProfileReview(proposal.id, proposal.revision),
+    onSuccess: (updated) => {
+      setClaimed(true);
+      setConfirmed(false);
       onDecisionSuccess(updated);
     },
   });
@@ -146,6 +156,19 @@ function ProposalReviewCard({
             value={proposal.operator_note || "ثبت نشده"}
           />
         </dl>
+        {proposal.assignment && (
+          <SourceAssignmentSummary
+            assignment={proposal.assignment}
+            review={{
+              proposalId: proposal.id,
+              canApprove:
+                proposal.state === "approved" &&
+                proposal.assignment.state === "active" &&
+                proposal.assignment.review_mode === "approval_required" &&
+                currentUser.data?.id === proposal.assignment.review_operator,
+            }}
+          />
+        )}
         <DiscoveryEvidence proposal={proposal} />
         <SourceProfileReview
           proposal={proposal}
@@ -171,7 +194,38 @@ function ProposalReviewCard({
             </Button>
           </div>
         )}
-        {!claimed ? (
+        {proposal.state === "approved" ? (
+          <div className="grid gap-3">
+            <p className="text-muted-foreground text-sm">
+              اصلاح یک نتیجه از بخش نتایج انجام می‌شود. بررسی تازه پروفایل،
+              صفحات منبع را دوباره دریافت می‌کند و انتشار را تا تأیید نسخه تازه
+              متوقف می‌کند.
+            </p>
+            <label className="flex items-start gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={confirmed}
+                onChange={(event) => setConfirmed(event.target.checked)}
+              />
+              دریافت دوباره صفحات و بررسی نسخه تازه پروفایل را تأیید می‌کنم.
+            </label>
+            <Button
+              disabled={
+                !confirmed ||
+                profileReview.isPending ||
+                proposal.assignment?.review_operator !== currentUser.data?.id
+              }
+              onClick={() => profileReview.mutate()}
+            >
+              آغاز بررسی نسخه تازه پروفایل
+            </Button>
+            {profileReview.error && (
+              <p role="alert">
+                {errorMessage(profileReview.error, "آغاز بررسی ممکن نشد.")}
+              </p>
+            )}
+          </div>
+        ) : !claimed ? (
           <Button
             onClick={() => claim.mutate()}
             disabled={
@@ -491,34 +545,13 @@ export function OperatorSourceProposalPage() {
         <p>Source Proposal در انتظار بررسی وجود ندارد.</p>
       )}
       <div className="grid gap-6">
-        {proposals.data?.map((proposal) =>
-          proposal.state === "approved" && proposal.assignment ? (
-            <Card key={proposal.id}>
-              <CardHeader>
-                <CardTitle>{proposal.website_name}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <SourceAssignmentSummary
-                  assignment={proposal.assignment}
-                  review={{
-                    proposalId: proposal.id,
-                    canApprove:
-                      proposal.assignment.state === "active" &&
-                      proposal.assignment.review_mode === "approval_required" &&
-                      currentUser.data?.id ===
-                        proposal.assignment.review_operator,
-                  }}
-                />
-              </CardContent>
-            </Card>
-          ) : (
-            <ProposalReviewCard
-              key={proposal.id}
-              proposal={proposal}
-              onDecisionSuccess={removeCompletedProposal}
-            />
-          ),
-        )}
+        {proposals.data?.map((proposal) => (
+          <ProposalReviewCard
+            key={proposal.id}
+            proposal={proposal}
+            onDecisionSuccess={removeCompletedProposal}
+          />
+        ))}
       </div>
       {mayReview && (
         <section className="mt-12" aria-labelledby="external-candidate-heading">

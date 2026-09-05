@@ -158,3 +158,22 @@ def publish_candidate(candidate: ExternalListingCandidate) -> None:
     )
     candidate.listing = listing
     candidate.save(update_fields=("listing", "updated_at"))
+
+
+def publish_automatic_candidates(run: ExtractionRun) -> None:
+    """Publish valid candidates inside the worker's Source-locked completion transaction."""
+    from .models import ExternalListingCandidateState
+    from .run_review import refresh_run_counts
+    from .services import record_candidate_transition
+
+    for candidate in run.candidates.filter(
+        state=ExternalListingCandidateState.PENDING, validation_errors={}
+    ):
+        publish_candidate(candidate)
+        record_candidate_transition(
+            candidate=candidate,
+            actor=None,
+            new_state=ExternalListingCandidateState.PUBLISHED,
+            reason="انتشار خودکار با پروفایل تأییدشده منبع",
+        )
+    refresh_run_counts(run)

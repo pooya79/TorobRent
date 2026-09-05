@@ -305,6 +305,7 @@ class ExternalListingCandidateEvent(ImmutableProfileRecord):
         settings.AUTH_USER_MODEL,
         on_delete=models.PROTECT,
         related_name="external_listing_candidate_events",
+        null=True,
     )
     revision = models.PositiveIntegerField()
     prior_state = models.CharField(max_length=20, choices=ExternalListingCandidateState)
@@ -555,6 +556,9 @@ class ExtractionState(models.TextChoices):
 
 
 class ExtractionRequest(models.Model):
+    review_mode = models.CharField(
+        max_length=24, choices=ProfileReviewMode, default="", db_default=""
+    )
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     assignment = models.ForeignKey(
         SourceAssignment, on_delete=models.PROTECT, related_name="requests"

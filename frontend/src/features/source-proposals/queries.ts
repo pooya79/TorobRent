@@ -253,3 +253,18 @@ export async function repairSourceProfile(
   if (error || !data) throw apiError(error);
   return data;
 }
+
+export async function startSourceProfileReview(
+  proposalId: string,
+  revision: number,
+) {
+  const { data, error } = await api.POST(
+    "/api/v1/operator/source-proposals/{proposal_id}/profile/review/",
+    {
+      params: { path: { proposal_id: proposalId } },
+      body: { reviewed_revision: revision, confirmed: true },
+    },
+  );
+  if (error || !data) throw apiError(error);
+  return data;
+}

@@ -244,3 +244,22 @@ class OperatorSourceProfileRepairView(APIView):
             serializer_class=SourceProfileRepairRequestSerializer,
             transition=repair_profile,
         )
+
+
+class OperatorSourceProfileReviewView(APIView):
+    permission_classes = (CanReviewSourceProposal,)
+
+    @extend_schema(
+        summary="Start explicit Discovery and review of a new Source Profile version",
+        request=SourceProposalApprovalSerializer,
+        responses=OperatorSourceProposalSerializer,
+    )
+    def post(self, request: Request, proposal_id: str) -> Response:
+        from .profiles import start_profile_review
+
+        return _decision_response(
+            request=request,
+            proposal_id=proposal_id,
+            serializer_class=SourceProposalApprovalSerializer,
+            transition=start_profile_review,
+        )

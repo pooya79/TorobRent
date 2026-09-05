@@ -79,7 +79,10 @@ def approve_url(
     ).update(released_at=now, release_reason="expired")
     if (
         SourceReservation.objects.filter(source=source, released_at__isnull=True).exists()
-        or SourceAssignment.objects.filter(source=source, revoked_at__isnull=True).exists()
+        or SourceAssignment.objects
+        .filter(source=source, revoked_at__isnull=True)
+        .exclude(proposal=proposal, representative=proposal.submitter, approval__isnull=False)
+        .exists()
     ):
         raise SourceProposalReviewConflict(
             "source_host_unavailable", "This exact host is reserved or assigned."
@@ -243,10 +246,10 @@ def run_discovery(reservation_id: str) -> None:
         ):
             return
         if profile is not None:
-            from .profiles import retain_initial_profile
+            from .profiles import retain_discovered_profile
 
             Source.objects.select_for_update().get(pk=reservation.source_id)
-            retain_initial_profile(reservation, result, profile, contract)
+            retain_discovered_profile(reservation, result, profile, contract)
         proposal.discovery_stage = stage
         proposal.save(update_fields=("discovery_stage", "updated_at"))
         if stage == DiscoveryStage.FAILED:

@@ -22,6 +22,7 @@ from .models import (
     ExtractionRequest,
     ExtractionRun,
     ExtractionState,
+    ProfileReviewMode,
     SourceAssignment,
     SourceProfile,
 )
@@ -54,6 +55,7 @@ def submit_request(
         assignment=assignment,
         requester=actor,
         profile_version=assignment.approval.version,
+        review_mode=assignment.approval.review_mode,
         submitted_url=url,
         canonical_url=canonical,
     )
@@ -88,6 +90,7 @@ def authorized(request: ExtractionRequest) -> bool:
             revoked_at__isnull=True,
             representative_id=request.requester_id,
             approval__version_id=request.profile_version_id,
+            approval__review_mode=request.review_mode,
             proposal__state="approved",
         ).exists()
         and SourceProfile.objects.filter(
@@ -256,6 +259,10 @@ def run_extraction(request_id: str) -> bool:
             from .candidate_publication import create_run_candidates
 
             create_run_candidates(run)
+            if request.review_mode == ProfileReviewMode.AUTOMATIC:
+                from .candidate_publication import publish_automatic_candidates
+
+                publish_automatic_candidates(run)
         if run.withdrawals:
             from .extraction_availability import withdraw_listings
 

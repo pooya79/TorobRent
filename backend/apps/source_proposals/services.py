@@ -557,7 +557,7 @@ def _current_candidate_claim(
 def record_candidate_transition(
     *,
     candidate: ExternalListingCandidate,
-    actor: User,
+    actor: User | None,
     new_state: ExternalListingCandidateState,
     reason: str = "",
 ) -> ExternalListingCandidateEvent:

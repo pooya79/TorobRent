@@ -1705,6 +1705,34 @@ paths:
               schema:
                 $ref: '#/components/schemas/OperatorSourceProposal'
           description: ''
+  /api/v1/operator/source-proposals/{proposal_id}/profile/review/:
+    post:
+      operationId: v1_operator_source_proposals_profile_review_create
+      summary: Start explicit Discovery and review of a new Source Profile version
+      parameters:
+      - in: path
+        name: proposal_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SourceProposalApproval'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatorSourceProposal'
+          description: ''
   /api/v1/operator/source-proposals/{proposal_id}/reject/:
     post:
       operationId: v1_operator_source_proposals_reject_create
@@ -4445,8 +4473,8 @@ components:
           readOnly: true
         actor_label:
           type: string
-          format: email
           readOnly: true
+          default: انتشار خودکار
         revision:
           type: integer
           maximum: 9223372036854775807

@@ -38,7 +38,7 @@ def _version_evidence(
     }
 
 
-def retain_initial_profile(
+def retain_discovered_profile(
     reservation: SourceReservation,
     discovery: SourceDiscovery,
     profile: ExtractorProfile,
@@ -61,6 +61,7 @@ def retain_initial_profile(
         profile=lineage,
         reservation=reservation,
         number=previous.number + 1 if previous else 1,
+        parent=previous,
         **_version_evidence(profile, pages, contract),
         exclusions=list(discovery.excluded_detail_page_urls),
         provenance="discovery",
@@ -199,9 +200,10 @@ def approve_profile(
     Source.objects.select_for_update().get(pk=version.profile.source_id)
     if (
         proposal.submitter_id is None
-        or SourceAssignment.objects.filter(
-            source=version.profile.source, revoked_at__isnull=True
-        ).exists()
+        or SourceAssignment.objects
+        .filter(source=version.profile.source, revoked_at__isnull=True)
+        .exclude(proposal=proposal, representative=proposal.submitter, approval__isnull=False)
+        .exists()
     ):
         raise SourceProposalReviewConflict(
             "source_host_unavailable", "The Source cannot be assigned."
@@ -230,10 +232,72 @@ def approve_profile(
         reason="پروفایل منبع تأیید شد.",
     )
 
-    SourceAssignment.objects.create(
-        source=version.profile.source,
-        representative=proposal.submitter,
-        proposal=proposal,
-        approval=SourceProfileDecision.objects.get(version=version),
-    )
+    assignment = SourceAssignment.objects.filter(
+        source=version.profile.source, proposal=proposal, revoked_at__isnull=True
+    ).first()
+    decision = SourceProfileDecision.objects.get(version=version)
+    if assignment:
+        assignment.approval = decision
+        assignment.save(update_fields=("approval",))
+    else:
+        SourceAssignment.objects.create(
+            source=version.profile.source,
+            representative=proposal.submitter,
+            proposal=proposal,
+            approval=decision,
+        )
     return proposal
+
+
+@transaction.atomic
+def start_profile_review(
+    *, proposal: SourceProposal, actor: User, reviewed_revision: int, confirmed: bool
+) -> SourceProposal:
+    """Explicitly pause extraction authority and discover a new version for this case."""
+    from apps.accounts.capabilities import OperatorCapability, has_capability
+
+    from .discovery_workflow import approve_url
+    from .models import SourceAssignment, SourceProposalEvent, SourceProposalState
+    from .review_claims import ensure_independent_reviewer
+    from .services import claim_source_proposal_review
+
+    if not has_capability(actor, OperatorCapability.REVIEW_SOURCE_PROPOSALS):
+        raise ValidationError("Source Proposal Review capability is required.")
+    ensure_independent_reviewer(proposal=proposal, actor=actor)
+    if not confirmed:
+        raise ValidationError("آغاز بررسی تازه و دریافت صفحات را تأیید کنید.")
+    proposal = SourceProposal.objects.select_for_update().get(pk=proposal.pk)
+    if proposal.revision != reviewed_revision or proposal.state != SourceProposalState.APPROVED:
+        raise SourceProposalReviewConflict("review_revision_conflict", "پرونده تغییر کرده است.")
+    if proposal.source_id is None:
+        raise ValidationError("منبع فعال لازم است.")
+    Source.objects.select_for_update().get(pk=proposal.source_id)
+    assignment = (
+        SourceAssignment.objects
+        .filter(proposal=proposal, revoked_at__isnull=True, representative=proposal.submitter)
+        .select_related("approval__event")
+        .first()
+    )
+    if (
+        not assignment
+        or not assignment.approval
+        or assignment.approval.event.actor_id != actor.pk
+        or assignment.source.profile.active_version_id != assignment.approval.version_id
+    ):
+        raise ValidationError("اپراتور مسئول و تخصیص فعال منبع لازم است.")
+    proposal.state = SourceProposalState.PENDING
+    proposal.revision += 1
+    proposal.pending_since = timezone.now()
+    proposal.save(update_fields=("state", "revision", "pending_since", "updated_at"))
+    SourceProposalEvent.objects.create(
+        proposal=proposal,
+        actor=actor,
+        revision=proposal.revision,
+        prior_state=SourceProposalState.APPROVED,
+        new_state=SourceProposalState.PENDING,
+        reason="بررسی نسخه تازه پروفایل آغاز شد؛ انتشار تا تأیید دوباره متوقف است.",
+    )
+    claim_source_proposal_review(proposal=proposal, actor=actor)
+    return approve_url(
+        proposal=proposal, actor=actor, reviewed_revision=proposal.revision, confirmed=True
+    )

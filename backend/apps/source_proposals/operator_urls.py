@@ -4,6 +4,7 @@ from .operator_views import (
     OperatorSourceProfileApproveView,
     OperatorSourceProfileEditView,
     OperatorSourceProfileRepairView,
+    OperatorSourceProfileReviewView,
     OperatorSourceProposalApproveView,
     OperatorSourceProposalClaimView,
     OperatorSourceProposalListView,
@@ -16,6 +17,11 @@ from .run_views import OperatorRunApproveView
 app_name = "operator-source-proposals"
 
 urlpatterns = [
+    path(
+        "<uuid:proposal_id>/profile/review/",
+        OperatorSourceProfileReviewView.as_view(),
+        name="profile-review",
+    ),
     path(
         "<uuid:proposal_id>/runs/<uuid:run_id>/approve/",
         OperatorRunApproveView.as_view(),

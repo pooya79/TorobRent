@@ -201,8 +201,10 @@ def test_transient_failure_is_bounded_and_retry_reuses_run(api_client, assigned_
 
 
 @pytest.mark.django_db(transaction=True)
+@pytest.mark.parametrize("assigned_case", ["automatic", "approval_required"], indirect=True)
+@pytest.mark.parametrize("change", ["revoked", "profile", "mode", "suspended"])
 def test_concurrent_delivery_and_revocation_discard_inflight_results(
-    api_client, assigned_case, monkeypatch
+    api_client, assigned_case, monkeypatch, change
 ):
     from concurrent.futures import ThreadPoolExecutor
     from threading import Event
@@ -249,7 +251,30 @@ def test_concurrent_delivery_and_revocation_discard_inflight_results(
         try:
             assert started.wait(10)
             assert run_extraction(record["id"]) is True
-            SourceAssignment.objects.filter(pk=assignment["id"]).update(revoked_at=timezone.now())
+            if change == "revoked":
+                SourceAssignment.objects.filter(pk=assignment["id"]).update(
+                    revoked_at=timezone.now()
+                )
+            elif change == "profile":
+                from apps.source_proposals.models import SourceProfile
+
+                SourceProfile.objects.filter(source_id=assignment["source"]["id"]).update(
+                    active_version=None
+                )
+            elif change == "suspended":
+                from apps.source_proposals.models import SourceProposal
+
+                SourceProposal.objects.filter(pk=proposal.pk).update(state="pending")
+            else:
+                with connection.cursor() as cursor:
+                    cursor.execute(
+                        "UPDATE source_proposals_sourceprofiledecision SET review_mode = %s",
+                        [
+                            "approval_required"
+                            if assignment["review_mode"] == "automatic"
+                            else "automatic"
+                        ],
+                    )
         finally:
             release.set()
         assert future.result(timeout=15) is False

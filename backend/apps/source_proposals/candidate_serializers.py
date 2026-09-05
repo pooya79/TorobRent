@@ -16,7 +16,9 @@ class ExternalCandidateSourceSerializer(serializers.Serializer[Any]):
 class ExternalListingCandidateEventSerializer(
     serializers.ModelSerializer[ExternalListingCandidateEvent]
 ):
-    actor_label = serializers.EmailField(source="actor.email", read_only=True)
+    actor_label = serializers.CharField(
+        source="actor.email", read_only=True, default="انتشار خودکار"
+    )
 
     class Meta:
         model = ExternalListingCandidateEvent

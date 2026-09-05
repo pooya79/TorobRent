@@ -72,7 +72,7 @@ def forbid_implicit_llm_requests(monkeypatch):
 
 
 @pytest.fixture
-def assigned_case(api_client, discovered_case, monkeypatch):
+def assigned_case(api_client, discovered_case, monkeypatch, request):
     monkeypatch.setattr(
         "apps.source_extraction.fetching.resolve_addresses", lambda *args: ["93.184.216.34"]
     )
@@ -87,7 +87,7 @@ def assigned_case(api_client, discovered_case, monkeypatch):
             "reviewed_revision": 1,
             "reviewed_profile_version": version["id"],
             "confirmed": True,
-            "review_mode": "approval_required",
+            "review_mode": getattr(request, "param", "approval_required"),
         },
         format="json",
     )

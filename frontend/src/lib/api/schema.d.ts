@@ -839,6 +839,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/v1/operator/source-proposals/{proposal_id}/profile/review/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Start explicit Discovery and review of a new Source Profile version */
+    post: operations["v1_operator_source_proposals_profile_review_create"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/v1/operator/source-proposals/{proposal_id}/reject/": {
     parameters: {
       query?: never;
@@ -2182,7 +2199,7 @@ export interface components {
     ExternalListingCandidateEvent: {
       /** Format: uuid */
       readonly id: string;
-      /** Format: email */
+      /** @default انتشار خودکار */
       readonly actor_label: string;
       /** Format: int64 */
       revision: number;
@@ -5667,6 +5684,31 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": components["schemas"]["SourceProfileRepairRequest"];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["OperatorSourceProposal"];
+        };
+      };
+    };
+  };
+  v1_operator_source_proposals_profile_review_create: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        proposal_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["SourceProposalApproval"];
       };
     };
     responses: {
