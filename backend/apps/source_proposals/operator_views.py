@@ -22,6 +22,7 @@ from .serializers import (
     SourceProfileApprovalSerializer,
     SourceProfileDecisionSerializer,
     SourceProfileEditSerializer,
+    SourceProfileRepairRequestSerializer,
     SourceProposalApprovalSerializer,
     SourceProposalDecisionSerializer,
     SourceProposalReviewClaimSerializer,
@@ -71,6 +72,7 @@ DecisionSerializer = type[
     SourceProposalDecisionSerializer
     | SourceProposalApprovalSerializer
     | SourceProfileEditSerializer
+    | SourceProfileRepairRequestSerializer
 ]
 
 
@@ -222,4 +224,23 @@ class OperatorSourceProfileApproveView(APIView):
             proposal_id=proposal_id,
             serializer_class=SourceProfileApprovalSerializer,
             transition=approve_profile,
+        )
+
+
+class OperatorSourceProfileRepairView(APIView):
+    permission_classes = (CanReviewSourceProposal,)
+
+    @extend_schema(
+        summary="Explicitly repair selected Source Profile fields once",
+        request=SourceProfileRepairRequestSerializer,
+        responses=OperatorSourceProposalSerializer,
+    )
+    def post(self, request: Request, proposal_id: str) -> Response:
+        from .profile_repair import repair_profile
+
+        return _decision_response(
+            request=request,
+            proposal_id=proposal_id,
+            serializer_class=SourceProfileRepairRequestSerializer,
+            transition=repair_profile,
         )

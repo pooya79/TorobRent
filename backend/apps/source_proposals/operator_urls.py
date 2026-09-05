@@ -3,6 +3,7 @@ from django.urls import path
 from .operator_views import (
     OperatorSourceProfileApproveView,
     OperatorSourceProfileEditView,
+    OperatorSourceProfileRepairView,
     OperatorSourceProposalApproveView,
     OperatorSourceProposalClaimView,
     OperatorSourceProposalListView,
@@ -14,6 +15,11 @@ from .operator_views import (
 app_name = "operator-source-proposals"
 
 urlpatterns = [
+    path(
+        "<uuid:proposal_id>/profile/repair/",
+        OperatorSourceProfileRepairView.as_view(),
+        name="profile-repair",
+    ),
     path(
         "<uuid:proposal_id>/profile/approve/",
         OperatorSourceProfileApproveView.as_view(),

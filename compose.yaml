@@ -38,6 +38,8 @@ services:
     command: sh -c "uv sync --locked && uv run --no-sync python manage.py migrate"
     working_dir: /app/backend
     environment: &backend-environment
+      SOURCE_PROFILE_REPAIR_API_KEY: ${SOURCE_PROFILE_REPAIR_API_KEY:-}
+      SOURCE_PROFILE_REPAIR_MODEL: ${SOURCE_PROFILE_REPAIR_MODEL:-}
       DJANGO_SETTINGS_MODULE: config.settings.local
       DJANGO_SECRET_KEY: local-development-only
       DATABASE_URL: postgresql://app:app@postgres:5432/app

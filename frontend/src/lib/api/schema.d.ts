@@ -805,6 +805,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/v1/operator/source-proposals/{proposal_id}/profile/repair/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Explicitly repair selected Source Profile fields once */
+    post: operations["v1_operator_source_proposals_profile_repair_create"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/v1/operator/source-proposals/{proposal_id}/reject/": {
     parameters: {
       query?: never;
@@ -2479,6 +2496,7 @@ export interface components {
       readonly needs_reconciliation: boolean;
       readonly discovery: components["schemas"]["SourceDiscovery"] | null;
       readonly profile_versions: components["schemas"]["SourceProfileVersion"][];
+      readonly profile_repairs: components["schemas"]["SourceProfileRepair"][];
     };
     OperatorSubmissionQueue: {
       /** Format: uuid */
@@ -2850,9 +2868,10 @@ export interface components {
     /**
      * @description * `discovery` - Discovery
      *     * `manual` - Manual
+     *     * `llm` - LLM repair
      * @enum {string}
      */
-    ProvenanceEnum: "discovery" | "manual";
+    ProvenanceEnum: "discovery" | "manual" | "llm";
     PublicationResultAudit: {
       /** Format: uuid */
       listing_id?: string;
@@ -3038,6 +3057,38 @@ export interface components {
       /** Format: uuid */
       reviewed_profile_version: string;
       rules: unknown;
+    };
+    SourceProfileRepair: {
+      /** Format: uuid */
+      readonly id: string;
+      /** Format: uuid */
+      parent: string;
+      /** Format: uuid */
+      actor?: string | null;
+      readonly selected_fields: string[];
+      model: string;
+      prompt_version: string;
+      schema_version: string;
+      evidence_sha256: string;
+      /** Format: date-time */
+      started_at?: string;
+      /** Format: date-time */
+      readonly finished_at: string | null;
+      readonly outcome: string;
+      readonly detail: string;
+      readonly structured_result: unknown | null;
+      readonly validation: unknown;
+      /** Format: uuid */
+      readonly result_version: string | null;
+      readonly duration_ms: number | null;
+    };
+    SourceProfileRepairRequest: {
+      /** Format: uuid */
+      request_id: string;
+      reviewed_revision: number;
+      /** Format: uuid */
+      reviewed_profile_version: string;
+      selected_fields: string[];
     };
     SourceProfileVersion: {
       /** Format: uuid */
@@ -5399,6 +5450,31 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": components["schemas"]["SourceProfileEdit"];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["OperatorSourceProposal"];
+        };
+      };
+    };
+  };
+  v1_operator_source_proposals_profile_repair_create: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        proposal_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["SourceProfileRepairRequest"];
       };
     };
     responses: {

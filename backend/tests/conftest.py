@@ -42,3 +42,30 @@ def discovered_case(api_client, monkeypatch, django_capture_on_commit_callbacks)
             == 200
         )
     return proposal, base, operator, representative, fetcher
+
+
+@pytest.fixture(autouse=True)
+def forbid_implicit_llm_requests(monkeypatch):
+    """Exercise Discovery/retries/drift/extraction/tasks with an enabled, forbidden LLM boundary.
+
+    Explicit repair tests replace this transport with their controlled provider response.
+    Teardown also detects a forbidden call swallowed by a background error handler.
+    """
+    import http.client
+
+    from django.conf import settings
+
+    monkeypatch.setattr(settings, "SOURCE_PROFILE_REPAIR_API_KEY", "test-only-no-real-key")
+    monkeypatch.setattr(settings, "SOURCE_PROFILE_REPAIR_MODEL", "test-only-no-real-model")
+    original = http.client.HTTPSConnection
+    calls = []
+
+    def guarded_connection(host, *args, **kwargs):
+        if host == "api.openai.com":
+            calls.append(host)
+            raise AssertionError("LLM access requires an explicit repair test")
+        return original(host, *args, **kwargs)
+
+    monkeypatch.setattr(http.client, "HTTPSConnection", guarded_connection)
+    yield
+    assert calls == [], "An automatic workflow invoked the LLM"

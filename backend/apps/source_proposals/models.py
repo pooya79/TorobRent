@@ -6,6 +6,7 @@ from typing import Any, ClassVar
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
+from django.utils import timezone
 
 from apps.catalog.models import PropertyType
 from apps.common.deletion import set_null_in_immutable_history
@@ -428,7 +429,8 @@ class SourceProfileVersion(ImmutableProfileRecord):
     diagnostics = models.JSONField(default=dict)
     pipeline_version = models.CharField(max_length=64)
     provenance = models.CharField(
-        max_length=16, choices=(("discovery", "Discovery"), ("manual", "Manual"))
+        max_length=16,
+        choices=(("discovery", "Discovery"), ("manual", "Manual"), ("llm", "LLM repair")),
     )
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=set_null_in_immutable_history, null=True
@@ -479,3 +481,50 @@ class SourceProfileSnapshots(models.Model):
 
     def __str__(self) -> str:
         return f"Validation snapshots {self.reservation_id}"
+
+
+class SourceProfileRepair(ImmutableProfileRecord):
+    """A durable explicit request; a lost response never authorizes another model call."""
+
+    objects: ClassVar[models.Manager[SourceProfileRepair]] = models.Manager.from_queryset(
+        ImmutableProfileQuerySet
+    )()
+    id = models.UUIDField(primary_key=True, editable=False)
+    parent = models.ForeignKey(
+        SourceProfileVersion, on_delete=models.PROTECT, related_name="repairs"
+    )
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=set_null_in_immutable_history, null=True
+    )
+    reviewed_revision = models.PositiveIntegerField()
+    selected_fields = models.JSONField()
+    model = models.CharField(max_length=128)
+    prompt_version = models.CharField(max_length=64)
+    schema_version = models.CharField(max_length=64)
+    evidence_sha256 = models.CharField(max_length=64)
+    started_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        ordering = ("-started_at",)
+
+    def __str__(self) -> str:
+        return f"Profile repair {self.pk}"
+
+
+class SourceProfileRepairResult(ImmutableProfileRecord):
+    objects: ClassVar[models.Manager[SourceProfileRepairResult]] = models.Manager.from_queryset(
+        ImmutableProfileQuerySet
+    )()
+    repair = models.OneToOneField(
+        SourceProfileRepair, on_delete=models.PROTECT, related_name="result"
+    )
+    outcome = models.CharField(max_length=32)
+    detail = models.TextField()
+    structured_result = models.JSONField(null=True)
+    validation = models.JSONField(default=dict)
+    result_version = models.OneToOneField(SourceProfileVersion, on_delete=models.PROTECT, null=True)
+    finished_at = models.DateTimeField(default=timezone.now)
+    duration_ms = models.PositiveIntegerField()
+
+    def __str__(self) -> str:
+        return f"Profile repair {self.repair_id}: {self.outcome}"

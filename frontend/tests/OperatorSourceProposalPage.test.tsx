@@ -542,3 +542,97 @@ test("reviews profile evidence, edits a field, and approves only a validated ver
   expect(approved).toBe(true);
   expect(await screen.findByText("تصمیم ثبت شد.")).toBeVisible();
 });
+
+test("requires field selection for explicit repair and shows failure history", async () => {
+  const user = userEvent.setup();
+  const version = {
+    id: "profile-1",
+    reservation: "discovery-1",
+    number: 1,
+    provenance: "discovery",
+    status: "proposed",
+    is_active: false,
+    rules: {},
+    validation: {
+      approval_enabled: false,
+      fields: {},
+      training_page_urls: [],
+      held_out_page_urls: [],
+    },
+    samples: [],
+    exclusions: [],
+  };
+  const caseData = {
+    ...proposal,
+    discovery_stage: "complete",
+    discovery: { id: "discovery-1", evidence: { page_count: 10 } },
+    profile_versions: [version],
+    profile_repairs: [],
+  };
+  const calls: unknown[] = [];
+  server.use(
+    http.get("*/api/v1/operator/source-proposals/", () =>
+      HttpResponse.json([caseData]),
+    ),
+    http.post("*/api/v1/operator/source-proposals/:proposalId/claim/", () =>
+      HttpResponse.json({}, { status: 201 }),
+    ),
+    http.post(
+      "*/api/v1/operator/source-proposals/:proposalId/profile/repair/",
+      async ({ request }) => {
+        calls.push(await request.json());
+        return HttpResponse.json({
+          ...caseData,
+          profile_repairs: [
+            {
+              id: "repair-1",
+              parent: "profile-1",
+              selected_fields: ["floor_area_sqm"],
+              outcome: "timeout",
+              detail:
+                "مهلت پاسخ مدل تمام شد؛ دوباره درخواست دهید یا دستی اصلاح کنید.",
+              model: "test-model",
+              structured_result: null,
+            },
+          ],
+        });
+      },
+    ),
+  );
+  render(
+    <QueryClientProvider
+      client={
+        new QueryClient({ defaultOptions: { queries: { retry: false } } })
+      }
+    >
+      <MemoryRouter>
+        <OperatorSourceProposalPage />
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+  await screen.findByText("پروفایل منبع — نسخه ۱");
+  expect(
+    screen.queryByRole("button", { name: "درخواست اصلاح هوشمند" }),
+  ).not.toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "شروع بررسی" }));
+  const repair = screen.getByRole("button", { name: "درخواست اصلاح هوشمند" });
+  expect(repair).toBeDisabled();
+  expect(calls).toEqual([]);
+  await user.click(screen.getByLabelText("اصلاح هوشمند متراژ"));
+  expect(calls).toEqual([]);
+  await user.click(repair);
+  expect(
+    await screen.findByText(
+      "مهلت پاسخ مدل تمام شد؛ دوباره درخواست دهید یا دستی اصلاح کنید.",
+    ),
+  ).toBeVisible();
+  expect(calls).toEqual([
+    {
+      request_id: expect.any(String) as unknown,
+      reviewed_revision: 1,
+      reviewed_profile_version: "profile-1",
+      selected_fields: ["floor_area_sqm"],
+    },
+  ]);
+  expect(screen.getByText("پروفایل منبع — نسخه ۱")).toBeVisible();
+});

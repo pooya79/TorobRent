@@ -1649,6 +1649,34 @@ paths:
               schema:
                 $ref: '#/components/schemas/OperatorSourceProposal'
           description: ''
+  /api/v1/operator/source-proposals/{proposal_id}/profile/repair/:
+    post:
+      operationId: v1_operator_source_proposals_profile_repair_create
+      summary: Explicitly repair selected Source Profile fields once
+      parameters:
+      - in: path
+        name: proposal_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SourceProfileRepairRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatorSourceProposal'
+          description: ''
   /api/v1/operator/source-proposals/{proposal_id}/reject/:
     post:
       operationId: v1_operator_source_proposals_reject_create
@@ -5194,6 +5222,11 @@ components:
           items:
             $ref: '#/components/schemas/SourceProfileVersion'
           readOnly: true
+        profile_repairs:
+          type: array
+          items:
+            $ref: '#/components/schemas/SourceProfileRepair'
+          readOnly: true
       required:
       - assignment
       - available_actions
@@ -5205,6 +5238,7 @@ components:
       - needs_reconciliation
       - pending_since
       - preview
+      - profile_repairs
       - profile_versions
       - revision
       - updated_at
@@ -6067,10 +6101,12 @@ components:
       enum:
       - discovery
       - manual
+      - llm
       type: string
       description: |-
         * `discovery` - Discovery
         * `manual` - Manual
+        * `llm` - LLM repair
     PublicationResultAudit:
       type: object
       properties:
@@ -6456,6 +6492,110 @@ components:
       - reviewed_profile_version
       - reviewed_revision
       - rules
+    SourceProfileRepair:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        parent:
+          type: string
+          format: uuid
+        actor:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        selected_fields:
+          type: array
+          items:
+            type: string
+          readOnly: true
+        model:
+          type: string
+          maxLength: 128
+        prompt_version:
+          type: string
+          maxLength: 64
+        schema_version:
+          type: string
+          maxLength: 64
+        evidence_sha256:
+          type: string
+          maxLength: 64
+        started_at:
+          type: string
+          format: date-time
+        finished_at:
+          type:
+          - string
+          - 'null'
+          format: date-time
+          readOnly: true
+        outcome:
+          type: string
+          readOnly: true
+        detail:
+          type: string
+          readOnly: true
+        structured_result:
+          oneOf:
+          - {}
+          - type: 'null'
+          readOnly: true
+        validation:
+          readOnly: true
+        result_version:
+          type:
+          - string
+          - 'null'
+          format: uuid
+          readOnly: true
+        duration_ms:
+          type:
+          - integer
+          - 'null'
+          readOnly: true
+      required:
+      - detail
+      - duration_ms
+      - evidence_sha256
+      - finished_at
+      - id
+      - model
+      - outcome
+      - parent
+      - prompt_version
+      - result_version
+      - schema_version
+      - selected_fields
+      - structured_result
+      - validation
+    SourceProfileRepairRequest:
+      type: object
+      properties:
+        request_id:
+          type: string
+          format: uuid
+        reviewed_revision:
+          type: integer
+          minimum: 1
+        reviewed_profile_version:
+          type: string
+          format: uuid
+        selected_fields:
+          type: array
+          items:
+            type: string
+            maxLength: 40
+          maxItems: 4
+          minItems: 1
+      required:
+      - request_id
+      - reviewed_profile_version
+      - reviewed_revision
+      - selected_fields
     SourceProfileVersion:
       type: object
       properties:
