@@ -159,6 +159,7 @@ class MessageSummarySerializer(serializers.Serializer[MessageItem]):
                 "changes_requested": "منبع پیشنهادی نیازمند اصلاح است",
                 "rejected": "منبع پیشنهادی شما رد شد",
                 "approved": "منبع پیشنهادی شما تایید شد",
+                "revoked": "تخصیص منبع لغو شد",
             }[source_proposal_event.new_state]
         submission_event = notification.originating_event
         assert submission_event is not None

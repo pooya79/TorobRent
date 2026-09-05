@@ -1,6 +1,7 @@
 from django.urls import path
 
 from .operator_views import (
+    OperatorSourceAssignmentRevokeView,
     OperatorSourceProfileApproveView,
     OperatorSourceProfileEditView,
     OperatorSourceProfileRepairView,
@@ -17,6 +18,11 @@ from .run_views import OperatorRunApproveView
 app_name = "operator-source-proposals"
 
 urlpatterns = [
+    path(
+        "<uuid:proposal_id>/assignment/revoke/",
+        OperatorSourceAssignmentRevokeView.as_view(),
+        name="assignment-revoke",
+    ),
     path(
         "<uuid:proposal_id>/profile/review/",
         OperatorSourceProfileReviewView.as_view(),

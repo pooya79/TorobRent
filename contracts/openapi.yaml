@@ -1571,6 +1571,34 @@ paths:
               schema:
                 $ref: '#/components/schemas/OperatorSourceProposal'
           description: ''
+  /api/v1/operator/source-proposals/{proposal_id}/assignment/revoke/:
+    post:
+      operationId: v1_operator_source_proposals_assignment_revoke_create
+      summary: Revoke a Source Assignment and withdraw its Listings
+      parameters:
+      - in: path
+        name: proposal_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SourceProposalDecision'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatorSourceProposal'
+          description: ''
   /api/v1/operator/source-proposals/{proposal_id}/claim/:
     post:
       operationId: v1_operator_source_proposals_claim_create
@@ -4533,12 +4561,14 @@ components:
       - changes_requested
       - rejected
       - published
+      - cancelled
       type: string
       description: |-
         * `pending` - در انتظار بررسی
         * `changes_requested` - نیازمند اصلاح
         * `rejected` - ردشده
         * `published` - منتشرشده
+        * `cancelled` - لغوشده
     ExtractionError:
       type: object
       properties:
@@ -7346,6 +7376,7 @@ components:
       - changes_requested
       - rejected
       - approved
+      - revoked
       type: string
       description: |-
         * `draft` - پیش‌نویس
@@ -7353,6 +7384,7 @@ components:
         * `changes_requested` - نیازمند اصلاح
         * `rejected` - ردشده
         * `approved` - تأییدشده
+        * `revoked` - تخصیص لغوشده
     SourceProposalStepEnum:
       enum:
       - details

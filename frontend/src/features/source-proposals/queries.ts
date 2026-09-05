@@ -268,3 +268,19 @@ export async function startSourceProfileReview(
   if (error || !data) throw apiError(error);
   return data;
 }
+
+export async function revokeSourceAssignment(
+  proposalId: string,
+  revision: number,
+  reason: string,
+) {
+  const { data, error } = await api.POST(
+    "/api/v1/operator/source-proposals/{proposal_id}/assignment/revoke/",
+    {
+      params: { path: { proposal_id: proposalId } },
+      body: { reviewed_revision: revision, reason },
+    },
+  );
+  if (error || !data) throw apiError(error);
+  return data;
+}

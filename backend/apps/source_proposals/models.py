@@ -18,6 +18,7 @@ class SourceProposalState(models.TextChoices):
     CHANGES_REQUESTED = "changes_requested", "نیازمند اصلاح"
     REJECTED = "rejected", "ردشده"
     APPROVED = "approved", "تأییدشده"
+    REVOKED = "revoked", "تخصیص لغوشده"
 
 
 class SourceProposalStep(models.TextChoices):
@@ -220,6 +221,7 @@ class ExternalListingCandidateState(models.TextChoices):
     CHANGES_REQUESTED = "changes_requested", "نیازمند اصلاح"
     REJECTED = "rejected", "ردشده"
     PUBLISHED = "published", "منتشرشده"
+    CANCELLED = "cancelled", "لغوشده"
 
 
 class ExternalListingCandidate(models.Model):
@@ -384,6 +386,9 @@ class SourceReservation(models.Model):
 
 
 class SourceAssignment(models.Model):
+    revocation = models.OneToOneField(
+        SourceProposalEvent, on_delete=models.PROTECT, null=True, related_name="revoked_assignment"
+    )
     approval = models.OneToOneField(
         "SourceProfileDecision", on_delete=models.PROTECT, null=True, related_name="assignment"
     )

@@ -754,6 +754,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/v1/operator/source-proposals/{proposal_id}/assignment/revoke/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Revoke a Source Assignment and withdraw its Listings */
+    post: operations["v1_operator_source_proposals_assignment_revoke_create"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/v1/operator/source-proposals/{proposal_id}/claim/": {
     parameters: {
       query?: never;
@@ -2227,10 +2244,11 @@ export interface components {
      *     * `changes_requested` - نیازمند اصلاح
      *     * `rejected` - ردشده
      *     * `published` - منتشرشده
+     *     * `cancelled` - لغوشده
      * @enum {string}
      */
     ExternalListingCandidateStateEnum:
-      "pending" | "changes_requested" | "rejected" | "published";
+      "pending" | "changes_requested" | "rejected" | "published" | "cancelled";
     ExtractionError: {
       code: string;
       detail: string;
@@ -3393,10 +3411,16 @@ export interface components {
      *     * `changes_requested` - نیازمند اصلاح
      *     * `rejected` - ردشده
      *     * `approved` - تأییدشده
+     *     * `revoked` - تخصیص لغوشده
      * @enum {string}
      */
     SourceProposalStateEnum:
-      "draft" | "pending" | "changes_requested" | "rejected" | "approved";
+      | "draft"
+      | "pending"
+      | "changes_requested"
+      | "rejected"
+      | "approved"
+      | "revoked";
     /**
      * @description * `details` - اطلاعات وب‌سایت
      *     * `preview` - بازبینی اطلاعات
@@ -5563,6 +5587,31 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": components["schemas"]["SourceProposalApproval"];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["OperatorSourceProposal"];
+        };
+      };
+    };
+  };
+  v1_operator_source_proposals_assignment_revoke_create: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        proposal_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["SourceProposalDecision"];
       };
     };
     responses: {

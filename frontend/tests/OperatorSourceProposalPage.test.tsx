@@ -937,3 +937,71 @@ test("corrects an exception and approves its new revision", async () => {
   expect(await screen.findByText("تصمیم Listing ثبت شد.")).toBeVisible();
   expect(approvals).toEqual([{ reviewed_revision: 2, confirmed: true }]);
 });
+
+test("revokes an assignment with a reason and the reviewed revision", async () => {
+  const user = userEvent.setup();
+  let body: unknown;
+  server.use(
+    http.get("*/api/v1/auth/me/", () =>
+      HttpResponse.json({
+        id: "operator",
+        operator_capabilities: ["review_source_proposals"],
+      }),
+    ),
+    http.get("*/api/v1/operator/source-proposals/", () =>
+      HttpResponse.json([
+        {
+          ...proposal,
+          state: "approved",
+          assignment: {
+            id: 8,
+            state: "active",
+            review_operator: "operator",
+            source: { domain: "khaneh.example", display_name: "خانه‌یاب" },
+            active_profile_version: { id: "version", number: 1 },
+            review_mode: "approval_required",
+            recent_requests: [],
+          },
+        },
+      ]),
+    ),
+    http.get("*/api/v1/operator/external-listing-candidates/", () =>
+      HttpResponse.json([]),
+    ),
+    http.post(
+      "*/api/v1/operator/source-proposals/:proposalId/assignment/revoke/",
+      async ({ request }) => {
+        body = await request.json();
+        return HttpResponse.json({
+          ...proposal,
+          state: "revoked",
+          revision: 2,
+        });
+      },
+    ),
+  );
+  render(
+    <QueryClientProvider
+      client={
+        new QueryClient({ defaultOptions: { queries: { retry: false } } })
+      }
+    >
+      <MemoryRouter>
+        <OperatorSourceProposalPage />
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+  const button = await screen.findByRole("button", { name: "لغو تخصیص منبع" });
+  expect(button).toBeDisabled();
+  await user.type(
+    screen.getByLabelText("دلیل لغو تخصیص"),
+    "اختیار نماینده تأیید نشد",
+  );
+  await user.click(button);
+  expect(body).toEqual({
+    reviewed_revision: 1,
+    reason: "اختیار نماینده تأیید نشد",
+  });
+  expect(await screen.findByText("تصمیم ثبت شد.")).toBeVisible();
+  expect(screen.queryByRole("button", { name: "لغو تخصیص منبع" })).toBeNull();
+});

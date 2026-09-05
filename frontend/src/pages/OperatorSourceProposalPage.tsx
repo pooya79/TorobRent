@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   claimSourceProposal,
+  revokeSourceAssignment,
   startSourceProfileReview,
   releaseSourceProposal,
   claimExternalListingCandidate,
@@ -80,6 +81,12 @@ function ProposalReviewCard({
       if (updated.state !== "pending") setClaimed(false);
       onDecisionSuccess(updated);
     },
+  });
+
+  const revocation = useMutation({
+    mutationFn: () =>
+      revokeSourceAssignment(proposal.id, proposal.revision, reason),
+    onSuccess: onDecisionSuccess,
   });
 
   const profileReview = useMutation({
@@ -169,6 +176,35 @@ function ProposalReviewCard({
             }}
           />
         )}
+        {proposal.assignment?.state === "active" &&
+          currentUser.data?.operator_capabilities.includes(
+            "review_source_proposals",
+          ) && (
+            <div className="grid gap-3">
+              <p className="text-muted-foreground text-sm">
+                لغو تخصیص، استخراج را متوقف و آگهی‌ها را ناموجود می‌کند. نماینده
+                بعدی باید پیشنهاد تازه ثبت کند و همه مراحل بررسی را بگذراند.
+              </p>
+              <Label htmlFor={`revoke-${proposal.id}`}>دلیل لغو تخصیص</Label>
+              <Input
+                id={`revoke-${proposal.id}`}
+                value={reason}
+                onChange={(event) => setReason(event.target.value)}
+              />
+              <Button
+                variant="destructive"
+                disabled={!reason.trim() || revocation.isPending}
+                onClick={() => revocation.mutate()}
+              >
+                لغو تخصیص منبع
+              </Button>
+              {revocation.error && (
+                <p role="alert">
+                  {errorMessage(revocation.error, "لغو تخصیص ممکن نشد.")}
+                </p>
+              )}
+            </div>
+          )}
         <DiscoveryEvidence proposal={proposal} />
         <SourceProfileReview
           proposal={proposal}

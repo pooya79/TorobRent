@@ -49,6 +49,7 @@ const sourceProposalStateLabels = {
   changes_requested: "نیازمند اصلاح",
   rejected: "ردشده",
   approved: "تأییدشده",
+  revoked: "تخصیص لغوشده",
 };
 
 export function SubmitterDashboardPage() {

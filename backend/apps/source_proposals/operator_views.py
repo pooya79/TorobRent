@@ -263,3 +263,22 @@ class OperatorSourceProfileReviewView(APIView):
             serializer_class=SourceProposalApprovalSerializer,
             transition=start_profile_review,
         )
+
+
+class OperatorSourceAssignmentRevokeView(APIView):
+    permission_classes = (CanReviewSourceProposal,)
+
+    @extend_schema(
+        summary="Revoke a Source Assignment and withdraw its Listings",
+        request=SourceProposalDecisionSerializer,
+        responses=OperatorSourceProposalSerializer,
+    )
+    def post(self, request: Request, proposal_id: str) -> Response:
+        from .assignments import revoke_assignment
+
+        return _decision_response(
+            request=request,
+            proposal_id=proposal_id,
+            serializer_class=SourceProposalDecisionSerializer,
+            transition=revoke_assignment,
+        )

@@ -671,6 +671,7 @@ def create_source_proposal_review_notification(
         SourceProposalState.CHANGES_REQUESTED,
         SourceProposalState.REJECTED,
         SourceProposalState.APPROVED,
+        SourceProposalState.REVOKED,
     ):
         return None
     notification, _ = SystemNotification.objects.get_or_create(
