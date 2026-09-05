@@ -7,6 +7,10 @@
   and their system libraries with
   `cd frontend && pnpm exec playwright install --with-deps chromium firefox webkit`.
 - `make dev`: run the complete development environment in Compose.
+- `make dev-down`: remove development containers and networks while keeping data and dependency
+  volumes. The frontend persists both `node_modules` and its pnpm download store; startup still
+  runs a frozen-lockfile install to synchronize dependencies. The store may need to download
+  packages once when first populated, but is reused after subsequent container recreations.
 - `make prod` / `make prod-down`: start or stop the production Compose stack using
   `.env.production`.
 - `make infra-up`: run only PostgreSQL and Redis for host-based development.

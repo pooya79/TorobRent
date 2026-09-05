@@ -126,7 +126,7 @@ services:
       args:
         NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmjs.org}
     working_dir: /app/frontend
-    command: sh -c "pnpm install --frozen-lockfile && pnpm dev"
+    command: sh -c "pnpm install --frozen-lockfile --store-dir=/pnpm/store && pnpm dev"
     environment:
       VITE_PROXY_TARGET: http://backend:8000
       VITE_MAP_ADAPTER: ${VITE_MAP_ADAPTER:-openstreetmap}
@@ -136,6 +136,7 @@ services:
     volumes:
       - ./frontend:/app/frontend
       - frontend-node-modules:/app/frontend/node_modules
+      - frontend-pnpm-store:/pnpm/store
     expose:
       - "5173"
     depends_on:
@@ -161,3 +162,4 @@ volumes:
   media-data:
   celerybeat-data:
   frontend-node-modules:
+  frontend-pnpm-store:
