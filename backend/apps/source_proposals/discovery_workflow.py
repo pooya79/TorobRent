@@ -11,7 +11,11 @@ from django.utils import timezone
 from apps.accounts.capabilities import OperatorCapability, has_capability
 from apps.accounts.models import User
 from apps.catalog.models import OutboundPolicy, Source
-from apps.source_extraction.contract import ExtractionContract, SourceDiscovery
+from apps.source_extraction.contract import (
+    ExtractionContract,
+    ExtractionContractError,
+    SourceDiscovery,
+)
 from apps.source_extraction.discovery import PageKind
 from apps.source_extraction.fetching import FetchBatch, SourcePageFetcher
 from apps.source_extraction.observations import redact_phone_numbers
@@ -197,11 +201,17 @@ def run_discovery(reservation_id: str) -> None:
         SourceProposal.objects.filter(pk=reservation.proposal_id).update(
             discovery_stage=DiscoveryStage.RUNNING
         )
+    profile = None
     try:
-        result = ExtractionContract(ReservedSourceFetcher(reservation)).discover(
-            reservation.approved_url
-        )
+        contract = ExtractionContract(ReservedSourceFetcher(reservation))
+        result = contract.discover(reservation.approved_url)
         evidence = discovery_evidence(result)
+        try:
+            profile = contract.propose_profile(result)
+        except ExtractionContractError:
+            evidence["profile_failure"] = (
+                "ساختار پشتیبانی‌شده با حداقل ده صفحه برای آموزش و اعتبارسنجی یافت نشد."
+            )
         stage = (
             DiscoveryStage.COMPLETE
             if any(
@@ -232,6 +242,11 @@ def run_discovery(reservation_id: str) -> None:
             or proposal.revision != reservation.revision
         ):
             return
+        if profile is not None:
+            from .profiles import retain_initial_profile
+
+            Source.objects.select_for_update().get(pk=reservation.source_id)
+            retain_initial_profile(reservation, result, profile, contract)
         proposal.discovery_stage = stage
         proposal.save(update_fields=("discovery_stage", "updated_at"))
         if stage == DiscoveryStage.FAILED:
@@ -255,7 +270,11 @@ def release_reservations(proposal: SourceProposal, reason: str) -> None:
 
 @transaction.atomic
 def release_case(
-    *, proposal: SourceProposal, actor: User, reviewed_revision: int, reason: str
+    *,
+    proposal: SourceProposal,
+    actor: User,
+    reviewed_revision: int,
+    reason: str,
 ) -> SourceProposal:
     proposal = SourceProposal.objects.select_for_update().get(pk=proposal.pk)
     if not reason.strip():
@@ -326,6 +345,9 @@ def recover_interrupted_discovery(reservation_id: str) -> None:
 
 
 def expire_reservations() -> None:
+    from .models import SourceProfileSnapshots
+
+    SourceProfileSnapshots.objects.filter(expires_at__lte=timezone.now()).delete()
     interrupted = SourceReservation.objects.filter(
         released_at__isnull=True,
         completed_at__isnull=True,

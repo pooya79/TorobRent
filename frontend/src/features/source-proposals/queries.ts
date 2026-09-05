@@ -118,6 +118,7 @@ export async function decideSourceProposal(
   decision: "request-changes" | "reject" | "approve",
   revision: number,
   reason: string,
+  profileVersion?: string,
 ) {
   if (decision === "approve") {
     const { data, error } = await api.POST(
@@ -136,7 +137,11 @@ export async function decideSourceProposal(
       : "/api/v1/operator/source-proposals/{proposal_id}/request-changes/";
   const { data, error } = await api.POST(path, {
     params: { path: { proposal_id: proposalId } },
-    body: { reviewed_revision: revision, reason },
+    body: {
+      reviewed_revision: revision,
+      reason,
+      ...(profileVersion ? { reviewed_profile_version: profileVersion } : {}),
+    },
   });
   if (error || !data) throw apiError(error);
   return data;
@@ -201,6 +206,36 @@ export async function releaseSourceProposal(
     {
       params: { path: { proposal_id: proposalId } },
       body: { reviewed_revision: revision, reason },
+    },
+  );
+  if (error || !data) throw apiError(error);
+  return data;
+}
+
+export async function editSourceProfile(
+  proposalId: string,
+  body: components["schemas"]["SourceProfileEdit"],
+) {
+  const { data, error } = await api.POST(
+    "/api/v1/operator/source-proposals/{proposal_id}/profile/edit/",
+    {
+      params: { path: { proposal_id: proposalId } },
+      body,
+    },
+  );
+  if (error || !data) throw apiError(error);
+  return data;
+}
+
+export async function approveSourceProfile(
+  proposalId: string,
+  body: components["schemas"]["SourceProfileApproval"],
+) {
+  const { data, error } = await api.POST(
+    "/api/v1/operator/source-proposals/{proposal_id}/profile/approve/",
+    {
+      params: { path: { proposal_id: proposalId } },
+      body,
     },
   );
   if (error || !data) throw apiError(error);

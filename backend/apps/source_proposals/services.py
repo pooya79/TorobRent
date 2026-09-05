@@ -360,7 +360,12 @@ def claim_source_proposal_review(
 
 @transaction.atomic
 def request_source_proposal_changes(
-    *, proposal: SourceProposal, actor: User, reviewed_revision: int, reason: str
+    *,
+    proposal: SourceProposal,
+    actor: User,
+    reviewed_revision: int,
+    reason: str,
+    reviewed_profile_version: uuid.UUID | None = None,
 ) -> SourceProposal:
     proposal = SourceProposal.objects.select_for_update().get(id=proposal.id)
     ensure_independent_reviewer(proposal=proposal, actor=actor)
@@ -374,6 +379,7 @@ def request_source_proposal_changes(
         proposal=proposal,
         actor=actor,
         claim=claim,
+        reviewed_profile_version=reviewed_profile_version,
         new_state=SourceProposalState.CHANGES_REQUESTED,
         reason=reason,
     )
@@ -393,9 +399,21 @@ def _record_review_decision(
     claim: SourceProposalReviewClaim,
     new_state: SourceProposalState,
     reason: str = "",
+    reviewed_profile_version: uuid.UUID | None = None,
+    review_mode: str = "",
 ) -> SourceProposal:
     from .discovery_workflow import release_reservations
+    from .models import SourceProfileDecision, SourceProfileVersion
 
+    version = SourceProfileVersion.objects.filter(
+        reservation__proposal=proposal, reservation__revision=proposal.revision
+    ).first()
+    if version and (
+        str(version.pk) != str(reviewed_profile_version) or hasattr(version, "decision")
+    ):
+        raise SourceProposalReviewConflict(
+            "profile_version_conflict", "The proposed profile version changed."
+        )
     release_reservations(proposal, str(new_state))
     prior_state = proposal.state
     proposal.state = new_state
@@ -409,6 +427,10 @@ def _record_review_decision(
         new_state=new_state,
         reason=reason,
     )
+    if version:
+        SourceProfileDecision.objects.create(
+            version=version, event=decision, review_mode=review_mode
+        )
     create_source_proposal_review_notification(decision)
     claim.released_at = timezone.now()
     claim.save(update_fields=("released_at",))
@@ -417,7 +439,12 @@ def _record_review_decision(
 
 @transaction.atomic
 def reject_source_proposal(
-    *, proposal: SourceProposal, actor: User, reviewed_revision: int, reason: str
+    *,
+    proposal: SourceProposal,
+    actor: User,
+    reviewed_revision: int,
+    reason: str,
+    reviewed_profile_version: uuid.UUID | None = None,
 ) -> SourceProposal:
     proposal = SourceProposal.objects.select_for_update().get(id=proposal.id)
     ensure_independent_reviewer(proposal=proposal, actor=actor)
@@ -428,6 +455,7 @@ def reject_source_proposal(
         proposal=proposal,
         actor=actor,
         claim=claim,
+        reviewed_profile_version=reviewed_profile_version,
         new_state=SourceProposalState.REJECTED,
         reason=_required_reason(reason),
     )

@@ -385,3 +385,157 @@ test("URL approval keeps the case visible with Discovery evidence and renewable 
     await screen.findByText("رزرو آزاد شد؛ در انتظار بررسی دوباره"),
   ).toBeVisible();
 });
+
+test("reviews profile evidence, edits a field, and approves only a validated version", async () => {
+  const user = userEvent.setup();
+  const version = {
+    id: "profile-1",
+    reservation: "discovery-1",
+    number: 1,
+    parent: null,
+    provenance: "discovery",
+    status: "proposed",
+    is_active: false,
+    rules: {
+      floor_area_sqm: { kind: "css", selector: ".wrong", transform: "integer" },
+    },
+    structural_fingerprint: "fingerprint",
+    created_by_label: "",
+    created_at: "2026-09-05T08:00:00Z",
+    exclusions: ["https://khaneh.example/unsupported"],
+    validation: {
+      training_page_urls: ["https://khaneh.example/train"],
+      held_out_page_urls: ["https://khaneh.example/held"],
+      approval_enabled: false,
+      fields: { floor_area_sqm: { coverage: 0, passed: false, conflicts: 1 } },
+    },
+    samples: [
+      {
+        canonical_url: "https://khaneh.example/held",
+        normalized: { city: "تهران", deposit_rial: 5_000_000_000 },
+        conflicts: { floor_area_sqm: [85, 500] },
+        unresolved: ["floor_area_sqm"],
+        evidence: {
+          floor_area_sqm: [
+            {
+              source_locator: ".area",
+              normalized_value: 85,
+              evidence_snippet: "۸۵ متر",
+              disposition: "conflict",
+            },
+          ],
+        },
+      },
+    ],
+  };
+  const caseData = {
+    ...proposal,
+    discovery_stage: "complete",
+    discovery: { id: "discovery-1", evidence: { page_count: 10 } },
+    profile_versions: [version],
+  };
+  const edits: unknown[] = [];
+  let approved = false;
+  server.use(
+    http.get("*/api/v1/operator/source-proposals/", () =>
+      HttpResponse.json([caseData]),
+    ),
+    http.post("*/api/v1/operator/source-proposals/:proposalId/claim/", () =>
+      HttpResponse.json({}, { status: 201 }),
+    ),
+    http.post(
+      "*/api/v1/operator/source-proposals/:proposalId/profile/edit/",
+      async ({ request }) => {
+        const body = (await request.json()) as { rules: unknown };
+        edits.push(body);
+        return HttpResponse.json({
+          ...caseData,
+          profile_versions: [
+            {
+              ...version,
+              id: "profile-2",
+              number: 2,
+              parent: version.id,
+              provenance: "manual",
+              rules: body.rules,
+              validation: {
+                ...version.validation,
+                approval_enabled: true,
+                fields: {
+                  floor_area_sqm: { coverage: 1, passed: true, conflicts: 0 },
+                },
+              },
+            },
+            version,
+          ],
+        });
+      },
+    ),
+    http.post(
+      "*/api/v1/operator/source-proposals/:proposalId/profile/approve/",
+      async ({ request }) => {
+        expect(await request.json()).toEqual({
+          reviewed_revision: 1,
+          reviewed_profile_version: "profile-2",
+          confirmed: true,
+          review_mode: "automatic",
+        });
+        approved = true;
+        return HttpResponse.json({ ...caseData, state: "approved" });
+      },
+    ),
+  );
+  render(
+    <QueryClientProvider
+      client={
+        new QueryClient({ defaultOptions: { queries: { retry: false } } })
+      }
+    >
+      <MemoryRouter>
+        <OperatorSourceProposalPage />
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+  expect(await screen.findByText("پروفایل منبع — نسخه ۱")).toBeVisible();
+  expect(screen.getByText("۸۵ متر")).toBeVisible();
+  expect(screen.getByText("۵۰۰٬۰۰۰٬۰۰۰ تومان")).toBeVisible();
+  expect(screen.getByText("https://khaneh.example/unsupported")).toBeVisible();
+  await user.click(screen.getByRole("button", { name: "شروع بررسی" }));
+  expect(
+    screen.getByRole("button", { name: "تأیید پروفایل و تخصیص منبع" }),
+  ).toBeDisabled();
+  await user.selectOptions(
+    screen.getByLabelText("فیلد مورد اصلاح"),
+    "floor_area_sqm",
+  );
+  await user.type(screen.getByLabelText("مسیر عنصر"), ".area");
+  await user.click(
+    screen.getByRole("button", { name: "ثبت نسخه و اعتبارسنجی" }),
+  );
+  expect(await screen.findByText("پروفایل منبع — نسخه ۲")).toBeVisible();
+  expect(edits).toEqual([
+    {
+      reviewed_revision: 1,
+      reviewed_profile_version: "profile-1",
+      rules: {
+        floor_area_sqm: {
+          kind: "css",
+          selector: ".area",
+          transform: "integer",
+        },
+      },
+    },
+  ]);
+  await user.selectOptions(
+    screen.getByLabelText("روش بررسی نتایج"),
+    "automatic",
+  );
+  await user.click(
+    screen.getByLabelText("نمونه‌ها و اعتبارسنجی پروفایل را بررسی کردم."),
+  );
+  await user.click(
+    screen.getByRole("button", { name: "تأیید پروفایل و تخصیص منبع" }),
+  );
+  expect(approved).toBe(true);
+  expect(await screen.findByText("تصمیم ثبت شد.")).toBeVisible();
+});

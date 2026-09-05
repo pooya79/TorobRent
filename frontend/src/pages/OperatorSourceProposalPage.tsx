@@ -19,6 +19,7 @@ import {
   type ExternalListingCandidate,
   type OperatorSourceProposal,
 } from "@/features/source-proposals/queries";
+import { SourceProfileReview } from "@/features/source-proposals/SourceProfileReview";
 import { DiscoveryEvidence } from "@/features/source-proposals/DiscoveryEvidence";
 import { currentUserQuery } from "@/features/session/queries";
 
@@ -63,7 +64,14 @@ function ProposalReviewCard({
     }: {
       kind: "request-changes" | "reject" | "approve";
       reason: string;
-    }) => decideSourceProposal(proposal.id, kind, proposal.revision, reason),
+    }) =>
+      decideSourceProposal(
+        proposal.id,
+        kind,
+        proposal.revision,
+        reason,
+        proposal.profile_versions?.[0]?.id,
+      ),
     onSuccess: (updated) => {
       if (updated.state !== "pending") setClaimed(false);
       onDecisionSuccess(updated);
@@ -136,6 +144,11 @@ function ProposalReviewCard({
           />
         </dl>
         <DiscoveryEvidence proposal={proposal} />
+        <SourceProfileReview
+          proposal={proposal}
+          claimed={claimed}
+          onUpdate={onDecisionSuccess}
+        />
         {mayForceRelease && !claimed && (
           <div className="grid gap-2">
             <Label htmlFor={`release-${proposal.id}`}>

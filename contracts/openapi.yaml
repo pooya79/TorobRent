@@ -1593,6 +1593,62 @@ paths:
               schema:
                 $ref: '#/components/schemas/OperatorSourceProposal'
           description: ''
+  /api/v1/operator/source-proposals/{proposal_id}/profile/approve/:
+    post:
+      operationId: v1_operator_source_proposals_profile_approve_create
+      summary: Approve a validated Source Profile and assign its Source
+      parameters:
+      - in: path
+        name: proposal_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SourceProfileApproval'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatorSourceProposal'
+          description: ''
+  /api/v1/operator/source-proposals/{proposal_id}/profile/edit/:
+    post:
+      operationId: v1_operator_source_proposals_profile_edit_create
+      summary: Propose a manually corrected Source Profile version
+      parameters:
+      - in: path
+        name: proposal_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SourceProfileEdit'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatorSourceProposal'
+          description: ''
   /api/v1/operator/source-proposals/{proposal_id}/reject/:
     post:
       operationId: v1_operator_source_proposals_reject_create
@@ -1610,7 +1666,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/SourceProposalDecision'
+              $ref: '#/components/schemas/SourceProfileDecision'
         required: true
       security:
       - cookieAuth: []
@@ -1638,7 +1694,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/SourceProposalDecision'
+              $ref: '#/components/schemas/SourceProfileDecision'
         required: true
       security:
       - cookieAuth: []
@@ -3848,6 +3904,8 @@ components:
     DiscoveryEvidence:
       type: object
       properties:
+        profile_failure:
+          type: string
         page_count:
           type: integer
           default: 0
@@ -5101,6 +5159,11 @@ components:
           - $ref: '#/components/schemas/SourceDiscovery'
           - type: 'null'
           readOnly: true
+        profile_versions:
+          type: array
+          items:
+            $ref: '#/components/schemas/SourceProfileVersion'
+          readOnly: true
       required:
       - available_actions
       - created_at
@@ -5111,6 +5174,7 @@ components:
       - needs_reconciliation
       - pending_since
       - preview
+      - profile_versions
       - revision
       - updated_at
     OperatorSubmissionQueue:
@@ -5546,6 +5610,131 @@ components:
       required:
       - code
       - message
+    ProfileFieldEvidence:
+      type: object
+      properties:
+        observer_name:
+          type: string
+        raw_value: {}
+        normalized_value: {}
+        confidence:
+          type: number
+          format: double
+        source_locator:
+          type: string
+        evidence_snippet:
+          type: string
+        disposition:
+          type: string
+      required:
+      - confidence
+      - disposition
+      - evidence_snippet
+      - normalized_value
+      - observer_name
+      - raw_value
+      - source_locator
+    ProfileFieldValidation:
+      type: object
+      properties:
+        resolved:
+          type: integer
+        conflicts:
+          type: integer
+        coverage:
+          type: number
+          format: double
+        passed:
+          type: boolean
+        missing_page_urls:
+          type: array
+          items:
+            type: string
+        conflict_page_urls:
+          type: array
+          items:
+            type: string
+      required:
+      - conflict_page_urls
+      - conflicts
+      - coverage
+      - missing_page_urls
+      - passed
+      - resolved
+    ProfileSample:
+      type: object
+      properties:
+        canonical_url:
+          type: string
+        normalized:
+          type: object
+          additionalProperties: {}
+        source_claims:
+          type: object
+          additionalProperties:
+            type: array
+            items: {}
+        evidence:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              $ref: '#/components/schemas/ProfileFieldEvidence'
+        conflicts:
+          type: object
+          additionalProperties:
+            type: array
+            items: {}
+        unresolved:
+          type: array
+          items:
+            type: string
+        status:
+          type: string
+        structural_drift:
+          type: boolean
+        fingerprint_similarity:
+          type: number
+          format: double
+      required:
+      - canonical_url
+      - conflicts
+      - evidence
+      - fingerprint_similarity
+      - normalized
+      - source_claims
+      - status
+      - structural_drift
+      - unresolved
+    ProfileValidation:
+      type: object
+      properties:
+        training_page_urls:
+          type: array
+          items:
+            type: string
+        held_out_page_urls:
+          type: array
+          items:
+            type: string
+        required_resolved:
+          type: integer
+        fields:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/ProfileFieldValidation'
+        pages:
+          type: array
+          items: {}
+        approval_enabled:
+          type: boolean
+      required:
+      - approval_enabled
+      - fields
+      - held_out_page_urls
+      - pages
+      - required_resolved
+      - training_page_urls
     PropertyCategoryEnum:
       enum:
       - residential
@@ -5843,6 +6032,14 @@ components:
         * `shop` - مغازه
         * `warehouse` - انبار
         * `workshop` - کارگاه
+    ProvenanceEnum:
+      enum:
+      - discovery
+      - manual
+      type: string
+      description: |-
+        * `discovery` - Discovery
+        * `manual` - Manual
     PublicationResultAudit:
       type: object
       properties:
@@ -6032,6 +6229,14 @@ components:
           type: boolean
       required:
       - accuracy_confirmed
+    ReviewModeEnum:
+      enum:
+      - approval_required
+      - automatic
+      type: string
+      description: |-
+        * `approval_required` - approval_required
+        * `automatic` - automatic
     ReviewReason:
       type: object
       properties:
@@ -6125,6 +6330,137 @@ components:
         source_claims: {}
         provenance_note:
           type: string
+    SourceProfileApproval:
+      type: object
+      properties:
+        reviewed_revision:
+          type: integer
+          minimum: 1
+        confirmed:
+          type: boolean
+        reviewed_profile_version:
+          type: string
+          format: uuid
+        review_mode:
+          $ref: '#/components/schemas/ReviewModeEnum'
+      required:
+      - confirmed
+      - review_mode
+      - reviewed_profile_version
+      - reviewed_revision
+    SourceProfileDecision:
+      type: object
+      properties:
+        reviewed_revision:
+          type: integer
+          minimum: 1
+        reason:
+          type: string
+          maxLength: 5000
+        reviewed_profile_version:
+          type: string
+          format: uuid
+      required:
+      - reason
+      - reviewed_revision
+    SourceProfileEdit:
+      type: object
+      properties:
+        reviewed_revision:
+          type: integer
+          minimum: 1
+        reviewed_profile_version:
+          type: string
+          format: uuid
+        rules: {}
+      required:
+      - reviewed_profile_version
+      - reviewed_revision
+      - rules
+    SourceProfileVersion:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        reservation:
+          type: string
+          format: uuid
+          readOnly: true
+        decision_reason:
+          type: string
+          readOnly: true
+          default: ''
+        decided_at:
+          type: string
+          format: date-time
+          readOnly: true
+        number:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 0
+          format: int64
+        parent:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        rules: {}
+        structural_fingerprint:
+          type: string
+        validation:
+          allOf:
+          - $ref: '#/components/schemas/ProfileValidation'
+          readOnly: true
+        samples:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProfileSample'
+          readOnly: true
+        exclusions: {}
+        diagnostics: {}
+        pipeline_version:
+          type: string
+          maxLength: 64
+        provenance:
+          $ref: '#/components/schemas/ProvenanceEnum'
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        created_by_label:
+          type: string
+          readOnly: true
+          default: ''
+        status:
+          type: string
+          readOnly: true
+        is_active:
+          type: boolean
+          readOnly: true
+        review_mode:
+          type: string
+          readOnly: true
+          default: ''
+      required:
+      - created_at
+      - created_by_label
+      - decided_at
+      - decision_reason
+      - exclusions
+      - id
+      - is_active
+      - number
+      - pipeline_version
+      - provenance
+      - reservation
+      - review_mode
+      - rules
+      - samples
+      - status
+      - structural_fingerprint
+      - validation
     SourceProposal:
       type: object
       properties:

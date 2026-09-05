@@ -61,8 +61,32 @@ page counts. Celery applies a 10-minute soft limit and an 11-minute hard limit. 
 reservation maintenance task marks an interrupted attempt failed after 12 minutes and releases its
 host; redelivery performs the same recovery check. Retrying failed work requires a fresh explicit
 URL approval and creates a new reservation, preserving the earlier attempt. Completed Discovery
-retains bounded evidence summaries rather than raw page HTML. Profile approval and real candidate
-creation are subsequent delivery slices; URL approval does not generate simulated candidates.
+retains bounded evidence summaries. URL approval does not generate simulated candidates.
+
+## Source Profile review
+
+Discovery proposes one immutable version from the dominant supported structure when at least ten
+supported detail pages are available: five for training and five held out for deterministic
+validation. Insufficient evidence leaves the case open with an explanation. Versions retain the
+rules, fingerprint, original split, per-field coverage and conflicts, extracted samples, exclusions,
+pipeline version, and creation provenance. The ten phone-redacted page snapshots expire after
+30 days; reservation maintenance deletes them without deleting durable evidence or decisions.
+
+The assigned Operator edits field rules in the existing case view. The API accepts known fields,
+at most sixteen variants per field, and at most 64 KiB of rules. The language supports bounded
+simple CSS paths, JSON-LD property paths, label/value pairs, and table columns with allowlisted
+transforms. It rejects scripts, expressions, pseudo-selectors, wildcard traversal, and unknown rule
+properties. The UI replaces one field's variants with a CSS or JSON-LD rule. Every edit creates a
+proposed version, preserves the original split, and validates retained pages without network access.
+
+Profile approval checks the current claim, proposal revision, version, and live host reservation,
+then reruns validation. Each of the eight core fields must resolve on at least four of the five
+held-out pages with no conflicting evidence; optional claims do not block approval. Approval
+atomically creates the Source Assignment, activates the reviewed version with the selected review
+mode, releases the reservation and claim, and notifies the representative. Rejection and requested
+changes require a reason and retain a version-specific immutable decision. Profile edits and
+approval reject stale version IDs. Expired evidence requires new explicit URL approval and Discovery.
+Real candidate creation and explicit LLM repair remain separate delivery slices.
 
 ## Publishable result
 

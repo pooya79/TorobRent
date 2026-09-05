@@ -297,3 +297,49 @@ def test_discovery_uses_guarded_browser_fallback_for_a_javascript_shell() -> Non
     assert discovery.pages[0].rendering_method == "browser"
     assert ((seed_url,), True) in fetcher.calls
     assert discovery.detail_page_count == 3
+
+
+@pytest.mark.parametrize(
+    "rule",
+    [
+        {"kind": "script", "code": "return document.body"},
+        {"kind": "css", "selector": "div:has(*)", "transform": "integer"},
+        {"kind": "css", "selector": "div,script", "transform": "integer"},
+        {"kind": "css", "selector": ".area", "transform": "eval"},
+        {"kind": "css", "selector": ".area", "transform": "integer", "code": "exec()"},
+        {"kind": "json", "path": "$..floorSize", "transform": "integer"},
+        {
+            "kind": "json",
+            "path": "$.floorSize",
+            "script_selector": "script",
+            "transform": "integer",
+        },
+        {"kind": "css", "selector": "a " * 100, "transform": "integer"},
+        {"variants": [{"kind": "css", "selector": ".area", "transform": "integer"}] * 17},
+        {"kind": "css", "selector": ".area", "transform": ["integer"]},
+    ],
+)
+def test_revalidation_rejects_unbounded_or_executable_rules(rule) -> None:
+    _, profile = build_profile()
+    with pytest.raises(ValueError):
+        ExtractionContract().revalidate_profile(profile, [], {"floor_area_sqm": rule})
+
+
+def test_revalidation_keeps_held_out_split_and_optional_claims_do_not_block() -> None:
+    _, profile = build_profile()
+    pages = [
+        ExtractionPage(f"https://source.example/listing/{20000 + i}", listing_html(area=90 + i))
+        for i in range(4)
+    ]
+    updated = ExtractionContract().revalidate_profile(
+        profile,
+        pages,
+        {
+            **profile.mapping,
+            "construction_year": {"kind": "css", "selector": ".missing", "transform": "integer"},
+        },
+    )
+    assert updated.validation.training_page_urls == profile.validation.training_page_urls
+    assert updated.validation.held_out_page_urls == profile.validation.held_out_page_urls
+    assert updated.validation.fields["construction_year"].passed is False
+    assert updated.validation.approval_enabled is True

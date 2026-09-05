@@ -41,6 +41,7 @@ from .observations import (
     redact_phone_numbers,
     resolve_candidates,
 )
+from .rules import validate_field_rules
 
 PROFILE_VALIDATION_RATIO = 0.8
 STRUCTURE_SIMILARITY = 0.82
@@ -186,7 +187,7 @@ class ExtractionContract:
 
     def __init__(
         self,
-        fetcher: PageFetcher,
+        fetcher: PageFetcher | None = None,
         *,
         locations: Sequence[TehranLocation] | None = None,
         max_pages: int = 50,
@@ -367,12 +368,38 @@ class ExtractionContract:
         held_out = representatives[training_page_count:]
         training_mappings = [page.as_legacy_mapping(index) for index, page in enumerate(training)]
         mapping, diagnostics = build_deterministic_profile(training_mappings)
+        validate_field_rules(mapping)
         validation = self._validate_profile(mapping, training, held_out)
         return SourceProfile(
             mapping=mapping,
             structural_fingerprint=discovery.dominant_fingerprint,
             mapping_diagnostics=diagnostics,
             validation=validation,
+        )
+
+    def revalidate_profile(
+        self, profile: SourceProfile, pages: Sequence[ExtractionPage], mapping: Mapping[str, Any]
+    ) -> SourceProfile:
+        rules = validate_field_rules(mapping)
+        by_url = {page.url: page for page in pages}
+        training_urls = profile.validation.training_page_urls
+        held_out_urls = profile.validation.held_out_page_urls
+        if not training_urls or not held_out_urls or set(training_urls) & set(held_out_urls):
+            raise ExtractionContractError("Independent training and held-out pages are required")
+        if any(url not in by_url for url in (*training_urls, *held_out_urls)):
+            raise ExtractionContractError("Validation snapshots are no longer available")
+
+        def retained(urls: Sequence[str]) -> list[_ProfilePage]:
+            return [_ProfilePage(url, redact_phone_numbers(by_url[url].html), "") for url in urls]
+
+        return SourceProfile(
+            mapping=rules,
+            structural_fingerprint=profile.structural_fingerprint,
+            mapping_diagnostics={},
+            validation=self._validate_profile(
+                rules, retained(training_urls), retained(held_out_urls)
+            ),
+            profile_version=profile.profile_version,
         )
 
     def apply_profile(
@@ -454,6 +481,8 @@ class ExtractionContract:
         return ExtractionOutcome(discovery, profile, self.apply_profile(profile, detail_pages))
 
     def _fetch(self, url: str) -> tuple[FetchRecord, str]:
+        if self._fetcher is None:
+            raise ExtractionContractError("A fetcher is required for Discovery")
         batch = self._fetcher.fetch([url])
         if not batch.records:
             raise ExtractionContractError("The fetcher returned no record")

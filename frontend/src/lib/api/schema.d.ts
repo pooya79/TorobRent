@@ -771,6 +771,40 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/v1/operator/source-proposals/{proposal_id}/profile/approve/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Approve a validated Source Profile and assign its Source */
+    post: operations["v1_operator_source_proposals_profile_approve_create"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/operator/source-proposals/{proposal_id}/profile/edit/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Propose a manually corrected Source Profile version */
+    post: operations["v1_operator_source_proposals_profile_edit_create"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/v1/operator/source-proposals/{proposal_id}/reject/": {
     parameters: {
       query?: never;
@@ -1901,6 +1935,7 @@ export interface components {
       detail: string;
     };
     DiscoveryEvidence: {
+      profile_failure?: string;
       /** @default 0 */
       page_count: number;
       /** @default 0 */
@@ -2431,6 +2466,7 @@ export interface components {
       readonly updated_at: string;
       readonly needs_reconciliation: boolean;
       readonly discovery: components["schemas"]["SourceDiscovery"] | null;
+      readonly profile_versions: components["schemas"]["SourceProfileVersion"][];
     };
     OperatorSubmissionQueue: {
       /** Format: uuid */
@@ -2645,6 +2681,55 @@ export interface components {
       code: string;
       message: string;
     };
+    ProfileFieldEvidence: {
+      observer_name: string;
+      raw_value: unknown;
+      normalized_value: unknown;
+      /** Format: double */
+      confidence: number;
+      source_locator: string;
+      evidence_snippet: string;
+      disposition: string;
+    };
+    ProfileFieldValidation: {
+      resolved: number;
+      conflicts: number;
+      /** Format: double */
+      coverage: number;
+      passed: boolean;
+      missing_page_urls: string[];
+      conflict_page_urls: string[];
+    };
+    ProfileSample: {
+      canonical_url: string;
+      normalized: {
+        [key: string]: unknown;
+      };
+      source_claims: {
+        [key: string]: unknown[];
+      };
+      evidence: {
+        [key: string]: components["schemas"]["ProfileFieldEvidence"][];
+      };
+      conflicts: {
+        [key: string]: unknown[];
+      };
+      unresolved: string[];
+      status: string;
+      structural_drift: boolean;
+      /** Format: double */
+      fingerprint_similarity: number;
+    };
+    ProfileValidation: {
+      training_page_urls: string[];
+      held_out_page_urls: string[];
+      required_resolved: number;
+      fields: {
+        [key: string]: components["schemas"]["ProfileFieldValidation"];
+      };
+      pages: unknown[];
+      approval_enabled: boolean;
+    };
     /**
      * @description * `residential` - مسکونی
      *     * `commercial` - تجاری
@@ -2750,6 +2835,12 @@ export interface components {
       | "shop"
       | "warehouse"
       | "workshop";
+    /**
+     * @description * `discovery` - Discovery
+     *     * `manual` - Manual
+     * @enum {string}
+     */
+    ProvenanceEnum: "discovery" | "manual";
     PublicationResultAudit: {
       /** Format: uuid */
       listing_id?: string;
@@ -2847,6 +2938,12 @@ export interface components {
     ReviewInput: {
       accuracy_confirmed: boolean;
     };
+    /**
+     * @description * `approval_required` - approval_required
+     *     * `automatic` - automatic
+     * @enum {string}
+     */
+    ReviewModeEnum: "approval_required" | "automatic";
     ReviewReason: {
       reviewed_revision: number;
       reason: string;
@@ -2890,6 +2987,55 @@ export interface components {
       source_reference?: string;
       source_claims?: unknown;
       provenance_note?: string;
+    };
+    SourceProfileApproval: {
+      reviewed_revision: number;
+      confirmed: boolean;
+      /** Format: uuid */
+      reviewed_profile_version: string;
+      review_mode: components["schemas"]["ReviewModeEnum"];
+    };
+    SourceProfileDecision: {
+      reviewed_revision: number;
+      reason: string;
+      /** Format: uuid */
+      reviewed_profile_version?: string;
+    };
+    SourceProfileEdit: {
+      reviewed_revision: number;
+      /** Format: uuid */
+      reviewed_profile_version: string;
+      rules: unknown;
+    };
+    SourceProfileVersion: {
+      /** Format: uuid */
+      readonly id: string;
+      /** Format: uuid */
+      readonly reservation: string;
+      /** @default  */
+      readonly decision_reason: string;
+      /** Format: date-time */
+      readonly decided_at: string;
+      /** Format: int64 */
+      number: number;
+      /** Format: uuid */
+      parent?: string | null;
+      rules: unknown;
+      structural_fingerprint: string;
+      readonly validation: components["schemas"]["ProfileValidation"];
+      readonly samples: components["schemas"]["ProfileSample"][];
+      exclusions: unknown;
+      diagnostics?: unknown;
+      pipeline_version: string;
+      provenance: components["schemas"]["ProvenanceEnum"];
+      /** Format: date-time */
+      readonly created_at: string;
+      /** @default  */
+      readonly created_by_label: string;
+      readonly status: string;
+      readonly is_active: boolean;
+      /** @default  */
+      readonly review_mode: string;
     };
     SourceProposal: {
       /** Format: uuid */
@@ -5183,6 +5329,56 @@ export interface operations {
       };
     };
   };
+  v1_operator_source_proposals_profile_approve_create: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        proposal_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["SourceProfileApproval"];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["OperatorSourceProposal"];
+        };
+      };
+    };
+  };
+  v1_operator_source_proposals_profile_edit_create: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        proposal_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["SourceProfileEdit"];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["OperatorSourceProposal"];
+        };
+      };
+    };
+  };
   v1_operator_source_proposals_reject_create: {
     parameters: {
       query?: never;
@@ -5194,7 +5390,7 @@ export interface operations {
     };
     requestBody: {
       content: {
-        "application/json": components["schemas"]["SourceProposalDecision"];
+        "application/json": components["schemas"]["SourceProfileDecision"];
       };
     };
     responses: {
@@ -5219,7 +5415,7 @@ export interface operations {
     };
     requestBody: {
       content: {
-        "application/json": components["schemas"]["SourceProposalDecision"];
+        "application/json": components["schemas"]["SourceProfileDecision"];
       };
     };
     responses: {

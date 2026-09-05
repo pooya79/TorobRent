@@ -19,6 +19,9 @@ from .models import SourceProposal, SourceProposalState
 from .review_claims import SourceProposalReviewConflict
 from .serializers import (
     OperatorSourceProposalSerializer,
+    SourceProfileApprovalSerializer,
+    SourceProfileDecisionSerializer,
+    SourceProfileEditSerializer,
     SourceProposalApprovalSerializer,
     SourceProposalDecisionSerializer,
     SourceProposalReviewClaimSerializer,
@@ -64,7 +67,11 @@ def _workflow_error(exc: SourceProposalReviewConflict) -> Response:
     return Response({"code": exc.code, "detail": str(exc)}, status=status.HTTP_409_CONFLICT)
 
 
-DecisionSerializer = type[SourceProposalDecisionSerializer | SourceProposalApprovalSerializer]
+DecisionSerializer = type[
+    SourceProposalDecisionSerializer
+    | SourceProposalApprovalSerializer
+    | SourceProfileEditSerializer
+]
 
 
 def _decision_response(
@@ -117,14 +124,14 @@ class OperatorSourceProposalRequestChangesView(APIView):
 
     @extend_schema(
         summary="Request changes to a Source Proposal",
-        request=SourceProposalDecisionSerializer,
+        request=SourceProfileDecisionSerializer,
         responses=OperatorSourceProposalSerializer,
     )
     def post(self, request: Request, proposal_id: str) -> Response:
         return _decision_response(
             request=request,
             proposal_id=proposal_id,
-            serializer_class=SourceProposalDecisionSerializer,
+            serializer_class=SourceProfileDecisionSerializer,
             transition=request_source_proposal_changes,
         )
 
@@ -134,14 +141,14 @@ class OperatorSourceProposalRejectView(APIView):
 
     @extend_schema(
         summary="Reject a Source Proposal",
-        request=SourceProposalDecisionSerializer,
+        request=SourceProfileDecisionSerializer,
         responses=OperatorSourceProposalSerializer,
     )
     def post(self, request: Request, proposal_id: str) -> Response:
         return _decision_response(
             request=request,
             proposal_id=proposal_id,
-            serializer_class=SourceProposalDecisionSerializer,
+            serializer_class=SourceProfileDecisionSerializer,
             transition=reject_source_proposal,
         )
 
@@ -177,4 +184,42 @@ class OperatorSourceProposalReleaseView(APIView):
             proposal_id=proposal_id,
             serializer_class=SourceProposalDecisionSerializer,
             transition=release_case,
+        )
+
+
+class OperatorSourceProfileEditView(APIView):
+    permission_classes = (CanReviewSourceProposal,)
+
+    @extend_schema(
+        summary="Propose a manually corrected Source Profile version",
+        request=SourceProfileEditSerializer,
+        responses=OperatorSourceProposalSerializer,
+    )
+    def post(self, request: Request, proposal_id: str) -> Response:
+        from .profiles import edit_profile
+
+        return _decision_response(
+            request=request,
+            proposal_id=proposal_id,
+            serializer_class=SourceProfileEditSerializer,
+            transition=edit_profile,
+        )
+
+
+class OperatorSourceProfileApproveView(APIView):
+    permission_classes = (CanReviewSourceProposal,)
+
+    @extend_schema(
+        summary="Approve a validated Source Profile and assign its Source",
+        request=SourceProfileApprovalSerializer,
+        responses=OperatorSourceProposalSerializer,
+    )
+    def post(self, request: Request, proposal_id: str) -> Response:
+        from .profiles import approve_profile
+
+        return _decision_response(
+            request=request,
+            proposal_id=proposal_id,
+            serializer_class=SourceProfileApprovalSerializer,
+            transition=approve_profile,
         )

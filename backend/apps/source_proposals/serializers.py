@@ -10,6 +10,7 @@ from .models import (
     ExternalListingCandidateEvent,
     ExternalListingCandidateReviewClaim,
     InventoryRange,
+    SourceProfileVersion,
     SourceProposal,
     SourceProposalEvent,
     SourceProposalReviewClaim,
@@ -189,6 +190,10 @@ class SourceProposalDecisionSerializer(serializers.Serializer[Any]):
     reason = serializers.CharField(max_length=5000, allow_blank=True)
 
 
+class SourceProfileDecisionSerializer(SourceProposalDecisionSerializer):
+    reviewed_profile_version = serializers.UUIDField(required=False)
+
+
 class SourceProposalApprovalSerializer(serializers.Serializer[Any]):
     reviewed_revision = serializers.IntegerField(min_value=1)
     confirmed = serializers.BooleanField()
@@ -222,6 +227,7 @@ class DiscoveryFailureSerializer(serializers.Serializer[Any]):
 
 
 class DiscoveryEvidenceSerializer(serializers.Serializer[Any]):
+    profile_failure = serializers.CharField(required=False)
     page_count = serializers.IntegerField(default=0)
     detail_page_count = serializers.IntegerField(default=0)
     classifications = serializers.DictField(child=serializers.IntegerField(), default=dict)
@@ -247,15 +253,112 @@ class SourceDiscoverySerializer(serializers.ModelSerializer[SourceReservation]):
         )
 
 
+class ProfileFieldEvidenceSerializer(serializers.Serializer[Any]):
+    observer_name = serializers.CharField()
+    raw_value = serializers.JSONField()
+    normalized_value = serializers.JSONField()
+    confidence = serializers.FloatField()
+    source_locator = serializers.CharField()
+    evidence_snippet = serializers.CharField()
+    disposition = serializers.CharField()
+
+
+class ProfileFieldValidationSerializer(serializers.Serializer[Any]):
+    resolved = serializers.IntegerField()
+    conflicts = serializers.IntegerField()
+    coverage = serializers.FloatField()
+    passed = serializers.BooleanField()
+    missing_page_urls = serializers.ListField(child=serializers.CharField())
+    conflict_page_urls = serializers.ListField(child=serializers.CharField())
+
+
+class ProfileValidationSerializer(serializers.Serializer[Any]):
+    training_page_urls = serializers.ListField(child=serializers.CharField())
+    held_out_page_urls = serializers.ListField(child=serializers.CharField())
+    required_resolved = serializers.IntegerField()
+    fields = serializers.DictField(child=ProfileFieldValidationSerializer())  # type: ignore[assignment]
+    pages = serializers.ListField(child=serializers.JSONField())
+    approval_enabled = serializers.BooleanField()
+
+
+class ProfileSampleSerializer(serializers.Serializer[Any]):
+    canonical_url = serializers.CharField()
+    normalized = serializers.DictField(child=serializers.JSONField())
+    source_claims = serializers.DictField(
+        child=serializers.ListField(child=serializers.JSONField())
+    )
+    evidence = serializers.DictField(child=ProfileFieldEvidenceSerializer(many=True))
+    conflicts = serializers.DictField(child=serializers.ListField(child=serializers.JSONField()))
+    unresolved = serializers.ListField(child=serializers.CharField())
+    status = serializers.CharField()
+    structural_drift = serializers.BooleanField()
+    fingerprint_similarity = serializers.FloatField()
+
+
+class SourceProfileVersionSerializer(serializers.ModelSerializer[SourceProfileVersion]):
+    reservation = serializers.UUIDField(source="reservation_id", read_only=True)
+    decision_reason = serializers.CharField(
+        source="decision.event.reason", read_only=True, default=""
+    )
+    decided_at = serializers.DateTimeField(
+        source="decision.event.created_at", read_only=True, default=None
+    )
+    validation = ProfileValidationSerializer(read_only=True)
+    samples = ProfileSampleSerializer(many=True, read_only=True)
+    review_mode = serializers.CharField(source="decision.review_mode", read_only=True, default="")
+    status = serializers.SerializerMethodField()
+    is_active = serializers.SerializerMethodField()
+    created_by_label = serializers.CharField(source="created_by.email", read_only=True, default="")
+
+    class Meta:
+        model = SourceProfileVersion
+        fields = (
+            "id",
+            "reservation",
+            "decision_reason",
+            "decided_at",
+            "number",
+            "parent",
+            "rules",
+            "structural_fingerprint",
+            "validation",
+            "samples",
+            "exclusions",
+            "diagnostics",
+            "pipeline_version",
+            "provenance",
+            "created_at",
+            "created_by_label",
+            "status",
+            "is_active",
+            "review_mode",
+        )
+
+    def get_status(self, version: SourceProfileVersion) -> str:
+        return version.decision.event.new_state if hasattr(version, "decision") else "proposed"
+
+    def get_is_active(self, version: SourceProfileVersion) -> bool:
+        return version.profile.active_version_id == version.pk
+
+
 class OperatorSourceProposalSerializer(SourceProposalSerializer):
     needs_reconciliation = serializers.SerializerMethodField()
     discovery = serializers.SerializerMethodField()
+    profile_versions = serializers.SerializerMethodField()
 
     class Meta(SourceProposalSerializer.Meta):
         fields = SourceProposalSerializer.Meta.fields + (  # type: ignore[assignment]
             "needs_reconciliation",
             "discovery",
+            "profile_versions",
         )
+
+    @extend_schema_field(SourceProfileVersionSerializer(many=True))
+    def get_profile_versions(self, proposal: SourceProposal) -> list[dict[str, Any]]:
+        versions = SourceProfileVersion.objects.filter(
+            reservation__proposal=proposal
+        ).select_related("profile", "decision__event", "created_by")
+        return list(SourceProfileVersionSerializer(versions, many=True).data)
 
     @extend_schema_field(SourceDiscoverySerializer(allow_null=True))
     def get_discovery(self, proposal: SourceProposal) -> dict[str, Any] | None:
@@ -350,3 +453,22 @@ class ExternalListingCandidateReviewClaimSerializer(
     class Meta:
         model = ExternalListingCandidateReviewClaim
         fields = ("id", "operator_label", "revision", "expires_at", "created_at")
+
+
+class SourceProfileEditSerializer(serializers.Serializer[Any]):
+    reviewed_revision = serializers.IntegerField(min_value=1)
+    reviewed_profile_version = serializers.UUIDField()
+    rules = serializers.JSONField()
+
+    def validate_rules(self, value: Any) -> dict[str, Any]:
+        from apps.source_extraction.rules import validate_field_rules
+
+        try:
+            return validate_field_rules(value)
+        except ValueError as exc:
+            raise serializers.ValidationError(str(exc)) from None
+
+
+class SourceProfileApprovalSerializer(SourceProposalApprovalSerializer):
+    reviewed_profile_version = serializers.UUIDField()
+    review_mode = serializers.ChoiceField(choices=("approval_required", "automatic"))

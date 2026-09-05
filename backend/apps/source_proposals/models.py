@@ -362,3 +362,111 @@ class SourceAssignment(models.Model):
 
     def __str__(self) -> str:
         return f"{self.source_id}: {self.representative_id}"
+
+
+class ProfileReviewMode(models.TextChoices):
+    APPROVAL_REQUIRED = "approval_required", "نیازمند تأیید"
+    AUTOMATIC = "automatic", "خودکار"
+
+
+class SourceProfile(models.Model):
+    source = models.OneToOneField(
+        "catalog.Source", on_delete=models.PROTECT, related_name="profile"
+    )
+    active_version = models.OneToOneField(
+        "SourceProfileVersion", on_delete=models.PROTECT, null=True, related_name="active_profile"
+    )
+
+    def __str__(self) -> str:
+        return f"Source Profile {self.source_id}"
+
+
+class ImmutableProfileQuerySet(models.QuerySet[Any]):
+    def update(self, **kwargs: Any) -> int:
+        raise ValidationError("Source Profile history is immutable.")
+
+    def delete(self) -> tuple[int, dict[str, int]]:
+        raise ValidationError("Source Profile history is immutable.")
+
+
+class ImmutableProfileRecord(models.Model):
+    objects: ClassVar[models.Manager[Any]] = models.Manager.from_queryset(
+        ImmutableProfileQuerySet
+    )()
+
+    class Meta:
+        abstract = True
+
+    def save(self, *args: Any, **kwargs: Any) -> None:
+        if not self._state.adding:
+            raise ValidationError("Source Profile history is immutable.")
+        super().save(*args, **kwargs)
+
+    def delete(self, *args: Any, **kwargs: Any) -> tuple[int, dict[str, int]]:
+        raise ValidationError("Source Profile history is immutable.")
+
+
+class SourceProfileVersion(ImmutableProfileRecord):
+    objects: ClassVar[models.Manager[SourceProfileVersion]] = models.Manager.from_queryset(
+        ImmutableProfileQuerySet
+    )()
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    profile = models.ForeignKey(SourceProfile, on_delete=models.PROTECT, related_name="versions")
+    reservation = models.ForeignKey(
+        SourceReservation, on_delete=models.PROTECT, related_name="profile_versions"
+    )
+    number = models.PositiveIntegerField()
+    parent = models.ForeignKey("self", on_delete=models.PROTECT, null=True)
+    rules = models.JSONField()
+    structural_fingerprint = models.TextField()
+    validation = models.JSONField()
+    samples = models.JSONField()
+    exclusions = models.JSONField()
+    diagnostics = models.JSONField(default=dict)
+    pipeline_version = models.CharField(max_length=64)
+    provenance = models.CharField(
+        max_length=16, choices=(("discovery", "Discovery"), ("manual", "Manual"))
+    )
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=set_null_in_immutable_history, null=True
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ("-number",)
+        constraints = [
+            models.UniqueConstraint(
+                fields=("profile", "number"), name="unique_source_profile_version"
+            ),
+            models.UniqueConstraint(
+                fields=("reservation",),
+                condition=models.Q(provenance="discovery"),
+                name="one_initial_profile_per_discovery",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.profile_id}: version {self.number}"
+
+
+class SourceProfileDecision(ImmutableProfileRecord):
+    objects: ClassVar[models.Manager[SourceProfileDecision]] = models.Manager.from_queryset(
+        ImmutableProfileQuerySet
+    )()
+    version = models.OneToOneField(
+        SourceProfileVersion, on_delete=models.PROTECT, related_name="decision"
+    )
+    event = models.OneToOneField(SourceProposalEvent, on_delete=models.PROTECT)
+    review_mode = models.CharField(max_length=24, choices=ProfileReviewMode, blank=True)
+
+    def __str__(self) -> str:
+        return f"Profile decision {self.version_id}"
+
+
+class SourceProfileSnapshots(models.Model):
+    reservation = models.OneToOneField(SourceReservation, on_delete=models.PROTECT)
+    pages = models.JSONField()
+    expires_at = models.DateTimeField()
+
+    def __str__(self) -> str:
+        return f"Validation snapshots {self.reservation_id}"
