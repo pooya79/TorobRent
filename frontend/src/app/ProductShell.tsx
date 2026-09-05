@@ -191,35 +191,6 @@ function PrimaryNavigation({
   );
 }
 
-function ComingSoonControl({
-  label,
-  icon: Icon,
-  compact = false,
-}: {
-  label: string;
-  icon: typeof MessageCircle;
-  compact?: boolean;
-}) {
-  const accessibleLabel = `${label} — به‌زودی`;
-  return (
-    <Button
-      aria-disabled="true"
-      aria-label={accessibleLabel}
-      className={cn("min-h-11", compact ? "px-3" : "justify-start px-3")}
-      type="button"
-      variant="ghost"
-    >
-      <Icon aria-hidden="true" />
-      <span className={cn(compact && "sr-only")}>{label}</span>
-      <span
-        className={cn("text-muted-foreground text-xs", compact && "sr-only")}
-      >
-        به‌زودی
-      </span>
-    </Button>
-  );
-}
-
 function messageLinkLabel(unreadCount: number) {
   return unreadCount > 0
     ? `پیام‌ها، ${unreadCount.toLocaleString("fa-IR")} خوانده‌نشده`
@@ -300,7 +271,11 @@ function MobileAccountPanel({
       <div className="border-border mb-1 border-b px-3 py-2">
         <AccountIdentity currentUser={currentUser} />
       </div>
-      <ComingSoonControl label="نمایه" icon={UserRound} />
+      <Button asChild className="justify-start px-3" variant="ghost">
+        <NavLink onClick={onNavigate} to="/dashboard/profile">
+          <UserRound aria-hidden="true" /> پروفایل من
+        </NavLink>
+      </Button>
       <MessageCenterLink onNavigate={onNavigate} unreadCount={unreadCount} />
       <Button asChild className="justify-start px-3" variant="ghost">
         <NavLink onClick={onNavigate} to="/guide">
@@ -406,7 +381,11 @@ function AccountMenu({
           <AccountIdentity currentUser={currentUser} />
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <ComingSoonMenuItem label="نمایه" icon={UserRound} />
+        <DropdownMenuItem asChild>
+          <NavLink to="/dashboard/profile">
+            <UserRound aria-hidden="true" /> پروفایل من
+          </NavLink>
+        </DropdownMenuItem>
         <DropdownMenuItem asChild>
           <NavLink aria-label={messageLinkLabel(unreadCount)} to="/messages">
             <MessageCircle aria-hidden="true" />
@@ -434,27 +413,6 @@ function AccountMenu({
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
-  );
-}
-
-function ComingSoonMenuItem({
-  label,
-  icon: Icon,
-}: {
-  label: string;
-  icon: typeof MessageCircle;
-}) {
-  const accessibleLabel = `${label} — به‌زودی`;
-  return (
-    <DropdownMenuItem
-      aria-disabled="true"
-      aria-label={accessibleLabel}
-      onSelect={(event) => event.preventDefault()}
-    >
-      <Icon aria-hidden="true" />
-      <span>{label}</span>
-      <span className="text-muted-foreground text-xs">به‌زودی</span>
-    </DropdownMenuItem>
   );
 }
 

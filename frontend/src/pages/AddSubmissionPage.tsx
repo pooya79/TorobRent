@@ -1,9 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, Circle, Save } from "lucide-react";
+import { Check, Save, ArrowLeft, ShieldCheck } from "lucide-react";
 import { useState, type FormEvent } from "react";
-import { Link, useSearchParams } from "react-router";
+import { Link, useNavigate, useSearchParams } from "react-router";
 
-import { PageMain } from "@/components/layout/PageMain";
+import { SubmitterWorkspace } from "@/features/submitter/SubmitterWorkspace";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -58,6 +58,23 @@ const featureLabels = {
   balcony: "بالکن",
   furnished: "مبله",
 } as const;
+
+const stepDescriptions: Record<StepId, string> = {
+  location:
+    "محله و نشانی را وارد کنید. نشانی دقیق و موقعیت ساختمان عمومی نمی‌شود.",
+  property_facts:
+    "نوع و مشخصات ملک را وارد کنید تا متقاضیان راحت‌تر آن را پیدا کنند.",
+  rental_terms:
+    "مبلغ‌ها را به تومان بنویسید. برای رهن کامل، اجاره ماهانه را صفر وارد کنید.",
+  features_description:
+    "امکانات ملک را مشخص کنید و ویژگی‌های دیگر را در توضیحات بنویسید.",
+  images:
+    "تصاویر روشن و واضح اضافه کنید و بهترین عکس را به‌عنوان تصویر اصلی انتخاب کنید.",
+  contact:
+    "نام و شماره تماس آگهی را مشخص و اجازه نمایش عمومی شماره را تأیید کنید.",
+  review:
+    "اطلاعات زیر را بررسی کنید. پس از ارسال، آگهی برای بررسی در صف قرار می‌گیرد.",
+};
 
 const persianStepNumbers = ["۱", "۲", "۳", "۴", "۵", "۶", "۷"] as const;
 
@@ -118,7 +135,7 @@ function RoleChooser({
       <CardHeader>
         <h2 className="text-xl font-semibold">نقش شما در این ثبت چیست؟</h2>
         <p className="text-muted-foreground text-sm">
-          این انتخاب فقط برای همین Submission ذخیره می‌شود.
+          این انتخاب فقط برای همین آگهی ذخیره می‌شود.
         </p>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -127,10 +144,10 @@ function RoleChooser({
           onValueChange={(value) => setRole(value as "owner" | "agent")}
           className="grid gap-3 sm:grid-cols-2"
         >
-          <Label className="border-border flex min-h-12 items-center gap-3 rounded-lg border px-4">
+          <Label className="border-border has-[[data-state=checked]]:border-primary has-[[data-state=checked]]:bg-primary/5 flex min-h-20 cursor-pointer items-center gap-3 rounded-xl border px-4">
             <RadioGroupItem value="owner" /> مالک ملک هستم
           </Label>
-          <Label className="border-border flex min-h-12 items-center gap-3 rounded-lg border px-4">
+          <Label className="border-border has-[[data-state=checked]]:border-primary has-[[data-state=checked]]:bg-primary/5 flex min-h-20 cursor-pointer items-center gap-3 rounded-xl border px-4">
             <RadioGroupItem value="agent" /> نماینده مالک هستم
           </Label>
         </RadioGroup>
@@ -146,7 +163,7 @@ function RoleChooser({
           disabled={mutation.isPending}
           onClick={() => mutation.mutate()}
         >
-          ساخت یا ادامه Submission
+          {mutation.isPending ? "در حال آماده‌سازی…" : "ساخت یا ادامه پیش‌نویس"}
         </Button>
       </CardContent>
     </Card>
@@ -156,9 +173,11 @@ function RoleChooser({
 function LocationFields({
   submission,
   validation,
+  onDirty,
 }: {
   submission: Submission;
   validation?: ValidationState;
+  onDirty: () => void;
 }) {
   const [query, setQuery] = useState(submission.location?.neighborhood ?? "");
   const [selectedId, setSelectedId] = useState(
@@ -198,7 +217,7 @@ function LocationFields({
           }
         />
         <p id="location-help" className="text-muted-foreground text-xs">
-          نام محله را بنویسید و یک نتیجه بازبینی‌شده را انتخاب کنید.
+          نام محله را بنویسید و یکی از پیشنهادها را انتخاب کنید.
         </p>
         <FieldError id="location-error" message={neighborhoodError} />
         {suggestions.data && suggestions.data.length > 0 && !selectedId && (
@@ -235,9 +254,17 @@ function LocationFields({
         />
         <FieldError id="address-error" message={addressError} />
       </div>
+      <p className="text-muted-foreground bg-muted flex items-start gap-2 rounded-xl p-4 text-sm leading-6">
+        <ShieldCheck className="size-5 shrink-0" aria-hidden="true" />
+        نشانی دقیق فقط برای بررسی استفاده می‌شود؛ متقاضیان موقعیت تقریبی ملک را
+        می‌بینند.
+      </p>
       <ExactLocationPicker
         value={exactLocation ?? { latitude: 35.7219, longitude: 51.3347 }}
-        onChange={setExactLocation}
+        onChange={(location) => {
+          setExactLocation(location);
+          onDirty();
+        }}
       />
       <input
         name="exact_latitude"
@@ -699,13 +726,21 @@ function StepFields({
   step,
   submission,
   validation,
+  onDirty,
 }: {
   step: StepId;
   submission: Submission;
   validation?: ValidationState;
+  onDirty: () => void;
 }) {
   if (step === "location") {
-    return <LocationFields submission={submission} validation={validation} />;
+    return (
+      <LocationFields
+        submission={submission}
+        validation={validation}
+        onDirty={onDirty}
+      />
+    );
   }
   if (step === "property_facts") {
     return (
@@ -742,6 +777,56 @@ function StepFields({
               : "هنوز ثبت نشده"}
           </dd>
         </div>
+        <div>
+          <dt className="text-muted-foreground">اجاره ماهانه</dt>
+          <dd>
+            {submission.rental_terms
+              ? `${submission.rental_terms.monthly_rent_toman.toLocaleString("fa-IR")} تومان`
+              : "هنوز ثبت نشده"}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-muted-foreground">نوع و متراژ ملک</dt>
+          <dd>
+            {submission.property_facts
+              ? `${propertyTypeLabels[submission.property_facts.property_type]} · ${submission.property_facts.area_sqm.toLocaleString("fa-IR")} متر مربع`
+              : "هنوز ثبت نشده"}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-muted-foreground">نشانی دقیق (غیرعمومی)</dt>
+          <dd>{submission.location?.address || "هنوز ثبت نشده"}</dd>
+        </div>
+        <div>
+          <dt className="text-muted-foreground">نام و شماره تماس آگهی</dt>
+          <dd>
+            {submission.contact?.name || "هنوز ثبت نشده"}
+            <bdi className="mt-1 block">{submission.contact?.phone}</bdi>
+          </dd>
+        </div>
+        <div className="sm:col-span-2">
+          <dt className="text-muted-foreground">امکانات</dt>
+          <dd className="mt-2 flex flex-wrap gap-2">
+            {Object.entries(featureLabels).map(([key, label]) => (
+              <Badge key={key} variant="outline">
+                {label}:{" "}
+                {featureStates.find(
+                  (state) =>
+                    state.value ===
+                    submission.features?.[key as keyof typeof featureLabels],
+                )?.label ?? "نمی‌دانم"}
+              </Badge>
+            ))}
+          </dd>
+        </div>
+        {submission.description && (
+          <div className="sm:col-span-2">
+            <dt className="text-muted-foreground">توضیحات</dt>
+            <dd className="mt-1 leading-7 break-words whitespace-pre-wrap">
+              {submission.description}
+            </dd>
+          </div>
+        )}
       </dl>
       {submission.images.length > 0 && (
         <section className="space-y-3" aria-labelledby="review-images-heading">
@@ -758,7 +843,7 @@ function StepFields({
                     <img
                       className="aspect-4/3 w-full rounded-lg object-cover"
                       src={preview.url}
-                      alt="تصویر Submission در بازبینی"
+                      alt="تصویر ملک در بازبینی"
                     />
                     {image.is_primary && (
                       <figcaption className="mt-1 text-xs">
@@ -882,6 +967,8 @@ function stepPayload(
 
 function DraftFlow({ submissionId }: { submissionId: string }) {
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const [dirty, setDirty] = useState(false);
   const queryClient = useQueryClient();
   const submissionQuery = useQuery(submissionQueryOptions(submissionId));
   const [validation, setValidation] = useState<ValidationState>();
@@ -893,15 +980,35 @@ function DraftFlow({ submissionId }: { submissionId: string }) {
   const stepIndex = steps.findIndex((item) => item.id === step);
   const stepMeta = steps[stepIndex] ?? steps[0];
   const mutation = useMutation({
-    mutationFn: async (body: SubmissionStepUpdate) => {
+    mutationFn: async ({
+      body,
+      destination,
+    }: {
+      body: SubmissionStepUpdate;
+      destination: string;
+    }) => {
       const saved = await saveSubmissionStep(submissionId, body);
-      if (body.completed_step === "review") {
+      if (body.completed_step === "review" && destination === "continue") {
         return submitSubmission(submissionId);
       }
       return saved;
     },
-    onSuccess: (saved) => {
+    onSuccess: (saved, { destination }) => {
       queryClient.setQueryData(["submissions", submissionId], saved);
+      void queryClient.invalidateQueries({
+        queryKey: ["submissions"],
+        exact: true,
+      });
+      setDirty(false);
+      if (destination === "exit") {
+        void navigate("/dashboard");
+        return;
+      }
+      if (destination !== "continue") {
+        setValidation(undefined);
+        setSearchParams({ submission: submissionId, step: destination });
+        return;
+      }
       setValidation(undefined);
       if (stepIndex < steps.length - 1) {
         setSearchParams({
@@ -940,6 +1047,14 @@ function DraftFlow({ submissionId }: { submissionId: string }) {
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    const destination =
+      (event.nativeEvent as SubmitEvent).submitter?.getAttribute("value") ??
+      "continue";
+    if (destination !== "continue" && !dirty) {
+      if (destination === "exit") void navigate("/dashboard");
+      else setSearchParams({ submission: submissionId, step: destination });
+      return;
+    }
     const form = new FormData(event.currentTarget);
     const payload = stepPayload(step, form);
     if (
@@ -952,7 +1067,7 @@ function DraftFlow({ submissionId }: { submissionId: string }) {
         message,
         fields: {
           ...(!formValue(form, "neighborhood_id") && {
-            "location.neighborhood_id": "یک محله بازبینی‌شده انتخاب کنید.",
+            "location.neighborhood_id": "یک محله از پیشنهادها انتخاب کنید.",
           }),
           ...(!formValue(form, "address").trim() && {
             "location.address": "نشانی دقیق الزامی است.",
@@ -979,6 +1094,8 @@ function DraftFlow({ submissionId }: { submissionId: string }) {
       if (
         !Number.isSafeInteger(deposit) ||
         !Number.isSafeInteger(rent) ||
+        deposit < 0 ||
+        rent < 0 ||
         deposit > 900_719_925_474_099 ||
         rent > 900_719_925_474_099 ||
         (deposit === 0 && rent === 0)
@@ -986,7 +1103,7 @@ function DraftFlow({ submissionId }: { submissionId: string }) {
         const message =
           deposit === 0 && rent === 0
             ? "ودیعه و اجاره ماهانه نمی‌توانند هم‌زمان صفر باشند."
-            : "مبلغ واردشده بیش از حد مجاز است.";
+            : "مبلغ را به‌صورت عدد صحیح و نامنفی، در محدوده مجاز وارد کنید.";
         setValidation({
           message,
           fields: {
@@ -1026,7 +1143,11 @@ function DraftFlow({ submissionId }: { submissionId: string }) {
       });
       return;
     }
-    if (step === "review" && !form.has("accuracy_confirmed")) {
+    if (
+      step === "review" &&
+      destination === "continue" &&
+      !form.has("accuracy_confirmed")
+    ) {
       const message = "تأیید درستی اطلاعات الزامی است.";
       setValidation({
         message,
@@ -1048,15 +1169,53 @@ function DraftFlow({ submissionId }: { submissionId: string }) {
       setValidation({ message, fields: { images: message } });
       return;
     }
-    if (payload) mutation.mutate(payload);
+    if (payload) mutation.mutate({ body: payload, destination });
   };
 
+  const stepNavigation = (
+    <nav aria-label="مراحل ثبت آگهی">
+      <ol className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-1">
+        {steps.map((item, index) => (
+          <li key={item.id}>
+            <button
+              type="submit"
+              form="submission-form"
+              name="destination"
+              value={item.id}
+              disabled={mutation.isPending || index === stepIndex}
+              className={`flex min-h-11 w-full items-center gap-3 rounded-lg px-3 text-start text-sm ${
+                index === stepIndex
+                  ? "bg-primary/10 text-foreground font-semibold"
+                  : "text-muted-foreground hover:bg-muted"
+              }`}
+              aria-current={index === stepIndex ? "step" : undefined}
+            >
+              <span
+                className={`flex size-7 shrink-0 items-center justify-center rounded-full text-xs ${index === stepIndex ? "bg-primary text-primary-foreground" : "bg-muted"}`}
+              >
+                {persianStepNumbers[index]}
+              </span>
+              {item.label}
+            </button>
+          </li>
+        ))}
+      </ol>
+      <p className="text-muted-foreground mt-4 text-xs leading-6">
+        با رفتن به مرحله دیگر، اطلاعات این مرحله ذخیره می‌شود.
+      </p>
+    </nav>
+  );
   return (
     <>
       <header className="mb-8 flex flex-wrap items-end justify-between gap-4">
         <div>
           <Badge variant="secondary" className="mb-3">
-            <Save aria-hidden="true" /> پیش‌نویس ذخیره شده
+            <Save aria-hidden="true" />{" "}
+            {mutation.isPending
+              ? "در حال ذخیره…"
+              : dirty
+                ? "تغییرات ذخیره‌نشده"
+                : "پیش‌نویس ذخیره شده"}
           </Badge>
           <h1 className="text-3xl font-semibold tracking-tight">
             ثبت آگهی اجاره
@@ -1065,42 +1224,49 @@ function DraftFlow({ submissionId }: { submissionId: string }) {
             مرحله {persianStepNumbers[stepIndex]} از ۷ · {stepMeta.label}
           </p>
         </div>
-        <Button asChild variant="outline">
-          <Link to="/dashboard">ذخیره و خروج</Link>
+        <Button
+          type="submit"
+          form="submission-form"
+          name="destination"
+          value="exit"
+          variant="outline"
+          disabled={mutation.isPending}
+        >
+          <Save aria-hidden="true" />
+          ذخیره و خروج
         </Button>
       </header>
-      <div className="grid gap-8 lg:grid-cols-[17rem_minmax(0,42rem)]">
-        <nav aria-label="مراحل ثبت آگهی">
-          <ol className="space-y-2">
-            {steps.map((item, index) => (
-              <li key={item.id}>
-                <Link
-                  className={`flex min-h-11 items-center gap-3 rounded-lg px-3 text-sm ${
-                    index === stepIndex
-                      ? "bg-primary/10 text-foreground font-semibold"
-                      : "text-muted-foreground hover:bg-muted"
-                  }`}
-                  to={`?submission=${submissionId}&step=${item.id}`}
-                  aria-current={index === stepIndex ? "step" : undefined}
-                >
-                  {index < stepIndex ? (
-                    <Check className="size-5" />
-                  ) : (
-                    <Circle className="size-5" />
-                  )}
-                  {item.label}
-                </Link>
-              </li>
-            ))}
-          </ol>
-        </nav>
+      <div
+        className="bg-muted mb-6 h-1.5 overflow-hidden rounded-full"
+        role="progressbar"
+        aria-label="مرحله کنونی ثبت آگهی"
+        aria-valuemin={1}
+        aria-valuemax={7}
+        aria-valuenow={stepIndex + 1}
+        aria-valuetext={`مرحله ${persianStepNumbers[stepIndex]} از ۷`}
+      >
+        <div
+          className="bg-primary h-full rounded-full transition-all"
+          style={{ width: `${((stepIndex + 1) / steps.length) * 100}%` }}
+        />
+      </div>
+      <div className="grid gap-6 xl:grid-cols-[12rem_minmax(0,1fr)]">
+        <div>
+          <div className="hidden xl:block">{stepNavigation}</div>
+          <details className="rounded-xl border p-3 xl:hidden">
+            <summary className="min-h-11 cursor-pointer py-3 text-sm font-medium">
+              نمایش مراحل ثبت آگهی · {stepMeta.label}
+            </summary>
+            {stepNavigation}
+          </details>
+        </div>
         <Card className="shadow-none">
           <CardHeader>
             <h2 className="text-xl font-semibold tracking-tight">
               {stepMeta.label}
             </h2>
             <p className="text-muted-foreground text-sm">
-              هر مرحله پس از ادامه روی سرور ذخیره می‌شود.
+              {stepDescriptions[step]}
             </p>
           </CardHeader>
           <CardContent>
@@ -1110,28 +1276,64 @@ function DraftFlow({ submissionId }: { submissionId: string }) {
                 <AlertDescription>{validation.message}</AlertDescription>
               </Alert>
             )}
-            <form className="space-y-7" onSubmit={submit}>
-              <StepFields
-                step={step}
-                submission={submission}
-                validation={validation}
-              />
-              <div className="flex flex-wrap justify-between gap-3 border-t pt-6">
-                {stepIndex > 0 ? (
-                  <Button asChild variant="outline">
-                    <Link
-                      to={`?submission=${submissionId}&step=${steps[stepIndex - 1]!.id}`}
+            <form
+              id="submission-form"
+              onSubmit={submit}
+              onChange={() => setDirty(true)}
+              onKeyDown={(event) => {
+                if (
+                  event.key === "Enter" &&
+                  event.target instanceof HTMLInputElement &&
+                  event.target.type !== "checkbox" &&
+                  event.target.type !== "radio"
+                ) {
+                  event.preventDefault();
+                  event.currentTarget.requestSubmit(
+                    event.currentTarget.querySelector<HTMLButtonElement>(
+                      'button[value="continue"]',
+                    ) ?? undefined,
+                  );
+                }
+              }}
+            >
+              <fieldset
+                disabled={mutation.isPending}
+                className="min-w-0 space-y-7"
+              >
+                <StepFields
+                  onDirty={() => setDirty(true)}
+                  step={step}
+                  submission={submission}
+                  validation={validation}
+                />
+                <div className="flex flex-wrap justify-between gap-3 border-t pt-6">
+                  {stepIndex > 0 ? (
+                    <Button
+                      type="submit"
+                      name="destination"
+                      value={steps[stepIndex - 1]!.id}
+                      variant="outline"
                     >
                       مرحله قبل
-                    </Link>
+                    </Button>
+                  ) : (
+                    <span />
+                  )}
+                  <Button
+                    disabled={mutation.isPending}
+                    type="submit"
+                    name="destination"
+                    value="continue"
+                  >
+                    {mutation.isPending
+                      ? "در حال ذخیره…"
+                      : step === "review"
+                        ? "ارسال برای بررسی"
+                        : "ذخیره و ادامه"}
+                    <ArrowLeft aria-hidden="true" />
                   </Button>
-                ) : (
-                  <span />
-                )}
-                <Button disabled={mutation.isPending} type="submit">
-                  {step === "review" ? "ارسال برای بررسی" : "ذخیره و ادامه"}
-                </Button>
-              </div>
+                </div>
+              </fieldset>
             </form>
           </CardContent>
         </Card>
@@ -1144,9 +1346,12 @@ export function AddSubmissionPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const submissionId = searchParams.get("submission");
   return (
-    <PageMain>
+    <SubmitterWorkspace>
       {submissionId ? (
-        <DraftFlow submissionId={submissionId} />
+        <DraftFlow
+          key={`${submissionId}-${searchParams.get("step") ?? ""}`}
+          submissionId={submissionId}
+        />
       ) : (
         <>
           <header className="mb-8">
@@ -1154,7 +1359,8 @@ export function AddSubmissionPage() {
               ثبت آگهی اجاره
             </h1>
             <p className="text-muted-foreground mt-2">
-              یک پیش‌نویس قابل ادامه بسازید.
+              اطلاعات ملک را در هفت مرحله کوتاه تکمیل کنید. پس از تکمیل هر مرحله
+              می‌توانید ذخیره کنید و بعداً ادامه دهید.
             </p>
           </header>
           <RoleChooser
@@ -1168,7 +1374,7 @@ export function AddSubmissionPage() {
           />
         </>
       )}
-    </PageMain>
+    </SubmitterWorkspace>
   );
 }
 

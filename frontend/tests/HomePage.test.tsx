@@ -321,19 +321,11 @@ test("shows Renter controls and Message Center in the authenticated account menu
   expect(within(account).getByText("پویا اجاره‌جو")).toBeVisible();
   expect(within(account).getByText("renter@example.com")).toBeVisible();
   expect(
-    within(account).getByRole("menuitem", { name: "نمایه — به‌زودی" }),
-  ).toHaveAttribute("aria-disabled", "true");
+    within(account).getByRole("menuitem", { name: "پروفایل من" }),
+  ).toHaveAttribute("href", "/dashboard/profile");
   expect(
     within(account).getByRole("menuitem", { name: "پیام‌ها" }),
   ).toHaveAttribute("href", "/messages");
-  const profilePlaceholder = within(account).getByRole("menuitem", {
-    name: "نمایه — به‌زودی",
-  });
-  profilePlaceholder.focus();
-  expect(profilePlaceholder).toHaveFocus();
-  await user.click(profilePlaceholder);
-  expect(account).toBeVisible();
-  expect(profilePlaceholder).toHaveFocus();
   expect(
     within(account).getByRole("menuitem", { name: "راهنما" }),
   ).toHaveAttribute("href", "/guide");

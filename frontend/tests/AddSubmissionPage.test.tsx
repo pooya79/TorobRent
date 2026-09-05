@@ -56,7 +56,7 @@ test("creates an Owner draft and presents the seven server-backed steps", async 
   renderPage();
 
   await user.click(
-    screen.getByRole("button", { name: "ساخت یا ادامه Submission" }),
+    screen.getByRole("button", { name: "ساخت یا ادامه پیش‌نویس" }),
   );
 
   expect(await screen.findByText(/مرحله ۱ از ۷/)).toBeVisible();
@@ -98,7 +98,7 @@ test("resumes the matching relationship draft at its saved step", async () => {
   renderPage();
 
   await user.click(
-    screen.getByRole("button", { name: "ساخت یا ادامه Submission" }),
+    screen.getByRole("button", { name: "ساخت یا ادامه پیش‌نویس" }),
   );
 
   expect(
@@ -617,4 +617,51 @@ test("keeps successful uploads visible when a later file in the batch is rejecte
   expect(
     await screen.findByRole("img", { name: "پیش‌نمایش تصویر" }),
   ).toBeVisible();
+});
+
+test("save and exit persists the current form without submitting for review", async () => {
+  const user = userEvent.setup();
+  let savedBody: unknown;
+  server.use(
+    http.get("*/api/v1/submissions/:id/", () => HttpResponse.json(draft)),
+    http.patch("*/api/v1/submissions/:id/", async ({ request }) => {
+      savedBody = await request.json();
+      return HttpResponse.json(draft);
+    }),
+  );
+  renderPage(`/add-submission?submission=${draft.id}&step=rental_terms`);
+  await user.type(await screen.findByLabelText("ودیعه، تومان"), "100000");
+  await user.type(screen.getByLabelText("اجاره ماهانه، تومان"), "20000");
+  await user.click(screen.getByText("ذخیره و خروج"));
+  await waitFor(() =>
+    expect(savedBody).toMatchObject({
+      rental_terms: { deposit_toman: 100000, monthly_rent_toman: 20000 },
+    }),
+  );
+});
+
+test("rejects negative rental amounts and Enter saves to the next step", async () => {
+  const user = userEvent.setup();
+  let saves = 0;
+  server.use(
+    http.get("*/api/v1/submissions/:id/", () => HttpResponse.json(draft)),
+    http.patch("*/api/v1/submissions/:id/", () => {
+      saves += 1;
+      return HttpResponse.json({
+        ...draft,
+        current_step: "features_description",
+      });
+    }),
+  );
+  renderPage(`/add-submission?submission=${draft.id}&step=rental_terms`);
+  const deposit = await screen.findByLabelText("ودیعه، تومان");
+  await user.type(deposit, "-100");
+  await user.type(screen.getByLabelText("اجاره ماهانه، تومان"), "20000");
+  await user.click(screen.getByRole("button", { name: "ذخیره و ادامه" }));
+  expect(await screen.findByRole("alert")).toBeVisible();
+  expect(saves).toBe(0);
+  await user.clear(deposit);
+  await user.type(deposit, "100000{Enter}");
+  expect(await screen.findByText("وضعیت پارکینگ")).toBeVisible();
+  expect(saves).toBe(1);
 });

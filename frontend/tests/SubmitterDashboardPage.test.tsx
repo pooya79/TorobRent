@@ -59,9 +59,9 @@ test("shows Source Proposals separately with status and next action", async () =
   );
   expect(screen.queryByRole("link", { name: "معرفی وب‌سایت" })).toBeNull();
   expect(await screen.findByText("خانه‌یاب")).toBeVisible();
-  expect(screen.getByText("پیش‌نویس")).toBeVisible();
+  expect(screen.getAllByText("پیش‌نویس")[0]).toBeVisible();
   expect(
-    screen.getByRole("link", { name: "ادامه Source Proposal خانه‌یاب" }),
+    screen.getByRole("link", { name: "ادامه پیشنهاد وب‌سایت خانه‌یاب" }),
   ).toHaveAttribute(
     "href",
     "/source-proposal?proposal=10000000-0000-4000-8000-000000000087",
@@ -135,16 +135,18 @@ test("shows a Source Proposal review outcome, reason, revision, and next action"
     </QueryClientProvider>,
   );
 
-  expect(await screen.findByText("نیازمند اصلاح")).toBeVisible();
-  expect(screen.getByText("نسخه ۱")).toBeVisible();
-  expect(screen.getByText("مدرک اختیار را تکمیل کنید.")).toBeVisible();
+  expect((await screen.findAllByText("نیازمند اصلاح")).length).toBeGreaterThan(
+    0,
+  );
+  expect(await screen.findByText("نسخه ۱")).toBeVisible();
+  expect(await screen.findByText("مدرک اختیار را تکمیل کنید.")).toBeVisible();
   const history = screen.getByRole("region", {
-    name: "تاریخچه Source Proposal خانه‌یاب",
+    name: "تاریخچه پیشنهاد وب‌سایت خانه‌یاب",
   });
   expect(history).toHaveTextContent("در انتظار بررسی — نسخه ۱");
   expect(history).toHaveTextContent("نیازمند اصلاح — نسخه ۱");
   expect(
-    screen.getByRole("link", { name: "اصلاح Source Proposal خانه‌یاب" }),
+    screen.getByRole("link", { name: "اصلاح پیشنهاد وب‌سایت خانه‌یاب" }),
   ).toHaveAttribute(
     "href",
     "/source-proposal?proposal=10000000-0000-4000-8000-000000000088",
@@ -195,7 +197,7 @@ test("lists the Submitter's draft state and server-backed resume action", async 
   );
 
   expect(await screen.findByText("ملک در سعادت‌آباد")).toBeVisible();
-  expect(screen.getByText("پیش‌نویس")).toBeVisible();
+  expect(screen.getAllByText("پیش‌نویس")[0]).toBeVisible();
   expect(screen.getByText("مرحله کنونی: شرایط اجاره")).toBeVisible();
   expect(
     screen.getByRole("link", { name: "ادامه ملک در سعادت‌آباد" }),
@@ -219,7 +221,7 @@ test("lists the Submitter's draft state and server-backed resume action", async 
 
   expect(
     await screen.findByText(
-      "هنوز Submissionی ندارید. نخستین پیش‌نویس را بسازید.",
+      "هنوز آگهی ثبت‌شده‌ای ندارید. با ثبت مشخصات ملک شروع کنید.",
     ),
   ).toBeVisible();
 });
@@ -274,9 +276,13 @@ test("shows current review state, reason, history, and the available edit action
     </QueryClientProvider>,
   );
 
-  expect(await screen.findByText("نیازمند اصلاح")).toBeVisible();
-  expect(screen.getAllByText("شماره تماس را اصلاح کنید.")).toHaveLength(2);
-  expect(screen.getByText("نسخه ۱")).toBeVisible();
+  expect((await screen.findAllByText("نیازمند اصلاح")).length).toBeGreaterThan(
+    0,
+  );
+  expect(await screen.findAllByText("شماره تماس را اصلاح کنید.")).toHaveLength(
+    2,
+  );
+  expect(await screen.findByText("نسخه ۱")).toBeVisible();
   expect(
     screen.getByRole("link", { name: "اصلاح ملک در سعادت‌آباد" }),
   ).toHaveAttribute(
@@ -342,7 +348,7 @@ test("shows decision email delivery state without hiding the durable decision", 
   );
 
   expect(await screen.findByText("ردشده")).toBeVisible();
-  expect(screen.getAllByText("شرایط انتشار را ندارد.")).toHaveLength(2);
+  expect(await screen.findAllByText("شرایط انتشار را ندارد.")).toHaveLength(2);
   expect(screen.getByText(/ارسال ایمیل ناموفق بود/)).toBeVisible();
 });
 
@@ -575,4 +581,58 @@ test("submits an assigned URL and displays run counters and transient errors", a
   ]) {
     expect(screen.getAllByText(label).length).toBeGreaterThan(0);
   }
+});
+
+test("combines neighborhood search with status and clears empty filters", async () => {
+  const user = userEvent.setup();
+  server.use(
+    http.get("*/api/v1/submissions/", () =>
+      HttpResponse.json([
+        {
+          id: "draft-one",
+          state: "draft",
+          role: "owner",
+          images: [],
+          location: { neighborhood: "سعادت‌آباد" },
+          updated_at: "2026-09-05T10:00:00Z",
+          available_actions: ["edit"],
+        },
+        {
+          id: "pending-two",
+          state: "pending",
+          role: "owner",
+          images: [],
+          location: { neighborhood: "پونک" },
+          updated_at: "2026-09-05T10:00:00Z",
+          available_actions: [],
+        },
+      ]),
+    ),
+  );
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  render(
+    <QueryClientProvider client={client}>
+      <MemoryRouter>
+        <SubmitterDashboardPage />
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+  expect(
+    await screen.findByRole("heading", { name: "ملک در پونک" }),
+  ).toBeVisible();
+  await user.type(screen.getByLabelText("جست‌وجوی آگهی‌ها"), "پونک");
+  expect(
+    screen.queryByRole("heading", { name: "ملک در سعادت‌آباد" }),
+  ).toBeNull();
+  await user.click(screen.getByRole("button", { name: "پیش‌نویس" }));
+  expect(
+    screen.getByText("آگهی‌ای با این جست‌وجو و وضعیت پیدا نشد."),
+  ).toBeVisible();
+  await user.click(screen.getByRole("button", { name: "نمایش همه آگهی‌ها" }));
+  expect(
+    screen.getByRole("heading", { name: "ملک در سعادت‌آباد" }),
+  ).toBeVisible();
+  expect(screen.getByRole("heading", { name: "ملک در پونک" })).toBeVisible();
 });

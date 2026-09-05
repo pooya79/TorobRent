@@ -252,7 +252,7 @@ test("clears the one-shot new flag after starting from the dashboard", async () 
 
   expect(
     await screen.findByRole("heading", {
-      name: "Source Proposal وب‌سایت اجاره",
+      name: "معرفی وب‌سایت اجاره",
     }),
   ).toBeVisible();
   expect(createBody).toEqual({ start_new: true });

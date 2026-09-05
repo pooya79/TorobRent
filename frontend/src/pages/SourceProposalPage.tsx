@@ -1,3 +1,4 @@
+import { SubmitterWorkspace } from "@/features/submitter/SubmitterWorkspace";
 import { discoveryStageLabels } from "@/features/source-proposals/discovery-labels";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CheckCircle2, Globe2, ShieldCheck } from "lucide-react";
@@ -82,14 +83,14 @@ export function SourceProposalPage() {
     (proposal ? detailsFromProposal(proposal) : emptyDetails);
   const autosave = useMutation({
     mutationFn: (body: SourceProposalDraft) => {
-      if (!proposal) throw new Error("Source Proposal هنوز آماده نیست.");
+      if (!proposal) throw new Error("پیشنهاد وب‌سایت هنوز آماده نیست.");
       return autosaveSourceProposalDraft(proposal.id, body);
     },
     onSuccess: (data) => setProposal(data),
   });
   const preview = useMutation({
     mutationFn: async () => {
-      if (!proposal) throw new Error("Source Proposal هنوز آماده نیست.");
+      if (!proposal) throw new Error("پیشنهاد وب‌سایت هنوز آماده نیست.");
       await saveSourceProposalDetails(proposal.id, details);
       return generateSourceProposalPreview(proposal.id);
     },
@@ -100,7 +101,7 @@ export function SourceProposalPage() {
   });
   const submit = useMutation({
     mutationFn: async () => {
-      if (!proposal) throw new Error("Source Proposal هنوز آماده نیست.");
+      if (!proposal) throw new Error("پیشنهاد وب‌سایت هنوز آماده نیست.");
       return submitSourceProposal(proposal.id);
     },
     onSuccess: (data) => {
@@ -129,7 +130,7 @@ export function SourceProposalPage() {
   if (resume.isPending || !proposal) {
     return (
       <PageFrame>
-        <p role="status">در حال بازیابی Source Proposal…</p>
+        <p role="status">در حال بازیابی پیشنهاد وب‌سایت…</p>
       </PageFrame>
     );
   }
@@ -147,8 +148,8 @@ export function SourceProposalPage() {
               {discoveryStageLabels[proposal.discovery_stage ?? "awaiting_url"]}
             </p>
             <p className="text-muted-foreground leading-7">
-              Source Proposal وب‌سایت {proposal.website_name} ثبت شده است. کشف
-              اطلاعات به معنی تأیید منبع یا انتشار آگهی نیست.
+              پیشنهاد وب‌سایت {proposal.website_name} ثبت شده است. کشف اطلاعات
+              به معنی تأیید منبع یا انتشار آگهی نیست.
             </p>
             <Button asChild>
               <Link to="/dashboard">مشاهده وضعیت در داشبورد</Link>
@@ -181,7 +182,7 @@ export function SourceProposalPage() {
           معرفی منبع بیرونی
         </p>
         <h1 className="text-3xl font-semibold tracking-tight">
-          Source Proposal وب‌سایت اجاره
+          معرفی وب‌سایت اجاره
         </h1>
         <p className="text-muted-foreground mt-3 leading-8">
           اطلاعات وب‌سایت و رابطه خود را ثبت کنید. دریافت صفحات تنها پس از تأیید
@@ -402,7 +403,7 @@ function ErrorAlert({ error }: { error: unknown }) {
       <AlertDescription>
         {errorMessage(
           error,
-          "ذخیره Source Proposal انجام نشد. اطلاعات واردشده حفظ شده است.",
+          "ذخیره پیشنهاد وب‌سایت انجام نشد. اطلاعات واردشده حفظ شده است.",
         )}
       </AlertDescription>
     </Alert>
@@ -410,15 +411,7 @@ function ErrorAlert({ error }: { error: unknown }) {
 }
 
 function PageFrame({ children }: { children: ReactNode }) {
-  return (
-    <main
-      id="main-content"
-      className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6 lg:px-10"
-      tabIndex={-1}
-    >
-      {children}
-    </main>
-  );
+  return <SubmitterWorkspace>{children}</SubmitterWorkspace>;
 }
 
 export default SourceProposalPage;

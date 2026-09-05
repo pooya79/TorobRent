@@ -4,6 +4,20 @@ import { setupServer } from "msw/node";
 import { propertySearchPage } from "./fixtures/catalog";
 
 export const server = setupServer(
+  http.get("*/api/v1/users/me/", () =>
+    HttpResponse.json({
+      id: "test-submitter",
+      display_name: "کاربر آزمایشی",
+      first_name: "",
+      last_name: "",
+      email: "submitter@example.com",
+      phone: "09123456789",
+      email_verified: true,
+      phone_verified: true,
+      is_submitter: true,
+      operator_capabilities: [],
+    }),
+  ),
   http.get("*/api/v1/auth/session/", () =>
     HttpResponse.json({ authenticated: false, csrf_token: "test-token" }),
   ),

@@ -22,6 +22,7 @@ export default [
   route("source-proposal", "routes/protected-source-proposal.tsx"),
   route("search", "routes/search.tsx"),
   route("properties/:propertyId/:slug?", "routes/property-detail.tsx"),
+  route("dashboard/profile", "routes/submitter-profile.tsx"),
   route("dashboard", "routes/protected-dashboard.tsx"),
   route("operator", "routes/operator-layout.tsx", [
     index("pages/OperatorOverviewPage.tsx"),
