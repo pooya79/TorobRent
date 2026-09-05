@@ -10,6 +10,7 @@ from .models import (
     ExternalListingCandidateEvent,
     ExternalListingCandidateReviewClaim,
     InventoryRange,
+    SourceAssignment,
     SourceProfileVersion,
     SourceProposal,
     SourceProposalEvent,
@@ -114,7 +115,57 @@ class SourceProposalEventSerializer(serializers.ModelSerializer[SourceProposalEv
         return event.actor.email or str(event.actor_id)
 
 
+class AssignmentSourceSerializer(serializers.Serializer[Any]):
+    id = serializers.UUIDField()
+    display_name = serializers.CharField()
+    domain = serializers.CharField()
+
+
+class AssignmentProfileVersionSerializer(serializers.Serializer[Any]):
+    id = serializers.UUIDField()
+    number = serializers.IntegerField()
+
+
+class SourceAssignmentSerializer(serializers.ModelSerializer[SourceAssignment]):
+    source = AssignmentSourceSerializer(read_only=True)  # type: ignore[assignment]
+    state = serializers.SerializerMethodField()
+    active_profile_version = serializers.SerializerMethodField()
+    review_mode = serializers.ChoiceField(
+        source="approval.review_mode",
+        choices=("approval_required", "automatic"),
+        read_only=True,
+        allow_null=True,
+        default=None,
+    )
+
+    class Meta:
+        model = SourceAssignment
+        fields = (
+            "id",
+            "state",
+            "source",
+            "active_profile_version",
+            "review_mode",
+            "created_at",
+            "revoked_at",
+        )
+
+    @extend_schema_field(serializers.ChoiceField(choices=("active", "revoked")))
+    def get_state(self, assignment: SourceAssignment) -> str:
+        return "revoked" if assignment.revoked_at else "active"
+
+    @extend_schema_field(AssignmentProfileVersionSerializer(allow_null=True))
+    def get_active_profile_version(self, assignment: SourceAssignment) -> dict[str, Any] | None:
+        if assignment.revoked_at or assignment.approval is None:
+            return None
+        version = assignment.approval.version
+        if version.profile.active_version_id != version.pk:
+            return None
+        return dict(AssignmentProfileVersionSerializer(version).data)
+
+
 class SourceProposalSerializer(serializers.ModelSerializer[SourceProposal]):
+    assignment = serializers.SerializerMethodField()
     available_actions = serializers.SerializerMethodField()
     preview = serializers.SerializerMethodField()
     history = serializers.SerializerMethodField()
@@ -126,6 +177,7 @@ class SourceProposalSerializer(serializers.ModelSerializer[SourceProposal]):
             "id",
             "state",
             "discovery_stage",
+            "assignment",
             "revision",
             "current_step",
             "website_name",
@@ -143,6 +195,17 @@ class SourceProposalSerializer(serializers.ModelSerializer[SourceProposal]):
             "created_at",
             "updated_at",
         )
+
+    @extend_schema_field(SourceAssignmentSerializer(allow_null=True))
+    def get_assignment(self, proposal: SourceProposal) -> dict[str, Any] | None:
+        assignment = (
+            SourceAssignment.objects
+            .filter(proposal=proposal, representative_id=proposal.submitter_id)
+            .select_related("source", "approval__version__profile")
+            .order_by("-created_at")
+            .first()
+        )
+        return dict(SourceAssignmentSerializer(assignment).data) if assignment else None
 
     def to_representation(self, instance: SourceProposal) -> dict[str, Any]:
         data = super().to_representation(instance)

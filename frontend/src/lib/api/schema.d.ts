@@ -1688,6 +1688,17 @@ export interface components {
       precision: components["schemas"]["PrecisionEnum"];
       radius_meters: number;
     };
+    AssignmentProfileVersion: {
+      /** Format: uuid */
+      id: string;
+      number: number;
+    };
+    AssignmentSource: {
+      /** Format: uuid */
+      id: string;
+      display_name: string;
+      domain: string;
+    };
     AuditedFormatting: {
       description?: string;
     };
@@ -2441,6 +2452,7 @@ export interface components {
       readonly id: string;
       state?: components["schemas"]["SourceProposalStateEnum"];
       readonly discovery_stage: components["schemas"]["DiscoveryStageEnum"];
+      readonly assignment: components["schemas"]["SourceAssignment"] | null;
       readonly revision: number;
       current_step?: components["schemas"]["SourceProposalStepEnum"];
       website_name?: string;
@@ -2964,6 +2976,26 @@ export interface components {
       authenticated: boolean;
       csrf_token: string;
     };
+    SourceAssignment: {
+      readonly id: number;
+      readonly state: components["schemas"]["SourceAssignmentStateEnum"];
+      readonly source: components["schemas"]["AssignmentSource"];
+      readonly active_profile_version:
+        components["schemas"]["AssignmentProfileVersion"] | null;
+      readonly review_mode:
+        | components["schemas"]["ReviewModeEnum"]
+        | components["schemas"]["NullEnum"];
+      /** Format: date-time */
+      readonly created_at: string;
+      /** Format: date-time */
+      revoked_at?: string | null;
+    };
+    /**
+     * @description * `active` - active
+     *     * `revoked` - revoked
+     * @enum {string}
+     */
+    SourceAssignmentStateEnum: "active" | "revoked";
     SourceDisagreement: {
       field: string;
       normalized_value: unknown;
@@ -3042,6 +3074,7 @@ export interface components {
       readonly id: string;
       state?: components["schemas"]["SourceProposalStateEnum"];
       readonly discovery_stage: components["schemas"]["DiscoveryStageEnum"];
+      readonly assignment: components["schemas"]["SourceAssignment"] | null;
       readonly revision: number;
       current_step?: components["schemas"]["SourceProposalStepEnum"];
       website_name?: string;

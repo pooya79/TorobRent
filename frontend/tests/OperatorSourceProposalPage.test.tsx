@@ -526,12 +526,15 @@ test("reviews profile evidence, edits a field, and approves only a validated ver
       },
     },
   ]);
+  await user.click(
+    screen.getByLabelText("نمونه‌ها و اعتبارسنجی پروفایل را بررسی کردم."),
+  );
+  expect(
+    screen.getByRole("button", { name: "تأیید پروفایل و تخصیص منبع" }),
+  ).toBeDisabled();
   await user.selectOptions(
     screen.getByLabelText("روش بررسی نتایج"),
     "automatic",
-  );
-  await user.click(
-    screen.getByLabelText("نمونه‌ها و اعتبارسنجی پروفایل را بررسی کردم."),
   );
   await user.click(
     screen.getByRole("button", { name: "تأیید پروفایل و تخصیص منبع" }),

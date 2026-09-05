@@ -429,7 +429,10 @@ def _record_review_decision(
     )
     if version:
         SourceProfileDecision.objects.create(
-            version=version, event=decision, review_mode=review_mode
+            version=version,
+            event=decision,
+            review_mode=review_mode,
+            representative=proposal.submitter,
         )
     create_source_proposal_review_notification(decision)
     claim.released_at = timezone.now()

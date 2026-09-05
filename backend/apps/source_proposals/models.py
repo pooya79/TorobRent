@@ -341,6 +341,9 @@ class SourceReservation(models.Model):
 
 
 class SourceAssignment(models.Model):
+    approval = models.OneToOneField(
+        "SourceProfileDecision", on_delete=models.PROTECT, null=True, related_name="assignment"
+    )
     source = models.ForeignKey(
         "catalog.Source", on_delete=models.PROTECT, related_name="assignments"
     )
@@ -455,6 +458,12 @@ class SourceProfileDecision(ImmutableProfileRecord):
     )()
     version = models.OneToOneField(
         SourceProfileVersion, on_delete=models.PROTECT, related_name="decision"
+    )
+    representative = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=set_null_in_immutable_history,
+        null=True,
+        related_name="source_profile_decisions",
     )
     event = models.OneToOneField(SourceProposalEvent, on_delete=models.PROTECT)
     review_mode = models.CharField(max_length=24, choices=ProfileReviewMode, blank=True)

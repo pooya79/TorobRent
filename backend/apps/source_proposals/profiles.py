@@ -179,7 +179,12 @@ def approve_profile(
     confirmed: bool,
     review_mode: str,
 ) -> SourceProposal:
-    from .models import ProfileReviewMode, SourceAssignment, SourceProposalState
+    from .models import (
+        ProfileReviewMode,
+        SourceAssignment,
+        SourceProfileDecision,
+        SourceProposalState,
+    )
     from .services import _record_review_decision
 
     if not confirmed or review_mode not in ProfileReviewMode.values:
@@ -206,12 +211,16 @@ def approve_profile(
     )
     if not checked.validation.approval_enabled:
         raise ValidationError("All eight core fields must pass deterministic held-out validation.")
-    SourceAssignment.objects.create(
-        source=version.profile.source, representative=proposal.submitter, proposal=proposal
-    )
+    # URL approvals for a competing case serialize on Source. Recheck after waiting
+    # for that lock and validating, because the reservation may have expired meanwhile.
+    reservation = SourceReservation.objects.select_for_update().get(pk=version.reservation_id)
+    if reservation.released_at or reservation.expires_at <= timezone.now():
+        raise SourceProposalReviewConflict(
+            "profile_reservation_expired", "The Source reservation is no longer live."
+        )
     version.profile.active_version = version
     version.profile.save(update_fields=("active_version",))
-    return _record_review_decision(
+    proposal = _record_review_decision(
         proposal=proposal,
         actor=actor,
         claim=claim,
@@ -220,3 +229,11 @@ def approve_profile(
         review_mode=review_mode,
         reason="پروفایل منبع تأیید شد.",
     )
+
+    SourceAssignment.objects.create(
+        source=version.profile.source,
+        representative=proposal.submitter,
+        proposal=proposal,
+        approval=SourceProfileDecision.objects.get(version=version),
+    )
+    return proposal

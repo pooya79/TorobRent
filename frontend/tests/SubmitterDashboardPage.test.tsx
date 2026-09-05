@@ -419,3 +419,75 @@ test("warns about final-week expiry and confirms unchanged availability in one a
   ).toBeVisible();
   expect(screen.queryByText(/در هفت روز آینده منقضی می‌شود/)).toBeNull();
 });
+
+test.each([
+  ["approval_required", "نتایج هر بار استخراج نیازمند تأیید اپراتور است."],
+  ["automatic", "نتایج معتبر هر بار استخراج می‌تواند خودکار منتشر شود."],
+])(
+  "shows the approved Source Assignment and %s review mode",
+  async (mode, explanation) => {
+    server.use(
+      http.get("*/api/v1/submissions/", () => HttpResponse.json([])),
+      http.get("*/api/v1/source-proposals/", () =>
+        HttpResponse.json([
+          {
+            id: "assigned-proposal",
+            state: "approved",
+            discovery_stage: "complete",
+            website_name: "پیشنهاد وب‌سایت",
+            website_url: "https://www.khaneh.example/rentals",
+            revision: 1,
+            available_actions: [],
+            history: [
+              {
+                id: "approval",
+                new_state: "approved",
+                revision: 1,
+                reason: "پروفایل منبع تأیید شد.",
+                created_at: "2026-09-05T08:00:00Z",
+              },
+            ],
+            assignment: {
+              id: 12,
+              state: "active",
+              source: {
+                id: "source",
+                display_name: "خانه‌یاب",
+                domain: "www.khaneh.example",
+              },
+              active_profile_version: { id: "version", number: 3 },
+              review_mode: mode,
+              created_at: "2026-09-05T08:00:00Z",
+              revoked_at: null,
+            },
+          },
+        ]),
+      ),
+    );
+    render(
+      <QueryClientProvider
+        client={
+          new QueryClient({ defaultOptions: { queries: { retry: false } } })
+        }
+      >
+        <MemoryRouter>
+          <SubmitterDashboardPage />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    expect(await screen.findByText("تخصیص منبع فعال است")).toBeVisible();
+    expect(screen.getByText("خانه‌یاب")).toBeVisible();
+    expect(screen.getByText("www.khaneh.example")).toBeVisible();
+    expect(screen.getByText("نسخه فعال پروفایل: ۳")).toBeVisible();
+    expect(screen.getByText(explanation)).toBeVisible();
+    expect(screen.getByText("پروفایل منبع تأیید شد.")).toBeVisible();
+    expect(
+      screen.queryByText("کشف پایان یافت؛ در انتظار بررسی پروفایل"),
+    ).toBeNull();
+    expect(
+      screen.queryByText(
+        "Source اعتبارسنجی شد؛ هیچ Listingی خودکار منتشر نشده است.",
+      ),
+    ).toBeNull();
+  },
+);

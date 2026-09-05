@@ -1,3 +1,4 @@
+import { SourceAssignmentSummary } from "@/features/source-proposals/SourceAssignmentSummary";
 import { discoveryStageLabels } from "@/features/source-proposals/discovery-labels";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Clock3, Globe2, Plus, Trash2 } from "lucide-react";
@@ -162,13 +163,15 @@ export function SubmitterDashboardPage() {
             return (
               <Card className="shadow-none" key={proposal.id}>
                 <CardContent className="flex flex-col gap-4 sm:flex-row sm:items-center">
-                  <p role="status">
-                    {
-                      discoveryStageLabels[
-                        proposal.discovery_stage ?? "awaiting_url"
-                      ]
-                    }
-                  </p>
+                  {state !== "approved" && state !== "rejected" && (
+                    <p role="status">
+                      {
+                        discoveryStageLabels[
+                          proposal.discovery_stage ?? "awaiting_url"
+                        ]
+                      }
+                    </p>
+                  )}
                   <span className="bg-muted flex size-12 shrink-0 items-center justify-center rounded-full">
                     <Globe2 className="size-5" aria-hidden="true" />
                   </span>
@@ -186,11 +189,16 @@ export function SubmitterDashboardPage() {
                         : state === "changes_requested"
                           ? "اقدام بعدی: موارد خواسته‌شده را اصلاح و دوباره ارسال کنید."
                           : state === "approved"
-                            ? "Source اعتبارسنجی شد؛ هیچ Listingی خودکار منتشر نشده است."
+                            ? "بررسی این پیشنهاد پایان یافته است."
                             : state === "rejected"
                               ? "این پیشنهاد بسته شده است."
                               : "اقدام بعدی: اطلاعات و پیش‌نمایش را تکمیل و تأیید کنید."}
                     </p>
+                    {proposal.assignment && (
+                      <SourceAssignmentSummary
+                        assignment={proposal.assignment}
+                      />
+                    )}
                     {history.length > 0 && (
                       <section
                         className="mt-4 rounded-lg border p-3"

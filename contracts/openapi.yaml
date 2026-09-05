@@ -3355,6 +3355,31 @@ components:
       - longitude
       - precision
       - radius_meters
+    AssignmentProfileVersion:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        number:
+          type: integer
+      required:
+      - id
+      - number
+    AssignmentSource:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        display_name:
+          type: string
+        domain:
+          type: string
+      required:
+      - display_name
+      - domain
+      - id
     AuditedFormatting:
       type: object
       properties:
@@ -5085,6 +5110,11 @@ components:
           allOf:
           - $ref: '#/components/schemas/DiscoveryStageEnum'
           readOnly: true
+        assignment:
+          oneOf:
+          - $ref: '#/components/schemas/SourceAssignment'
+          - type: 'null'
+          readOnly: true
         revision:
           type: integer
           readOnly: true
@@ -5165,6 +5195,7 @@ components:
             $ref: '#/components/schemas/SourceProfileVersion'
           readOnly: true
       required:
+      - assignment
       - available_actions
       - created_at
       - discovery
@@ -6274,6 +6305,54 @@ components:
       required:
       - authenticated
       - csrf_token
+    SourceAssignment:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        state:
+          allOf:
+          - $ref: '#/components/schemas/SourceAssignmentStateEnum'
+          readOnly: true
+        source:
+          allOf:
+          - $ref: '#/components/schemas/AssignmentSource'
+          readOnly: true
+        active_profile_version:
+          oneOf:
+          - $ref: '#/components/schemas/AssignmentProfileVersion'
+          - type: 'null'
+          readOnly: true
+        review_mode:
+          readOnly: true
+          oneOf:
+          - $ref: '#/components/schemas/ReviewModeEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        revoked_at:
+          type:
+          - string
+          - 'null'
+          format: date-time
+      required:
+      - active_profile_version
+      - created_at
+      - id
+      - review_mode
+      - source
+      - state
+    SourceAssignmentStateEnum:
+      enum:
+      - active
+      - revoked
+      type: string
+      description: |-
+        * `active` - active
+        * `revoked` - revoked
     SourceDisagreement:
       type: object
       properties:
@@ -6474,6 +6553,11 @@ components:
           allOf:
           - $ref: '#/components/schemas/DiscoveryStageEnum'
           readOnly: true
+        assignment:
+          oneOf:
+          - $ref: '#/components/schemas/SourceAssignment'
+          - type: 'null'
+          readOnly: true
         revision:
           type: integer
           readOnly: true
@@ -6541,6 +6625,7 @@ components:
           format: date-time
           readOnly: true
       required:
+      - assignment
       - available_actions
       - created_at
       - discovery_stage

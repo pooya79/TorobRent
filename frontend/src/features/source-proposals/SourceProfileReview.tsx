@@ -292,9 +292,7 @@ function ProfileEditor({
   const [attribute, setAttribute] = useState("");
   const [currency, setCurrency] = useState("");
   const [confirmed, setConfirmed] = useState(false);
-  const [mode, setMode] = useState<"approval_required" | "automatic">(
-    "approval_required",
-  );
+  const [mode, setMode] = useState<"" | "approval_required" | "automatic">("");
   const transform = [
     "floor_area_sqm",
     "bedroom_count",
@@ -336,12 +334,14 @@ function ProfileEditor({
     onSuccess: onUpdate,
   });
   const approve = useMutation({
-    mutationFn: () =>
-      approveSourceProfile(proposal.id, {
+    mutationFn: () => {
+      if (!mode) throw new Error("روش بررسی نتایج را انتخاب کنید.");
+      return approveSourceProfile(proposal.id, {
         ...common,
         confirmed,
         review_mode: mode,
-      }),
+      });
+    },
     onSuccess: onUpdate,
   });
   const busy = edit.isPending || approve.isPending;
@@ -435,6 +435,9 @@ function ProfileEditor({
         value={mode}
         onChange={(event) => setMode(event.target.value as typeof mode)}
       >
+        <option value="" disabled>
+          روش بررسی را انتخاب کنید
+        </option>
         <option value="approval_required">نیازمند تأیید اپراتور</option>
         <option value="automatic">انتشار خودکار نتایج معتبر</option>
       </select>
@@ -447,7 +450,9 @@ function ProfileEditor({
         نمونه‌ها و اعتبارسنجی پروفایل را بررسی کردم.
       </label>
       <Button
-        disabled={busy || !confirmed || !version.validation.approval_enabled}
+        disabled={
+          busy || !mode || !confirmed || !version.validation.approval_enabled
+        }
         onClick={() => approve.mutate()}
       >
         تأیید پروفایل و تخصیص منبع

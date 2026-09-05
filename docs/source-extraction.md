@@ -88,6 +88,26 @@ changes require a reason and retain a version-specific immutable decision. Profi
 approval reject stale version IDs. Expired evidence requires new explicit URL approval and Discovery.
 Real candidate creation and explicit LLM repair remain separate delivery slices.
 
+## Source Assignment approval and dashboard
+
+Each Source Assignment links to its immutable profile approval decision. That decision records the
+representative at approval time, the deciding Operator through the proposal event, the approved
+version and review mode, and the prior reservation and exact Source through the version. Account
+deletion clears identity references without deleting the approval history. Review mode belongs to
+this representative-specific approval, not to the global catalog Source.
+
+The existing Submitter proposal list and detail responses include a private assignment summary:
+active or revoked state, Source display name and exact host, active profile version, and review
+mode. The dashboard displays this summary and the existing decision history. It stops showing the
+pending Discovery stage after a final decision. The Operator must explicitly select a review mode
+before confirming profile approval. The approval transaction rechecks reservation expiry after
+validation and the Source lock, and links assignment, decision, activation, reservation release,
+and notification in the same commit.
+
+The migration links existing assignments only where a matching recorded profile approval exists.
+Legacy assignments without that evidence retain unknown approval provenance and review mode;
+the migration does not invent approval history.
+
 ## Publishable result
 
 Publication requires city, district, neighborhood, Property Type, Floor Area, Bedroom Count when
