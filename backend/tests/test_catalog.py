@@ -1414,7 +1414,7 @@ def test_property_search_exposes_only_the_reviewed_primary_property_image(
         PropertyImage,
         PropertyImageVariant,
     )
-    from apps.submissions.models import MediaAsset
+    from apps.common.models import MediaAsset
 
     call_command("seed_dev", verbosity=0)
     initial_search = api_client.get("/api/v1/catalog/properties/")

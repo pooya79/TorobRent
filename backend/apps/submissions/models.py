@@ -415,7 +415,7 @@ class SubmissionImageVariant(models.Model):
     height = models.PositiveIntegerField()
     byte_size = models.PositiveIntegerField()
     asset = models.ForeignKey(
-        "MediaAsset",
+        "common.MediaAsset",
         null=True,
         on_delete=models.PROTECT,
         related_name="submission_variants",
@@ -432,15 +432,3 @@ class SubmissionImageVariant(models.Model):
 
     def __str__(self) -> str:
         return f"{self.image_id}: {self.kind}"
-
-
-class MediaAsset(models.Model):
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    file = models.FileField(max_length=500, unique=True)
-    width = models.PositiveIntegerField()
-    height = models.PositiveIntegerField()
-    byte_size = models.PositiveIntegerField()
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    def __str__(self) -> str:
-        return self.file.name or ""

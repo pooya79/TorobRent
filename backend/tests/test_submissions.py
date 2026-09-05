@@ -11,10 +11,12 @@ from django.conf import settings
 from django.contrib import admin
 from django.contrib.auth.models import Permission
 from django.core.cache import cache
+from django.core.files.base import ContentFile
 from django.core.files.storage import FileSystemStorage, default_storage
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.management import call_command
 from django.db import IntegrityError, transaction
+from django.db.models.deletion import ProtectedError
 from django.test import override_settings
 from django.utils import timezone
 from PIL import Image
@@ -34,8 +36,8 @@ from apps.catalog.models import (
     RentalTerms,
     Source,
 )
+from apps.common.models import MediaAsset
 from apps.submissions.models import (
-    MediaAsset,
     Submission,
     SubmissionContactVerificationChallenge,
     SubmissionEvent,
@@ -1039,7 +1041,7 @@ def test_unexpected_processing_errors_become_visible_failures(
     def fail_render(*_args: object, **_kwargs: object) -> None:
         raise RuntimeError("unexpected renderer failure")
 
-    monkeypatch.setattr("apps.submissions.services._render_variant", fail_render)
+    monkeypatch.setattr("apps.common.media._render_variant", fail_render)
     response = api_client.post(
         f"/api/v1/submissions/{submission_id}/images/",
         {"file": image_upload(size=(100, 80))},
@@ -1189,6 +1191,42 @@ def test_removing_media_preserves_a_file_referenced_by_another_draft(api_client:
 
 
 @pytest.mark.django_db(transaction=True)
+def test_media_asset_file_survives_a_legacy_variant_reference():
+    submitter = User.objects.create_user(
+        email="legacy-file-reference@example.com",
+        password="correct-horse-battery",
+    )
+    submission = Submission.objects.create(submitter=submitter, role="owner")
+    image = SubmissionImage.objects.create(
+        submission=submission,
+        status=SubmissionImageStatus.READY,
+        position=0,
+        is_primary=True,
+    )
+    asset = MediaAsset(width=20, height=10, byte_size=7)
+    asset.file.save("submission-media/legacy-reference.webp", ContentFile(b"content"), save=True)
+    variant = SubmissionImageVariant.objects.create(
+        image=image,
+        kind="small",
+        file=asset.file.name,
+        width=20,
+        height=10,
+        byte_size=7,
+        asset=None,
+    )
+
+    with pytest.raises(ProtectedError):
+        asset.delete()
+
+    assert default_storage.exists(asset.file.name)
+
+    variant.delete()
+    asset.delete()
+
+    assert not default_storage.exists(asset.file.name)
+
+
+@pytest.mark.django_db(transaction=True)
 def test_listing_in_published_state_retains_files_after_draft_media_is_removed(
     api_client: APIClient,
 ):
@@ -1318,7 +1356,14 @@ def test_media_asset_backfill_deduplicates_legacy_shared_files():
         )
     migration = import_module("apps.submissions.migrations.0003_share_processed_media_assets")
 
-    migration.create_assets_for_submission_variants(django_apps, None)
+    class LegacyMigrationApps:
+        @staticmethod
+        def get_model(app_label: str, model_name: str):
+            if (app_label, model_name) == ("submissions", "MediaAsset"):
+                return MediaAsset
+            return django_apps.get_model(app_label, model_name)
+
+    migration.create_assets_for_submission_variants(LegacyMigrationApps(), None)
 
     asset_ids = {SubmissionImageVariant.objects.get(id=variant.id).asset_id for variant in variants}
     assert len(asset_ids) == 1
