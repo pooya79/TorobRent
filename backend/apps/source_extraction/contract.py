@@ -375,19 +375,6 @@ class ExtractionContract:
             validation=validation,
         )
 
-    @staticmethod
-    def model_ready_inputs(discovery: SourceDiscovery) -> tuple[ExtractionPage, ...]:
-        """Expose only selected, phone-redacted detail snapshots to an explicit model adapter."""
-        selected_urls = next(
-            (set(group.supported_page_urls) for group in discovery.structures if group.selected),
-            set(),
-        )
-        return tuple(
-            ExtractionPage(page.url, page.sanitized_html)
-            for page in discovery.pages
-            if page.url in selected_urls and page.sanitized_html is not None
-        )
-
     def apply_profile(
         self, profile: SourceProfile, pages: Sequence[ExtractionPage]
     ) -> tuple[ExtractedListing, ...]:

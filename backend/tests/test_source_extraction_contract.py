@@ -173,8 +173,9 @@ def test_contract_builds_validated_profile_and_extracts_normalized_listings() ->
     assert all(phone not in retained for phone in phones)
     assert "[redacted-phone]" in retained
     assert all(
-        "[redacted-phone]" in page.html
-        for page in ExtractionContract.model_ready_inputs(outcome.discovery)
+        "[redacted-phone]" in (page.sanitized_html or "")
+        for page in outcome.discovery.pages
+        if page.classification.kind is PageKind.RENTAL_LISTING
     )
     observer_names = {
         item.observer_name
