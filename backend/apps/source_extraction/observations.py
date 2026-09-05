@@ -12,17 +12,20 @@ from urllib.parse import unquote, urljoin, urlsplit, urlunsplit
 
 from bs4 import BeautifulSoup, Tag
 
-PERSIAN_DIGITS = str.maketrans("۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩", "01234567890123456789")
-SPACE_RE = re.compile(r"[\s\u200c\u200f]+")
-PHONE_RE = re.compile(r"(?<!\d)(?:\+?98|0)?9\d{9}(?!\d)")
-ARABIC_DIACRITICS_RE = re.compile(r"[\u0610-\u061a\u064b-\u065f\u0670\u06d6-\u06ed]")
+from .normalization import DIGIT_TRANSLATION as PERSIAN_DIGITS
+from .normalization import normalize_text
+
+PHONE_RE = re.compile(
+    r"(?<!\d)(?:(?:\+98|0098|0)[\s().-]*)?"
+    r"(?:9(?:[\s().-]*\d){9}|21(?:[\s().-]*\d){8})(?!\d)"
+)
 CORE_FIELDS = (
     "city",
     "district",
     "neighborhood",
     "property_type",
-    "area_sqm",
-    "room_count",
+    "floor_area_sqm",
+    "bedroom_count",
     "deposit_rial",
     "monthly_rent_rial",
 )
@@ -48,11 +51,6 @@ ALL_FIELDS = CORE_FIELDS + (
     "source_location_text",
     "image_urls",
 )
-
-
-def normalize_text(value: Any) -> str:
-    normalized = str(value).translate(PERSIAN_DIGITS).replace("ي", "ی").replace("ك", "ک")
-    return SPACE_RE.sub(" ", ARABIC_DIACRITICS_RE.sub("", normalized)).strip()
 
 
 def redact_phone_numbers(value: str) -> str:
@@ -144,9 +142,9 @@ def plausible_profile_value(field_name: str, value: Any) -> bool:
         return 2 <= len(text) <= 100 and "تهران" not in text and "پیش" not in text
     if field_name == "property_type":
         return value in {"apartment", "house", "villa"}
-    if field_name == "area_sqm":
+    if field_name == "floor_area_sqm":
         return isinstance(value, int) and 5 <= value <= 100_000
-    if field_name == "room_count":
+    if field_name == "bedroom_count":
         return isinstance(value, int) and 0 <= value <= 100
     if field_name in {"deposit_rial", "monthly_rent_rial"}:
         return isinstance(value, int) and 0 <= value <= 10**17
@@ -359,7 +357,7 @@ class StructuredDataObserver:
                     ),
                     ("description", item.get("description"), item.get("description")),
                     (
-                        "room_count",
+                        "bedroom_count",
                         item.get("numberOfRooms") or item.get("numberOfBedrooms"),
                         parse_integer(item.get("numberOfRooms") or item.get("numberOfBedrooms")),
                     ),
@@ -379,12 +377,12 @@ class StructuredDataObserver:
                 floor_size = item.get("floorSize")
                 if isinstance(floor_size, dict):
                     mappings.append((
-                        "area_sqm",
+                        "floor_area_sqm",
                         floor_size.get("value"),
                         parse_integer(floor_size.get("value")),
                     ))
                 elif floor_size is not None:
-                    mappings.append(("area_sqm", floor_size, parse_integer(floor_size)))
+                    mappings.append(("floor_area_sqm", floor_size, parse_integer(floor_size)))
                 address = item.get("address")
                 if isinstance(address, dict):
                     location = "، ".join(
@@ -453,8 +451,8 @@ class StructuredDataObserver:
 
 
 LABEL_FIELDS: dict[str, tuple[str, ...]] = {
-    "area_sqm": ("متراژ", "مساحت", "زیربنا"),
-    "room_count": ("اتاق", "تعداد اتاق", "اتاق خواب"),
+    "floor_area_sqm": ("متراژ", "مساحت", "زیربنا"),
+    "bedroom_count": ("اتاق", "تعداد اتاق", "اتاق خواب"),
     "construction_year": ("سال ساخت",),
     "floor": ("طبقه",),
     "total_floors": ("تعداد طبقات", "کل طبقات"),
@@ -476,8 +474,8 @@ FEATURE_LABELS = {
 
 def _normalize_by_field(field_name: str, raw: Any, label: str = "") -> Any:
     if field_name in {
-        "area_sqm",
-        "room_count",
+        "floor_area_sqm",
+        "bedroom_count",
         "construction_year",
         "floor",
         "total_floors",
@@ -706,9 +704,9 @@ class MetadataObserver:
                     if found:
                         output.append(found)
         for field_name, itemprop in (
-            ("area_sqm", "floorSize"),
-            ("room_count", "numberOfRooms"),
-            ("room_count", "numberOfBedrooms"),
+            ("floor_area_sqm", "floorSize"),
+            ("bedroom_count", "numberOfRooms"),
+            ("bedroom_count", "numberOfBedrooms"),
         ):
             for node in soup.select(f'meta[itemprop="{itemprop}"]'):
                 raw = node.get("content")
@@ -738,8 +736,8 @@ class PersianTextObserver:
         text = normalize_text(soup.get_text(" ", strip=True))
         output: list[FieldCandidate] = []
         patterns = {
-            "area_sqm": r"(?:متراژ|مساحت|زیربنا)\s*[:：]?\s*(\d{1,5})",
-            "room_count": r"(?:تعداد\s*)?(?:اتاق(?:\s*خواب)?)\s*[:：]?\s*(\d{1,2})",
+            "floor_area_sqm": r"(?:متراژ|مساحت|زیربنا)\s*[:：]?\s*(\d{1,5})",
+            "bedroom_count": r"(?:تعداد\s*)?(?:اتاق(?:\s*خواب)?)\s*[:：]?\s*(\d{1,2})",
             "construction_year": r"سال\s*ساخت\s*[:：]?\s*(\d{4})",
             "floor": r"طبقه\s*[:：]?\s*(-?\d{1,3})",
         }
@@ -1184,8 +1182,8 @@ PROFILE_TRANSFORMS: dict[str, str] = {
     **{
         name: "integer"
         for name in (
-            "area_sqm",
-            "room_count",
+            "floor_area_sqm",
+            "bedroom_count",
             "construction_year",
             "floor",
             "total_floors",
@@ -1217,8 +1215,8 @@ def _deterministic_rule_candidates() -> dict[str, list[dict[str, Any]]]:
             ("$.@type", "property_type"),
             ("$.accommodationCategory", "property_type"),
         ),
-        "area_sqm": (("$.floorSize.value", "integer"), ("$.floorSize", "integer")),
-        "room_count": (("$.numberOfRooms", "integer"), ("$.numberOfBedrooms", "integer")),
+        "floor_area_sqm": (("$.floorSize.value", "integer"), ("$.floorSize", "integer")),
+        "bedroom_count": (("$.numberOfRooms", "integer"), ("$.numberOfBedrooms", "integer")),
         "published_at": (("$.datePosted", "text"), ("$.datePublished", "text")),
         "latitude": (("$.geo.latitude", "text"),),
         "longitude": (("$.geo.longitude", "text"),),
@@ -1263,9 +1261,9 @@ def _deterministic_rule_candidates() -> dict[str, list[dict[str, Any]]]:
                     )
                 )
     for field_name, itemprop in (
-        ("area_sqm", "floorSize"),
-        ("room_count", "numberOfRooms"),
-        ("room_count", "numberOfBedrooms"),
+        ("floor_area_sqm", "floorSize"),
+        ("bedroom_count", "numberOfRooms"),
+        ("bedroom_count", "numberOfBedrooms"),
     ):
         output.setdefault(field_name, []).append(
             _rule(

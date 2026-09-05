@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Sequence
+from pathlib import Path
 
 import pytest
 
@@ -15,26 +16,16 @@ from apps.source_extraction.contract import (
 )
 from apps.source_extraction.fetching import FetchBatch, FetchedPage, FetchRecord
 
+FIXTURE_ROOT = Path(__file__).parent / "fixtures/source_extraction"
+
 
 def listing_html(*, area: int = 85, phone: str = "09121234567") -> str:
-    return f"""
-    <html><head>
-      <script type="application/ld+json">
-        {{"@type":"Apartment","name":"اجاره آپارتمان در سعادت‌آباد",
-        "floorSize":{{"value":"{area}"}},"numberOfRooms":2,
-        "address":{{"addressLocality":"سعادت‌آباد","addressRegion":"تهران"}}}}
-      </script>
-    </head><body>
-      <h1>اجاره آپارتمان در سعادت‌آباد</h1>
-      <dl>
-        <dt>متراژ</dt><dd class="area">{area} متر</dd>
-        <dt>اتاق خواب</dt><dd class="rooms">2</dd>
-        <dt>ودیعه (تومان)</dt><dd class="deposit">۵۰۰ میلیون تومان</dd>
-        <dt>اجاره ماهانه (تومان)</dt><dd class="rent">۲۰ میلیون تومان</dd>
-      </dl>
-      <p>موقعیت در تهران، سعادت‌آباد</p><p>تماس: {phone}</p>
-    </body></html>
-    """
+    return (
+        (FIXTURE_ROOT / "torobtest_listing.html")
+        .read_text(encoding="utf-8")
+        .replace("{{ floor_area }}", str(area))
+        .replace("{{ phone }}", phone)
+    )
 
 
 class FixtureFetcher:
@@ -125,14 +116,40 @@ def test_contract_discovers_and_scores_same_host_rental_pages() -> None:
     assert "other.example" not in " ".join(page.url for page in discovery.pages)
 
 
+def test_structured_sale_link_is_not_forced_into_rental_classification() -> None:
+    seed_url = "https://source.example/rent"
+    sale_url = "https://source.example/sale/12345"
+    rental_urls = ["https://source.example/listing/12346", "https://source.example/listing/12347"]
+    structured_items = [
+        {"@type": "Product", "name": "فروش آپارتمان", "url": sale_url},
+        *[{"@type": "Apartment", "name": "اجاره آپارتمان", "url": url} for url in rental_urls],
+    ]
+    seed_html = (
+        "<h1>رهن و اجاره خانه</h1><script type='application/ld+json'>"
+        + json.dumps(structured_items, ensure_ascii=False)
+        + "</script>"
+    )
+    fetcher = FixtureFetcher({
+        seed_url: seed_html,
+        sale_url: "<h1>فروش آپارتمان</h1><p>متراژ ۸۵ و قیمت فروش</p>",
+        **{url: listing_html() for url in rental_urls},
+    })
+
+    discovery = ExtractionContract(fetcher, max_pages=4).discover(seed_url)
+
+    sale_page = next(page for page in discovery.pages if page.url == sale_url)
+    assert sale_page.classification.kind is PageKind.OTHER_PROPERTY
+
+
 def test_contract_builds_validated_profile_and_extracts_normalized_listings() -> None:
     seed_url = "https://source.example/rent"
     detail_urls = [f"https://source.example/listing/{number}" for number in range(10000, 10004)]
     links = "".join(f'<a href="{url}">اجاره آپارتمان در تهران</a>' for url in detail_urls)
+    phones = ("0912 000 0000", "+98-912-000-0001", "021-1234-5678", "۰۹۱۲ ۰۰۰ ۰۰۰۳")
     fetcher = FixtureFetcher({
         seed_url: f"<h1>رهن و اجاره خانه</h1>{links}",
         **{
-            url: listing_html(area=80 + index, phone=f"0912000000{index}")
+            url: listing_html(area=80 + index, phone=phones[index])
             for index, url in enumerate(detail_urls)
         },
     })
@@ -143,8 +160,8 @@ def test_contract_builds_validated_profile_and_extracts_normalized_listings() ->
 
     assert outcome.profile.validation.approval_enabled is True
     assert set(outcome.profile.mapping) >= {
-        "area_sqm",
-        "room_count",
+        "floor_area_sqm",
+        "bedroom_count",
         "deposit_rial",
         "monthly_rent_rial",
     }
@@ -153,8 +170,24 @@ def test_contract_builds_validated_profile_and_extracts_normalized_listings() ->
     assert outcome.listings[0].normalized["deposit_rial"] == 5_000_000_000
     assert outcome.listings[0].normalized["monthly_rent_rial"] == 200_000_000
     retained = json.dumps(serialize_contract_result(outcome), ensure_ascii=False)
-    assert "091200000" not in retained
+    assert all(phone not in retained for phone in phones)
     assert "[redacted-phone]" in retained
+    assert all(
+        "[redacted-phone]" in page.html
+        for page in ExtractionContract.model_ready_inputs(outcome.discovery)
+    )
+    observer_names = {
+        item.observer_name
+        for field_evidence in outcome.listings[0].evidence.values()
+        for item in field_evidence
+    }
+    assert observer_names >= {
+        "structured_data",
+        "metadata",
+        "dom_labels",
+        "persian_text",
+        "location_catalog",
+    }
 
 
 def test_discovery_selects_dominant_structure_and_keeps_excluded_coverage_explicit() -> None:
@@ -198,8 +231,8 @@ def test_conflicting_attributable_values_remain_a_listing_exception() -> None:
     )[0]
 
     assert listing.status == "needs_review"
-    assert listing.conflicts["area_sqm"] == (80, 90)
-    assert {item.observer_name for item in listing.evidence["area_sqm"]} >= {
+    assert listing.conflicts["floor_area_sqm"] == (80, 90)
+    assert {item.observer_name for item in listing.evidence["floor_area_sqm"]} >= {
         "structured_data",
         "dom_labels",
     }
@@ -225,11 +258,7 @@ def test_profile_creation_reports_low_dominant_structure_coverage() -> None:
 
 def test_profile_application_returns_structural_drift_without_guessing_fields() -> None:
     contract, profile = build_profile()
-    redesigned = (
-        "<html><body><main>"
-        + '<article class="redesigned-card"><span>new layout</span></article>' * 80
-        + "</main></body></html>"
-    )
+    redesigned = (FIXTURE_ROOT / "torobtest_redesigned.html").read_text(encoding="utf-8")
 
     listing = contract.apply_profile(
         profile, [ExtractionPage("https://source.example/listing/99998", redesigned)]
@@ -243,8 +272,8 @@ def test_profile_application_returns_structural_drift_without_guessing_fields() 
         "district",
         "neighborhood",
         "property_type",
-        "area_sqm",
-        "room_count",
+        "floor_area_sqm",
+        "bedroom_count",
         "deposit_rial",
         "monthly_rent_rial",
     )
@@ -256,9 +285,7 @@ def test_discovery_uses_guarded_browser_fallback_for_a_javascript_shell() -> Non
     links = "".join(f'<a href="{url}">اجاره آپارتمان تهران</a>' for url in detail_urls)
     fetcher = BrowserFallbackFetcher(
         {
-            seed_url: (
-                '<html><body><div id="root"></div><script src="app.js"></script></body></html>'
-            ),
+            seed_url: (FIXTURE_ROOT / "torobtest_shell.html").read_text(encoding="utf-8"),
             **{url: listing_html() for url in detail_urls},
         },
         {seed_url: f"<h1>رهن و اجاره خانه</h1>{links}"},

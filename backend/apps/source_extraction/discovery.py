@@ -266,6 +266,8 @@ def extract_candidate_links(
             score += 2
         if any(term.casefold() in signal_text for term in preferred_terms):
             score += 4
+        if _contains_any(signal_text, SALE_TERMS):
+            score -= 4
         existing = candidates.get(structured_url)
         if existing is None or score > existing.score:
             candidates[structured_url] = CandidateLink(

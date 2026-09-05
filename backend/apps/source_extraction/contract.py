@@ -36,6 +36,7 @@ from .observations import (
     fingerprint_centroid,
     fingerprint_similarity,
     looks_like_javascript_shell,
+    normalize_url_shape,
     redact_candidate,
     redact_phone_numbers,
     resolve_candidates,
@@ -262,10 +263,7 @@ class ExtractionContract:
                 )
             else:
                 classification = classify_page(fetched.url, html)
-                if kind_hint is not None and classification.kind in {
-                    PageKind.IRRELEVANT,
-                    PageKind.OTHER_PROPERTY,
-                }:
+                if kind_hint is not None and classification.kind is PageKind.IRRELEVANT:
                     classification = PageClassification(
                         kind_hint,
                         0.9,
@@ -375,6 +373,19 @@ class ExtractionContract:
             structural_fingerprint=discovery.dominant_fingerprint,
             mapping_diagnostics=diagnostics,
             validation=validation,
+        )
+
+    @staticmethod
+    def model_ready_inputs(discovery: SourceDiscovery) -> tuple[ExtractionPage, ...]:
+        """Expose only selected, phone-redacted detail snapshots to an explicit model adapter."""
+        selected_urls = next(
+            (set(group.supported_page_urls) for group in discovery.structures if group.selected),
+            set(),
+        )
+        return tuple(
+            ExtractionPage(page.url, page.sanitized_html)
+            for page in discovery.pages
+            if page.url in selected_urls and page.sanitized_html is not None
         )
 
     def apply_profile(
@@ -512,7 +523,9 @@ class ExtractionContract:
                     context_url=member.discovered_from,
                 )
                 (excluded if eligibility == "out_of_scope" else supported).append(member.url)
-            shape = Counter(_url_shape(member.url) for member in members).most_common(1)[0][0]
+            shape = Counter(normalize_url_shape(member.url) for member in members).most_common(1)[
+                0
+            ][0]
             grouped.append((
                 fingerprint_centroid(fingerprints[index] for index in component),
                 shape,
@@ -654,12 +667,6 @@ def _redact_value(value: Any) -> Any:
 
 def _redact_mapping(value: Mapping[str, Any]) -> Mapping[str, Any]:
     return {name: _redact_value(item) for name, item in value.items()}
-
-
-def _url_shape(url: str) -> str:
-    from .observations import normalize_url_shape
-
-    return normalize_url_shape(url)
 
 
 def serialize_contract_result(value: Any) -> Any:
