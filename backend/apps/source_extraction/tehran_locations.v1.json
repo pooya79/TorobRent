@@ -1,0 +1,3001 @@
+{
+  "version": "torobrent-catalog-1403-v1",
+  "derived_from": "TorobRent/backend/apps/catalog/fixtures/catalog_seed.json",
+  "city_id": "11111111-1111-4111-8111-111111111111",
+  "location_count": 374,
+  "locations": [
+    {
+      "city": "تهران",
+      "district": "منطقه ۱",
+      "neighborhood": "اراج",
+      "source_code": "1",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱",
+      "neighborhood": "ازگل",
+      "source_code": "2",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱",
+      "neighborhood": "امامزاده قاسم",
+      "source_code": "3",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱",
+      "neighborhood": "اوین",
+      "source_code": "4",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱",
+      "neighborhood": "باغ فردوس",
+      "source_code": "5",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱",
+      "neighborhood": "تجریش",
+      "source_code": "6",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱",
+      "neighborhood": "جماران",
+      "source_code": "7",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱",
+      "neighborhood": "چیذر",
+      "source_code": "8",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱",
+      "neighborhood": "حصار بوعلی",
+      "source_code": "9",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱",
+      "neighborhood": "حکمت و دزاشیب",
+      "source_code": "10",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱",
+      "neighborhood": "دارآباد",
+      "source_code": "11",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱",
+      "neighborhood": "دربند",
+      "source_code": "12",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱",
+      "neighborhood": "درکه",
+      "source_code": "13",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱",
+      "neighborhood": "دزاشیب و جوزستان",
+      "source_code": "14",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱",
+      "neighborhood": "رستم آباد",
+      "source_code": "15",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱",
+      "neighborhood": "زعفرانیه",
+      "source_code": "16",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱",
+      "neighborhood": "سوهانک",
+      "source_code": "17",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱",
+      "neighborhood": "شهرک گلها",
+      "source_code": "18",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱",
+      "neighborhood": "شهرک محلاتی",
+      "source_code": "19",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱",
+      "neighborhood": "شهرک نفت",
+      "source_code": "20",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱",
+      "neighborhood": "قیطریه",
+      "source_code": "21",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱",
+      "neighborhood": "کاشانک",
+      "source_code": "22",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱",
+      "neighborhood": "گلاب دره",
+      "source_code": "23",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱",
+      "neighborhood": "محمودیه",
+      "source_code": "24",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱",
+      "neighborhood": "نیاوران",
+      "source_code": "25",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱",
+      "neighborhood": "ولنجک",
+      "source_code": "26",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۲",
+      "neighborhood": "آلستوم",
+      "source_code": "27",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۲",
+      "neighborhood": "اسلام آباد",
+      "source_code": "28",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۲",
+      "neighborhood": "ایوانک",
+      "source_code": "29",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۲",
+      "neighborhood": "پاتریس",
+      "source_code": "30",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۲",
+      "neighborhood": "پردیسان",
+      "source_code": "31",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۲",
+      "neighborhood": "پرواز",
+      "source_code": "32",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۲",
+      "neighborhood": "پونک",
+      "source_code": "33",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۲",
+      "neighborhood": "توحید",
+      "source_code": "34",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۲",
+      "neighborhood": "تهران ویلا",
+      "source_code": "35",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۲",
+      "neighborhood": "چوب تراش",
+      "source_code": "36",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۲",
+      "neighborhood": "خرم رودی",
+      "source_code": "37",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۲",
+      "neighborhood": "درختی",
+      "source_code": "38",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۲",
+      "neighborhood": "دریا",
+      "source_code": "39",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۲",
+      "neighborhood": "زنجان",
+      "source_code": "40",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۲",
+      "neighborhood": "سپهر",
+      "source_code": "41",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۲",
+      "neighborhood": "سرو",
+      "source_code": "42",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۲",
+      "neighborhood": "سعادت‌آباد",
+      "source_code": "43",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۲",
+      "neighborhood": "شادمهر",
+      "source_code": "44",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۲",
+      "neighborhood": "شهرک آزمایش",
+      "source_code": "45",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۲",
+      "neighborhood": "شهرک بوعلی",
+      "source_code": "46",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۲",
+      "neighborhood": "شهرک غرب",
+      "source_code": "47",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۲",
+      "neighborhood": "شهرک مخابرات",
+      "source_code": "48",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۲",
+      "neighborhood": "شهرک هما",
+      "source_code": "49",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۲",
+      "neighborhood": "صادقیه",
+      "source_code": "50",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۲",
+      "neighborhood": "طرشت",
+      "source_code": "51",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۲",
+      "neighborhood": "فرحزاد",
+      "source_code": "52",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۲",
+      "neighborhood": "کوهسار",
+      "source_code": "53",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۲",
+      "neighborhood": "کوی نصر",
+      "source_code": "54",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۲",
+      "neighborhood": "مدیریت",
+      "source_code": "55",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۲",
+      "neighborhood": "همایون شهر",
+      "source_code": "56",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۳",
+      "neighborhood": "آرارات",
+      "source_code": "57",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۳",
+      "neighborhood": "ارسباران",
+      "source_code": "58",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۳",
+      "neighborhood": "امانیه",
+      "source_code": "59",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۳",
+      "neighborhood": "حسن آباد-زرگنده",
+      "source_code": "60",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۳",
+      "neighborhood": "داودیه",
+      "source_code": "61",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۳",
+      "neighborhood": "درب دوم",
+      "source_code": "62",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۳",
+      "neighborhood": "دروس",
+      "source_code": "63",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۳",
+      "neighborhood": "رستم آباد - اختیاریه",
+      "source_code": "64",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۳",
+      "neighborhood": "قبا",
+      "source_code": "65",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۳",
+      "neighborhood": "قلهک",
+      "source_code": "66",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۳",
+      "neighborhood": "کاووسیه",
+      "source_code": "67",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۳",
+      "neighborhood": "ونک",
+      "source_code": "68",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۴",
+      "neighborhood": "اوقاف",
+      "source_code": "69",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۴",
+      "neighborhood": "تهران‌پارس شرقی",
+      "source_code": "70",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۴",
+      "neighborhood": "تهران‌پارس غربی",
+      "source_code": "71",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۴",
+      "neighborhood": "جوادیه",
+      "source_code": "72",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۴",
+      "neighborhood": "حکیمیه",
+      "source_code": "73",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۴",
+      "neighborhood": "خاک سفید",
+      "source_code": "74",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۴",
+      "neighborhood": "شمس آباد و مجیدیه",
+      "source_code": "75",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۴",
+      "neighborhood": "شمیرا نو",
+      "source_code": "76",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۴",
+      "neighborhood": "شهرک ولیعصر و شیان و لویزان",
+      "source_code": "77",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۴",
+      "neighborhood": "ضرابخانه و پاسداران",
+      "source_code": "78",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۴",
+      "neighborhood": "علم و صنعت",
+      "source_code": "79",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۴",
+      "neighborhood": "قاسم آباد و ده نارمک",
+      "source_code": "80",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۴",
+      "neighborhood": "قنات کوثر",
+      "source_code": "81",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۴",
+      "neighborhood": "کاظم آباد",
+      "source_code": "82",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۴",
+      "neighborhood": "کالاد",
+      "source_code": "83",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۴",
+      "neighborhood": "کوهسار",
+      "source_code": "84",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۴",
+      "neighborhood": "مبارک آباد و حسین آباد",
+      "source_code": "85",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۴",
+      "neighborhood": "مجید آباد",
+      "source_code": "86",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۴",
+      "neighborhood": "مهران",
+      "source_code": "87",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۴",
+      "neighborhood": "نارمک",
+      "source_code": "88",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۵",
+      "neighborhood": "المهدی",
+      "source_code": "89",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۵",
+      "neighborhood": "اندیشه",
+      "source_code": "90",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۵",
+      "neighborhood": "باغ فیض",
+      "source_code": "91",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۵",
+      "neighborhood": "بهاران",
+      "source_code": "92",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۵",
+      "neighborhood": "پرواز",
+      "source_code": "93",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۵",
+      "neighborhood": "پونک جنوبی",
+      "source_code": "94",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۵",
+      "neighborhood": "پونک شمالی",
+      "source_code": "95",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۵",
+      "neighborhood": "جنت آباد جنوبی",
+      "source_code": "96",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۵",
+      "neighborhood": "جنت آباد شمالی",
+      "source_code": "97",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۵",
+      "neighborhood": "جنت آباد مرکزی",
+      "source_code": "98",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۵",
+      "neighborhood": "حصارک",
+      "source_code": "99",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۵",
+      "neighborhood": "سازمان آب",
+      "source_code": "100",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۵",
+      "neighborhood": "سازمان برنامه جنوبی",
+      "source_code": "101",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۵",
+      "neighborhood": "سازمان برنامه شمالی",
+      "source_code": "102",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۵",
+      "neighborhood": "شاهین",
+      "source_code": "103",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۵",
+      "neighborhood": "شهر زیبا",
+      "source_code": "104",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۵",
+      "neighborhood": "شهران جنوبی",
+      "source_code": "105",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۵",
+      "neighborhood": "شهران شمالی",
+      "source_code": "106",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۵",
+      "neighborhood": "شهرک آپادانا",
+      "source_code": "107",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۵",
+      "neighborhood": "شهرک اکباتان",
+      "source_code": "108",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۵",
+      "neighborhood": "شهرک کوهسار",
+      "source_code": "109",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۵",
+      "neighborhood": "کن",
+      "source_code": "110",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۵",
+      "neighborhood": "کوی ارم",
+      "source_code": "111",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۵",
+      "neighborhood": "کوی بیمه",
+      "source_code": "112",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۵",
+      "neighborhood": "محله ابوذر",
+      "source_code": "113",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۵",
+      "neighborhood": "محله فردوس",
+      "source_code": "114",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۵",
+      "neighborhood": "مراد آباد",
+      "source_code": "115",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۵",
+      "neighborhood": "مهران",
+      "source_code": "116",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۵",
+      "neighborhood": "نفت",
+      "source_code": "117",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۶",
+      "neighborhood": "آرژانتین - ساعی",
+      "source_code": "118",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۶",
+      "neighborhood": "ایرانشهر",
+      "source_code": "119",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۶",
+      "neighborhood": "بهجت آباد",
+      "source_code": "120",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۶",
+      "neighborhood": "پارک لاله",
+      "source_code": "121",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۶",
+      "neighborhood": "جنت - رفتگر",
+      "source_code": "122",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۶",
+      "neighborhood": "دانشگاه تهران",
+      "source_code": "123",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۶",
+      "neighborhood": "شریعتی",
+      "source_code": "124",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۶",
+      "neighborhood": "شیراز",
+      "source_code": "125",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۶",
+      "neighborhood": "عباس آباد",
+      "source_code": "126",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۶",
+      "neighborhood": "فاطمی",
+      "source_code": "127",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۶",
+      "neighborhood": "قانم مقام- سنائی",
+      "source_code": "128",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۶",
+      "neighborhood": "قزل قلعه",
+      "source_code": "129",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۶",
+      "neighborhood": "کشاورز غربی",
+      "source_code": "130",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۶",
+      "neighborhood": "گاندی",
+      "source_code": "131",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۶",
+      "neighborhood": "میدان جهاد",
+      "source_code": "132",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۶",
+      "neighborhood": "میدان ولیعصر",
+      "source_code": "133",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۶",
+      "neighborhood": "نصرت",
+      "source_code": "134",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۶",
+      "neighborhood": "یوسف آباد- امیرآباد",
+      "source_code": "135",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۷",
+      "neighborhood": "ارامنه جنوبی",
+      "source_code": "136",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۷",
+      "neighborhood": "ارامنه شمالی",
+      "source_code": "137",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۷",
+      "neighborhood": "امجدیه- خاقانی",
+      "source_code": "138",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۷",
+      "neighborhood": "باغ صبا - سهروردی",
+      "source_code": "139",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۷",
+      "neighborhood": "بهار",
+      "source_code": "140",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۷",
+      "neighborhood": "حشمتیه",
+      "source_code": "141",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۷",
+      "neighborhood": "خواجه نصیر -حقوقی",
+      "source_code": "142",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۷",
+      "neighborhood": "خواجه نظام شرقی",
+      "source_code": "143",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۷",
+      "neighborhood": "خواجه نظام غربی",
+      "source_code": "144",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۷",
+      "neighborhood": "دبستان - مجیدیه",
+      "source_code": "145",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۷",
+      "neighborhood": "دهقان",
+      "source_code": "146",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۷",
+      "neighborhood": "شارق شرقی",
+      "source_code": "147",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۷",
+      "neighborhood": "شارق غربی",
+      "source_code": "148",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۷",
+      "neighborhood": "عباس آباد-اندیشه-شهید قندی",
+      "source_code": "149",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۷",
+      "neighborhood": "قصر",
+      "source_code": "150",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۷",
+      "neighborhood": "کاج",
+      "source_code": "151",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۷",
+      "neighborhood": "گرگان",
+      "source_code": "152",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۷",
+      "neighborhood": "نظام آباد",
+      "source_code": "153",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۷",
+      "neighborhood": "نیلوفر - شهید قندی",
+      "source_code": "154",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۸",
+      "neighborhood": "تسلیحات",
+      "source_code": "155",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۸",
+      "neighborhood": "تهران‌پارس",
+      "source_code": "156",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۸",
+      "neighborhood": "دردشت",
+      "source_code": "157",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۸",
+      "neighborhood": "زرکش",
+      "source_code": "158",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۸",
+      "neighborhood": "فدک",
+      "source_code": "159",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۸",
+      "neighborhood": "کرمان",
+      "source_code": "160",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۸",
+      "neighborhood": "لشکر شرقی",
+      "source_code": "161",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۸",
+      "neighborhood": "لشکر غربی",
+      "source_code": "162",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۸",
+      "neighborhood": "مجدیه",
+      "source_code": "163",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۸",
+      "neighborhood": "مدائن",
+      "source_code": "164",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۸",
+      "neighborhood": "نارمک جنوبی",
+      "source_code": "165",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۸",
+      "neighborhood": "وحیدیه",
+      "source_code": "166",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۸",
+      "neighborhood": "هفت حوض",
+      "source_code": "167",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۹",
+      "neighborhood": "استاد معین",
+      "source_code": "168",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۹",
+      "neighborhood": "امامزاده عبدالله",
+      "source_code": "169",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۹",
+      "neighborhood": "دکترهوشیار",
+      "source_code": "170",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۹",
+      "neighborhood": "سرآسیاب مهرآباد",
+      "source_code": "171",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۹",
+      "neighborhood": "شمشیری",
+      "source_code": "172",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۹",
+      "neighborhood": "شهید دستغیب",
+      "source_code": "173",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۹",
+      "neighborhood": "فتح",
+      "source_code": "174",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۹",
+      "neighborhood": "فرودگاه",
+      "source_code": "175",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۹",
+      "neighborhood": "مهرآباد جنوبی",
+      "source_code": "176",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۰",
+      "neighborhood": "بریانک",
+      "source_code": "177",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۰",
+      "neighborhood": "زنجان جنوبی",
+      "source_code": "178",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۰",
+      "neighborhood": "سرسبیل جنوبی",
+      "source_code": "179",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۰",
+      "neighborhood": "سرسبیل شمالی",
+      "source_code": "180",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۰",
+      "neighborhood": "سلیمانی- تیموری",
+      "source_code": "181",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۰",
+      "neighborhood": "شبیری-جی",
+      "source_code": "182",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۰",
+      "neighborhood": "کارون جنوبی",
+      "source_code": "183",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۰",
+      "neighborhood": "کارون شمالی",
+      "source_code": "184",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۰",
+      "neighborhood": "هاشمی",
+      "source_code": "185",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۰",
+      "neighborhood": "هفت چنار",
+      "source_code": "186",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۱",
+      "neighborhood": "آذربایجان",
+      "source_code": "187",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۱",
+      "neighborhood": "آگاهی",
+      "source_code": "188",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۱",
+      "neighborhood": "اسکندری",
+      "source_code": "189",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۱",
+      "neighborhood": "امیریه",
+      "source_code": "190",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۱",
+      "neighborhood": "انبار نفت",
+      "source_code": "191",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۱",
+      "neighborhood": "باغ شاه-میدان حر",
+      "source_code": "192",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۱",
+      "neighborhood": "جمالزاده-حشمت الدوله",
+      "source_code": "193",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۱",
+      "neighborhood": "جمهوری",
+      "source_code": "194",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۱",
+      "neighborhood": "خرم شهر",
+      "source_code": "195",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۱",
+      "neighborhood": "راه آهن",
+      "source_code": "196",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۱",
+      "neighborhood": "شیخ هادی",
+      "source_code": "197",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۱",
+      "neighborhood": "عباسی",
+      "source_code": "198",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۱",
+      "neighborhood": "فروزش-امیر بهادر",
+      "source_code": "199",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۱",
+      "neighborhood": "فلسطین",
+      "source_code": "200",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۱",
+      "neighborhood": "قلمستان-برادران جوادیان",
+      "source_code": "201",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۱",
+      "neighborhood": "مخصوص",
+      "source_code": "202",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۱",
+      "neighborhood": "منیریه",
+      "source_code": "203",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۱",
+      "neighborhood": "هلال احمر",
+      "source_code": "204",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۲",
+      "neighborhood": "آبشار",
+      "source_code": "205",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۲",
+      "neighborhood": "ارگ - پامنار",
+      "source_code": "206",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۲",
+      "neighborhood": "امامزاده یحیی",
+      "source_code": "207",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۲",
+      "neighborhood": "ایران",
+      "source_code": "208",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۲",
+      "neighborhood": "بازار",
+      "source_code": "209",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۲",
+      "neighborhood": "بهارستان",
+      "source_code": "210",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۲",
+      "neighborhood": "تختی",
+      "source_code": "211",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۲",
+      "neighborhood": "دروازه شمیران",
+      "source_code": "212",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۲",
+      "neighborhood": "سنگلج",
+      "source_code": "213",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۲",
+      "neighborhood": "شهید هرندی",
+      "source_code": "214",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۲",
+      "neighborhood": "فردوسی",
+      "source_code": "215",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۲",
+      "neighborhood": "قیام",
+      "source_code": "216",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۲",
+      "neighborhood": "کوثر",
+      "source_code": "217",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۳",
+      "neighborhood": "آشتیانی",
+      "source_code": "218",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۳",
+      "neighborhood": "امامت",
+      "source_code": "219",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۳",
+      "neighborhood": "حافظ",
+      "source_code": "220",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۳",
+      "neighborhood": "حافظیه",
+      "source_code": "221",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۳",
+      "neighborhood": "دهقان",
+      "source_code": "222",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۳",
+      "neighborhood": "زاهد گیلانی",
+      "source_code": "223",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۳",
+      "neighborhood": "زینبیه",
+      "source_code": "224",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۳",
+      "neighborhood": "سرخه حصار",
+      "source_code": "225",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۳",
+      "neighborhood": "شورا",
+      "source_code": "226",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۳",
+      "neighborhood": "شهید اسدی",
+      "source_code": "227",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۳",
+      "neighborhood": "صفا",
+      "source_code": "228",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۳",
+      "neighborhood": "قاسم آباد",
+      "source_code": "229",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۳",
+      "neighborhood": "نیروی هوایی",
+      "source_code": "230",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۴",
+      "neighborhood": "آهنگ",
+      "source_code": "231",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۴",
+      "neighborhood": "آهنگران",
+      "source_code": "232",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۴",
+      "neighborhood": "ابوذر",
+      "source_code": "233",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۴",
+      "neighborhood": "بروجردی",
+      "source_code": "234",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۴",
+      "neighborhood": "پرستار",
+      "source_code": "235",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۴",
+      "neighborhood": "تاکسیرانی",
+      "source_code": "236",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۴",
+      "neighborhood": "جابری",
+      "source_code": "237",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۴",
+      "neighborhood": "جوادیه",
+      "source_code": "238",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۴",
+      "neighborhood": "چهارصددستگاه",
+      "source_code": "239",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۴",
+      "neighborhood": "خاوران",
+      "source_code": "240",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۴",
+      "neighborhood": "دژکام",
+      "source_code": "241",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۴",
+      "neighborhood": "دولاب",
+      "source_code": "242",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۴",
+      "neighborhood": "سیزده آبان",
+      "source_code": "243",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۴",
+      "neighborhood": "شاهین",
+      "source_code": "244",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۴",
+      "neighborhood": "شکوفه",
+      "source_code": "245",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۴",
+      "neighborhood": "شکیب",
+      "source_code": "246",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۴",
+      "neighborhood": "شهرابی",
+      "source_code": "247",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۴",
+      "neighborhood": "شیوا",
+      "source_code": "248",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۴",
+      "neighborhood": "صددستگاه",
+      "source_code": "249",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۴",
+      "neighborhood": "فرزانه",
+      "source_code": "250",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۴",
+      "neighborhood": "قصر فیروزه",
+      "source_code": "251",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۴",
+      "neighborhood": "مینای جنوبی",
+      "source_code": "252",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۴",
+      "neighborhood": "مینای شمالی",
+      "source_code": "253",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۴",
+      "neighborhood": "نبی اکرم",
+      "source_code": "254",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۴",
+      "neighborhood": "نیکنام",
+      "source_code": "255",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۵",
+      "neighborhood": "ابوذر",
+      "source_code": "256",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۵",
+      "neighborhood": "اتابک",
+      "source_code": "257",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۵",
+      "neighborhood": "اسلام آباد - ولفجر",
+      "source_code": "258",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۵",
+      "neighborhood": "افسریه بالا",
+      "source_code": "259",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۵",
+      "neighborhood": "افسریه پایین",
+      "source_code": "260",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۵",
+      "neighborhood": "دهقان",
+      "source_code": "261",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۵",
+      "neighborhood": "شوش",
+      "source_code": "262",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۵",
+      "neighborhood": "شهرک رضویه",
+      "source_code": "263",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۵",
+      "neighborhood": "طیب",
+      "source_code": "264",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۵",
+      "neighborhood": "کیان شهر بالا",
+      "source_code": "265",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۵",
+      "neighborhood": "کیان شهر پایین",
+      "source_code": "266",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۵",
+      "neighborhood": "مسعودیه",
+      "source_code": "267",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۵",
+      "neighborhood": "مشیریه",
+      "source_code": "268",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۵",
+      "neighborhood": "مطهری",
+      "source_code": "269",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۵",
+      "neighborhood": "مظاهری",
+      "source_code": "270",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۵",
+      "neighborhood": "مینایی",
+      "source_code": "271",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۵",
+      "neighborhood": "ولیعصر",
+      "source_code": "272",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۵",
+      "neighborhood": "هاشم آباد",
+      "source_code": "273",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۶",
+      "neighborhood": "باغ آذری",
+      "source_code": "274",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۶",
+      "neighborhood": "تختی",
+      "source_code": "275",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۶",
+      "neighborhood": "جوادیه",
+      "source_code": "276",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۶",
+      "neighborhood": "خزانه",
+      "source_code": "277",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۶",
+      "neighborhood": "شهرک بعثت",
+      "source_code": "278",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۶",
+      "neighborhood": "علی آباد جنوبی",
+      "source_code": "279",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۶",
+      "neighborhood": "علی آباد شمالی",
+      "source_code": "280",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۶",
+      "neighborhood": "نازی آباد",
+      "source_code": "281",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۶",
+      "neighborhood": "یاخچی آباد(رضوان)",
+      "source_code": "282",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۷",
+      "neighborhood": "آذری",
+      "source_code": "283",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۷",
+      "neighborhood": "امام زاده حسن",
+      "source_code": "284",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۷",
+      "neighborhood": "باغ خزانه",
+      "source_code": "285",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۷",
+      "neighborhood": "بلورسازی",
+      "source_code": "286",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۷",
+      "neighborhood": "جلیلی",
+      "source_code": "287",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۷",
+      "neighborhood": "زمزم",
+      "source_code": "288",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۷",
+      "neighborhood": "زهتابی",
+      "source_code": "289",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۷",
+      "neighborhood": "فلاح",
+      "source_code": "290",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۷",
+      "neighborhood": "گلچین",
+      "source_code": "291",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۷",
+      "neighborhood": "مقدم",
+      "source_code": "292",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۷",
+      "neighborhood": "وصفنارد",
+      "source_code": "293",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۷",
+      "neighborhood": "یافت آباد",
+      "source_code": "294",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۸",
+      "neighborhood": "بهداشت",
+      "source_code": "295",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۸",
+      "neighborhood": "تولید دارو",
+      "source_code": "296",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۸",
+      "neighborhood": "حسینی -فردوس",
+      "source_code": "297",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۸",
+      "neighborhood": "خلیج فارس جنوبی",
+      "source_code": "298",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۸",
+      "neighborhood": "خلیج فارس شمالی",
+      "source_code": "299",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۸",
+      "neighborhood": "شاد آباد",
+      "source_code": "300",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۸",
+      "neighborhood": "شمس آباد",
+      "source_code": "301",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۸",
+      "neighborhood": "شهرک امام خمینی",
+      "source_code": "302",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۸",
+      "neighborhood": "شهید رجائی",
+      "source_code": "303",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۸",
+      "neighborhood": "صاحب الزمان",
+      "source_code": "304",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۸",
+      "neighborhood": "صادقیه",
+      "source_code": "305",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۸",
+      "neighborhood": "ولیعصر جنوبی",
+      "source_code": "306",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۸",
+      "neighborhood": "ولیعصر شمالی",
+      "source_code": "307",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۸",
+      "neighborhood": "هفده شهریور",
+      "source_code": "308",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۸",
+      "neighborhood": "یافت آباد جنوبی",
+      "source_code": "309",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۸",
+      "neighborhood": "یافت آباد شمالی",
+      "source_code": "310",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۹",
+      "neighborhood": "اسفندیاری وبستان",
+      "source_code": "311",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۹",
+      "neighborhood": "اسماعیل آباد",
+      "source_code": "312",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۹",
+      "neighborhood": "بهمنیار",
+      "source_code": "313",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۹",
+      "neighborhood": "خانی آباد نو جنوبی",
+      "source_code": "314",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۹",
+      "neighborhood": "خانی آباد نو شمالی",
+      "source_code": "315",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۹",
+      "neighborhood": "دولت خواه",
+      "source_code": "316",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۹",
+      "neighborhood": "شریعتی جنوبی",
+      "source_code": "317",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۹",
+      "neighborhood": "شریعتی شمالی",
+      "source_code": "318",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۹",
+      "neighborhood": "شکوفه جنوبی",
+      "source_code": "319",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۹",
+      "neighborhood": "شکوفه شمالی",
+      "source_code": "320",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۹",
+      "neighborhood": "شهرک احمد خمینی",
+      "source_code": "321",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۹",
+      "neighborhood": "شهرک رسالت",
+      "source_code": "322",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۹",
+      "neighborhood": "شهید کاظمی",
+      "source_code": "323",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۹",
+      "neighborhood": "عبدل آباد",
+      "source_code": "324",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۹",
+      "neighborhood": "علی آباد",
+      "source_code": "325",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۹",
+      "neighborhood": "قلعه مرغی",
+      "source_code": "326",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۱۹",
+      "neighborhood": "نعمت آباد",
+      "source_code": "327",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۲۰",
+      "neighborhood": "استخر",
+      "source_code": "328",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۲۰",
+      "neighborhood": "اقدسیه",
+      "source_code": "329",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۲۰",
+      "neighborhood": "باروت کوبی",
+      "source_code": "330",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۲۰",
+      "neighborhood": "تقی آبد",
+      "source_code": "331",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۲۰",
+      "neighborhood": "جوانمرد قصاب",
+      "source_code": "332",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۲۰",
+      "neighborhood": "حمزه آباد",
+      "source_code": "333",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۲۰",
+      "neighborhood": "دولت آباد",
+      "source_code": "334",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۲۰",
+      "neighborhood": "دیلمان",
+      "source_code": "335",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۲۰",
+      "neighborhood": "سرتخت",
+      "source_code": "336",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۲۰",
+      "neighborhood": "سیزده آبان",
+      "source_code": "337",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۲۰",
+      "neighborhood": "شهادت",
+      "source_code": "338",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۲۰",
+      "neighborhood": "شهید بهشتی",
+      "source_code": "339",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۲۰",
+      "neighborhood": "شهید غیوری-ابن بابویه",
+      "source_code": "340",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۲۰",
+      "neighborhood": "صفاییه",
+      "source_code": "341",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۲۰",
+      "neighborhood": "ظهیر آباد و ابن بابویه",
+      "source_code": "342",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۲۰",
+      "neighborhood": "علایین",
+      "source_code": "343",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۲۰",
+      "neighborhood": "عیاس آباد",
+      "source_code": "344",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۲۰",
+      "neighborhood": "فیروز آبادی",
+      "source_code": "345",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۲۰",
+      "neighborhood": "منصوریه منگل",
+      "source_code": "346",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۲۰",
+      "neighborhood": "ولی آباد",
+      "source_code": "347",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۲۰",
+      "neighborhood": "هاشم آباد",
+      "source_code": "348",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۲۱",
+      "neighborhood": "باشگاه نفت",
+      "source_code": "349",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۲۱",
+      "neighborhood": "تهرانسر شرقی",
+      "source_code": "350",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۲۱",
+      "neighborhood": "تهرانسر شمالی",
+      "source_code": "351",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۲۱",
+      "neighborhood": "تهرانسر غربی",
+      "source_code": "352",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۲۱",
+      "neighborhood": "تهرانسر مرکزی",
+      "source_code": "353",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۲۱",
+      "neighborhood": "چیتگر جنوبی",
+      "source_code": "354",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۲۱",
+      "neighborhood": "چیتگر شمالی",
+      "source_code": "355",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۲۱",
+      "neighborhood": "شهرک آزادی",
+      "source_code": "356",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۲۱",
+      "neighborhood": "شهرک استقلال",
+      "source_code": "357",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۲۱",
+      "neighborhood": "شهرک پاسداران",
+      "source_code": "358",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۲۱",
+      "neighborhood": "شهرک دانشگاه تهران",
+      "source_code": "359",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۲۱",
+      "neighborhood": "شهرک دریا",
+      "source_code": "360",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۲۱",
+      "neighborhood": "شهرک شهرداری",
+      "source_code": "361",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۲۱",
+      "neighborhood": "شهرک غزالی",
+      "source_code": "362",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۲۱",
+      "neighborhood": "شهرک فرهنگیان",
+      "source_code": "363",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۲۱",
+      "neighborhood": "ورداورد",
+      "source_code": "364",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۲۱",
+      "neighborhood": "ویلا شهر",
+      "source_code": "365",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۲۲",
+      "neighborhood": "آبشار تهران",
+      "source_code": "366",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۲۲",
+      "neighborhood": "پژوهش شمالی",
+      "source_code": "368",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۲۲",
+      "neighborhood": "چیتگر - آزاد شهر",
+      "source_code": "367",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۲۲",
+      "neighborhood": "دهکده المپیک",
+      "source_code": "369",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۲۲",
+      "neighborhood": "زیبادشت",
+      "source_code": "370",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۲۲",
+      "neighborhood": "شهرک شهید خرازی",
+      "source_code": "371",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۲۲",
+      "neighborhood": "شهرک صدرا",
+      "source_code": "372",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۲۲",
+      "neighborhood": "گلستان شرقی",
+      "source_code": "373",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    },
+    {
+      "city": "تهران",
+      "district": "منطقه ۲۲",
+      "neighborhood": "گلستان غربی",
+      "source_code": "374",
+      "source_year": 1403,
+      "provenance_url": "https://data.tehran.ir/صفحه-اصلی/سرزمین-و-آب-و-هوا/تقسیمات-شهری/"
+    }
+  ]
+}
+
