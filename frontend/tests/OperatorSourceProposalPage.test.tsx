@@ -542,3 +542,61 @@ test("reviews profile evidence, edits a field, and approves only a validated ver
   expect(approved).toBe(true);
   expect(await screen.findByText("تصمیم ثبت شد.")).toBeVisible();
 });
+
+test("keeps approved Source cases available for run monitoring", async () => {
+  server.use(
+    http.get("*/api/v1/operator/source-proposals/", () =>
+      HttpResponse.json([
+        {
+          ...proposal,
+          state: "approved",
+          assignment: {
+            id: 8,
+            state: "active",
+            source: { domain: "khaneh.example", display_name: "خانه‌یاب" },
+            active_profile_version: { id: "version", number: 1 },
+            review_mode: "approval_required",
+            recent_requests: [
+              {
+                id: "request",
+                canonical_url: "https://khaneh.example/new-rentals",
+                state: "running",
+                created_at: "2026-09-05T08:00:00Z",
+                run: {
+                  attempts: 1,
+                  discovered: 0,
+                  extracted: 0,
+                  published: 0,
+                  needs_attention: 0,
+                  rejected: 0,
+                  failed: 0,
+                  errors: [],
+                },
+              },
+            ],
+          },
+        },
+      ]),
+    ),
+    http.get("*/api/v1/operator/external-listing-candidates/", () =>
+      HttpResponse.json([]),
+    ),
+  );
+  render(
+    <QueryClientProvider
+      client={
+        new QueryClient({ defaultOptions: { queries: { retry: false } } })
+      }
+    >
+      <MemoryRouter>
+        <OperatorSourceProposalPage />
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+  expect(
+    await screen.findByText("https://khaneh.example/new-rentals"),
+  ).toBeVisible();
+  expect(screen.getByText("در حال استخراج")).toBeVisible();
+  expect(screen.queryByRole("button", { name: "شروع بررسی" })).toBeNull();
+  expect(screen.queryByRole("button", { name: "درخواست استخراج" })).toBeNull();
+});

@@ -201,3 +201,26 @@ database layer, synchronous run lifecycle, or unrestricted prototype networking.
    variants into Listing and reviewed Property images.
 5. Add the small Submitter and Operator run summaries and remove the simulated-candidate path after
    migration tests cover the real workflow.
+
+## Assigned Extraction Requests and Runs
+
+An active Source Representative can submit a URL through
+`POST /api/v1/source-proposals/{proposal_id}/extraction-requests/` with the assignment ID and URL.
+The service rejects stale authorization and checks the exact host and public DNS destination
+before queueing. The worker independently revalidates network destinations on each fetch.
+
+The transaction queues Celery work after commit. Each request retains its original URL, normalized
+URL, requester, assignment and approved profile version. One run survives duplicate deliveries
+and up to three attempts. A twelve-minute recovery window exceeds the eleven-minute worker hard
+limit; an attempt number fences late results from an older worker. Authorization is checked
+between fetches, before extraction, and under the Source lock before retaining results.
+
+Discovery is limited to twenty pages and depth two. Extraction applies the approved profile without
+training or LLM calls. Results are deduplicated by canonical URL and retained with their evidence
+on the run for the candidate/publication workflow in #113. This slice does not publish candidates;
+the published counter stays zero. Missing pages in a bounded run never withdraw existing Listings.
+
+The dashboard and approved Operator Source cases show the ten most recent requests, state,
+attempt count, six counters, and bounded transient failure messages. Transport exception text and
+HTML are not exposed in these summaries. Successful partial runs retain page failures alongside
+valid extraction results; failed transient runs retry after twelve minutes.

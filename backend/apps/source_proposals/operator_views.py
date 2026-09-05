@@ -56,7 +56,7 @@ class OperatorSourceProposalListView(APIView):
     def get(self, request: Request) -> Response:
         proposals = (
             SourceProposal.objects
-            .filter(state=SourceProposalState.PENDING)
+            .filter(state__in=(SourceProposalState.PENDING, SourceProposalState.APPROVED))
             .exclude(submitter=cast(User, request.user))
             .prefetch_related("events__actor")
         )

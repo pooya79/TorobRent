@@ -1,8 +1,12 @@
+import { ExtractionHistory } from "./ExtractionHistory";
+import { ExtractionRequestForm } from "./ExtractionRequestForm";
 import type { components } from "@/lib/api/schema";
 
 export function SourceAssignmentSummary({
   assignment,
+  proposalId,
 }: {
+  proposalId?: string;
   assignment: components["schemas"]["SourceAssignment"];
 }) {
   return (
@@ -33,6 +37,15 @@ export function SourceAssignmentSummary({
               : "روش بررسی برای این تخصیص ثبت نشده است."}
         </p>
       )}
+      {proposalId &&
+        assignment.state === "active" &&
+        assignment.active_profile_version && (
+          <ExtractionRequestForm
+            proposalId={proposalId}
+            assignmentId={assignment.id}
+          />
+        )}
+      <ExtractionHistory requests={assignment.recent_requests ?? []} />
     </section>
   );
 }

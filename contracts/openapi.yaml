@@ -2635,6 +2635,34 @@ paths:
               schema:
                 $ref: '#/components/schemas/SourceProposal'
           description: ''
+  /api/v1/source-proposals/{proposal_id}/extraction-requests/:
+    post:
+      operationId: v1_source_proposals_extraction_requests_create
+      summary: Submit an Extraction Request under an active assignment
+      parameters:
+      - in: path
+        name: proposal_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExtractionSubmit'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExtractionRequest'
+          description: ''
   /api/v1/source-proposals/{proposal_id}/preview/:
     post:
       operationId: v1_source_proposals_preview_create
@@ -4293,6 +4321,156 @@ components:
         * `changes_requested` - نیازمند اصلاح
         * `rejected` - ردشده
         * `published` - منتشرشده
+    ExtractionError:
+      type: object
+      properties:
+        code:
+          type: string
+        detail:
+          type: string
+        transient:
+          type: boolean
+      required:
+      - code
+      - detail
+      - transient
+    ExtractionRequest:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        assignment:
+          type: integer
+          readOnly: true
+        requester:
+          type:
+          - string
+          - 'null'
+          format: uuid
+          readOnly: true
+        profile_version:
+          type: string
+          format: uuid
+          readOnly: true
+        submitted_url:
+          type: string
+          format: uri
+          readOnly: true
+        canonical_url:
+          type: string
+          format: uri
+          readOnly: true
+        state:
+          allOf:
+          - $ref: '#/components/schemas/State299Enum'
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+        run:
+          oneOf:
+          - $ref: '#/components/schemas/ExtractionRun'
+          - type: 'null'
+          readOnly: true
+      required:
+      - assignment
+      - canonical_url
+      - created_at
+      - id
+      - profile_version
+      - requester
+      - run
+      - state
+      - submitted_url
+      - updated_at
+    ExtractionRun:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        profile_version:
+          type: string
+          format: uuid
+          readOnly: true
+        pipeline_version:
+          type: string
+          readOnly: true
+        state:
+          allOf:
+          - $ref: '#/components/schemas/State299Enum'
+          readOnly: true
+        attempts:
+          type: integer
+          readOnly: true
+        started_at:
+          type: string
+          format: date-time
+          readOnly: true
+        completed_at:
+          type:
+          - string
+          - 'null'
+          format: date-time
+          readOnly: true
+        discovered:
+          type: integer
+          readOnly: true
+        extracted:
+          type: integer
+          readOnly: true
+        published:
+          type: integer
+          readOnly: true
+        needs_attention:
+          type: integer
+          readOnly: true
+        rejected:
+          type: integer
+          readOnly: true
+        failed:
+          type: integer
+          readOnly: true
+        errors:
+          type: array
+          items:
+            $ref: '#/components/schemas/ExtractionError'
+          readOnly: true
+      required:
+      - attempts
+      - completed_at
+      - discovered
+      - errors
+      - extracted
+      - failed
+      - id
+      - needs_attention
+      - pipeline_version
+      - profile_version
+      - published
+      - rejected
+      - started_at
+      - state
+    ExtractionSubmit:
+      type: object
+      properties:
+        assignment:
+          type: integer
+          minimum: 1
+        url:
+          type: string
+          maxLength: 1000
+      required:
+      - assignment
+      - url
     FacetCount:
       type: object
       properties:
@@ -6338,10 +6516,16 @@ components:
           - string
           - 'null'
           format: date-time
+        recent_requests:
+          type: array
+          items:
+            $ref: '#/components/schemas/ExtractionRequest'
+          readOnly: true
       required:
       - active_profile_version
       - created_at
       - id
+      - recent_requests
       - review_mode
       - source
       - state
@@ -6821,6 +7005,20 @@ components:
       - id
       - name
       - outbound_policy
+    State299Enum:
+      enum:
+      - queued
+      - running
+      - complete
+      - failed
+      - cancelled
+      type: string
+      description: |-
+        * `queued` - در صف
+        * `running` - در حال استخراج
+        * `complete` - پایان یافته
+        * `failed` - ناموفق
+        * `cancelled` - لغوشده
     Submission:
       type: object
       properties:

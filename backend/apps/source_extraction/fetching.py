@@ -899,3 +899,23 @@ def _run_with_deadline[OperationResult](
     if result.error is not None:
         raise result.error
     return cast(OperationResult, result.value)
+
+
+_PREFLIGHT_SLOTS = threading.BoundedSemaphore(MAX_CONCURRENCY)
+
+
+def validate_public_destination(url: str, *, approved_host: str) -> bool:
+    """DNS-only preflight; fetching still independently pins and validates every hop."""
+    fetcher = SourcePageFetcher(approved_host=approved_host)
+    if fetcher._validate_url(url):
+        return False
+    parts = urlsplit(url)
+    try:
+        addresses = _run_with_deadline(
+            partial(resolve_addresses, approved_host, 443 if parts.scheme == "https" else 80),
+            timeout_seconds=REQUEST_TIMEOUT_SECONDS,
+            slots=_PREFLIGHT_SLOTS,
+        )
+        return bool(addresses) and all(_is_public_address(address) for address in addresses)
+    except Exception:
+        return False

@@ -4,6 +4,7 @@ from django.utils import timezone
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
+from .extraction_serializers import ExtractionRequestSerializer
 from .models import (
     DiscoveryStage,
     ExternalListingCandidate,
@@ -127,6 +128,16 @@ class AssignmentProfileVersionSerializer(serializers.Serializer[Any]):
 
 
 class SourceAssignmentSerializer(serializers.ModelSerializer[SourceAssignment]):
+    recent_requests = serializers.SerializerMethodField()
+
+    @extend_schema_field(ExtractionRequestSerializer(many=True))
+    def get_recent_requests(self, assignment: SourceAssignment) -> list[dict[str, Any]]:
+        return list(
+            ExtractionRequestSerializer(
+                assignment.requests.select_related("run")[:10], many=True
+            ).data
+        )
+
     source = AssignmentSourceSerializer(read_only=True)  # type: ignore[assignment]
     state = serializers.SerializerMethodField()
     active_profile_version = serializers.SerializerMethodField()
@@ -148,6 +159,7 @@ class SourceAssignmentSerializer(serializers.ModelSerializer[SourceAssignment]):
             "review_mode",
             "created_at",
             "revoked_at",
+            "recent_requests",
         )
 
     @extend_schema_field(serializers.ChoiceField(choices=("active", "revoked")))

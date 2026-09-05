@@ -183,3 +183,36 @@ class SourceProposalSubmitView(APIView):
         except DjangoValidationError as exc:
             raise ValidationError(exc.messages[0]) from None
         return Response(SourceProposalSerializer(proposal).data)
+
+
+class ExtractionRequestCreateView(APIView):
+    from .extraction_serializers import ExtractionRequestSerializer, ExtractionSubmitSerializer
+
+    @extend_schema(
+        summary="Submit an Extraction Request under an active assignment",
+        request=ExtractionSubmitSerializer,
+        responses={201: ExtractionRequestSerializer},
+    )
+    def post(self, request: Request, proposal_id: str) -> Response:
+        from .extraction import submit_request
+        from .extraction_serializers import ExtractionRequestSerializer, ExtractionSubmitSerializer
+        from .models import SourceAssignment
+
+        serializer = ExtractionSubmitSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        get_object_or_404(
+            SourceAssignment,
+            pk=serializer.validated_data["assignment"],
+            proposal_id=proposal_id,
+            representative=request.user,
+        )
+        try:
+            record = submit_request(
+                assignment_id=serializer.validated_data["assignment"],
+                proposal_id=proposal_id,
+                actor=cast(User, request.user),
+                url=serializer.validated_data["url"],
+            )
+        except DjangoValidationError as exc:
+            raise ValidationError(exc.messages[0]) from None
+        return Response(ExtractionRequestSerializer(record).data, status=201)

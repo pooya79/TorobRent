@@ -1,3 +1,4 @@
+import { SourceAssignmentSummary } from "@/features/source-proposals/SourceAssignmentSummary";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
@@ -5,7 +6,7 @@ import { PageMain } from "@/components/layout/PageMain";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -471,13 +472,24 @@ export function OperatorSourceProposalPage() {
         <p>Source Proposal در انتظار بررسی وجود ندارد.</p>
       )}
       <div className="grid gap-6">
-        {proposals.data?.map((proposal) => (
-          <ProposalReviewCard
-            key={proposal.id}
-            proposal={proposal}
-            onDecisionSuccess={removeCompletedProposal}
-          />
-        ))}
+        {proposals.data?.map((proposal) =>
+          proposal.state === "approved" && proposal.assignment ? (
+            <Card key={proposal.id}>
+              <CardHeader>
+                <CardTitle>{proposal.website_name}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <SourceAssignmentSummary assignment={proposal.assignment} />
+              </CardContent>
+            </Card>
+          ) : (
+            <ProposalReviewCard
+              key={proposal.id}
+              proposal={proposal}
+              onDecisionSuccess={removeCompletedProposal}
+            />
+          ),
+        )}
       </div>
       {mayReview && (
         <section className="mt-12" aria-labelledby="external-candidate-heading">

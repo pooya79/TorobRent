@@ -68,6 +68,7 @@ class DiscoveryPage:
     sanitized_html: str | None
     rendering_method: str | None
     fetch_failure: FetchFailure | None = None
+    http_status: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -284,6 +285,7 @@ class ExtractionContract:
                 link_score=-negative_score,
                 sanitized_html=retained_html,
                 rendering_method=rendering_method,
+                http_status=fetched.status_code,
             )
             pages.append(page)
             if classification.kind is PageKind.RENTAL_LISTING:

@@ -491,3 +491,88 @@ test.each([
     ).toBeNull();
   },
 );
+
+test("submits an assigned URL and displays run counters and transient errors", async () => {
+  const user = userEvent.setup();
+  let submitted = false;
+  const runRequest = {
+    id: "a0000000-0000-4000-8000-000000000001",
+    submitted_url: "https://khaneh.example/rentals",
+    canonical_url: "https://khaneh.example/rentals",
+    state: "failed",
+    created_at: "2026-09-05T08:00:00Z",
+    run: {
+      state: "failed",
+      attempts: 1,
+      discovered: 10,
+      extracted: 8,
+      published: 0,
+      needs_attention: 2,
+      rejected: 1,
+      failed: 1,
+      errors: [
+        { code: "timeout", detail: "دریافت صفحه ناموفق بود.", transient: true },
+      ],
+    },
+  };
+  server.use(
+    http.get("*/api/v1/submissions/", () => HttpResponse.json([])),
+    http.get("*/api/v1/source-proposals/", () =>
+      HttpResponse.json([
+        {
+          id: "10000000-0000-4000-8000-000000000087",
+          state: "approved",
+          website_name: "خانه‌یاب",
+          available_actions: [],
+          history: [],
+          assignment: {
+            id: 7,
+            state: "active",
+            source: { domain: "khaneh.example", display_name: "خانه‌یاب" },
+            active_profile_version: { id: "version", number: 1 },
+            review_mode: "approval_required",
+            recent_requests: submitted ? [runRequest] : [],
+          },
+        },
+      ]),
+    ),
+    http.post(
+      "*/api/v1/source-proposals/:id/extraction-requests/",
+      async ({ request }) => {
+        expect(await request.json()).toEqual({
+          assignment: 7,
+          url: "https://khaneh.example/rentals",
+        });
+        submitted = true;
+        return HttpResponse.json(runRequest, { status: 201 });
+      },
+    ),
+  );
+  render(
+    <QueryClientProvider
+      client={
+        new QueryClient({ defaultOptions: { queries: { retry: false } } })
+      }
+    >
+      <MemoryRouter>
+        <SubmitterDashboardPage />
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+  await user.type(
+    await screen.findByLabelText("نشانی برای استخراج"),
+    "https://khaneh.example/rentals",
+  );
+  await user.click(screen.getByRole("button", { name: "درخواست استخراج" }));
+  expect(await screen.findByText("خطای موقت")).toBeVisible();
+  for (const label of [
+    "کشف‌شده",
+    "استخراج‌شده",
+    "منتشرشده",
+    "نیازمند توجه",
+    "ردشده",
+    "ناموفق",
+  ]) {
+    expect(screen.getAllByText(label).length).toBeGreaterThan(0);
+  }
+});

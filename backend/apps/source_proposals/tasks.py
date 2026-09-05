@@ -1,3 +1,5 @@
+from typing import Any
+
 from celery import shared_task
 
 
@@ -13,3 +15,18 @@ def expire_source_reservations() -> None:
     from .discovery_workflow import expire_reservations
 
     expire_reservations()
+
+
+@shared_task(
+    bind=True,
+    max_retries=3,
+    soft_time_limit=600,
+    time_limit=660,
+    acks_late=True,
+    reject_on_worker_lost=True,
+)  # type: ignore[untyped-decorator]
+def extract_source(self: Any, request_id: str) -> None:
+    from .extraction import run_extraction
+
+    if run_extraction(request_id):
+        raise self.retry(countdown=720)

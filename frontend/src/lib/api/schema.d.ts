@@ -1303,6 +1303,23 @@ export interface paths {
     patch: operations["v1_source_proposals_draft_partial_update"];
     trace?: never;
   };
+  "/api/v1/source-proposals/{proposal_id}/extraction-requests/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Submit an Extraction Request under an active assignment */
+    post: operations["v1_source_proposals_extraction_requests_create"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/v1/source-proposals/{proposal_id}/preview/": {
     parameters: {
       query?: never;
@@ -2104,6 +2121,54 @@ export interface components {
      */
     ExternalListingCandidateStateEnum:
       "pending" | "changes_requested" | "rejected" | "published";
+    ExtractionError: {
+      code: string;
+      detail: string;
+      transient: boolean;
+    };
+    ExtractionRequest: {
+      /** Format: uuid */
+      readonly id: string;
+      readonly assignment: number;
+      /** Format: uuid */
+      readonly requester: string | null;
+      /** Format: uuid */
+      readonly profile_version: string;
+      /** Format: uri */
+      readonly submitted_url: string;
+      /** Format: uri */
+      readonly canonical_url: string;
+      readonly state: components["schemas"]["State299Enum"];
+      /** Format: date-time */
+      readonly created_at: string;
+      /** Format: date-time */
+      readonly updated_at: string;
+      readonly run: components["schemas"]["ExtractionRun"] | null;
+    };
+    ExtractionRun: {
+      /** Format: uuid */
+      readonly id: string;
+      /** Format: uuid */
+      readonly profile_version: string;
+      readonly pipeline_version: string;
+      readonly state: components["schemas"]["State299Enum"];
+      readonly attempts: number;
+      /** Format: date-time */
+      readonly started_at: string;
+      /** Format: date-time */
+      readonly completed_at: string | null;
+      readonly discovered: number;
+      readonly extracted: number;
+      readonly published: number;
+      readonly needs_attention: number;
+      readonly rejected: number;
+      readonly failed: number;
+      readonly errors: components["schemas"]["ExtractionError"][];
+    };
+    ExtractionSubmit: {
+      assignment: number;
+      url: string;
+    };
     FacetCount: {
       value: string;
       count: number;
@@ -2989,6 +3054,7 @@ export interface components {
       readonly created_at: string;
       /** Format: date-time */
       revoked_at?: string | null;
+      readonly recent_requests: components["schemas"]["ExtractionRequest"][];
     };
     /**
      * @description * `active` - active
@@ -3187,6 +3253,15 @@ export interface components {
       display_name: string;
       outbound_policy: components["schemas"]["OutboundPolicyEnum"];
     };
+    /**
+     * @description * `queued` - در صف
+     *     * `running` - در حال استخراج
+     *     * `complete` - پایان یافته
+     *     * `failed` - ناموفق
+     *     * `cancelled` - لغوشده
+     * @enum {string}
+     */
+    State299Enum: "queued" | "running" | "complete" | "failed" | "cancelled";
     Submission: {
       /** Format: uuid */
       readonly id: string;
@@ -6259,6 +6334,31 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["SourceProposal"];
+        };
+      };
+    };
+  };
+  v1_source_proposals_extraction_requests_create: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        proposal_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ExtractionSubmit"];
+      };
+    };
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ExtractionRequest"];
         };
       };
     };

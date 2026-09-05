@@ -479,3 +479,55 @@ class SourceProfileSnapshots(models.Model):
 
     def __str__(self) -> str:
         return f"Validation snapshots {self.reservation_id}"
+
+
+class ExtractionState(models.TextChoices):
+    QUEUED = "queued", "در صف"
+    RUNNING = "running", "در حال استخراج"
+    COMPLETE = "complete", "پایان یافته"
+    FAILED = "failed", "ناموفق"
+    CANCELLED = "cancelled", "لغوشده"
+
+
+class ExtractionRequest(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    assignment = models.ForeignKey(
+        SourceAssignment, on_delete=models.PROTECT, related_name="requests"
+    )
+    requester = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True)
+    profile_version = models.ForeignKey(SourceProfileVersion, on_delete=models.PROTECT)
+    submitted_url = models.URLField(max_length=1000)
+    canonical_url = models.URLField(max_length=1000)
+    state = models.CharField(max_length=16, choices=ExtractionState, default=ExtractionState.QUEUED)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ("-created_at", "-id")
+
+    def __str__(self) -> str:
+        return f"Extraction Request {self.pk}"
+
+
+class ExtractionRun(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    request = models.OneToOneField(ExtractionRequest, on_delete=models.PROTECT, related_name="run")
+    profile_version = models.ForeignKey(SourceProfileVersion, on_delete=models.PROTECT)
+    pipeline_version = models.CharField(max_length=64)
+    state = models.CharField(
+        max_length=16, choices=ExtractionState, default=ExtractionState.RUNNING
+    )
+    attempts = models.PositiveIntegerField(default=1)
+    started_at = models.DateTimeField()
+    completed_at = models.DateTimeField(null=True)
+    discovered = models.PositiveIntegerField(default=0)
+    extracted = models.PositiveIntegerField(default=0)
+    published = models.PositiveIntegerField(default=0)
+    needs_attention = models.PositiveIntegerField(default=0)
+    rejected = models.PositiveIntegerField(default=0)
+    failed = models.PositiveIntegerField(default=0)
+    errors = models.JSONField(default=list)
+    results = models.JSONField(default=list)
+
+    def __str__(self) -> str:
+        return f"Extraction Run {self.pk}"

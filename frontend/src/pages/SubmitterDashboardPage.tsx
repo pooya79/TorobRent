@@ -197,6 +197,7 @@ export function SubmitterDashboardPage() {
                     {proposal.assignment && (
                       <SourceAssignmentSummary
                         assignment={proposal.assignment}
+                        proposalId={proposal.id}
                       />
                     )}
                     {history.length > 0 && (
