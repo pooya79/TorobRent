@@ -85,7 +85,7 @@ services:
       context: .
       dockerfile: backend/Dockerfile
       target: development
-    command: uv run --no-sync celery -A config worker --loglevel=INFO
+    command: uv run --no-sync celery -A config worker --loglevel=INFO --concurrency=2
     working_dir: /app/backend
     environment: *backend-environment
     volumes:
