@@ -22,6 +22,15 @@ const statusLabels = {
   upheld: "تأییدشده",
 };
 
+const eventLabels = {
+  inspected: "مشاهده شواهد",
+  dismissed: "رد گزارش",
+  upheld: "تأیید گزارش",
+  pair_restricted: "محدود شدن ارتباط دو حساب",
+  initiation_suspended: "تعلیق آغاز گفت‌وگو",
+  evidence_released: "حذف شواهد خصوصی",
+};
+
 export function OperatorConversationReportsPage() {
   const queryClient = useQueryClient();
   const [selectedId, setSelectedId] = useState<string>();
@@ -65,7 +74,7 @@ export function OperatorConversationReportsPage() {
 
   return (
     <PageMain>
-      <header className="mb-8">
+      <header className="mb-8 border-b pb-6">
         <p className="text-muted-foreground mb-2 text-sm">
           نظارت محدود به گزارش
         </p>
@@ -182,7 +191,7 @@ export function OperatorConversationReportsPage() {
               >
                 {detail.data.audit_history.map((event) => (
                   <li key={event.id}>
-                    {event.event_type} — {event.actor_label}
+                    {eventLabels[event.event_type]} — {event.actor_label}
                   </li>
                 ))}
               </ol>
@@ -237,10 +246,10 @@ export function OperatorConversationReportsPage() {
                       >
                         <option value="">بدون تعلیق</option>
                         <option value={evidence.participants.renter_id}>
-                          حساب Renter
+                          حساب متقاضی اجاره
                         </option>
                         <option value={evidence.participants.submitter_id}>
-                          حساب Submitter
+                          حساب ثبت‌کننده آگهی
                         </option>
                       </select>
                     </div>

@@ -74,6 +74,25 @@ export function SearchMapPanel({
   }, [previewPropertyId]);
 
   useEffect(() => {
+    if (!previewPropertyId) return;
+
+    const dismissOutsidePreview = (event: PointerEvent) => {
+      if (
+        event.target instanceof Node &&
+        previewPanel.current &&
+        !previewPanel.current.contains(event.target)
+      ) {
+        setPreviewPropertyId(null);
+      }
+    };
+
+    document.addEventListener("pointerdown", dismissOutsidePreview, true);
+    return () => {
+      document.removeEventListener("pointerdown", dismissOutsidePreview, true);
+    };
+  }, [previewPropertyId]);
+
+  useEffect(() => {
     if (status !== "loading") {
       onAvailabilityChange?.(status === "ready");
     }

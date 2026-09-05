@@ -47,9 +47,9 @@ function WorkspaceState({
 
 function navigationClass({ isActive }: { isActive: boolean }) {
   return cn(
-    "flex min-h-11 items-center gap-3 rounded-lg px-3 text-sm font-medium transition-colors",
+    "flex min-h-12 items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
     isActive
-      ? "bg-primary text-primary-foreground"
+      ? "bg-primary/10 text-primary ring-primary/15 ring-1"
       : "text-muted-foreground hover:bg-muted hover:text-foreground",
   );
 }
@@ -67,18 +67,18 @@ function WorkspaceNavigation({
       required.some((capability) => capabilities.includes(capability)),
     ),
     {
-      label: "بررسی پیوندها (برنامه‌ریزی‌شده)",
+      label: "بررسی پیوندها · به‌زودی",
       to: "/operator/links",
       icon: Link2,
     },
   ];
 
   return (
-    <nav className="grid gap-1" aria-label="راهبری فضای اپراتور">
+    <nav className="grid gap-2" aria-label="راهبری فضای اپراتور">
       {navigation.map(({ label, to, icon: Icon }) => {
         const link = (
           <NavLink className={navigationClass} to={to} end={to === "/operator"}>
-            <Icon className="size-5" aria-hidden="true" />
+            <Icon className="size-5 shrink-0" aria-hidden="true" />
             {label}
           </NavLink>
         );
@@ -90,9 +90,6 @@ function WorkspaceNavigation({
           <span key={to}>{link}</span>
         );
       })}
-      <div className="border-border mt-4 border-t pt-4">
-        <ThemeSwitcher />
-      </div>
     </nav>
   );
 }
@@ -102,9 +99,19 @@ function OperatorShell({
 }: {
   capabilities: OperatorCapability[];
 }) {
+  const location = useLocation();
+  const currentSection =
+    operatorModules.find(({ to }) => location.pathname.startsWith(to))?.label ??
+    (location.pathname === "/operator/links" ? "بررسی پیوندها" : "نمای کلی");
   return (
-    <div className="bg-muted/30 min-h-screen">
-      <aside className="border-border bg-background fixed inset-y-0 start-0 z-30 hidden w-72 border-e px-5 py-6 lg:flex lg:flex-col">
+    <div dir="rtl" className="bg-muted/30 min-h-screen">
+      <a
+        href="#main-content"
+        className="bg-background text-primary fixed start-3 top-3 z-50 rounded-lg px-4 py-3 shadow-lg not-focus:sr-only"
+      >
+        رفتن به محتوای اصلی
+      </a>
+      <aside className="border-border bg-background fixed inset-y-0 start-0 z-30 hidden w-72 overflow-y-auto border-e px-5 py-6 lg:flex lg:flex-col">
         <NavLink
           className="flex min-h-11 items-center gap-3 font-bold"
           to="/operator"
@@ -121,6 +128,9 @@ function OperatorShell({
           </span>
         </NavLink>
         <div className="mt-10 flex-1">
+          <p className="text-muted-foreground mb-3 px-3 text-xs font-medium">
+            بخش‌های کاری
+          </p>
           <WorkspaceNavigation capabilities={capabilities} />
         </div>
         <Button asChild variant="ghost" className="min-h-11 justify-start">
@@ -138,31 +148,64 @@ function OperatorShell({
           <ShieldCheck className="text-primary size-5" aria-hidden="true" />
           فضای اپراتور
         </NavLink>
-        <Sheet>
-          <SheetTrigger asChild>
-            <Button
-              size="icon"
-              variant="secondary"
-              aria-label="باز کردن راهبری اپراتور"
-            >
-              <Menu aria-hidden="true" />
-            </Button>
-          </SheetTrigger>
-          <SheetContent side="right" className="w-[min(88vw,22rem)] pt-14">
-            <SheetHeader className="text-start">
-              <SheetTitle>فضای اپراتور</SheetTitle>
-              <SheetDescription>
-                فقط مسئولیت‌های واگذارشده نمایش داده می‌شوند.
-              </SheetDescription>
-            </SheetHeader>
-            <div className="mt-6">
-              <WorkspaceNavigation capabilities={capabilities} mobile />
-            </div>
-          </SheetContent>
-        </Sheet>
+        <div className="flex items-center gap-2">
+          <Sheet>
+            <SheetTrigger asChild>
+              <Button
+                size="icon"
+                variant="secondary"
+                aria-label="باز کردن راهبری اپراتور"
+              >
+                <Menu aria-hidden="true" />
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="right" className="w-[min(88vw,22rem)] pt-14">
+              <SheetHeader className="text-start">
+                <SheetTitle>فضای اپراتور</SheetTitle>
+                <SheetDescription>
+                  فقط مسئولیت‌های واگذارشده نمایش داده می‌شوند.
+                </SheetDescription>
+              </SheetHeader>
+              <div className="mt-6">
+                <WorkspaceNavigation capabilities={capabilities} mobile />
+                <SheetClose asChild>
+                  <Button
+                    asChild
+                    variant="ghost"
+                    className="mt-6 w-full justify-start"
+                  >
+                    <NavLink to="/">
+                      <ExternalLink aria-hidden="true" />
+                      بازگشت به سایت
+                    </NavLink>
+                  </Button>
+                </SheetClose>
+              </div>
+            </SheetContent>
+          </Sheet>
+          <ThemeSwitcher />
+        </div>
       </header>
 
       <div className="lg:ps-72">
+        <div
+          className="border-border bg-background/80 hidden min-h-18 items-center gap-3 border-b px-10 text-sm lg:flex"
+          aria-label="موقعیت فعلی"
+        >
+          <NavLink
+            to="/operator"
+            className="text-muted-foreground hover:text-foreground"
+          >
+            میز کار
+          </NavLink>
+          <span className="text-muted-foreground" aria-hidden="true">
+            /
+          </span>
+          <span className="font-medium">{currentSection}</span>
+          <div className="ms-auto">
+            <ThemeSwitcher />
+          </div>
+        </div>
         <Outlet />
       </div>
     </div>

@@ -14,8 +14,8 @@ export default function OperatorLinksRoute() {
         <Link2 className="size-5" aria-hidden="true" />
         <AlertTitle>این بخش برنامه‌ریزی شده است</AlertTitle>
         <AlertDescription>
-          هنوز گردش‌کار، صف یا بررسی خودکاری برای Link Verification ساخته نشده
-          است. این صفحه فقط محدوده آینده را معرفی می‌کند و داده عملیاتی نمایش
+          هنوز گردش‌کار، صف یا بررسی خودکاری برای بررسی پیوندها ساخته نشده است.
+          این صفحه فقط محدوده آینده را معرفی می‌کند و داده عملیاتی نمایش
           نمی‌دهد.
         </AlertDescription>
       </Alert>

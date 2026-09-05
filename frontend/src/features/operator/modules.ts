@@ -29,16 +29,16 @@ export const operatorModules = [
   },
   {
     capabilities: ["review_source_proposals", "manage_operator_queues"],
-    description: "اعتبارسنجی Source و رابطه نماینده آن",
+    description: "اعتبارسنجی منبع و رابطه نماینده آن",
     icon: Globe2,
-    label: "اعتبارسنجی Sourceها",
+    label: "اعتبارسنجی منابع",
     to: "/operator/source-proposals",
   },
   {
     capabilities: ["review_submissions"],
-    description: "صف Submissionهای آماده بررسی و انتشار",
+    description: "صف درخواست‌های آماده بررسی و انتشار",
     icon: ClipboardCheck,
-    label: "بررسی Submissionها",
+    label: "بررسی درخواست‌های ثبت آگهی",
     to: "/operator/submissions",
   },
   {

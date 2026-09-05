@@ -1,3 +1,5 @@
+import { ChoiceButtons } from "@/components/ChoiceButtons";
+import { supportResolutionLabels } from "@/features/support/labels";
 import { useState, type FormEvent } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -9,10 +11,7 @@ import type {
 } from "@/features/support/queries";
 
 const fieldClass =
-  "border-input bg-background mt-1 min-h-24 w-full rounded-md border px-3 py-2 text-sm";
-const selectClass =
-  "border-input bg-background mt-1 h-11 w-full rounded-md border px-3";
-
+  "border-input bg-background mt-1 min-h-24 w-full rounded-xl border px-3 py-2 text-sm";
 export function SupportFinalizationPanel({
   canRecord,
   isPending,
@@ -49,28 +48,19 @@ export function SupportFinalizationPanel({
     <>
       {canRecord && (
         <form
-          className="border-border rounded-lg border p-4"
+          className="border-border rounded-xl border p-4"
           onSubmit={submitResolution}
         >
           <h3 className="font-semibold">نتیجه نهایی</h3>
-          <div className="mt-3 grid gap-3 sm:grid-cols-2">
-            <Label>
-              نتیجه نهایی
-              <select
-                className={selectClass}
-                value={resolutionCategory}
-                onChange={(event) => setResolutionCategory(event.target.value)}
-              >
-                <option value="answered_externally">
-                  پاسخ بیرون از TorobRent
-                </option>
-                <option value="action_completed">اقدام تکمیل شد</option>
-                <option value="duplicate">تکراری</option>
-                <option value="spam">هرزنامه</option>
-                <option value="no_action_required">بدون اقدام لازم</option>
-              </select>
-            </Label>
-            <Label>
+          <div className="mt-4 grid gap-5">
+            <ChoiceButtons
+              label="نتیجه رسیدگی"
+              name="support-resolution"
+              value={resolutionCategory}
+              onChange={setResolutionCategory}
+              options={Object.entries(supportResolutionLabels)}
+            />
+            <Label className="grid gap-2">
               خلاصه داخلی نتیجه
               <textarea
                 className={fieldClass}
@@ -81,7 +71,11 @@ export function SupportFinalizationPanel({
               />
             </Label>
           </div>
-          <Button className="mt-3" disabled={isPending} type="submit">
+          <Button
+            className="mt-4 rounded-xl"
+            disabled={isPending}
+            type="submit"
+          >
             ثبت نتیجه و بستن
           </Button>
         </form>
@@ -89,9 +83,11 @@ export function SupportFinalizationPanel({
 
       {supportRequest.status === "resolved" &&
         supportRequest.resolution_category && (
-          <div className="bg-muted rounded-lg p-4 text-sm">
+          <div className="bg-muted rounded-xl p-4 text-sm">
             <h3 className="font-semibold">نتیجه ثبت‌شده</h3>
-            <p className="mt-2">{supportRequest.resolution_category}</p>
+            <p className="mt-2">
+              {supportResolutionLabels[supportRequest.resolution_category]}
+            </p>
             <p className="mt-1 whitespace-pre-wrap">
               {supportRequest.resolution_summary}
             </p>
@@ -108,11 +104,11 @@ export function SupportFinalizationPanel({
 
       {supportRequest.status === "resolved" && (
         <form
-          className="border-border rounded-lg border p-4"
+          className="border-border rounded-xl border p-4"
           onSubmit={submitReopen}
         >
           <h3 className="font-semibold">بازگشایی</h3>
-          <Label className="mt-3 block">
+          <Label className="mt-3 grid gap-2">
             دلیل بازگشایی
             <textarea
               className={fieldClass}

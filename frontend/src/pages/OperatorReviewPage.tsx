@@ -1,13 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  Check,
-  Clock3,
-  MessageSquareWarning,
-  ShieldX,
-  UserRound,
-} from "lucide-react";
+import { Check, Clock3, MessageSquareWarning, UserRound } from "lucide-react";
 import { useEffect, useState } from "react";
-import { Link } from "react-router";
 
 import { PageMain } from "@/components/layout/PageMain";
 import { ExactLocationPicker } from "@/features/map/ExactLocationPicker";
@@ -43,6 +36,7 @@ import {
   type Submission,
   type SubmissionApproval,
 } from "@/features/submissions/queries";
+import { SubmissionQueueFilters } from "@/features/submissions/SubmissionQueueFilters";
 import { submissionStateLabels } from "@/features/submissions/steps";
 import {
   notificationAlertVariant,
@@ -78,8 +72,7 @@ const featureFields = [
 
 function submissionTitle(submission: Submission | OperatorSubmissionQueueItem) {
   return (
-    submission.location?.neighborhood ??
-    `Submission ${submission.id.slice(0, 8)}`
+    submission.location?.neighborhood ?? `درخواست ${submission.id.slice(0, 8)}`
   );
 }
 
@@ -113,12 +106,14 @@ function currentNumericValue(
 }
 
 const reviewConflictMessages: Record<string, string> = {
-  review_revision_conflict: "نسخه Submission از زمان بررسی شما تغییر کرده است.",
-  review_claim_expired: "مهلت Review Claim شما تمام شده است.",
-  review_claim_replaced: "Review Claim اکنون در اختیار اپراتور دیگری است.",
+  review_revision_conflict:
+    "نسخه درخواست ثبت آگهی از زمان بررسی شما تغییر کرده است.",
+  review_claim_expired: "مهلت اختصاصی بررسی شما تمام شده است.",
+  review_claim_replaced:
+    "بررسی این درخواست اکنون به اپراتور دیگری واگذار شده است.",
   review_decision_conflict:
-    "اپراتور دیگری پیش از شما برای این Submission تصمیم گرفته است.",
-  review_claim_required: "Review Claim فعلی دیگر به شما تعلق ندارد.",
+    "اپراتور دیگری پیش از شما برای این درخواست ثبت آگهی تصمیم گرفته است.",
+  review_claim_required: "مهلت اختصاصی بررسی فعلی دیگر به شما تعلق ندارد.",
 };
 
 function isReviewConflict(error: unknown): error is ApiError {
@@ -281,205 +276,46 @@ export function OperatorReviewPage() {
     return () => window.clearInterval(timer);
   }, [activeId, queryClient, selected?.claim_status]);
 
-  if (queue.isPending) {
-    return (
-      <PageMain>
-        <p>در حال بارگذاری صف بررسی…</p>
-      </PageMain>
-    );
-  }
-  if (queue.isError) {
-    return (
-      <PageMain className="flex min-h-[70vh] items-center py-16">
-        <Card className="mx-auto max-w-lg text-center shadow-none">
-          <CardContent className="flex flex-col items-center py-8">
-            <ShieldX className="mb-5 size-8" aria-hidden="true" />
-            <h1 className="text-2xl font-semibold">دسترسی اپراتور لازم است</h1>
-            <p className="text-muted-foreground mt-3 leading-7">
-              این صف فقط برای کارکنانی نمایش داده می‌شود که مجوز بررسی
-              Submission را دارند.
-            </p>
-            <Button asChild className="mt-6" variant="outline">
-              <Link to="/">بازگشت به خانه</Link>
-            </Button>
-          </CardContent>
-        </Card>
-      </PageMain>
-    );
-  }
-
   return (
     <PageMain>
-      <header className="mb-6">
+      <header className="mb-6 border-b pb-6">
         <p className="text-muted-foreground mb-2 text-sm">فضای اپراتور</p>
         <h1 className="text-3xl font-semibold tracking-tight">
           صف بررسی آگهی‌ها
         </h1>
         <p className="text-muted-foreground mt-2">
-          {queue.data.count.toLocaleString("fa-IR")} مورد مطابق فیلترها
+          {queue.isPending
+            ? "در حال دریافت درخواست‌ها…"
+            : queue.data
+              ? `${queue.data.count.toLocaleString("fa-IR")} مورد مطابق فیلترها`
+              : "دریافت درخواست‌ها ناموفق بود"}
         </p>
       </header>
 
-      <Card className="mb-6 shadow-none">
-        <CardContent className="grid gap-3 pt-6 sm:grid-cols-2 lg:grid-cols-4">
-          <Label>
-            وضعیت
-            <select
-              className="border-input bg-background mt-1 h-11 w-full rounded-md border px-3"
-              value={filters.state}
-              onChange={(event) =>
-                setFilters({
-                  ...filters,
-                  state: event.target.value || undefined,
-                })
-              }
+      <SubmissionQueueFilters filters={filters} onApply={setFilters} />
+      {queue.isError && (
+        <Alert className="mb-5" variant="destructive">
+          <AlertDescription>
+            دریافت درخواست‌ها ممکن نشد. اتصال و فیلترهای انتخابی را بررسی کنید.
+            <Button
+              type="button"
+              variant="outline"
+              className="ms-3"
+              onClick={() => void queue.refetch()}
             >
-              <option value="">همه وضعیت‌ها</option>
-              <option value="draft">پیش‌نویس</option>
-              <option value="pending">در انتظار بررسی</option>
-              <option value="changes_requested">نیازمند اصلاح</option>
-              <option value="rejected">ردشده</option>
-              <option value="published">منتشرشده</option>
-            </select>
-          </Label>
-          <Label>
-            شناسه Source
-            <Input
-              value={filters.source ?? ""}
-              onChange={(event) =>
-                setFilters({
-                  ...filters,
-                  source: event.target.value || undefined,
-                })
-              }
-            />
-          </Label>
-          <Label>
-            شناسه شهر
-            <Input
-              value={filters.city ?? ""}
-              onChange={(event) =>
-                setFilters({
-                  ...filters,
-                  city: event.target.value || undefined,
-                })
-              }
-            />
-          </Label>
-          <Label>
-            شناسه منطقه
-            <Input
-              value={filters.district ?? ""}
-              onChange={(event) =>
-                setFilters({
-                  ...filters,
-                  district: event.target.value || undefined,
-                })
-              }
-            />
-          </Label>
-          <Label>
-            شناسه محله
-            <Input
-              value={filters.neighborhood ?? ""}
-              onChange={(event) =>
-                setFilters({
-                  ...filters,
-                  neighborhood: event.target.value || undefined,
-                })
-              }
-            />
-          </Label>
-          <Label>
-            ورود به صف پیش از
-            <Input
-              type="datetime-local"
-              onChange={(event) =>
-                setFilters({
-                  ...filters,
-                  pending_before: event.target.value
-                    ? new Date(event.target.value).toISOString()
-                    : undefined,
-                })
-              }
-            />
-          </Label>
-          <Label>
-            ورود به صف پس از
-            <Input
-              type="datetime-local"
-              onChange={(event) =>
-                setFilters({
-                  ...filters,
-                  pending_after: event.target.value
-                    ? new Date(event.target.value).toISOString()
-                    : undefined,
-                })
-              }
-            />
-          </Label>
-          <Label>
-            مسئول بررسی
-            <select
-              className="border-input bg-background mt-1 h-11 w-full rounded-md border px-3"
-              value={filters.assignee ?? ""}
-              onChange={(event) =>
-                setFilters({
-                  ...filters,
-                  assignee: event.target.value || undefined,
-                  page: 1,
-                })
-              }
-            >
-              <option value="">همه</option>
-              <option value="unclaimed">بدون مسئول</option>
-              <option value="mine">در اختیار من</option>
-              <option value="other">در اختیار دیگران</option>
-            </select>
-          </Label>
-          <Label>
-            حداقل سن صف (روز)
-            <Input
-              min="0"
-              type="number"
-              value={filters.age_days ?? ""}
-              onChange={(event) =>
-                setFilters({
-                  ...filters,
-                  age_days: event.target.value
-                    ? Number(event.target.value)
-                    : undefined,
-                  page: 1,
-                })
-              }
-            />
-          </Label>
-          <Label>
-            ترتیب
-            <select
-              className="border-input bg-background mt-1 h-11 w-full rounded-md border px-3"
-              value={filters.ordering}
-              onChange={(event) =>
-                setFilters({
-                  ...filters,
-                  ordering: event.target.value as "oldest" | "newest",
-                })
-              }
-            >
-              <option value="oldest">قدیمی‌ترین ابتدا</option>
-              <option value="newest">تازه‌ترین ابتدا</option>
-            </select>
-          </Label>
-        </CardContent>
-      </Card>
+              تلاش دوباره
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
 
       {reviewConflict && reviewConflict.code && (
         <Alert className="mb-5" variant="destructive">
           <AlertDescription className="space-y-3">
             <p>{reviewConflictMessages[reviewConflict.code]}</p>
             <p>
-              یادداشت‌ها و اصلاحات شما در این مرورگر حفظ شده‌اند. ابتدا
-              Submission را به‌روز کنید و سپس Review Claim جدیدی بگیرید.
+              یادداشت‌ها و اصلاحات شما در این مرورگر حفظ شده‌اند. ابتدا درخواست
+              ثبت آگهی را به‌روز کنید و سپس مهلت اختصاصی بررسی جدیدی بگیرید.
             </p>
             <Button
               variant="outline"
@@ -487,7 +323,7 @@ export function OperatorReviewPage() {
                 void refreshSelected().then(() => setReviewConflict(undefined));
               }}
             >
-              به‌روزرسانی Submission
+              به‌روزرسانی درخواست ثبت آگهی
             </Button>
           </AlertDescription>
         </Alert>
@@ -539,7 +375,7 @@ export function OperatorReviewPage() {
           <div className="flex justify-between gap-3">
             <Button
               variant="outline"
-              disabled={!queue.data.previous}
+              disabled={!queue.data?.previous}
               onClick={() =>
                 setFilters({
                   ...filters,
@@ -551,7 +387,7 @@ export function OperatorReviewPage() {
             </Button>
             <Button
               variant="outline"
-              disabled={!queue.data.next}
+              disabled={!queue.data?.next}
               onClick={() =>
                 setFilters({ ...filters, page: (filters.page ?? 1) + 1 })
               }
@@ -652,8 +488,8 @@ export function OperatorReviewPage() {
                 selected.claim_status === "claimed_by_another" && (
                   <Alert>
                     <AlertDescription>
-                      این Submission در اختیار اپراتور دیگری است و فقط خواندنی
-                      نمایش داده می‌شود.
+                      این درخواست ثبت آگهی در اختیار اپراتور دیگری است و فقط
+                      خواندنی نمایش داده می‌شود.
                     </AlertDescription>
                   </Alert>
                 )}
@@ -679,12 +515,12 @@ export function OperatorReviewPage() {
                       onConfirm={() => changesMutation.mutate()}
                     />
                     <DecisionDialog
-                      title="Submission رد شود؟"
+                      title="درخواست ثبت آگهی رد شود؟"
                       trigger="رد نهایی"
                       reason={reason}
                       setReason={setReason}
                       label="دلیل رد"
-                      confirm="رد Submission"
+                      confirm="رد درخواست ثبت آگهی"
                       pending={rejectMutation.isPending}
                       onConfirm={() => rejectMutation.mutate()}
                     />
@@ -698,13 +534,13 @@ export function OperatorReviewPage() {
                         <AlertDialogHeader>
                           <AlertDialogTitle>آگهی منتشر شود؟</AlertDialogTitle>
                           <AlertDialogDescription>
-                            برای گروه‌بندی، شناسه Property موجود را وارد کنید؛
-                            خالی‌بودن آن یک Property تازه می‌سازد.
+                            برای گروه‌بندی، شناسه ملک موجود را وارد کنید؛
+                            خالی‌بودن آن یک ملک تازه می‌سازد.
                           </AlertDialogDescription>
                         </AlertDialogHeader>
                         <div className="max-h-[60vh] space-y-3 overflow-y-auto pe-1">
                           <Label>
-                            شناسه Property موجود (اختیاری)
+                            شناسه ملک موجود (اختیاری)
                             <Input
                               value={propertyId}
                               onChange={(event) =>
@@ -834,7 +670,7 @@ export function OperatorReviewPage() {
                             />
                           </Label>
                           <Label>
-                            شناسه در Source
+                            شناسه در منبع
                             <Input
                               value={sourceReference}
                               onChange={(event) =>
@@ -843,7 +679,7 @@ export function OperatorReviewPage() {
                             />
                           </Label>
                           <Label>
-                            ادعاهای Source (JSON)
+                            ادعاهای منبع (داده ساخت‌یافته)
                             <textarea
                               className="border-input bg-background mt-1 min-h-20 w-full rounded-md border px-3 py-2"
                               value={sourceClaims}
@@ -897,7 +733,7 @@ export function OperatorReviewPage() {
           </Card>
         ) : (
           <Card className="shadow-none">
-            <CardContent>یک Submission را انتخاب کنید.</CardContent>
+            <CardContent>یک درخواست ثبت آگهی را انتخاب کنید.</CardContent>
           </Card>
         )}
 

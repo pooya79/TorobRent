@@ -10,9 +10,9 @@ import type {
 } from "@/features/support/queries";
 
 const fieldClass =
-  "border-input bg-background mt-1 min-h-24 w-full rounded-md border px-3 py-2 text-sm";
+  "border-input bg-background mt-1 min-h-24 w-full rounded-xl border px-3 py-2 text-sm";
 const selectClass =
-  "border-input bg-background mt-1 h-11 w-full rounded-md border px-3";
+  "border-input bg-background mt-1 h-11 w-full rounded-xl border px-3";
 
 function isoTimestamp(localTimestamp: string) {
   return new Date(localTimestamp).toISOString();
@@ -122,7 +122,7 @@ export function SupportPrivacyPanel({
                 درخواست هنگام ثبت به حساب احراز‌شده متصل بوده است.
               </p>
             )}
-            <Label className="mt-3 block">
+            <Label className="mt-3 grid gap-2">
               زمان تأیید هویت
               <Input
                 required
@@ -131,7 +131,7 @@ export function SupportPrivacyPanel({
                 onChange={(event) => setVerificationTime(event.target.value)}
               />
             </Label>
-            <Label className="mt-3 block">
+            <Label className="mt-3 grid gap-2">
               خلاصه تأیید هویت
               <textarea
                 className={fieldClass}
@@ -141,7 +141,12 @@ export function SupportPrivacyPanel({
                 onChange={(event) => setVerificationSummary(event.target.value)}
               />
             </Label>
-            <Button className="mt-3" disabled={isPending} type="submit">
+            <Button
+              className="mt-4 rounded-xl"
+              disabled={isPending}
+              type="submit"
+              variant="outline"
+            >
               ثبت تأیید هویت
             </Button>
           </form>
@@ -149,10 +154,10 @@ export function SupportPrivacyPanel({
           <form onSubmit={submitPrivacyAction}>
             <h3 className="font-semibold">ثبت تکمیل اقدام حریم خصوصی</h3>
             <p className="text-muted-foreground mt-1 text-xs">
-              اقدام دائمی در Django admin انجام می‌شود؛ این فرم فقط تکمیل آن را
+              اقدام دائمی در پنل مدیریت انجام می‌شود؛ این فرم فقط تکمیل آن را
               ثبت می‌کند.
             </p>
-            <Label className="mt-3 block">
+            <Label className="mt-3 grid gap-2">
               نوع اقدام ثبت‌شده
               <select
                 className={selectClass}
@@ -167,7 +172,7 @@ export function SupportPrivacyPanel({
                 </option>
               </select>
             </Label>
-            <Label className="mt-3 block">
+            <Label className="mt-3 grid gap-2">
               زمان تکمیل اقدام
               <Input
                 required
@@ -176,7 +181,7 @@ export function SupportPrivacyPanel({
                 onChange={(event) => setPrivacyActionTime(event.target.value)}
               />
             </Label>
-            <Label className="mt-3 block">
+            <Label className="mt-3 grid gap-2">
               خلاصه اقدام تکمیل‌شده
               <textarea
                 className={fieldClass}
@@ -188,7 +193,12 @@ export function SupportPrivacyPanel({
                 }
               />
             </Label>
-            <Button className="mt-3" disabled={isPending} type="submit">
+            <Button
+              className="mt-4 rounded-xl"
+              disabled={isPending}
+              type="submit"
+              variant="outline"
+            >
               ثبت تکمیل اقدام
             </Button>
           </form>

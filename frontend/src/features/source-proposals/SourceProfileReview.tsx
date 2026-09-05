@@ -492,7 +492,7 @@ function ProfileEditor({
           }}
         >
           <option value="css">عنصر صفحه</option>
-          <option value="json">داده ساخت‌یافته JSON-LD</option>
+          <option value="json">داده ساخت‌یافته متصل</option>
         </select>
         <Label htmlFor={`locator-${version.id}`}>
           {kind === "css" ? "مسیر عنصر" : "مسیر داده"}

@@ -750,7 +750,7 @@ export function ResultsPage({ mapAdapter }: { mapAdapter?: MapAdapter }) {
               <section
                 className={
                   mapAvailable
-                    ? "grid gap-x-4 gap-y-7 sm:grid-cols-[repeat(auto-fit,minmax(min(100%,15rem),1fr))]"
+                    ? "grid gap-x-4 gap-y-7 sm:grid-cols-[repeat(auto-fill,minmax(min(100%,15rem),1fr))]"
                     : "grid gap-x-4 gap-y-7 sm:grid-cols-2 xl:grid-cols-3"
                 }
                 aria-label="ملک‌های پیدا شده"

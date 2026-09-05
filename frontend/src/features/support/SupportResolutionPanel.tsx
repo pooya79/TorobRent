@@ -16,9 +16,9 @@ import type {
 } from "@/features/support/queries";
 
 const fieldClass =
-  "border-input bg-background mt-1 min-h-24 w-full rounded-md border px-3 py-2 text-sm";
+  "border-input bg-background mt-1 min-h-24 w-full rounded-xl border px-3 py-2 text-sm";
 const selectClass =
-  "border-input bg-background mt-1 h-11 w-full rounded-md border px-3";
+  "border-input bg-background mt-1 h-11 w-full rounded-xl border px-3";
 
 function isoTimestamp(localTimestamp: string) {
   return new Date(localTimestamp).toISOString();
@@ -71,7 +71,7 @@ export function SupportResolutionPanel({
           سوابق و نتیجه رسیدگی
         </h2>
         <p className="text-muted-foreground mt-1 text-sm">
-          این بخش فقط سابقه داخلی و ارتباط انجام‌شده بیرون از TorobRent را ثبت
+          این بخش فقط سابقه داخلی و ارتباط انجام‌شده بیرون از ترب‌رنت را ثبت
           می‌کند؛ پیامی برای درخواست‌کننده ارسال نمی‌شود.
         </p>
       </div>
@@ -82,7 +82,7 @@ export function SupportResolutionPanel({
             className="border-border rounded-lg border p-4"
             onSubmit={submitNote}
           >
-            <Label>
+            <Label className="grid gap-2">
               یادداشت داخلی
               <textarea
                 className={fieldClass}
@@ -97,7 +97,12 @@ export function SupportResolutionPanel({
                 این یادداشت، اصلاحیه یادداشت انتخاب‌شده است.
               </p>
             )}
-            <Button className="mt-3" disabled={isPending} type="submit">
+            <Button
+              className="mt-4 rounded-xl"
+              disabled={isPending}
+              type="submit"
+              variant="outline"
+            >
               ثبت یادداشت
             </Button>
           </form>
@@ -118,7 +123,7 @@ export function SupportResolutionPanel({
             }}
           >
             <div className="grid gap-3 sm:grid-cols-2">
-              <Label>
+              <Label className="grid gap-2">
                 کانال ارتباط بیرونی
                 <select
                   className={selectClass}
@@ -131,7 +136,7 @@ export function SupportResolutionPanel({
                   <option value="other">سایر</option>
                 </select>
               </Label>
-              <Label>
+              <Label className="grid gap-2">
                 زمان ارتباط بیرونی
                 <Input
                   required
@@ -141,7 +146,7 @@ export function SupportResolutionPanel({
                 />
               </Label>
             </div>
-            <Label className="mt-3 block">
+            <Label className="mt-3 grid gap-2">
               نتیجه ارتباط بیرونی
               <Input
                 maxLength={120}
@@ -150,7 +155,7 @@ export function SupportResolutionPanel({
                 onChange={(event) => setContactOutcome(event.target.value)}
               />
             </Label>
-            <Label className="mt-3 block">
+            <Label className="mt-3 grid gap-2">
               خلاصه ارتباط بیرونی
               <textarea
                 className={fieldClass}
@@ -160,7 +165,12 @@ export function SupportResolutionPanel({
                 onChange={(event) => setContactSummary(event.target.value)}
               />
             </Label>
-            <Button className="mt-3" disabled={isPending} type="submit">
+            <Button
+              className="mt-4 rounded-xl"
+              disabled={isPending}
+              type="submit"
+              variant="outline"
+            >
               ثبت خلاصه ارتباط
             </Button>
           </form>

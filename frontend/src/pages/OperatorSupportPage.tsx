@@ -1,17 +1,19 @@
+import { SupportQueueFilterPanel } from "@/features/support/SupportQueueFilters";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Clock3, Search, ShieldX, UserRound } from "lucide-react";
+import { Clock3, Headphones, Send, UserRound } from "lucide-react";
 import { useState, type FormEvent } from "react";
-import { Link } from "react-router";
 
 import { PageMain } from "@/components/layout/PageMain";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { currentUserQuery } from "@/features/session/queries";
-import { supportClassificationLabels } from "@/features/support/labels";
+import {
+  supportClassificationLabels,
+  supportResolutionLabels,
+} from "@/features/support/labels";
 import { SupportResolutionPanel } from "@/features/support/SupportResolutionPanel";
 import { SupportTriagePanel } from "@/features/support/SupportTriagePanel";
 import {
@@ -29,10 +31,8 @@ import {
   supportQueueQueryOptions,
   supportRequestQueryOptions,
   triageSupportRequest,
-  type AssigneeFacet,
   type SupportQueueFilters,
   type IntakeKind,
-  type SupportClassification,
   type SupportReassignmentInput,
   type SupportExternalContactInput,
   type SupportIdentityVerificationInput,
@@ -233,222 +233,45 @@ export function OperatorSupportPage() {
     recordIdentityVerification.isPending ||
     recordPrivacyAction.isPending;
 
-  if (queue.isPending) {
-    return (
-      <PageMain>
-        <p>در حال بارگذاری صف پشتیبانی…</p>
-      </PageMain>
-    );
-  }
-
-  if (queue.isError) {
-    return (
-      <PageMain className="flex min-h-[70vh] items-center py-16">
-        <Card className="mx-auto max-w-lg text-center shadow-none">
-          <CardContent className="flex flex-col items-center py-8">
-            <ShieldX className="mb-5 size-8" aria-hidden="true" />
-            <h1 className="text-2xl font-semibold">دسترسی پشتیبانی لازم است</h1>
-            <p className="text-muted-foreground mt-3 leading-7">
-              این صف فقط برای اپراتورهای دارای قابلیت پشتیبانی نمایش داده
-              می‌شود.
-            </p>
-            <Button asChild className="mt-6" variant="outline">
-              <Link to="/">بازگشت به خانه</Link>
-            </Button>
-          </CardContent>
-        </Card>
-      </PageMain>
-    );
-  }
-
   return (
     <PageMain>
-      <header className="mb-6">
+      <header className="mb-6 border-b pb-6">
         <p className="text-muted-foreground mb-2 text-sm">فضای اپراتور</p>
         <h1 className="text-3xl font-semibold tracking-tight">
           صف درخواست‌های پشتیبانی
         </h1>
         <p className="text-muted-foreground mt-2">
-          {queue.data.count.toLocaleString("fa-IR")} مورد مطابق فیلترها
+          {queue.isPending
+            ? "در حال دریافت درخواست‌ها…"
+            : queue.data
+              ? `${queue.data.count.toLocaleString("fa-IR")} مورد مطابق فیلترها`
+              : "دریافت درخواست‌ها ناموفق بود"}
         </p>
       </header>
 
-      <Card className="mb-6 shadow-none">
-        <CardContent className="grid gap-3 pt-6 sm:grid-cols-2 lg:grid-cols-4">
-          <Label className="lg:col-span-2">
-            جست‌وجو
-            <span className="relative mt-1 block">
-              <Search
-                className="text-muted-foreground absolute start-3 top-3 size-4"
-                aria-hidden="true"
-              />
-              <Input
-                className="ps-9"
-                value={filters.search ?? ""}
-                onChange={(event) =>
-                  setFilters({
-                    ...filters,
-                    search: event.target.value || undefined,
-                    page: 1,
-                  })
-                }
-              />
-            </span>
-          </Label>
-          <Label>
-            وضعیت
-            <select
-              className="border-input bg-background mt-1 h-11 w-full rounded-md border px-3"
-              value={filters.status ?? ""}
-              onChange={(event) =>
-                setFilters({
-                  ...filters,
-                  status: event.target.value
-                    ? (event.target.value as SupportRequestStatus)
-                    : undefined,
-                  page: 1,
-                })
-              }
+      <SupportQueueFilterPanel filters={filters} onApply={setFilters} />
+      {queue.isError && (
+        <Alert className="mb-5" variant="destructive">
+          <AlertDescription>
+            دریافت درخواست‌ها ممکن نشد. اتصال و فیلترهای انتخابی را بررسی کنید.
+            <Button
+              type="button"
+              variant="outline"
+              className="ms-3"
+              onClick={() => void queue.refetch()}
             >
-              <option value="">همه وضعیت‌ها</option>
-              <option value="open">باز</option>
-              <option value="in_progress">در حال رسیدگی</option>
-              <option value="escalated">ارجاع‌شده</option>
-              <option value="resolved">رسیدگی‌شده</option>
-            </select>
-          </Label>
-          <Label>
-            مسئول رسیدگی
-            <select
-              className="border-input bg-background mt-1 h-11 w-full rounded-md border px-3"
-              value={filters.assignee ?? ""}
-              onChange={(event) =>
-                setFilters({
-                  ...filters,
-                  assignee: event.target.value
-                    ? (event.target.value as AssigneeFacet)
-                    : undefined,
-                  page: 1,
-                })
-              }
-            >
-              <option value="">همه</option>
-              <option value="unassigned">بدون مسئول</option>
-              <option value="mine">در اختیار من</option>
-              <option value="other">در اختیار دیگران</option>
-            </select>
-          </Label>
-          <Label>
-            Intake Kind
-            <select
-              className="border-input bg-background mt-1 h-11 w-full rounded-md border px-3"
-              value={filters.intake_kind ?? ""}
-              onChange={(event) =>
-                setFilters({
-                  ...filters,
-                  intake_kind: event.target.value
-                    ? (event.target.value as IntakeKind)
-                    : undefined,
-                  page: 1,
-                })
-              }
-            >
-              <option value="">همه ورودی‌ها</option>
-              <option value="general">راهنمایی و پرسش</option>
-              <option value="account_deletion">حذف حساب</option>
-              <option value="public_contact_removal">
-                حذف اطلاعات تماس عمومی
-              </option>
-            </select>
-          </Label>
-          <Label>
-            Support Classification
-            <select
-              className="border-input bg-background mt-1 h-11 w-full rounded-md border px-3"
-              value={filters.classification ?? ""}
-              onChange={(event) =>
-                setFilters({
-                  ...filters,
-                  classification: event.target.value
-                    ? (event.target.value as SupportClassification)
-                    : undefined,
-                  page: 1,
-                })
-              }
-            >
-              <option value="">همه دسته‌بندی‌ها</option>
-              {Object.entries(supportClassificationLabels).map(
-                ([value, label]) => (
-                  <option key={value} value={value}>
-                    {label}
-                  </option>
-                ),
-              )}
-            </select>
-          </Label>
-          <Label>
-            حداقل سن درخواست (روز)
-            <Input
-              min="0"
-              type="number"
-              value={filters.age_days ?? ""}
-              onChange={(event) =>
-                setFilters({
-                  ...filters,
-                  age_days: event.target.value
-                    ? Number(event.target.value)
-                    : undefined,
-                  page: 1,
-                })
-              }
-            />
-          </Label>
-          <Label>
-            اولویت
-            <select
-              className="border-input bg-background mt-1 h-11 w-full rounded-md border px-3"
-              value={filters.priority ?? ""}
-              onChange={(event) =>
-                setFilters({
-                  ...filters,
-                  priority: event.target.value
-                    ? (event.target.value as "normal" | "urgent")
-                    : undefined,
-                  page: 1,
-                })
-              }
-            >
-              <option value="">همه اولویت‌ها</option>
-              <option value="normal">عادی</option>
-              <option value="urgent">فوری</option>
-            </select>
-          </Label>
-          <Label>
-            ترتیب
-            <select
-              className="border-input bg-background mt-1 h-11 w-full rounded-md border px-3"
-              value={filters.ordering}
-              onChange={(event) =>
-                setFilters({
-                  ...filters,
-                  ordering: event.target.value as "newest" | "oldest",
-                  page: 1,
-                })
-              }
-            >
-              <option value="oldest">قدیمی‌ترین ابتدا</option>
-              <option value="newest">تازه‌ترین ابتدا</option>
-            </select>
-          </Label>
-        </CardContent>
-      </Card>
+              تلاش دوباره
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
 
       {mutationError && (
         <Alert className="mb-5" variant="destructive">
           <AlertDescription>
             {errorMessage(
               mutationError,
-              "تغییر مسئول Support Request ناموفق بود.",
+              "تغییر مسئول درخواست پشتیبانی ناموفق بود.",
             )}
           </AlertDescription>
         </Alert>
@@ -458,9 +281,13 @@ export function OperatorSupportPage() {
         <section className="space-y-3" aria-label="صف درخواست‌های پشتیبانی">
           {queueItems.map((supportRequest) => (
             <button
-              className={`border-border min-h-24 w-full rounded-xl border p-4 text-start ${supportRequest.id === selected?.id ? "border-primary bg-primary/5" : "bg-card"}`}
+              className={`border-border focus-visible:ring-ring min-h-24 w-full rounded-2xl border p-4 text-start transition-colors focus-visible:ring-2 focus-visible:outline-none ${supportRequest.id === selected?.id ? "border-primary bg-primary/5 ring-primary/20 ring-1" : "bg-card hover:bg-muted/60"}`}
+              aria-pressed={supportRequest.id === selected?.id}
               key={supportRequest.id}
-              onClick={() => setSelectedId(supportRequest.id)}
+              onClick={() => {
+                setSelectedId(supportRequest.id);
+                setEditingReplyId(undefined);
+              }}
               type="button"
             >
               <span className="mb-2 flex items-center justify-between gap-2 font-semibold">
@@ -489,13 +316,13 @@ export function OperatorSupportPage() {
               )}
             </button>
           ))}
-          {queueItems.length === 0 && (
+          {!queue.isPending && !queue.isError && queueItems.length === 0 && (
             <p className="text-muted-foreground">موردی در صف نیست.</p>
           )}
           <div className="flex justify-between gap-3">
             <Button
               variant="outline"
-              disabled={!queue.data.previous}
+              disabled={!queue.data?.previous}
               onClick={() =>
                 setFilters({
                   ...filters,
@@ -507,7 +334,7 @@ export function OperatorSupportPage() {
             </Button>
             <Button
               variant="outline"
-              disabled={!queue.data.next}
+              disabled={!queue.data?.next}
               onClick={() =>
                 setFilters({ ...filters, page: (filters.page ?? 1) + 1 })
               }
@@ -518,7 +345,7 @@ export function OperatorSupportPage() {
         </section>
 
         {selected ? (
-          <Card className="shadow-none">
+          <Card key={selected.id} className="rounded-2xl shadow-none">
             <CardHeader>
               <CardTitle>{requestTitle(selected)}</CardTitle>
               <p className="text-muted-foreground text-sm">{selected.email}</p>
@@ -526,13 +353,13 @@ export function OperatorSupportPage() {
             <CardContent className="space-y-6">
               <dl className="grid gap-4 text-sm sm:grid-cols-2">
                 <div className="bg-muted rounded-lg p-4">
-                  <dt>Intake Kind</dt>
+                  <dt>نوع درخواست اولیه</dt>
                   <dd className="mt-1 font-semibold">
                     {intakeKindLabels[selected.intake_kind]}
                   </dd>
                 </div>
                 <div className="bg-muted rounded-lg p-4">
-                  <dt>Support Classification</dt>
+                  <dt>دسته‌بندی درخواست</dt>
                   <dd className="mt-1 font-semibold">
                     {supportClassificationLabels[
                       selected.classification ?? "unclassified"
@@ -551,7 +378,10 @@ export function OperatorSupportPage() {
                     <dt>مسیر تخصصی</dt>
                     <dd className="mt-1 font-semibold">
                       {selected.escalation_destination ||
-                        selected.required_capability}
+                        (selected.required_capability ===
+                        "handle_privacy_requests"
+                          ? "پشتیبانی حریم خصوصی"
+                          : "پشتیبانی عمومی")}
                     </dd>
                   </div>
                 )}
@@ -582,12 +412,16 @@ export function OperatorSupportPage() {
 
               {(selected.status === "open" ||
                 selected.status === "escalated") && (
-                <div className="flex justify-end">
+                <div className="bg-primary/5 flex flex-wrap items-center justify-between gap-3 rounded-xl border p-4">
+                  <p className="text-muted-foreground text-sm">
+                    برای شروع رسیدگی، مسئولیت این درخواست را بپذیرید.
+                  </p>
                   <Button
                     disabled={claim.isPending}
                     onClick={() => claim.mutate()}
                   >
-                    پذیرفتن درخواست
+                    <Headphones className="size-4" aria-hidden="true" />
+                    {claim.isPending ? "در حال پذیرش…" : "پذیرفتن درخواست"}
                   </Button>
                 </div>
               )}
@@ -644,6 +478,15 @@ export function OperatorSupportPage() {
                                 >
                                   ذخیره ویرایش
                                 </Button>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  className="justify-self-start"
+                                  disabled={editReply.isPending}
+                                  onClick={() => setEditingReplyId(undefined)}
+                                >
+                                  انصراف از ویرایش
+                                </Button>
                               </form>
                             ) : (
                               <p className="whitespace-pre-wrap">
@@ -687,18 +530,24 @@ export function OperatorSupportPage() {
                         پاسخ پشتیبانی
                       </Label>
                       <textarea
-                        className="border-input min-h-28 rounded-md border p-3"
+                        className="border-input bg-background focus-visible:ring-ring min-h-32 rounded-xl border p-3 leading-7 focus-visible:ring-2 focus-visible:outline-none"
                         id="operator-support-reply"
                         name="support_reply"
                         required
                         maxLength={2000}
                       />
-                      <div className="flex justify-between gap-3">
-                        <Button disabled={postReply.isPending} type="submit">
-                          ارسال پاسخ
+                      <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-4">
+                        <Button
+                          className="rounded-xl"
+                          disabled={postReply.isPending}
+                          type="submit"
+                        >
+                          <Send className="size-4" aria-hidden="true" />
+                          {postReply.isPending ? "در حال ارسال…" : "ارسال پاسخ"}
                         </Button>
                         <Button
-                          variant="outline"
+                          variant="ghost"
+                          className="rounded-xl"
                           disabled={release.isPending}
                           onClick={() => release.mutate()}
                           type="button"
@@ -711,6 +560,7 @@ export function OperatorSupportPage() {
                 )}
 
               <SupportTriagePanel
+                key={`triage-${selected.id}`}
                 canManageQueue={Boolean(
                   currentUser.data?.operator_capabilities.includes(
                     "manage_operator_queues",
@@ -723,6 +573,7 @@ export function OperatorSupportPage() {
               />
 
               <SupportResolutionPanel
+                key={`resolution-${selected.id}`}
                 isAssignee={selected.assignee_id === currentUser.data?.id}
                 isPending={operationalMutationPending}
                 onAddNote={(input) => addNote.mutate(input)}
@@ -766,7 +617,9 @@ export function OperatorSupportPage() {
                       </time>
                       {event.reason && <p className="mt-1">{event.reason}</p>}
                       {event.resolution_category && (
-                        <p className="mt-1">{event.resolution_category}</p>
+                        <p className="mt-1">
+                          {supportResolutionLabels[event.resolution_category]}
+                        </p>
                       )}
                       {event.resolution_summary && (
                         <p className="mt-1 whitespace-pre-wrap">
@@ -785,9 +638,9 @@ export function OperatorSupportPage() {
             </CardContent>
           </Card>
         ) : (
-          <Card className="shadow-none">
+          <Card className="rounded-2xl shadow-none">
             <CardContent className="text-muted-foreground py-10 text-center">
-              یک Support Request را برای مشاهده جزئیات انتخاب کنید.
+              یک درخواست پشتیبانی را برای مشاهده جزئیات انتخاب کنید.
             </CardContent>
           </Card>
         )}

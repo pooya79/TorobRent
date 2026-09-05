@@ -409,14 +409,14 @@ function ExternalListingCandidateCard({
       </CardHeader>
       <CardContent className="grid gap-5">
         <Alert>
-          <AlertTitle>این Candidate هنوز منتشر نشده است</AlertTitle>
+          <AlertTitle>این آگهی استخراج‌شده هنوز منتشر نشده است</AlertTitle>
           <AlertDescription>
             این آگهی برای بررسی و تصمیم مستقل آماده است.
           </AlertDescription>
         </Alert>
         <dl className="grid gap-4 sm:grid-cols-2">
-          <Detail label="Source" value={candidate.source.display_name} />
-          <Detail label="دامنه Source" value={candidate.source.domain} />
+          <Detail label="منبع" value={candidate.source.display_name} />
+          <Detail label="دامنه منبع" value={candidate.source.domain} />
           <Detail label="پیوند اصلی آگهی" value={candidate.external_url} />
           <Detail
             label="متراژ"
@@ -442,7 +442,7 @@ function ExternalListingCandidateCard({
             disabled={claim.isPending}
             aria-label={`شروع بررسی ${candidate.title}`}
           >
-            شروع بررسی Listing
+            شروع بررسی آگهی
           </Button>
         ) : (
           <div className="grid gap-4">
@@ -463,8 +463,8 @@ function ExternalListingCandidateCard({
                 onChange={(event) => setConfirmed(event.target.checked)}
                 aria-label={`تأیید انتشار ${candidate.title}`}
               />
-              تأیید می‌کنم این Candidate مستقلاً بررسی شده و ادامه آن فقط از
-              پیوند اصلی آگهی خواهد بود.
+              تأیید می‌کنم این آگهی استخراج‌شده مستقلاً بررسی شده و ادامه آن فقط
+              از پیوند اصلی آگهی خواهد بود.
             </label>
             <div className="flex flex-wrap gap-2">
               <Button
@@ -481,7 +481,7 @@ function ExternalListingCandidateCard({
                 onClick={() => decision.mutate("reject")}
                 aria-label={`رد ${candidate.title}`}
               >
-                رد Candidate
+                رد آگهی استخراج‌شده
               </Button>
               <Button
                 disabled={
@@ -503,7 +503,7 @@ function ExternalListingCandidateCard({
             <AlertDescription>
               {errorMessage(
                 claim.error ?? decision.error,
-                "ثبت تصمیم Listing ممکن نشد.",
+                "ثبت تصمیم آگهی ممکن نشد.",
               )}
             </AlertDescription>
           </Alert>
@@ -559,23 +559,23 @@ export function OperatorSourceProposalPage() {
   };
   return (
     <PageMain>
-      <header className="mb-8">
+      <header className="mb-8 border-b pb-6">
         <p className="text-primary text-sm font-semibold">فضای اپراتور</p>
         <h1 className="mt-2 text-3xl font-semibold">
-          اعتبارسنجی Source Proposalها
+          اعتبارسنجی درخواست‌های ثبت منبع
         </h1>
       </header>
       {proposals.isPending && <p role="status">در حال بارگذاری…</p>}
       {proposals.isError && (
         <Alert variant="destructive">
           <AlertDescription>
-            صف Source Proposalها بارگذاری نشد.
+            صف درخواست‌های ثبت منبع بارگذاری نشد.
           </AlertDescription>
         </Alert>
       )}
       {completed && <p role="status">تصمیم ثبت شد.</p>}
       {proposals.data?.length === 0 && (
-        <p>Source Proposal در انتظار بررسی وجود ندارد.</p>
+        <p>درخواست ثبت منبع در انتظار بررسی وجود ندارد.</p>
       )}
       <div className="grid gap-6">
         {proposals.data?.map((proposal) => (
@@ -588,30 +588,30 @@ export function OperatorSourceProposalPage() {
       </div>
       {mayReview && (
         <section className="mt-12" aria-labelledby="external-candidate-heading">
-          <header className="mb-6">
+          <header className="mb-6 border-b pb-6">
             <h2
               id="external-candidate-heading"
               className="text-2xl font-semibold"
             >
-              بررسی مستقل External Listingها
+              بررسی مستقل آگهی‌های منابع بیرونی
             </h2>
             <p className="text-muted-foreground mt-2">
               هر آگهی در این بخش به بررسی و تصمیم جداگانه نیاز دارد.
             </p>
           </header>
           {candidates.isPending && (
-            <p role="status">در حال بارگذاری Listingها…</p>
+            <p role="status">در حال بارگذاری آگهی‌ها…</p>
           )}
           {candidates.isError && (
             <Alert variant="destructive">
               <AlertDescription>
-                صف External Listingها بارگذاری نشد.
+                صف آگهی‌های منابع بیرونی بارگذاری نشد.
               </AlertDescription>
             </Alert>
           )}
-          {listingCompleted && <p role="status">تصمیم Listing ثبت شد.</p>}
+          {listingCompleted && <p role="status">تصمیم آگهی ثبت شد.</p>}
           {candidates.data?.length === 0 && (
-            <p>External Listing در انتظار بررسی وجود ندارد.</p>
+            <p>آگهی منبع بیرونی در انتظار بررسی وجود ندارد.</p>
           )}
           <div className="grid gap-6">
             {candidates.data?.map((candidate) => (

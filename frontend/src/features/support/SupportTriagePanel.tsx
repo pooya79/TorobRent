@@ -1,3 +1,4 @@
+import { ChoiceButtons } from "@/components/ChoiceButtons";
 import { useState, type FormEvent } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -12,9 +13,6 @@ import type {
   SupportRequest,
   SupportTriageInput,
 } from "@/features/support/queries";
-
-const selectClassName =
-  "border-input bg-background mt-1 h-11 w-full rounded-md border px-3";
 
 export function SupportTriagePanel({
   supportRequest,
@@ -88,93 +86,100 @@ export function SupportTriagePanel({
 
   return (
     <div className="space-y-4">
-      <Card className="shadow-none">
+      <Card className="gap-4 rounded-2xl shadow-none">
         <CardHeader>
-          <CardTitle className="text-base">تریاژ و مسیر‌دهی</CardTitle>
+          <CardTitle className="text-base">دسته‌بندی و مسیر رسیدگی</CardTitle>
         </CardHeader>
         <CardContent>
           <form className="grid gap-4 sm:grid-cols-2" onSubmit={submitTriage}>
-            <Label>
-              دسته‌بندی عملیاتی
-              <select
-                className={selectClassName}
+            <div className="sm:col-span-2">
+              <ChoiceButtons
+                label="دسته‌بندی عملیاتی"
+                name="triage-classification"
                 value={classification}
-                onChange={(event) => setClassification(event.target.value)}
-              >
-                <option value="">بدون تغییر</option>
-                {Object.entries(supportClassificationLabels)
-                  .filter(([value]) => value !== supportRequest.classification)
-                  .map(([value, label]) => (
-                    <option key={value} value={value}>
-                      {label}
-                    </option>
-                  ))}
-              </select>
-            </Label>
-            <Label>
-              اولویت
-              <select
-                className={selectClassName}
-                value={priority}
-                onChange={(event) => setPriority(event.target.value)}
-              >
-                <option value="">بدون تغییر</option>
-                {supportRequest.priority !== "urgent" ? (
-                  <option value="urgent">فوری</option>
-                ) : (
-                  !supportRequest.priority_locked && (
-                    <option value="normal">عادی</option>
-                  )
-                )}
-              </select>
-            </Label>
-            <Label>
-              مسیر‌دهی تخصصی
-              <select
-                className={selectClassName}
-                value={routing}
-                onChange={(event) => setRouting(event.target.value)}
-              >
-                <option value="">بدون تغییر</option>
-                {supportRequest.status !== "escalated" && (
-                  <option value="escalated">ارجاع تخصصی</option>
-                )}
-              </select>
-            </Label>
-            <Label>
-              قابلیت مورد نیاز
-              <select
-                className={selectClassName}
-                disabled={routing !== "escalated"}
-                value={requiredCapability}
-                onChange={(event) => setRequiredCapability(event.target.value)}
-              >
-                <option value="">تعیین نشده</option>
-                <option value="handle_support">پشتیبانی عمومی</option>
-                <option value="handle_privacy_requests">
-                  پشتیبانی حریم خصوصی
-                </option>
-              </select>
-            </Label>
-            <Label className="sm:col-span-2">
-              مقصد ارجاع
-              <Input
-                disabled={routing !== "escalated"}
-                value={destination}
-                onChange={(event) => setDestination(event.target.value)}
+                onChange={setClassification}
+                options={[
+                  ["", "بدون تغییر"],
+                  ...Object.entries(supportClassificationLabels).filter(
+                    ([value]) => value !== supportRequest.classification,
+                  ),
+                ]}
               />
-            </Label>
-            <Label className="sm:col-span-2">
-              دلیل تریاژ
+            </div>
+            <div className="sm:col-span-2">
+              <ChoiceButtons
+                label="اولویت"
+                name="triage-priority"
+                value={priority}
+                onChange={setPriority}
+                options={[
+                  ["", "بدون تغییر"],
+                  ...(supportRequest.priority !== "urgent"
+                    ? [["urgent", "فوری"] as const]
+                    : !supportRequest.priority_locked
+                      ? [["normal", "عادی"] as const]
+                      : []),
+                ]}
+              />
+              {supportRequest.priority_locked && (
+                <p className="text-muted-foreground mt-2 text-xs">
+                  اولویت این درخواست قابل کاهش نیست.
+                </p>
+              )}
+            </div>
+            <div className="sm:col-span-2">
+              <ChoiceButtons
+                label="مسیر رسیدگی"
+                name="triage-routing"
+                value={routing}
+                onChange={setRouting}
+                options={[
+                  ["", "بدون تغییر"],
+                  ...(supportRequest.status !== "escalated"
+                    ? [["escalated", "ارجاع تخصصی"] as const]
+                    : []),
+                ]}
+              />
+            </div>
+            {routing === "escalated" && (
+              <div className="bg-muted/40 space-y-4 rounded-xl border p-4 sm:col-span-2">
+                <ChoiceButtons
+                  label="تخصص مورد نیاز"
+                  name="triage-capability"
+                  value={requiredCapability}
+                  onChange={setRequiredCapability}
+                  options={[
+                    ["", "تعیین نشده"],
+                    ["handle_support", "پشتیبانی عمومی"],
+                    ["handle_privacy_requests", "پشتیبانی حریم خصوصی"],
+                  ]}
+                />
+                <Label className="grid gap-2">
+                  مقصد ارجاع
+                  <Input
+                    className="rounded-xl"
+                    value={destination}
+                    onChange={(event) => setDestination(event.target.value)}
+                  />
+                </Label>
+              </div>
+            )}
+            <Label className="grid gap-2 sm:col-span-2">
+              دلیل تغییر
               <textarea
-                className="border-input bg-background mt-1 min-h-24 w-full rounded-md border px-3 py-2"
+                className="border-input bg-background mt-1 min-h-24 w-full rounded-xl border px-3 py-2"
                 value={reason}
                 onChange={(event) => setReason(event.target.value)}
               />
             </Label>
-            <div className="flex justify-end sm:col-span-2">
-              <Button disabled={triageDisabled} type="submit">
-                ثبت تریاژ
+            <div className="flex flex-wrap items-center gap-3 border-t pt-4 sm:col-span-2">
+              <Button
+                className="rounded-xl"
+                disabled={triageDisabled}
+                type="submit"
+                variant="outline"
+              >
+                ثبت تغییرات رسیدگی
               </Button>
             </div>
           </form>
@@ -184,7 +189,7 @@ export function SupportTriagePanel({
       {canManageQueue &&
         supportRequest.status === "in_progress" &&
         supportRequest.assignee_id && (
-          <Card className="shadow-none">
+          <Card className="gap-4 rounded-2xl shadow-none">
             <CardHeader>
               <CardTitle className="text-base">
                 واگذاری مجدد کار رهاشده
@@ -195,7 +200,7 @@ export function SupportTriagePanel({
                 className="grid gap-4 sm:grid-cols-2"
                 onSubmit={submitReassignment}
               >
-                <Label>
+                <Label className="grid gap-2">
                   ایمیل مسئول جدید
                   <Input
                     required
@@ -204,7 +209,7 @@ export function SupportTriagePanel({
                     onChange={(event) => setAssigneeEmail(event.target.value)}
                   />
                 </Label>
-                <Label>
+                <Label className="grid gap-2">
                   دلیل واگذاری مجدد
                   <Input
                     required
@@ -214,7 +219,7 @@ export function SupportTriagePanel({
                     }
                   />
                 </Label>
-                <div className="flex justify-end sm:col-span-2">
+                <div className="flex flex-wrap items-center gap-3 border-t pt-4 sm:col-span-2">
                   <Button disabled={isPending} type="submit" variant="outline">
                     واگذاری مجدد
                   </Button>
