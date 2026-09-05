@@ -6,3 +6,4 @@ class CommonConfig(AppConfig):
 
     def ready(self) -> None:
         import apps.common.schema  # noqa: F401
+        import apps.common.signals  # noqa: F401

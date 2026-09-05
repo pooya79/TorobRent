@@ -421,7 +421,7 @@ class ListingImageVariant(models.Model):
     image = models.ForeignKey(ListingImage, on_delete=models.CASCADE, related_name="variants")
     kind = models.CharField(max_length=8, choices=MediaVariantKind)
     asset = models.ForeignKey(
-        "submissions.MediaAsset",
+        "common.MediaAsset",
         on_delete=models.PROTECT,
         related_name="listing_variants",
     )
@@ -479,7 +479,7 @@ class PropertyImageVariant(models.Model):
     image = models.ForeignKey(PropertyImage, on_delete=models.CASCADE, related_name="variants")
     kind = models.CharField(max_length=8, choices=MediaVariantKind)
     asset = models.ForeignKey(
-        "submissions.MediaAsset",
+        "common.MediaAsset",
         on_delete=models.PROTECT,
         related_name="property_variants",
     )

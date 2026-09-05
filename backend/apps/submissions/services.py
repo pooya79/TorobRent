@@ -5,7 +5,6 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 from enum import StrEnum
 from functools import partial
-from io import BytesIO
 from math import ceil
 from typing import Any
 from uuid import UUID
@@ -13,14 +12,12 @@ from uuid import UUID
 from django.conf import settings
 from django.contrib.auth.hashers import check_password, make_password
 from django.core.exceptions import ValidationError
-from django.core.files.base import ContentFile, File
 from django.core.files.storage import Storage
 from django.core.files.uploadedfile import UploadedFile
 from django.core.mail import EmailMessage
 from django.db import models, transaction
-from django.db.models.deletion import ProtectedError
 from django.utils import timezone
-from PIL import Image, ImageOps, UnidentifiedImageError
+from PIL import Image, UnidentifiedImageError
 
 from apps.accounts.capabilities import OperatorCapability, has_capability
 from apps.accounts.identifiers import normalize_iranian_mobile
@@ -41,12 +38,20 @@ from apps.catalog.services import (
     replace_listing_images,
     replace_property_images,
 )
+from apps.common.media import (
+    ALLOWED_IMAGE_FORMATS,
+    PROCESSING_FAILURE_REASON,
+    FirstPartyImageInput,
+    ImageProcessingLimits,
+    ImageProcessingStatus,
+    process_first_party_image,
+)
+from apps.common.models import MediaAsset
 from apps.communications.services import create_submission_review_notification
 
 from .audit_serializers import validate_decision_correction
 from .models import (
     ContactPhoneSource,
-    MediaAsset,
     ReviewClaim,
     Submission,
     SubmissionContactVerificationChallenge,
@@ -58,19 +63,11 @@ from .models import (
     SubmissionImage,
     SubmissionImageStatus,
     SubmissionImageVariant,
-    SubmissionImageVariantKind,
     SubmissionState,
     SubmissionStep,
 )
 
-ALLOWED_IMAGE_FORMATS = frozenset({"JPEG", "PNG", "WEBP"})
-VARIANT_WIDTHS = {
-    SubmissionImageVariantKind.SMALL: 480,
-    SubmissionImageVariantKind.MEDIUM: 960,
-    SubmissionImageVariantKind.LARGE: 1440,
-}
 MAX_SUBMISSION_IMAGES = 12
-PROCESSING_FAILURE_REASON = "پردازش تصویر ناموفق بود. فایل را جایگزین و دوباره تلاش کنید."
 REVIEW_CLAIM_DURATION = timedelta(minutes=15)
 
 logger = logging.getLogger(__name__)
@@ -1063,17 +1060,6 @@ def schedule_file_cleanup(files: list[tuple[Storage, str]]) -> None:
     transaction.on_commit(lambda: _delete_unreferenced_files(files))
 
 
-def schedule_asset_cleanup(asset_id: UUID) -> None:
-    transaction.on_commit(lambda: _delete_orphaned_asset(asset_id))
-
-
-def _delete_orphaned_asset(asset_id: UUID) -> None:
-    try:
-        MediaAsset.objects.get(id=asset_id).delete()
-    except MediaAsset.DoesNotExist, ProtectedError:
-        return
-
-
 @transaction.atomic
 def reorder_submission_images(
     *, submission: Submission, image_ids: list[UUID], primary_image_id: UUID
@@ -1291,21 +1277,6 @@ def retry_submission_image_for_actor(
     return retry_submission_image(image=image, upload=upload)
 
 
-def _render_variant(source: Image.Image, width: int) -> tuple[ContentFile[bytes], int, int, int]:
-    variant = source.copy()
-    variant.thumbnail((width, width * 4), Image.Resampling.LANCZOS)
-    output = BytesIO()
-    variant.save(output, format="WEBP", quality=82, method=6, optimize=True)
-    content = output.getvalue()
-    return ContentFile(content), variant.width, variant.height, len(content)
-
-
-def _open_source(image: SubmissionImage) -> File[bytes]:
-    if not image.source.name:
-        raise ValueError("تصویر منبع برای پردازش موجود نیست.")
-    return image.source.storage.open(image.source.name, "rb")
-
-
 def process_image(image_id: str) -> None:
     with transaction.atomic():
         image = SubmissionImage.objects.select_for_update().get(id=image_id)
@@ -1314,45 +1285,47 @@ def process_image(image_id: str) -> None:
         image.status = SubmissionImageStatus.PROCESSING
         image.failure_reason = ""
         image.save(update_fields=("status", "failure_reason", "updated_at"))
-    try:
-        with _open_source(image) as source_file, Image.open(source_file) as uploaded:
-            corrected = ImageOps.exif_transpose(uploaded).convert("RGB")
-            rendered = {
-                kind: _render_variant(corrected, width) for kind, width in VARIANT_WIDTHS.items()
-            }
-    except Exception:
-        logger.exception("Submission image rendering failed", extra={"image_id": image_id})
+
+    if not image.source.name:
         _mark_image_failed(image_id)
         return
 
-    written_files: list[tuple[Storage, str]] = []
+    variant_directory = f"submission-media/{image.submission_id}/{image.id}"
+    result = process_first_party_image(
+        FirstPartyImageInput(
+            storage=image.source.storage,
+            input_key=image.source.name,
+            variant_key=lambda kind: f"{variant_directory}/{kind}.webp",
+        ),
+        limits=ImageProcessingLimits(max_bytes=settings.SUBMISSION_IMAGE_MAX_BYTES),
+    )
+    if result.status is ImageProcessingStatus.FAILED:
+        _mark_image_failed(image_id)
+        return
+
+    written_files = [(image.source.storage, variant.file_name) for variant in result.variants]
     try:
         with transaction.atomic():
             image = SubmissionImage.objects.select_for_update().get(id=image_id)
             if image.status == SubmissionImageStatus.READY:
+                _delete_unreferenced_files(written_files)
                 return
             image.variants.all().delete()
-            for kind, (content, width, height, byte_size) in rendered.items():
+            for variant in result.variants:
                 asset = MediaAsset(
-                    width=width,
-                    height=height,
-                    byte_size=byte_size,
+                    file=variant.file_name,
+                    width=variant.width,
+                    height=variant.height,
+                    byte_size=variant.byte_size,
                 )
-                asset.file.save(
-                    f"submission-media/{image.submission_id}/{image.id}/{kind}.webp",
-                    content,
-                    save=False,
-                )
-                if asset.file.name:
-                    written_files.append((asset.file.storage, asset.file.name))
                 asset.save()
                 SubmissionImageVariant.objects.create(
                     image=image,
-                    kind=kind,
-                    file=asset.file.name,
-                    width=width,
-                    height=height,
-                    byte_size=byte_size,
+                    kind=variant.kind,
+                    file=variant.file_name,
+                    width=variant.width,
+                    height=variant.height,
+                    byte_size=variant.byte_size,
                     asset=asset,
                 )
             image.status = SubmissionImageStatus.READY
