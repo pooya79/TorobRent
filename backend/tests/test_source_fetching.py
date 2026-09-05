@@ -179,6 +179,22 @@ def test_fetcher_rejects_urls_outside_the_approved_http_host(
     assert transport.requests == []
 
 
+def test_fetcher_returns_a_structured_failure_for_an_invalid_idna_hostname() -> None:
+    transport = FakeTransport({})
+    fetcher = SourcePageFetcher(
+        approved_host="source.example",
+        transport=transport,
+        resolver=public_resolver,
+    )
+
+    result = fetcher.fetch(["https://\ud800.example/listing"])
+
+    failure = result.records[0].failure
+    assert failure is not None
+    assert failure.code is FetchFailureCode.INVALID_URL
+    assert transport.requests == []
+
+
 def test_fetcher_rejects_a_hostname_resolving_to_any_non_public_address() -> None:
     transport = FakeTransport({})
     fetcher = SourcePageFetcher(
@@ -316,6 +332,39 @@ def test_fetcher_rejects_a_redirect_to_an_unapproved_host_before_dns() -> None:
     assert failure is not None
     assert failure.code is FetchFailureCode.HOST_NOT_APPROVED
     assert len(transport.requests) == 2
+
+
+def test_fetcher_checks_robots_before_following_a_redirect() -> None:
+    transport = FakeTransport({
+        "https://source.example/robots.txt": RawResponse(
+            200,
+            {},
+            b"User-agent: TorobRentSourceFetcher\nDisallow: /private\n",
+        ),
+        "https://source.example/allowed": RawResponse(
+            302,
+            {"location": "/private"},
+            b"",
+        ),
+    })
+    fetcher = SourcePageFetcher(
+        approved_host="source.example",
+        transport=transport,
+        resolver=public_resolver,
+    )
+
+    result = fetcher.fetch(["https://source.example/allowed"])
+
+    record = result.records[0]
+    assert record.failure is not None
+    assert record.failure.code is FetchFailureCode.ROBOTS_DENIED
+    assert record.failure.url == "https://source.example/private"
+    assert record.robots is not None
+    assert record.robots.allowed is False
+    assert [request.url for request in transport.requests] == [
+        "https://source.example/robots.txt",
+        "https://source.example/allowed",
+    ]
 
 
 def test_fetcher_stops_at_the_fixed_redirect_limit() -> None:
@@ -539,6 +588,7 @@ def test_playwright_renderer_disables_native_network_and_intercepts_every_channe
             assert self.context.route_handler is not None
             assert self.context.web_socket_handler is not None
             self.context.route_handler(FakeRoute(url, navigation=True))
+            self.context.route_handler(FakeRoute(url, navigation=True))
             self.context.route_handler(FakeRoute("https://source.example/app.js"))
             self.context.route_handler(FakeRoute("https://evil.example/tracker.js"))
             self.context.web_socket_handler(FakeWebSocket())
@@ -600,7 +650,10 @@ def test_playwright_renderer_disables_native_network_and_intercepts_every_channe
 
     def load_resource(url: str) -> FetchRecord:
         loaded_urls.append(url)
-        if url == "https://source.example/app.js":
+        if url in {
+            "https://source.example/listing",
+            "https://source.example/app.js",
+        }:
             return FetchRecord(url, page=FetchedPage(url, 200, b"safe"))
         return FetchRecord(
             url,
@@ -627,11 +680,13 @@ def test_playwright_renderer_disables_native_network_and_intercepts_every_channe
     assert "--force-webrtc-ip-handling-policy=disable_non_proxied_udp" in launch_options["args"]
     assert fulfilled_urls == [
         "https://source.example/listing",
+        "https://source.example/listing",
         "https://source.example/app.js",
     ]
     assert aborted_urls == ["https://evil.example/tracker.js"]
     assert closed_web_sockets == ["wss://evil.example/socket"]
     assert loaded_urls == [
+        "https://source.example/listing",
         "https://source.example/app.js",
         "https://evil.example/tracker.js",
         "wss://evil.example/socket",

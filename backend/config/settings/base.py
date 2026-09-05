@@ -35,6 +35,7 @@ INSTALLED_APPS = [
     "apps.catalog",
     "apps.communications",
     "apps.contact",
+    "apps.source_extraction",
     "apps.source_proposals",
     "apps.submissions",
     "apps.system",

@@ -138,6 +138,7 @@ class HttpTransport(Protocol):
 
 Resolver = Callable[[str, int], Sequence[str]]
 BrowserResourceLoader = Callable[[str], FetchRecord]
+RedirectGuard = Callable[[str], FetchFailure | None]
 
 
 class BrowserRenderer(Protocol):
@@ -326,12 +327,17 @@ class PlaywrightBrowserRenderer:
                     offline=True,
                     service_workers="block",
                 )
+                initial_document_pending = True
 
                 def handle_route(route: Route) -> None:
+                    nonlocal initial_document_pending
                     request = route.request
-                    if request.is_navigation_request() and _without_fragment(
-                        request.url
-                    ) == _without_fragment(document.url):
+                    if (
+                        initial_document_pending
+                        and request.is_navigation_request()
+                        and _without_fragment(request.url) == _without_fragment(document.url)
+                    ):
+                        initial_document_pending = False
                         route.fulfill(
                             status=document.status_code,
                             headers=dict(document.headers),
@@ -370,6 +376,8 @@ class PlaywrightBrowserRenderer:
 
 
 class SourcePageFetcher:
+    """Fetch approved Source URLs, using browser rendering only when the caller requests it."""
+
     def __init__(
         self,
         *,
@@ -405,16 +413,25 @@ class SourcePageFetcher:
         robots_by_origin: dict[
             str, tuple[urllib.robotparser.RobotFileParser | None, FetchRecord]
         ] = {}
+        robots_lock = threading.Lock()
+
+        def robots_for(url: str) -> tuple[urllib.robotparser.RobotFileParser | None, FetchRecord]:
+            origin = _origin(url)
+            with robots_lock:
+                cached_robots = robots_by_origin.get(origin)
+            if cached_robots is not None:
+                return cached_robots
+            robots_url = f"{origin}/robots.txt"
+            robots_record = self._fetch_url(robots_url)
+            fetched_robots = (_robots_parser(robots_url, robots_record), robots_record)
+            with robots_lock:
+                return robots_by_origin.setdefault(origin, fetched_robots)
+
         for index, failure in validations.items():
             url = urls[index]
             if failure:
                 continue
-            origin = _origin(url)
-            if origin not in robots_by_origin:
-                robots_url = f"{origin}/robots.txt"
-                robots_record = self._fetch_url(robots_url)
-                parser = _robots_parser(robots_url, robots_record)
-                robots_by_origin[origin] = (parser, robots_record)
+            robots_for(url)
 
         allowed_records: list[tuple[int, str, RobotsEvidence]] = []
         for index, failure in validations.items():
@@ -422,7 +439,7 @@ class SourcePageFetcher:
             if failure:
                 records[index] = FetchRecord(requested_url=url, failure=failure)
                 continue
-            parser, robots_record = robots_by_origin[_origin(url)]
+            parser, robots_record = robots_for(url)
             robots_url = robots_record.requested_url
             if robots_record.failure:
                 evidence = RobotsEvidence(
@@ -449,7 +466,31 @@ class SourcePageFetcher:
 
         def fetch_allowed(item: tuple[int, str, RobotsEvidence]) -> tuple[int, FetchRecord]:
             index, url, evidence = item
-            record = replace(self._fetch_url(url), robots=evidence)
+            redirect_evidence = evidence
+
+            def guard_redirect(redirect_url: str) -> FetchFailure | None:
+                nonlocal redirect_evidence
+                parser, robots_record = robots_for(redirect_url)
+                robots_url = robots_record.requested_url
+                if robots_record.failure:
+                    redirect_evidence = RobotsEvidence(
+                        robots_url, False, RobotsDecisionReason.ROBOTS_FETCH_FAILED
+                    )
+                    return robots_record.failure
+                allowed, reason = _robots_decision(parser, robots_record.page, redirect_url)
+                redirect_evidence = RobotsEvidence(robots_url, allowed, reason)
+                if allowed:
+                    return None
+                return FetchFailure(
+                    FetchFailureCode.ROBOTS_DENIED,
+                    redirect_url,
+                    "The Source robots policy disallows this URL.",
+                )
+
+            record = replace(
+                self._fetch_url(url, redirect_guard=guard_redirect),
+                robots=redirect_evidence,
+            )
             return index, self._render(record) if render else record
 
         with ThreadPoolExecutor(max_workers=MAX_CONCURRENCY) as executor:
@@ -556,7 +597,9 @@ class SourcePageFetcher:
             browser=evidence,
         )
 
-    def _fetch_url(self, requested_url: str) -> FetchRecord:
+    def _fetch_url(
+        self, requested_url: str, *, redirect_guard: RedirectGuard | None = None
+    ) -> FetchRecord:
         current_url = requested_url
         for redirect_count in range(MAX_REDIRECTS + 1):
             failure = self._validate_url(current_url)
@@ -685,7 +728,13 @@ class SourcePageFetcher:
                             f"Response exceeded the {MAX_REDIRECTS}-redirect limit.",
                         ),
                     )
-                current_url = urljoin(current_url, location)
+                redirect_url = urljoin(current_url, location)
+                redirect_failure = self._validate_url(redirect_url)
+                if redirect_failure is None and redirect_guard is not None:
+                    redirect_failure = redirect_guard(redirect_url)
+                if redirect_failure is not None:
+                    return FetchRecord(requested_url=requested_url, failure=redirect_failure)
+                current_url = redirect_url
                 continue
             return FetchRecord(
                 requested_url=requested_url,
@@ -715,7 +764,11 @@ class SourcePageFetcher:
             return FetchFailure(FetchFailureCode.INVALID_URL, url, "URL must include a host.")
         if _is_ip_literal(host):
             return FetchFailure(FetchFailureCode.IP_LITERAL, url, "IP-literal URLs are forbidden.")
-        if _normalize_host(host) != self._approved_host:
+        try:
+            normalized_host = _normalize_host(host)
+        except UnicodeError:
+            return FetchFailure(FetchFailureCode.INVALID_URL, url, "URL host is malformed.")
+        if normalized_host != self._approved_host:
             return FetchFailure(
                 FetchFailureCode.HOST_NOT_APPROVED,
                 url,
