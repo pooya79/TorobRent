@@ -45,6 +45,25 @@ dashboard.
     valid results as a batch. In `automatic` mode, valid results publish automatically. In both
     modes, only exceptions enter individual candidate review.
 
+## Source Discovery operation
+
+URL approval reserves the exact normalized host for 24 hours and queues Discovery only after the
+approval transaction commits. The proposal stays pending in the existing queue; its separate
+Discovery stage distinguishes URL review, queued/running work, completion, failure, and release.
+The existing claim endpoint renews the current Operator's 15-minute Review Claim. Reviewers can
+release their own case with a reason; queue managers can force-release another Operator's case.
+Rejection and requested changes also release the reservation while retaining its evidence and
+immutable decision history.
+
+Each reservation executes at most one fetch attempt. Duplicate deliveries observe the persisted
+start/completion state. Discovery checks the reservation between fetches and records incremental
+page counts. Celery applies a 10-minute soft limit and an 11-minute hard limit. The once-per-minute
+reservation maintenance task marks an interrupted attempt failed after 12 minutes and releases its
+host; redelivery performs the same recovery check. Retrying failed work requires a fresh explicit
+URL approval and creates a new reservation, preserving the earlier attempt. Completed Discovery
+retains bounded evidence summaries rather than raw page HTML. Profile approval and real candidate
+creation are subsequent delivery slices; URL approval does not generate simulated candidates.
+
 ## Publishable result
 
 Publication requires city, district, neighborhood, Property Type, Floor Area, Bedroom Count when

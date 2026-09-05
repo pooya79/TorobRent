@@ -16,6 +16,7 @@ export type ExternalListingCandidate =
 
 export const sourceProposalsQueryOptions = queryOptions({
   queryKey: ["source-proposals"] as const,
+  refetchInterval: 5000,
   queryFn: async () => {
     const { data, error } = await api.GET("/api/v1/source-proposals/");
     if (error || !data) throw apiError(error);
@@ -95,6 +96,7 @@ export async function submitSourceProposal(proposalId: string) {
 
 export const operatorSourceProposalsQueryOptions = queryOptions({
   queryKey: ["operator-source-proposals"] as const,
+  refetchInterval: 5000,
   queryFn: async () => {
     const { data, error } = await api.GET("/api/v1/operator/source-proposals/");
     if (error || !data) throw apiError(error);
@@ -185,6 +187,22 @@ export async function decideExternalListingCandidate(
     params: { path: { candidate_id: candidateId } },
     body: { reviewed_revision: revision, reason },
   });
+  if (error || !data) throw apiError(error);
+  return data;
+}
+
+export async function releaseSourceProposal(
+  proposalId: string,
+  revision: number,
+  reason: string,
+) {
+  const { data, error } = await api.POST(
+    "/api/v1/operator/source-proposals/{proposal_id}/claim/release/",
+    {
+      params: { path: { proposal_id: proposalId } },
+      body: { reviewed_revision: revision, reason },
+    },
+  );
   if (error || !data) throw apiError(error);
   return data;
 }

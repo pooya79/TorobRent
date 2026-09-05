@@ -5,12 +5,18 @@ from .operator_views import (
     OperatorSourceProposalClaimView,
     OperatorSourceProposalListView,
     OperatorSourceProposalRejectView,
+    OperatorSourceProposalReleaseView,
     OperatorSourceProposalRequestChangesView,
 )
 
 app_name = "operator-source-proposals"
 
 urlpatterns = [
+    path(
+        "<uuid:proposal_id>/claim/release/",
+        OperatorSourceProposalReleaseView.as_view(),
+        name="claim-release",
+    ),
     path("", OperatorSourceProposalListView.as_view(), name="list"),
     path("<uuid:proposal_id>/claim/", OperatorSourceProposalClaimView.as_view(), name="claim"),
     path(

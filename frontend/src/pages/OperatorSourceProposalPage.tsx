@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   claimSourceProposal,
+  releaseSourceProposal,
   claimExternalListingCandidate,
   decideExternalListingCandidate,
   decideSourceProposal,
@@ -18,6 +19,9 @@ import {
   type ExternalListingCandidate,
   type OperatorSourceProposal,
 } from "@/features/source-proposals/queries";
+import { DiscoveryEvidence } from "@/features/source-proposals/DiscoveryEvidence";
+import { currentUserQuery } from "@/features/session/queries";
+
 import { errorMessage } from "@/lib/api/errors";
 
 const relationshipLabels = {
@@ -39,9 +43,13 @@ function ProposalReviewCard({
   onDecisionSuccess,
 }: {
   proposal: OperatorSourceProposal;
-  onDecisionSuccess: (proposalId: string) => void;
+  onDecisionSuccess: (proposal: OperatorSourceProposal) => void;
 }) {
   const [claimed, setClaimed] = useState(false);
+  const currentUser = useQuery(currentUserQuery);
+  const mayForceRelease = currentUser.data?.operator_capabilities.includes(
+    "manage_operator_queues",
+  );
   const [confirmed, setConfirmed] = useState(false);
   const [reason, setReason] = useState("");
   const claim = useMutation({
@@ -56,7 +64,19 @@ function ProposalReviewCard({
       kind: "request-changes" | "reject" | "approve";
       reason: string;
     }) => decideSourceProposal(proposal.id, kind, proposal.revision, reason),
-    onSuccess: () => onDecisionSuccess(proposal.id),
+    onSuccess: (updated) => {
+      if (updated.state !== "pending") setClaimed(false);
+      onDecisionSuccess(updated);
+    },
+  });
+
+  const release = useMutation({
+    mutationFn: () =>
+      releaseSourceProposal(proposal.id, proposal.revision, reason),
+    onSuccess: (updated) => {
+      setClaimed(false);
+      onDecisionSuccess(updated);
+    },
   });
 
   return (
@@ -115,46 +135,37 @@ function ProposalReviewCard({
             value={proposal.operator_note || "ثبت نشده"}
           />
         </dl>
-        {proposal.preview && (
-          <section
-            aria-label="زمینه کشف شبیه‌سازی‌شده"
-            className="rounded-lg border p-4"
-          >
-            <h3 className="font-semibold">{proposal.preview.title}</h3>
-            <p className="text-muted-foreground mt-2 text-sm">
-              {proposal.preview.disclaimer}
-            </p>
-            <dl className="mt-4 grid gap-3 sm:grid-cols-2">
-              <Detail
-                label="تعداد تخمینی کشف"
-                value={
-                  proposal.preview.estimated_count === null
-                    ? "نامشخص"
-                    : proposal.preview.estimated_count.toLocaleString("fa-IR")
-                }
-              />
-              <Detail
-                label="بازه موجودی شبیه‌سازی‌شده"
-                value={inventoryLabels[proposal.preview.inventory_range]}
-              />
-            </dl>
-            <ul
-              className="mt-4 grid gap-2"
-              aria-label="نمونه‌های کشف شبیه‌سازی‌شده"
+        <DiscoveryEvidence proposal={proposal} />
+        {mayForceRelease && !claimed && (
+          <div className="grid gap-2">
+            <Label htmlFor={`release-${proposal.id}`}>
+              دلیل آزادسازی مسئولیت بررسی
+            </Label>
+            <Input
+              id={`release-${proposal.id}`}
+              value={reason}
+              onChange={(event) => setReason(event.target.value)}
+            />
+            <Button
+              variant="outline"
+              disabled={!reason.trim() || release.isPending}
+              onClick={() => release.mutate()}
             >
-              {proposal.preview.examples.map((example) => (
-                <li className="rounded-md border p-3" key={example.title}>
-                  <p className="font-medium">{example.title}</p>
-                  <p className="text-muted-foreground mt-1 text-sm">
-                    {example.status}
-                  </p>
-                </li>
-              ))}
-            </ul>
-          </section>
+              آزادسازی اجباری
+            </Button>
+          </div>
         )}
         {!claimed ? (
-          <Button onClick={() => claim.mutate()} disabled={claim.isPending}>
+          <Button
+            onClick={() => claim.mutate()}
+            disabled={
+              claim.isPending ||
+              (mayForceRelease &&
+                !currentUser.data?.operator_capabilities.includes(
+                  "review_source_proposals",
+                ))
+            }
+          >
             شروع بررسی
           </Button>
         ) : (
@@ -180,10 +191,26 @@ function ProposalReviewCard({
                 checked={confirmed}
                 onChange={(event) => setConfirmed(event.target.checked)}
               />
-              تأیید می‌کنم که این تصمیم فقط Source را اعتبارسنجی می‌کند و
-              Listingی منتشر نمی‌شود.
+              نشانی و اختیار نماینده را بررسی کردم و دریافت صفحات این دامنه را
+              تأیید می‌کنم.
             </label>
             <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                disabled={claim.isPending}
+                onClick={() => claim.mutate()}
+              >
+                تمدید مسئولیت بررسی
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={!reason.trim() || release.isPending}
+                onClick={() => release.mutate()}
+              >
+                آزادسازی مسئولیت و رزرو
+              </Button>
               <Button
                 type="submit"
                 variant="outline"
@@ -201,19 +228,25 @@ function ProposalReviewCard({
               </Button>
               <Button
                 type="button"
-                disabled={!confirmed || decision.isPending}
+                disabled={
+                  !confirmed ||
+                  decision.isPending ||
+                  ["queued", "running", "complete"].includes(
+                    proposal.discovery_stage ?? "awaiting_url",
+                  )
+                }
                 onClick={() => decision.mutate({ kind: "approve", reason: "" })}
               >
-                تأیید Source
+                تأیید نشانی و شروع کشف
               </Button>
             </div>
           </form>
         )}
-        {(claim.error || decision.error) && (
+        {(claim.error || decision.error || release.error) && (
           <Alert variant="destructive">
             <AlertDescription>
               {errorMessage(
-                claim.error ?? decision.error,
+                claim.error ?? decision.error ?? release.error,
                 "ثبت عملیات ممکن نشد.",
               )}
             </AlertDescription>
@@ -371,11 +404,26 @@ export function OperatorSourceProposalPage() {
   const [completed, setCompleted] = useState(false);
   const [listingCompleted, setListingCompleted] = useState(false);
   const proposals = useQuery(operatorSourceProposalsQueryOptions);
-  const candidates = useQuery(operatorExternalListingCandidatesQueryOptions);
-  const removeCompletedProposal = (proposalId: string) => {
+  const currentUser = useQuery(currentUserQuery);
+  const mayReview =
+    currentUser.data?.operator_capabilities.includes(
+      "review_source_proposals",
+    ) ?? true;
+  const candidates = useQuery({
+    ...operatorExternalListingCandidatesQueryOptions,
+    enabled: mayReview,
+  });
+  const removeCompletedProposal = (updated: OperatorSourceProposal) => {
     queryClient.setQueryData<OperatorSourceProposal[]>(
       operatorSourceProposalsQueryOptions.queryKey,
-      (current) => current?.filter((proposal) => proposal.id !== proposalId),
+      (current) =>
+        current?.flatMap((proposal) =>
+          proposal.id !== updated.id
+            ? [proposal]
+            : updated.state === "pending"
+              ? [updated]
+              : [],
+        ),
     );
     setCompleted(true);
     void queryClient.invalidateQueries({
@@ -418,43 +466,45 @@ export function OperatorSourceProposalPage() {
           />
         ))}
       </div>
-      <section className="mt-12" aria-labelledby="external-candidate-heading">
-        <header className="mb-6">
-          <h2
-            id="external-candidate-heading"
-            className="text-2xl font-semibold"
-          >
-            بررسی مستقل External Listingها
-          </h2>
-          <p className="text-muted-foreground mt-2">
-            این Candidateها محلی و شبیه‌سازی‌شده‌اند و هرکدام تصمیم جداگانه
-            می‌گیرند.
-          </p>
-        </header>
-        {candidates.isPending && (
-          <p role="status">در حال بارگذاری Listingها…</p>
-        )}
-        {candidates.isError && (
-          <Alert variant="destructive">
-            <AlertDescription>
-              صف External Listingها بارگذاری نشد.
-            </AlertDescription>
-          </Alert>
-        )}
-        {listingCompleted && <p role="status">تصمیم Listing ثبت شد.</p>}
-        {candidates.data?.length === 0 && (
-          <p>External Listing در انتظار بررسی وجود ندارد.</p>
-        )}
-        <div className="grid gap-6">
-          {candidates.data?.map((candidate) => (
-            <ExternalListingCandidateCard
-              key={candidate.id}
-              candidate={candidate}
-              onDecisionSuccess={removeCompletedCandidate}
-            />
-          ))}
-        </div>
-      </section>
+      {mayReview && (
+        <section className="mt-12" aria-labelledby="external-candidate-heading">
+          <header className="mb-6">
+            <h2
+              id="external-candidate-heading"
+              className="text-2xl font-semibold"
+            >
+              بررسی مستقل External Listingها
+            </h2>
+            <p className="text-muted-foreground mt-2">
+              این Candidateها محلی و شبیه‌سازی‌شده‌اند و هرکدام تصمیم جداگانه
+              می‌گیرند.
+            </p>
+          </header>
+          {candidates.isPending && (
+            <p role="status">در حال بارگذاری Listingها…</p>
+          )}
+          {candidates.isError && (
+            <Alert variant="destructive">
+              <AlertDescription>
+                صف External Listingها بارگذاری نشد.
+              </AlertDescription>
+            </Alert>
+          )}
+          {listingCompleted && <p role="status">تصمیم Listing ثبت شد.</p>}
+          {candidates.data?.length === 0 && (
+            <p>External Listing در انتظار بررسی وجود ندارد.</p>
+          )}
+          <div className="grid gap-6">
+            {candidates.data?.map((candidate) => (
+              <ExternalListingCandidateCard
+                key={candidate.id}
+                candidate={candidate}
+                onDecisionSuccess={removeCompletedCandidate}
+              />
+            ))}
+          </div>
+        </section>
+      )}
     </PageMain>
   );
 }

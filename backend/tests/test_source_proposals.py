@@ -86,7 +86,7 @@ def test_source_representative_saves_details_and_resumes_them(api_client: APICli
             "website_url": "https://WWW.Khaneh.example/rentals?city=tehran",
             "relationship": "website_manager",
             "inventory_range": "51_200",
-            "sitemap_url": "https://khaneh.example/sitemap.xml",
+            "sitemap_url": "https://www.khaneh.example/sitemap.xml",
             "operator_note": "دسته اجاره از فروش جداست.",
             "authority_declared": True,
         },
@@ -99,7 +99,9 @@ def test_source_representative_saves_details_and_resumes_them(api_client: APICli
     assert saved.data["current_step"] == "preview"
     assert saved.data["website_name"] == "خانه‌یاب"
     assert saved.data["inventory_range"] == "51_200"
-    assert SourceProposal.objects.get(id=created.data["id"]).normalized_domain == "khaneh.example"
+    assert (
+        SourceProposal.objects.get(id=created.data["id"]).normalized_domain == "www.khaneh.example"
+    )
 
 
 @pytest.mark.django_db
@@ -155,7 +157,7 @@ def test_unsafe_website_url_is_rejected_without_losing_saved_details(
 
 
 @pytest.mark.django_db
-def test_simulated_preview_is_deterministic_explicit_and_survives_reload(api_client: APIClient):
+def test_no_fetch_summary_is_deterministic_explicit_and_survives_reload(api_client: APIClient):
     authenticate_submitter(api_client)
     created = api_client.post("/api/v1/source-proposals/", {}, format="json")
     proposal_url = f"/api/v1/source-proposals/{created.data['id']}/"
@@ -177,10 +179,10 @@ def test_simulated_preview_is_deterministic_explicit_and_survives_reload(api_cli
     assert first.status_code == 200
     assert second.data["preview"] == first.data["preview"]
     assert resumed.data["preview"] == first.data["preview"]
-    assert first.data["preview"]["simulated"] is True
-    assert "هیچ درخواست زنده‌ای" in first.data["preview"]["disclaimer"]
+    assert first.data["preview"]["simulated"] is False
+    assert "هیچ درخواستی" in first.data["preview"]["disclaimer"]
     assert first.data["preview"]["estimated_count"] is None
-    assert len(first.data["preview"]["examples"]) == 3
+    assert first.data["preview"]["examples"] == []
 
 
 @pytest.mark.django_db
@@ -256,7 +258,7 @@ def test_account_cannot_hold_two_open_proposals_for_one_normalized_domain(
     submit_proposal(api_client, first.data["id"])
     second = api_client.post("/api/v1/source-proposals/", {"start_new": True}, format="json")
 
-    duplicate = complete_details(api_client, second.data["id"], "http://EXAMPLE.com/b")
+    duplicate = complete_details(api_client, second.data["id"], "http://WWW.EXAMPLE.com/b")
 
     assert duplicate.status_code == 400
     assert SourceProposal.objects.get(id=second.data["id"]).normalized_domain == ""
@@ -297,7 +299,7 @@ def test_cross_account_duplicate_is_accepted_and_privately_flagged(api_client: A
     )
     api_client.force_authenticate(second_submitter)
     second = api_client.post("/api/v1/source-proposals/", {}, format="json")
-    accepted = complete_details(api_client, second.data["id"], "http://example.com/b")
+    accepted = complete_details(api_client, second.data["id"], "http://www.example.com/b")
 
     assert accepted.status_code == 200
     assert "needs_reconciliation" not in accepted.data

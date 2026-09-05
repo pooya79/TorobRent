@@ -3,14 +3,25 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { MemoryRouter } from "react-router";
-import { expect, test } from "vitest";
+import { beforeEach, expect, test } from "vitest";
 
 import { OperatorSourceProposalPage } from "@/pages/OperatorSourceProposalPage";
 import { server } from "./server";
 
+beforeEach(() => {
+  server.use(
+    http.get("*/api/v1/users/me/", () =>
+      HttpResponse.json({
+        operator_capabilities: ["review_source_proposals"],
+      }),
+    ),
+  );
+});
+
 const proposal = {
   id: "10000000-0000-4000-8000-000000000088",
   state: "pending",
+  discovery_stage: "awaiting_url",
   revision: 1,
   current_step: "preview",
   website_name: "خانه‌یاب",
@@ -85,12 +96,10 @@ test("inspects, claims, and requests changes to a Source Proposal", async () => 
     await screen.findByRole("heading", { name: "خانه‌یاب" }),
   ).toBeVisible();
   expect(screen.getByText("مدیر وب‌سایت")).toBeVisible();
-  expect(screen.getAllByText("۵۱ تا ۲۰۰")).toHaveLength(2);
+  expect(screen.getAllByText("۵۱ تا ۲۰۰")).toHaveLength(1);
   expect(screen.getByText("دسته اجاره از فروش جداست.")).toBeVisible();
   expect(screen.getByText(/دامنه تکراری/)).toBeVisible();
-  expect(screen.getByText("پیش‌نمایش شبیه‌سازی‌شده")).toBeVisible();
-  expect(screen.getByText("تعداد تخمینی کشف")).toBeVisible();
-  expect(screen.getByText("نمونه ملک مسکونی")).toBeVisible();
+  expect(screen.getByText("در انتظار تأیید نشانی")).toBeVisible();
 
   await user.click(screen.getByRole("button", { name: "شروع بررسی" }));
   expect(claimed).toBe(true);
@@ -275,4 +284,104 @@ test("reviews each simulated External Listing candidate independently", async ()
   );
   expect(decisions[1]).toEqual({ id: candidates[1]!.id, kind: "approve" });
   expect(await screen.findByText("تصمیم Listing ثبت شد.")).toBeVisible();
+});
+
+test("URL approval keeps the case visible with Discovery evidence and renewable responsibility", async () => {
+  const user = userEvent.setup();
+  let claimCount = 0;
+  const completed = {
+    ...proposal,
+    discovery_stage: "complete",
+    discovery: {
+      expires_at: "2026-09-06T08:00:00Z",
+      evidence: {
+        page_count: 8,
+        detail_page_count: 6,
+        classifications: { rental_listing: 6, rental_index: 1, fetch_error: 1 },
+        structures: [
+          {
+            fingerprint: "group-1",
+            representative_url_shape: "/rent/:id",
+            coverage: 0.75,
+            selected: true,
+            supported_page_urls: ["/rent/1"],
+            page_urls: ["/rent/1"],
+            excluded_page_urls: [],
+          },
+        ],
+        exclusions: ["https://khaneh.example/unsupported"],
+        samples: [
+          {
+            url: "https://khaneh.example/rent/1",
+            classification: "rental_listing",
+            evidence: ["مبلغ اجاره شناسایی شد"],
+          },
+        ],
+        failures: [
+          {
+            url: "https://khaneh.example/unavailable",
+            code: "timeout",
+            detail: "زمان دریافت به پایان رسید",
+          },
+        ],
+      },
+    },
+  };
+  server.use(
+    http.get("*/api/v1/operator/source-proposals/", () =>
+      HttpResponse.json([proposal]),
+    ),
+    http.post("*/api/v1/operator/source-proposals/:proposalId/claim/", () => {
+      claimCount += 1;
+      return HttpResponse.json(
+        { expires_at: "2026-09-05T08:15:00Z" },
+        { status: 201 },
+      );
+    }),
+    http.post("*/api/v1/operator/source-proposals/:proposalId/approve/", () =>
+      HttpResponse.json(completed),
+    ),
+  );
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  render(
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter>
+        <OperatorSourceProposalPage />
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+  await user.click(await screen.findByRole("button", { name: "شروع بررسی" }));
+  await user.click(screen.getByLabelText(/نشانی و اختیار نماینده/));
+  await user.click(
+    screen.getByRole("button", { name: "تأیید نشانی و شروع کشف" }),
+  );
+  expect(
+    await screen.findByText("کشف پایان یافت؛ در انتظار بررسی پروفایل"),
+  ).toBeVisible();
+  expect(screen.getByRole("heading", { name: "خانه‌یاب" })).toBeVisible();
+  expect(screen.getByText(/صفحات بررسی‌شده: ۸/)).toBeVisible();
+  expect(screen.getByText(/ساختار غالب؛ پوشش: ۷۵/)).toBeVisible();
+  expect(screen.getByText("https://khaneh.example/unsupported")).toBeVisible();
+  expect(screen.getByText("مبلغ اجاره شناسایی شد")).toBeVisible();
+  expect(screen.getByText("زمان دریافت به پایان رسید")).toBeVisible();
+  expect(
+    screen.getByRole("button", { name: "تأیید نشانی و شروع کشف" }),
+  ).toBeDisabled();
+  await user.click(screen.getByRole("button", { name: "تمدید مسئولیت بررسی" }));
+  expect(claimCount).toBe(2);
+  server.use(
+    http.post(
+      "*/api/v1/operator/source-proposals/:proposalId/claim/release/",
+      () => HttpResponse.json({ ...completed, discovery_stage: "released" }),
+    ),
+  );
+  await user.type(screen.getByLabelText("دلیل تصمیم"), "بررسی متوقف شد");
+  await user.click(
+    screen.getByRole("button", { name: "آزادسازی مسئولیت و رزرو" }),
+  );
+  expect(
+    await screen.findByText("رزرو آزاد شد؛ در انتظار بررسی دوباره"),
+  ).toBeVisible();
 });

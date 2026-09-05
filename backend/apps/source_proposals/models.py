@@ -21,7 +21,7 @@ class SourceProposalState(models.TextChoices):
 
 class SourceProposalStep(models.TextChoices):
     DETAILS = "details", "اطلاعات وب‌سایت"
-    PREVIEW = "preview", "پیش‌نمایش شبیه‌سازی‌شده"
+    PREVIEW = "preview", "بازبینی اطلاعات"
 
 
 class SourceRepresentativeRelationship(models.TextChoices):
@@ -36,6 +36,15 @@ class InventoryRange(models.TextChoices):
     FIFTY_ONE_TO_TWO_HUNDRED = "51_200", "۵۱ تا ۲۰۰"
     MORE_THAN_TWO_HUNDRED = "more_than_200", "بیش از ۲۰۰"
     UNKNOWN = "unknown", "نمی‌دانم"
+
+
+class DiscoveryStage(models.TextChoices):
+    AWAITING_URL = "awaiting_url", "در انتظار تأیید نشانی"
+    QUEUED = "queued", "در انتظار کشف"
+    RUNNING = "running", "در حال کشف"
+    COMPLETE = "complete", "کشف پایان یافت؛ در انتظار بررسی پروفایل"
+    FAILED = "failed", "کشف ناموفق"
+    RELEASED = "released", "رزرو آزاد شده"
 
 
 class SourceProposal(models.Model):
@@ -72,6 +81,9 @@ class SourceProposal(models.Model):
     operator_note = models.TextField(max_length=5000, blank=True)
     authority_declared = models.BooleanField(default=False)
     preview = models.JSONField(default=dict, blank=True)
+    discovery_stage = models.CharField(
+        max_length=24, choices=DiscoveryStage, default=DiscoveryStage.AWAITING_URL
+    )
     preview_confirmed = models.BooleanField(default=False)
     needs_reconciliation = models.BooleanField(default=False, editable=False)
     pending_since = models.DateTimeField(null=True, blank=True, editable=False)
@@ -294,3 +306,59 @@ class ExternalListingCandidateReviewClaim(models.Model):
 
     def __str__(self) -> str:
         return f"{self.candidate_id}: {self.operator_id} (revision {self.revision})"
+
+
+class SourceReservation(models.Model):
+    """One auditable approval attempt; the Source row serializes host authorization."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    source = models.ForeignKey("catalog.Source", on_delete=models.PROTECT)
+    proposal = models.ForeignKey(
+        SourceProposal, on_delete=models.PROTECT, related_name="reservations"
+    )
+    revision = models.PositiveIntegerField()
+    approved_url = models.URLField(max_length=1000)
+    expires_at = models.DateTimeField()
+    released_at = models.DateTimeField(null=True)
+    release_reason = models.CharField(max_length=32, blank=True)
+    started_at = models.DateTimeField(null=True)
+    completed_at = models.DateTimeField(null=True)
+    evidence = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ("-created_at",)
+        constraints = [
+            models.UniqueConstraint(
+                fields=("source",),
+                condition=models.Q(released_at__isnull=True),
+                name="one_open_reservation_per_source",
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.proposal_id}: {self.approved_url}"
+
+
+class SourceAssignment(models.Model):
+    source = models.ForeignKey(
+        "catalog.Source", on_delete=models.PROTECT, related_name="assignments"
+    )
+    representative = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True
+    )
+    proposal = models.ForeignKey(SourceProposal, on_delete=models.PROTECT)
+    created_at = models.DateTimeField(auto_now_add=True)
+    revoked_at = models.DateTimeField(null=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=("source",),
+                condition=models.Q(revoked_at__isnull=True),
+                name="one_active_assignment_per_source",
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.source_id}: {self.representative_id}"

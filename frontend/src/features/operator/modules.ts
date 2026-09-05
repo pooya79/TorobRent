@@ -28,7 +28,7 @@ export const operatorModules = [
     to: "/operator/conversation-reports",
   },
   {
-    capabilities: ["review_source_proposals"],
+    capabilities: ["review_source_proposals", "manage_operator_queues"],
     description: "اعتبارسنجی Source و رابطه نماینده آن",
     icon: Globe2,
     label: "اعتبارسنجی Sourceها",

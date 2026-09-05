@@ -729,7 +729,7 @@ export interface paths {
     };
     get?: never;
     put?: never;
-    /** Approve and validate a Source */
+    /** Approve the URL and schedule Source Discovery */
     post: operations["v1_operator_source_proposals_approve_create"];
     delete?: never;
     options?: never;
@@ -748,6 +748,23 @@ export interface paths {
     put?: never;
     /** Claim a Source Proposal review */
     post: operations["v1_operator_source_proposals_claim_create"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/operator/source-proposals/{proposal_id}/claim/release/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Release abandoned Source Discovery and its Review Claim */
+    post: operations["v1_operator_source_proposals_claim_release_create"];
     delete?: never;
     options?: never;
     head?: never;
@@ -1261,7 +1278,7 @@ export interface paths {
     };
     get?: never;
     put?: never;
-    /** Generate the deterministic simulated Source Proposal preview */
+    /** Prepare the no-fetch Source Proposal summary */
     post: operations["v1_source_proposals_preview_create"];
     delete?: never;
     options?: never;
@@ -1278,7 +1295,7 @@ export interface paths {
     };
     get?: never;
     put?: never;
-    /** Confirm the simulated preview and submit for Operator review */
+    /** Confirm the URL summary and submit for Operator review */
     post: operations["v1_source_proposals_submit_create"];
     delete?: never;
     options?: never;
@@ -1883,6 +1900,55 @@ export interface components {
     Detail: {
       detail: string;
     };
+    DiscoveryEvidence: {
+      /** @default 0 */
+      page_count: number;
+      /** @default 0 */
+      detail_page_count: number;
+      classifications?: {
+        [key: string]: number;
+      };
+      structures?: components["schemas"]["DiscoveryStructure"][];
+      exclusions?: string[];
+      samples?: components["schemas"]["DiscoverySample"][];
+      failures?: components["schemas"]["DiscoveryFailure"][];
+    };
+    DiscoveryFailure: {
+      url?: string;
+      code: string;
+      detail: string;
+    };
+    DiscoverySample: {
+      url: string;
+      classification: string;
+      evidence: string[];
+    };
+    /**
+     * @description * `awaiting_url` - در انتظار تأیید نشانی
+     *     * `queued` - در انتظار کشف
+     *     * `running` - در حال کشف
+     *     * `complete` - کشف پایان یافت؛ در انتظار بررسی پروفایل
+     *     * `failed` - کشف ناموفق
+     *     * `released` - رزرو آزاد شده
+     * @enum {string}
+     */
+    DiscoveryStageEnum:
+      | "awaiting_url"
+      | "queued"
+      | "running"
+      | "complete"
+      | "failed"
+      | "released";
+    DiscoveryStructure: {
+      fingerprint: string;
+      representative_url_shape: string;
+      page_urls: string[];
+      supported_page_urls: string[];
+      excluded_page_urls: string[];
+      /** Format: double */
+      coverage: number;
+      selected: boolean;
+    };
     DisplayName: {
       display_name: string;
       identity_verified: boolean;
@@ -2339,6 +2405,7 @@ export interface components {
       /** Format: uuid */
       readonly id: string;
       state?: components["schemas"]["SourceProposalStateEnum"];
+      readonly discovery_stage: components["schemas"]["DiscoveryStageEnum"];
       readonly revision: number;
       current_step?: components["schemas"]["SourceProposalStepEnum"];
       website_name?: string;
@@ -2352,8 +2419,7 @@ export interface components {
       sitemap_url?: string;
       operator_note?: string;
       authority_declared?: boolean;
-      readonly preview:
-        components["schemas"]["SimulatedSourceProposalPreview"] | null;
+      readonly preview: components["schemas"]["SourceProposalPreview"] | null;
       preview_confirmed?: boolean;
       /** Format: date-time */
       readonly pending_since: string | null;
@@ -2364,6 +2430,7 @@ export interface components {
       /** Format: date-time */
       readonly updated_at: string;
       readonly needs_reconciliation: boolean;
+      readonly discovery: components["schemas"]["SourceDiscovery"] | null;
     };
     OperatorSubmissionQueue: {
       /** Format: uuid */
@@ -2550,6 +2617,10 @@ export interface components {
      * @enum {string}
      */
     PrecisionEnum: "approximate" | "neighborhood";
+    PreviewExample: {
+      title: string;
+      status: string;
+    };
     /**
      * @description * `defensive_contact_removal` - حذف دفاعی اطلاعات تماس عمومی
      *     * `permanent_account_action` - اقدام دائمی حساب
@@ -2796,22 +2867,24 @@ export interface components {
       authenticated: boolean;
       csrf_token: string;
     };
-    SimulatedPreviewExample: {
-      title: string;
-      status: string;
-    };
-    SimulatedSourceProposalPreview: {
-      simulated: boolean;
-      title: string;
-      disclaimer: string;
-      estimated_count: number | null;
-      inventory_range: components["schemas"]["SourceProposalInventoryRangeEnum"];
-      examples: components["schemas"]["SimulatedPreviewExample"][];
-    };
     SourceDisagreement: {
       field: string;
       normalized_value: unknown;
       source_value: unknown;
+    };
+    SourceDiscovery: {
+      /** Format: uuid */
+      readonly id: string;
+      /** Format: date-time */
+      expires_at: string;
+      /** Format: date-time */
+      released_at?: string | null;
+      release_reason?: string;
+      /** Format: date-time */
+      started_at?: string | null;
+      /** Format: date-time */
+      completed_at?: string | null;
+      readonly evidence: components["schemas"]["DiscoveryEvidence"];
     };
     SourceMetadata: {
       source_reference?: string;
@@ -2822,6 +2895,7 @@ export interface components {
       /** Format: uuid */
       readonly id: string;
       state?: components["schemas"]["SourceProposalStateEnum"];
+      readonly discovery_stage: components["schemas"]["DiscoveryStageEnum"];
       readonly revision: number;
       current_step?: components["schemas"]["SourceProposalStepEnum"];
       website_name?: string;
@@ -2835,8 +2909,7 @@ export interface components {
       sitemap_url?: string;
       operator_note?: string;
       authority_declared?: boolean;
-      readonly preview:
-        components["schemas"]["SimulatedSourceProposalPreview"] | null;
+      readonly preview: components["schemas"]["SourceProposalPreview"] | null;
       preview_confirmed?: boolean;
       /** Format: date-time */
       readonly pending_since: string | null;
@@ -2881,6 +2954,14 @@ export interface components {
      */
     SourceProposalInventoryRangeEnum:
       "1_10" | "11_50" | "51_200" | "more_than_200" | "unknown";
+    SourceProposalPreview: {
+      simulated: boolean;
+      title: string;
+      disclaimer: string;
+      estimated_count: number | null;
+      inventory_range: components["schemas"]["SourceProposalInventoryRangeEnum"];
+      examples: components["schemas"]["PreviewExample"][];
+    };
     /**
      * @description * `website_owner` - مالک وب‌سایت
      *     * `website_manager` - مدیر وب‌سایت
@@ -2913,7 +2994,7 @@ export interface components {
       "draft" | "pending" | "changes_requested" | "rejected" | "approved";
     /**
      * @description * `details` - اطلاعات وب‌سایت
-     *     * `preview` - پیش‌نمایش شبیه‌سازی‌شده
+     *     * `preview` - بازبینی اطلاعات
      * @enum {string}
      */
     SourceProposalStepEnum: "details" | "preview";
@@ -5073,6 +5154,31 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["SourceProposalReviewClaim"];
+        };
+      };
+    };
+  };
+  v1_operator_source_proposals_claim_release_create: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        proposal_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["SourceProposalDecision"];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["OperatorSourceProposal"];
         };
       };
     };

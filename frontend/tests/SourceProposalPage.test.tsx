@@ -14,7 +14,7 @@ function LocationSearch() {
   return <output data-testid="location-search">{useLocation().search}</output>;
 }
 
-test("saves website details, labels the deterministic preview as simulated, and confirms it", async () => {
+test("saves website details and confirms the no-fetch summary", async () => {
   const user = userEvent.setup();
   let savedBody: unknown;
   let submittedBody: unknown;
@@ -55,8 +55,8 @@ test("saves website details, labels the deterministic preview as simulated, and 
         ...base,
         current_step: "preview",
         preview: {
-          simulated: true,
-          title: "پیش‌نمایش شبیه‌سازی‌شده",
+          simulated: false,
+          title: "بازبینی اطلاعات وب‌سایت",
           disclaimer:
             "این نمونه فقط برای نمایش روند آینده ساخته شده و هیچ درخواست زنده‌ای به وب‌سایت شما ارسال نشده است.",
           estimated_count: null,
@@ -110,7 +110,7 @@ test("saves website details, labels the deterministic preview as simulated, and 
     screen.getByRole("button", { name: "ذخیره و مشاهده پیش‌نمایش" }),
   );
 
-  expect(await screen.findByText("پیش‌نمایش شبیه‌سازی‌شده")).toBeVisible();
+  expect(await screen.findByText("بازبینی اطلاعات وب‌سایت")).toBeVisible();
   expect(screen.getByText(/هیچ درخواست زنده‌ای/)).toBeVisible();
   expect(screen.getByText(/تعداد قطعی یا تضمین‌شده‌ای/)).toBeVisible();
   expect(savedBody).toMatchObject({
@@ -121,9 +121,7 @@ test("saves website details, labels the deterministic preview as simulated, and 
     authority_declared: true,
   });
 
-  await user.click(
-    screen.getByLabelText(/این پیش‌نمایش شبیه‌سازی‌شده را بررسی کردم/),
-  );
+  await user.click(screen.getByLabelText(/این اطلاعات را بررسی کردم/));
   await user.click(screen.getByRole("button", { name: "ارسال برای بررسی" }));
 
   expect(await screen.findByText("در انتظار بررسی اپراتور")).toBeVisible();
@@ -144,7 +142,7 @@ test("restores a pending Source Proposal after reload", async () => {
         sitemap_url: "",
         operator_note: "",
         authority_declared: true,
-        preview: { simulated: true },
+        preview: { simulated: false },
         preview_confirmed: true,
         pending_since: "2026-08-31T09:00:00Z",
         available_actions: [],

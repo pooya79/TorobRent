@@ -238,6 +238,10 @@ CELERY_TASK_SOFT_TIME_LIMIT = 25 * 60
 CELERY_TASK_ACKS_LATE = True
 CELERY_WORKER_PREFETCH_MULTIPLIER = 1
 CELERY_BEAT_SCHEDULE = {
+    "expire-source-reservations": {
+        "task": "apps.source_proposals.tasks.expire_source_reservations",
+        "schedule": 60,
+    },
     "dispatch-pending-submission-decision-notifications": {
         "task": "apps.submissions.tasks.dispatch_pending_submission_decision_notifications",
         "schedule": 5 * 60,

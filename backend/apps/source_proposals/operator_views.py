@@ -14,7 +14,9 @@ from rest_framework.views import APIView
 from apps.accounts.capabilities import OperatorCapability, has_capability
 from apps.accounts.models import User
 
+from .discovery_workflow import approve_url, release_case
 from .models import SourceProposal, SourceProposalState
+from .review_claims import SourceProposalReviewConflict
 from .serializers import (
     OperatorSourceProposalSerializer,
     SourceProposalApprovalSerializer,
@@ -22,8 +24,6 @@ from .serializers import (
     SourceProposalReviewClaimSerializer,
 )
 from .services import (
-    SourceProposalReviewConflict,
-    approve_source_proposal,
     claim_source_proposal_review,
     reject_source_proposal,
     request_source_proposal_changes,
@@ -35,8 +35,16 @@ class CanReviewSourceProposal(BasePermission):
         return has_capability(cast(User, request.user), OperatorCapability.REVIEW_SOURCE_PROPOSALS)
 
 
+class CanReleaseSourceProposal(BasePermission):
+    def has_permission(self, request: Request, view: APIView) -> bool:
+        actor = cast(User, request.user)
+        return has_capability(actor, OperatorCapability.MANAGE_OPERATOR_QUEUES) or has_capability(
+            actor, OperatorCapability.REVIEW_SOURCE_PROPOSALS
+        )
+
+
 class OperatorSourceProposalListView(APIView):
-    permission_classes = (CanReviewSourceProposal,)
+    permission_classes = (CanReleaseSourceProposal,)
 
     @extend_schema(
         summary="List pending Source Proposals for Operator review",
@@ -142,7 +150,7 @@ class OperatorSourceProposalApproveView(APIView):
     permission_classes = (CanReviewSourceProposal,)
 
     @extend_schema(
-        summary="Approve and validate a Source",
+        summary="Approve the URL and schedule Source Discovery",
         request=SourceProposalApprovalSerializer,
         responses=OperatorSourceProposalSerializer,
     )
@@ -151,5 +159,22 @@ class OperatorSourceProposalApproveView(APIView):
             request=request,
             proposal_id=proposal_id,
             serializer_class=SourceProposalApprovalSerializer,
-            transition=approve_source_proposal,
+            transition=approve_url,
+        )
+
+
+class OperatorSourceProposalReleaseView(APIView):
+    permission_classes = (CanReleaseSourceProposal,)
+
+    @extend_schema(
+        summary="Release abandoned Source Discovery and its Review Claim",
+        request=SourceProposalDecisionSerializer,
+        responses=OperatorSourceProposalSerializer,
+    )
+    def post(self, request: Request, proposal_id: str) -> Response:
+        return _decision_response(
+            request=request,
+            proposal_id=proposal_id,
+            serializer_class=SourceProposalDecisionSerializer,
+            transition=release_case,
         )

@@ -1,9 +1,11 @@
 from typing import Any
 
+from django.utils import timezone
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
 from .models import (
+    DiscoveryStage,
     ExternalListingCandidate,
     ExternalListingCandidateEvent,
     ExternalListingCandidateReviewClaim,
@@ -13,6 +15,7 @@ from .models import (
     SourceProposalReviewClaim,
     SourceProposalState,
     SourceRepresentativeRelationship,
+    SourceReservation,
 )
 
 REQUIRED_ERROR = "این مقدار الزامی است."
@@ -71,22 +74,22 @@ class SourceProposalSubmitSerializer(serializers.Serializer[Any]):
 
     def validate_preview_confirmed(self, value: bool) -> bool:
         if not value:
-            raise serializers.ValidationError("تأیید پیش‌نمایش شبیه‌سازی‌شده الزامی است.")
+            raise serializers.ValidationError("تأیید اطلاعات وب‌سایت الزامی است.")
         return value
 
 
-class SimulatedPreviewExampleSerializer(serializers.Serializer[Any]):
+class PreviewExampleSerializer(serializers.Serializer[Any]):
     title = serializers.CharField()
     status = serializers.CharField()
 
 
-class SimulatedSourceProposalPreviewSerializer(serializers.Serializer[Any]):
+class SourceProposalPreviewSerializer(serializers.Serializer[Any]):
     simulated = serializers.BooleanField()
     title = serializers.CharField()
     disclaimer = serializers.CharField()
     estimated_count = serializers.IntegerField(allow_null=True)
     inventory_range = serializers.ChoiceField(choices=InventoryRange.choices)
-    examples = SimulatedPreviewExampleSerializer(many=True)
+    examples = PreviewExampleSerializer(many=True)
 
 
 class SourceProposalEventSerializer(serializers.ModelSerializer[SourceProposalEvent]):
@@ -117,9 +120,11 @@ class SourceProposalSerializer(serializers.ModelSerializer[SourceProposal]):
 
     class Meta:
         model = SourceProposal
+        read_only_fields = ("discovery_stage",)
         fields = (
             "id",
             "state",
+            "discovery_stage",
             "revision",
             "current_step",
             "website_name",
@@ -138,6 +143,18 @@ class SourceProposalSerializer(serializers.ModelSerializer[SourceProposal]):
             "updated_at",
         )
 
+    def to_representation(self, instance: SourceProposal) -> dict[str, Any]:
+        data = super().to_representation(instance)
+        reservation = instance.reservations.filter(revision=instance.revision).first()
+        if (
+            instance.state == SourceProposalState.PENDING
+            and reservation
+            and (reservation.expires_at <= timezone.now() or reservation.released_at)
+            and instance.discovery_stage != DiscoveryStage.FAILED
+        ):
+            data["discovery_stage"] = DiscoveryStage.RELEASED
+        return data
+
     def get_available_actions(self, proposal: SourceProposal) -> list[str]:
         if proposal.state == SourceProposalState.DRAFT:
             actions = ["edit"]
@@ -148,11 +165,11 @@ class SourceProposalSerializer(serializers.ModelSerializer[SourceProposal]):
             return ["edit"]
         return []
 
-    @extend_schema_field(SimulatedSourceProposalPreviewSerializer(allow_null=True))
+    @extend_schema_field(SourceProposalPreviewSerializer(allow_null=True))
     def get_preview(self, proposal: SourceProposal) -> dict[str, Any] | None:
         if not proposal.preview:
             return None
-        return dict(SimulatedSourceProposalPreviewSerializer(proposal.preview).data)
+        return dict(SourceProposalPreviewSerializer(proposal.preview).data)
 
     @extend_schema_field(SourceProposalEventSerializer(many=True))
     def get_history(self, proposal: SourceProposal) -> list[dict[str, Any]]:
@@ -182,13 +199,68 @@ class SourceProposalApprovalSerializer(serializers.Serializer[Any]):
         return value
 
 
+class DiscoverySampleSerializer(serializers.Serializer[Any]):
+    url = serializers.CharField()
+    classification = serializers.CharField()
+    evidence = serializers.ListField(child=serializers.CharField())
+
+
+class DiscoveryStructureSerializer(serializers.Serializer[Any]):
+    fingerprint = serializers.CharField()
+    representative_url_shape = serializers.CharField()
+    page_urls = serializers.ListField(child=serializers.CharField())
+    supported_page_urls = serializers.ListField(child=serializers.CharField())
+    excluded_page_urls = serializers.ListField(child=serializers.CharField())
+    coverage = serializers.FloatField()
+    selected = serializers.BooleanField()
+
+
+class DiscoveryFailureSerializer(serializers.Serializer[Any]):
+    url = serializers.CharField(required=False)
+    code = serializers.CharField()
+    detail = serializers.CharField()
+
+
+class DiscoveryEvidenceSerializer(serializers.Serializer[Any]):
+    page_count = serializers.IntegerField(default=0)
+    detail_page_count = serializers.IntegerField(default=0)
+    classifications = serializers.DictField(child=serializers.IntegerField(), default=dict)
+    structures = DiscoveryStructureSerializer(many=True, default=list)
+    exclusions = serializers.ListField(child=serializers.CharField(), default=list)
+    samples = DiscoverySampleSerializer(many=True, default=list)
+    failures = DiscoveryFailureSerializer(many=True, default=list)
+
+
+class SourceDiscoverySerializer(serializers.ModelSerializer[SourceReservation]):
+    evidence = DiscoveryEvidenceSerializer(read_only=True)
+
+    class Meta:
+        model = SourceReservation
+        fields = (
+            "id",
+            "expires_at",
+            "released_at",
+            "release_reason",
+            "started_at",
+            "completed_at",
+            "evidence",
+        )
+
+
 class OperatorSourceProposalSerializer(SourceProposalSerializer):
     needs_reconciliation = serializers.SerializerMethodField()
+    discovery = serializers.SerializerMethodField()
 
     class Meta(SourceProposalSerializer.Meta):
         fields = SourceProposalSerializer.Meta.fields + (  # type: ignore[assignment]
             "needs_reconciliation",
+            "discovery",
         )
+
+    @extend_schema_field(SourceDiscoverySerializer(allow_null=True))
+    def get_discovery(self, proposal: SourceProposal) -> dict[str, Any] | None:
+        reservation = proposal.reservations.filter(revision=proposal.revision).first()
+        return dict(SourceDiscoverySerializer(reservation).data) if reservation else None
 
     def get_needs_reconciliation(self, proposal: SourceProposal) -> bool:
         if not proposal.normalized_domain:

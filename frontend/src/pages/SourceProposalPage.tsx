@@ -1,3 +1,4 @@
+import { discoveryStageLabels } from "@/features/source-proposals/discovery-labels";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CheckCircle2, Globe2, ShieldCheck } from "lucide-react";
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
@@ -142,10 +143,12 @@ export function SourceProposalPage() {
               aria-hidden="true"
             />
             <h1 className="text-2xl font-semibold">در انتظار بررسی اپراتور</h1>
+            <p role="status">
+              {discoveryStageLabels[proposal.discovery_stage ?? "awaiting_url"]}
+            </p>
             <p className="text-muted-foreground leading-7">
-              Source Proposal وب‌سایت {proposal.website_name} ثبت شده است. بررسی
-              منبع به معنی انتشار خودکار ملک‌ها نیست و هر External Listing
-              candidate جداگانه بررسی خواهد شد.
+              Source Proposal وب‌سایت {proposal.website_name} ثبت شده است. کشف
+              اطلاعات به معنی تأیید منبع یا انتشار آگهی نیست.
             </p>
             <Button asChild>
               <Link to="/dashboard">مشاهده وضعیت در داشبورد</Link>
@@ -157,7 +160,7 @@ export function SourceProposalPage() {
   }
 
   const previewData = proposal.preview;
-  const showPreview = previewData?.simulated === true;
+  const showPreview = !!previewData;
   const setField = <K extends keyof typeof details>(
     key: K,
     value: (typeof details)[K],
@@ -181,8 +184,8 @@ export function SourceProposalPage() {
           Source Proposal وب‌سایت اجاره
         </h1>
         <p className="text-muted-foreground mt-3 leading-8">
-          اطلاعات وب‌سایت و رابطه خود را ثبت کنید. هیچ خزیدن یا استخراج زنده‌ای
-          در این نسخه انجام نمی‌شود.
+          اطلاعات وب‌سایت و رابطه خود را ثبت کنید. دریافت صفحات تنها پس از تأیید
+          نشانی توسط اپراتور آغاز می‌شود.
         </p>
       </header>
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(20rem,0.75fr)]">
@@ -367,8 +370,7 @@ export function SourceProposalPage() {
                     }
                   />
                   <Label htmlFor="preview-confirmed" className="leading-6">
-                    این پیش‌نمایش شبیه‌سازی‌شده را بررسی کردم و می‌خواهم پیشنهاد
-                    را ارسال کنم.
+                    این اطلاعات را بررسی کردم و می‌خواهم پیشنهاد را ارسال کنم.
                   </Label>
                 </div>
                 {submit.isError && <ErrorAlert error={submit.error} />}

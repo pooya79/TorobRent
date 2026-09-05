@@ -1518,7 +1518,7 @@ paths:
   /api/v1/operator/source-proposals/{proposal_id}/approve/:
     post:
       operationId: v1_operator_source_proposals_approve_create
-      summary: Approve and validate a Source
+      summary: Approve the URL and schedule Source Discovery
       parameters:
       - in: path
         name: proposal_id
@@ -1564,6 +1564,34 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/SourceProposalReviewClaim'
+          description: ''
+  /api/v1/operator/source-proposals/{proposal_id}/claim/release/:
+    post:
+      operationId: v1_operator_source_proposals_claim_release_create
+      summary: Release abandoned Source Discovery and its Review Claim
+      parameters:
+      - in: path
+        name: proposal_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SourceProposalDecision'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatorSourceProposal'
           description: ''
   /api/v1/operator/source-proposals/{proposal_id}/reject/:
     post:
@@ -2554,7 +2582,7 @@ paths:
   /api/v1/source-proposals/{proposal_id}/preview/:
     post:
       operationId: v1_source_proposals_preview_create
-      summary: Generate the deterministic simulated Source Proposal preview
+      summary: Prepare the no-fetch Source Proposal summary
       parameters:
       - in: path
         name: proposal_id
@@ -2576,7 +2604,7 @@ paths:
   /api/v1/source-proposals/{proposal_id}/submit/:
     post:
       operationId: v1_source_proposals_submit_create
-      summary: Confirm the simulated preview and submit for Operator review
+      summary: Confirm the URL summary and submit for Operator review
       parameters:
       - in: path
         name: proposal_id
@@ -3817,6 +3845,110 @@ components:
           type: string
       required:
       - detail
+    DiscoveryEvidence:
+      type: object
+      properties:
+        page_count:
+          type: integer
+          default: 0
+        detail_page_count:
+          type: integer
+          default: 0
+        classifications:
+          type: object
+          additionalProperties:
+            type: integer
+        structures:
+          type: array
+          items:
+            $ref: '#/components/schemas/DiscoveryStructure'
+        exclusions:
+          type: array
+          items:
+            type: string
+        samples:
+          type: array
+          items:
+            $ref: '#/components/schemas/DiscoverySample'
+        failures:
+          type: array
+          items:
+            $ref: '#/components/schemas/DiscoveryFailure'
+    DiscoveryFailure:
+      type: object
+      properties:
+        url:
+          type: string
+        code:
+          type: string
+        detail:
+          type: string
+      required:
+      - code
+      - detail
+    DiscoverySample:
+      type: object
+      properties:
+        url:
+          type: string
+        classification:
+          type: string
+        evidence:
+          type: array
+          items:
+            type: string
+      required:
+      - classification
+      - evidence
+      - url
+    DiscoveryStageEnum:
+      enum:
+      - awaiting_url
+      - queued
+      - running
+      - complete
+      - failed
+      - released
+      type: string
+      description: |-
+        * `awaiting_url` - در انتظار تأیید نشانی
+        * `queued` - در انتظار کشف
+        * `running` - در حال کشف
+        * `complete` - کشف پایان یافت؛ در انتظار بررسی پروفایل
+        * `failed` - کشف ناموفق
+        * `released` - رزرو آزاد شده
+    DiscoveryStructure:
+      type: object
+      properties:
+        fingerprint:
+          type: string
+        representative_url_shape:
+          type: string
+        page_urls:
+          type: array
+          items:
+            type: string
+        supported_page_urls:
+          type: array
+          items:
+            type: string
+        excluded_page_urls:
+          type: array
+          items:
+            type: string
+        coverage:
+          type: number
+          format: double
+        selected:
+          type: boolean
+      required:
+      - coverage
+      - excluded_page_urls
+      - fingerprint
+      - page_urls
+      - representative_url_shape
+      - selected
+      - supported_page_urls
     DisplayName:
       type: object
       properties:
@@ -4891,6 +5023,10 @@ components:
           readOnly: true
         state:
           $ref: '#/components/schemas/SourceProposalStateEnum'
+        discovery_stage:
+          allOf:
+          - $ref: '#/components/schemas/DiscoveryStageEnum'
+          readOnly: true
         revision:
           type: integer
           readOnly: true
@@ -4928,7 +5064,7 @@ components:
           type: boolean
         preview:
           oneOf:
-          - $ref: '#/components/schemas/SimulatedSourceProposalPreview'
+          - $ref: '#/components/schemas/SourceProposalPreview'
           - type: 'null'
           readOnly: true
         preview_confirmed:
@@ -4960,9 +5096,16 @@ components:
         needs_reconciliation:
           type: boolean
           readOnly: true
+        discovery:
+          oneOf:
+          - $ref: '#/components/schemas/SourceDiscovery'
+          - type: 'null'
+          readOnly: true
       required:
       - available_actions
       - created_at
+      - discovery
+      - discovery_stage
       - history
       - id
       - needs_reconciliation
@@ -5343,6 +5486,16 @@ components:
       description: |-
         * `approximate` - Approximate
         * `neighborhood` - Neighborhood
+    PreviewExample:
+      type: object
+      properties:
+        title:
+          type: string
+        status:
+          type: string
+      required:
+      - status
+      - title
     PrivacyActionTypeEnum:
       enum:
       - defensive_contact_removal
@@ -5916,42 +6069,6 @@ components:
       required:
       - authenticated
       - csrf_token
-    SimulatedPreviewExample:
-      type: object
-      properties:
-        title:
-          type: string
-        status:
-          type: string
-      required:
-      - status
-      - title
-    SimulatedSourceProposalPreview:
-      type: object
-      properties:
-        simulated:
-          type: boolean
-        title:
-          type: string
-        disclaimer:
-          type: string
-        estimated_count:
-          type:
-          - integer
-          - 'null'
-        inventory_range:
-          $ref: '#/components/schemas/SourceProposalInventoryRangeEnum'
-        examples:
-          type: array
-          items:
-            $ref: '#/components/schemas/SimulatedPreviewExample'
-      required:
-      - disclaimer
-      - estimated_count
-      - examples
-      - inventory_range
-      - simulated
-      - title
     SourceDisagreement:
       type: object
       properties:
@@ -5963,6 +6080,42 @@ components:
       - field
       - normalized_value
       - source_value
+    SourceDiscovery:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        expires_at:
+          type: string
+          format: date-time
+        released_at:
+          type:
+          - string
+          - 'null'
+          format: date-time
+        release_reason:
+          type: string
+          maxLength: 32
+        started_at:
+          type:
+          - string
+          - 'null'
+          format: date-time
+        completed_at:
+          type:
+          - string
+          - 'null'
+          format: date-time
+        evidence:
+          allOf:
+          - $ref: '#/components/schemas/DiscoveryEvidence'
+          readOnly: true
+      required:
+      - evidence
+      - expires_at
+      - id
     SourceMetadata:
       type: object
       properties:
@@ -5981,6 +6134,10 @@ components:
           readOnly: true
         state:
           $ref: '#/components/schemas/SourceProposalStateEnum'
+        discovery_stage:
+          allOf:
+          - $ref: '#/components/schemas/DiscoveryStageEnum'
+          readOnly: true
         revision:
           type: integer
           readOnly: true
@@ -6018,7 +6175,7 @@ components:
           type: boolean
         preview:
           oneOf:
-          - $ref: '#/components/schemas/SimulatedSourceProposalPreview'
+          - $ref: '#/components/schemas/SourceProposalPreview'
           - type: 'null'
           readOnly: true
         preview_confirmed:
@@ -6050,6 +6207,7 @@ components:
       required:
       - available_actions
       - created_at
+      - discovery_stage
       - history
       - id
       - pending_since
@@ -6131,6 +6289,32 @@ components:
         * `51_200` - ۵۱ تا ۲۰۰
         * `more_than_200` - بیش از ۲۰۰
         * `unknown` - نمی‌دانم
+    SourceProposalPreview:
+      type: object
+      properties:
+        simulated:
+          type: boolean
+        title:
+          type: string
+        disclaimer:
+          type: string
+        estimated_count:
+          type:
+          - integer
+          - 'null'
+        inventory_range:
+          $ref: '#/components/schemas/SourceProposalInventoryRangeEnum'
+        examples:
+          type: array
+          items:
+            $ref: '#/components/schemas/PreviewExample'
+      required:
+      - disclaimer
+      - estimated_count
+      - examples
+      - inventory_range
+      - simulated
+      - title
     SourceProposalRelationshipEnum:
       enum:
       - website_owner
@@ -6191,7 +6375,7 @@ components:
       type: string
       description: |-
         * `details` - اطلاعات وب‌سایت
-        * `preview` - پیش‌نمایش شبیه‌سازی‌شده
+        * `preview` - بازبینی اطلاعات
     SourceProposalSubmit:
       type: object
       properties:

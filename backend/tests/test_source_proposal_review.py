@@ -240,20 +240,19 @@ def test_approval_validates_source_without_publishing_a_listing(api_client: APIC
 
     assert unconfirmed.status_code == 400
     assert approved.status_code == 200
-    assert approved.data["state"] == "approved"
+    assert approved.data["state"] == "pending"
+    assert approved.data["discovery_stage"] == "queued"
     source = Source.objects.get(domain=domain)
     assert source.name == f"external-{proposal.id}"
     assert source.display_name == "و" * 120
     assert Listing.objects.count() == 0
-    assert ExternalListingCandidate.objects.filter(source_proposal=proposal).count() == 2
+    assert ExternalListingCandidate.objects.filter(source_proposal=proposal).count() == 0
     proposal.refresh_from_db()
     assert proposal.source is not None
-    assert SystemNotification.objects.get().originating_source_proposal_event.new_state == (
-        "approved"
-    )
+    assert SystemNotification.objects.count() == 0
 
     api_client.force_authenticate(representative)
     dashboard = api_client.get("/api/v1/source-proposals/")
-    assert dashboard.data[0]["state"] == "approved"
+    assert dashboard.data[0]["state"] == "pending"
     assert dashboard.data[0]["available_actions"] == []
-    assert dashboard.data[0]["history"][-1]["new_state"] == "approved"
+    assert dashboard.data[0]["history"][-1]["new_state"] == "pending"

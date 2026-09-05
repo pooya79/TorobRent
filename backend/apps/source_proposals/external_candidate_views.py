@@ -14,6 +14,7 @@ from apps.accounts.models import User
 
 from .models import ExternalListingCandidate, ExternalListingCandidateState
 from .operator_views import CanReviewSourceProposal
+from .review_claims import SourceProposalReviewConflict
 from .serializers import (
     ExternalListingCandidateReviewClaimSerializer,
     ExternalListingCandidateSerializer,
@@ -21,7 +22,6 @@ from .serializers import (
     SourceProposalDecisionSerializer,
 )
 from .services import (
-    SourceProposalReviewConflict,
     approve_external_listing_candidate,
     claim_external_listing_candidate_review,
     reject_external_listing_candidate,

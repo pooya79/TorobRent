@@ -1,3 +1,4 @@
+import { discoveryStageLabels } from "@/features/source-proposals/discovery-labels";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Clock3, Globe2, Plus, Trash2 } from "lucide-react";
 import { Link } from "react-router";
@@ -161,6 +162,13 @@ export function SubmitterDashboardPage() {
             return (
               <Card className="shadow-none" key={proposal.id}>
                 <CardContent className="flex flex-col gap-4 sm:flex-row sm:items-center">
+                  <p role="status">
+                    {
+                      discoveryStageLabels[
+                        proposal.discovery_stage ?? "awaiting_url"
+                      ]
+                    }
+                  </p>
                   <span className="bg-muted flex size-12 shrink-0 items-center justify-center rounded-full">
                     <Globe2 className="size-5" aria-hidden="true" />
                   </span>

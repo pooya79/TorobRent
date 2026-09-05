@@ -22,7 +22,7 @@ from .serializers import (
 from .services import (
     SourceProposalAccessDenied,
     delete_source_proposal_draft,
-    generate_simulated_preview,
+    generate_proposal_preview,
     resume_or_create_source_proposal,
     save_source_proposal_details,
     save_source_proposal_draft,
@@ -113,7 +113,7 @@ class SourceProposalDetailView(APIView):
 
 class SourceProposalPreviewView(APIView):
     @extend_schema(
-        summary="Generate the deterministic simulated Source Proposal preview",
+        summary="Prepare the no-fetch Source Proposal summary",
         request=None,
         responses=SourceProposalSerializer,
     )
@@ -125,7 +125,7 @@ class SourceProposalPreviewView(APIView):
             submitter=request.user,
         )
         try:
-            proposal = generate_simulated_preview(proposal=proposal, actor=cast(User, request.user))
+            proposal = generate_proposal_preview(proposal=proposal, actor=cast(User, request.user))
         except SourceProposalAccessDenied as exc:
             raise PermissionDenied(str(exc)) from None
         except DjangoValidationError as exc:
@@ -163,7 +163,7 @@ class SourceProposalDraftView(APIView):
 
 class SourceProposalSubmitView(APIView):
     @extend_schema(
-        summary="Confirm the simulated preview and submit for Operator review",
+        summary="Confirm the URL summary and submit for Operator review",
         request=SourceProposalSubmitSerializer,
         responses=SourceProposalSerializer,
     )
