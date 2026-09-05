@@ -1,4 +1,4 @@
-import { SubmitterWorkspace } from "@/features/submitter/SubmitterWorkspace";
+import { AccountWorkspace } from "@/features/account/AccountWorkspace";
 import { discoveryStageLabels } from "@/features/source-proposals/discovery-labels";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CheckCircle2, Globe2, ShieldCheck } from "lucide-react";
@@ -411,7 +411,7 @@ function ErrorAlert({ error }: { error: unknown }) {
 }
 
 function PageFrame({ children }: { children: ReactNode }) {
-  return <SubmitterWorkspace>{children}</SubmitterWorkspace>;
+  return <AccountWorkspace>{children}</AccountWorkspace>;
 }
 
 export default SourceProposalPage;

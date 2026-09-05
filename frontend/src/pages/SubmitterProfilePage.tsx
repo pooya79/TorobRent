@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { chooseDisplayName } from "@/features/messages/queries";
 import { currentUserQuery } from "@/features/session/queries";
-import { SubmitterWorkspace } from "@/features/submitter/SubmitterWorkspace";
+import { AccountWorkspace } from "@/features/account/AccountWorkspace";
 import { errorMessage } from "@/lib/api/errors";
 
 export function SubmitterProfilePage() {
@@ -30,7 +30,7 @@ export function SubmitterProfilePage() {
     if (name) save.mutate(name);
   }
   return (
-    <SubmitterWorkspace>
+    <AccountWorkspace>
       <header className="mb-8">
         <p className="text-primary mb-2 text-sm font-medium">حساب کاربری</p>
         <h1 className="text-3xl font-semibold">پروفایل من</h1>
@@ -148,6 +148,6 @@ export function SubmitterProfilePage() {
           </div>
         </div>
       )}
-    </SubmitterWorkspace>
+    </AccountWorkspace>
   );
 }

@@ -6,7 +6,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Clock3, Globe2, Plus, Trash2 } from "lucide-react";
 import { Link } from "react-router";
 
-import { SubmitterWorkspace } from "@/features/submitter/SubmitterWorkspace";
+import { AccountWorkspace } from "@/features/account/AccountWorkspace";
 import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -105,7 +105,7 @@ export function SubmitterDashboardPage() {
   });
 
   return (
-    <SubmitterWorkspace>
+    <AccountWorkspace>
       <header className="mb-8 flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="text-muted-foreground mb-2 text-sm">پنل ثبت‌کننده</p>
@@ -678,7 +678,7 @@ export function SubmitterDashboardPage() {
           })}
         </div>
       </section>
-    </SubmitterWorkspace>
+    </AccountWorkspace>
   );
 }
 

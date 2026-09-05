@@ -1,20 +1,16 @@
+import { AccountWorkspace } from "@/features/account/AccountWorkspace";
+import { MessageTextForm } from "@/features/messages/MessageTextForm";
+import { Badge } from "@/components/ui/badge";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowRight,
   Bell,
   Headphones,
-  Mail,
   MailOpen,
   MessageCircle,
 } from "lucide-react";
-import {
-  useEffect,
-  useRef,
-  useState,
-  type FormEvent,
-  type ReactNode,
-} from "react";
-import { Link, useParams, useSearchParams } from "react-router";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
@@ -144,6 +140,30 @@ function groupMessages(messages: MessageSummary[]) {
 
 export function MessageCenterPage() {
   const { messageId } = useParams();
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
+  return (
+    <AccountWorkspace>
+      <MessageCenterContent
+        key={messageId ?? "inbox"}
+        draft={messageId ? (drafts[messageId] ?? "") : ""}
+        onDraftChange={(body) => {
+          if (messageId)
+            setDrafts((current) => ({ ...current, [messageId]: body }));
+        }}
+      />
+    </AccountWorkspace>
+  );
+}
+
+function MessageCenterContent({
+  draft,
+  onDraftChange,
+}: {
+  draft: string;
+  onDraftChange: (body: string) => void;
+}) {
+  const { messageId } = useParams();
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const filter = filterFrom(searchParams.get("filter"));
   const page = pageFrom(searchParams.get("page"));
@@ -235,23 +255,15 @@ export function MessageCenterPage() {
     },
   });
 
-  function submitReply(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const form = event.currentTarget;
-    const data = new FormData(form);
-    const body = data.get("body");
-    if (typeof body !== "string" || !body.trim()) return;
-    reply.mutate(body, { onSuccess: () => form.reset() });
-  }
-
+  const loadedMessageId = detail.data?.id;
   useEffect(() => {
-    if (!detail.data) return;
+    if (!loadedMessageId) return;
     detailHeading.current?.focus();
     void queryClient.invalidateQueries({ queryKey: ["messages", "feed"] });
     void queryClient.invalidateQueries({
       queryKey: ["messages", "unread-count"],
     });
-  }, [detail.data, queryClient]);
+  }, [loadedMessageId, queryClient]);
 
   const target = detail.data?.target ?? undefined;
 
@@ -280,51 +292,77 @@ export function MessageCenterPage() {
   }
 
   return (
-    <main
-      id="main-content"
-      dir="rtl"
-      className="mx-auto w-full max-w-432 px-4 py-8 sm:px-6 lg:px-10"
-      tabIndex={-1}
-    >
-      <header className="mb-6">
-        <p className="text-primary mb-2 text-sm font-semibold">حساب کاربری</p>
-        <h1 className="text-3xl font-semibold tracking-tight">مرکز پیام</h1>
-        <p className="text-muted-foreground mt-2">
-          پرسش‌های آگهی، اعلان‌ها و گفت‌وگوهای پشتیبانی حساب شما در اینجا
-          نگهداری می‌شوند.
-        </p>
-        <Button asChild className="mt-4">
-          <Link to="/messages/new/support">درخواست پشتیبانی جدید</Link>
+    <div dir="rtl">
+      <header className="mb-6 flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <p className="text-primary mb-2 text-sm font-semibold">حساب کاربری</p>
+          <h1 className="text-3xl font-semibold tracking-tight">مرکز پیام</h1>
+          <p
+            className={cn(
+              "text-muted-foreground mt-2",
+              messageId && "hidden xl:block",
+            )}
+          >
+            گفت‌وگوهای آگهی، پاسخ‌های پشتیبانی و اعلان‌های حساب را دنبال کنید.
+          </p>
+        </div>
+        <Button
+          asChild
+          variant="outline"
+          className={cn("rounded-xl", messageId && "hidden xl:inline-flex")}
+        >
+          <Link to="/messages/new/support">
+            <Headphones aria-hidden="true" />
+            درخواست پشتیبانی جدید
+          </Link>
         </Button>
       </header>
 
-      <nav aria-label="فیلتر پیام‌ها" className="mb-4 flex flex-wrap gap-2">
+      <nav
+        aria-label="فیلتر پیام‌ها"
+        className={cn(
+          "bg-muted/60 mb-5 flex flex-wrap gap-2 rounded-2xl p-2",
+          messageId && "hidden xl:flex",
+        )}
+      >
         {filters.map((item) => (
           <Button
             key={item.value}
+            size="sm"
+            className="rounded-xl"
             aria-pressed={filter === item.value}
             onClick={() => {
-              setSearchParams(
-                item.value === "all" ? {} : { filter: item.value },
+              void navigate(
+                item.value === "all"
+                  ? "/messages"
+                  : `/messages?filter=${item.value}`,
               );
             }}
             type="button"
-            variant={filter === item.value ? "default" : "outline"}
+            variant={filter === item.value ? "default" : "ghost"}
           >
             {item.label}
           </Button>
         ))}
       </nav>
 
-      <div className="grid min-h-112 overflow-hidden rounded-xl border md:grid-cols-[minmax(18rem,0.9fr)_minmax(0,1.6fr)]">
+      <div className="bg-card grid min-h-128 min-w-0 overflow-hidden rounded-2xl border xl:grid-cols-[minmax(16rem,0.85fr)_minmax(0,1.6fr)]">
         <section
           aria-label="فهرست پیام‌ها"
           className={cn(
-            "border-border border-e",
-            messageId && "hidden md:block",
+            "border-border min-w-0 xl:max-h-[calc(100dvh-12rem)] xl:overflow-y-auto xl:border-e",
+            messageId && "hidden xl:block",
           )}
           role="region"
         >
+          <div className="bg-card sticky top-0 z-10 flex items-center justify-between gap-3 border-b p-4">
+            <h2 className="font-semibold">صندوق پیام‌ها</h2>
+            {feed.data && (
+              <span className="text-muted-foreground text-xs">
+                {feed.data.count.toLocaleString("fa-IR")} مورد
+              </span>
+            )}
+          </div>
           {feed.isPending ? (
             <p className="text-muted-foreground p-5" role="status">
               در حال بارگذاری پیام‌ها…
@@ -333,14 +371,39 @@ export function MessageCenterPage() {
             <Alert className="m-4" variant="destructive">
               <AlertDescription>
                 بارگذاری پیام‌ها انجام نشد. دوباره تلاش کنید.
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => void feed.refetch()}
+                >
+                  تلاش دوباره
+                </Button>
               </AlertDescription>
             </Alert>
           ) : feed.data.results.length === 0 ? (
-            <p className="text-muted-foreground p-5">
-              {filter === "unread"
-                ? "پیام خوانده‌نشده‌ای ندارید."
-                : "هنوز پیامی ندارید."}
-            </p>
+            <div className="px-5 py-12 text-center">
+              <MailOpen
+                className="text-primary mx-auto mb-4 size-9"
+                aria-hidden="true"
+              />
+              <p className="font-medium">
+                {filter === "unread"
+                  ? "پیام خوانده‌نشده‌ای ندارید."
+                  : filter === "all"
+                    ? "هنوز پیامی ندارید."
+                    : "پیامی در این بخش ندارید."}
+              </p>
+              <p className="text-muted-foreground mt-2 text-sm leading-7">
+                {filter === "all"
+                  ? "پاسخ‌ها و اعلان‌های تازه در اینجا نمایش داده می‌شوند."
+                  : "برای دیدن گفت‌وگوها و اعلان‌های دیگر، همه پیام‌ها را انتخاب کنید."}
+              </p>
+              {filter !== "all" && (
+                <Button asChild variant="outline" className="mt-4">
+                  <Link to="/messages">نمایش همه پیام‌ها</Link>
+                </Button>
+              )}
+            </div>
           ) : (
             <>
               <div className="divide-border divide-y">
@@ -361,26 +424,33 @@ export function MessageCenterPage() {
                                 message.id === messageId ? "page" : undefined
                               }
                               className={cn(
-                                "hover:bg-muted/60 flex min-h-28 gap-3 p-4 transition-colors",
-                                message.id === messageId && "bg-muted",
+                                "hover:bg-muted/60 flex min-h-28 min-w-0 gap-3 border-s-2 border-transparent p-4 transition-colors",
+                                message.id === messageId &&
+                                  "border-s-primary bg-primary/5",
+                                !message.read && "bg-muted/40",
                               )}
                               to={`/messages/${message.id}${searchParams.size ? `?${searchParams}` : ""}`}
                             >
                               <span className="bg-primary/10 text-primary mt-1 flex size-9 shrink-0 items-center justify-center rounded-full">
-                                {message.read ? (
-                                  <MailOpen
+                                {message.kind === "support_request" ? (
+                                  <Headphones
+                                    className="size-4"
+                                    aria-hidden="true"
+                                  />
+                                ) : message.kind === "listing_inquiry" ? (
+                                  <MessageCircle
                                     className="size-4"
                                     aria-hidden="true"
                                   />
                                 ) : (
-                                  <Mail className="size-4" aria-hidden="true" />
+                                  <Bell className="size-4" aria-hidden="true" />
                                 )}
                               </span>
                               <span className="min-w-0 flex-1">
                                 <span className="flex items-start justify-between gap-2">
                                   <span
                                     className={cn(
-                                      "font-medium",
+                                      "line-clamp-2 font-medium break-words",
                                       !message.read && "font-bold",
                                     )}
                                   >
@@ -394,13 +464,21 @@ export function MessageCenterPage() {
                                     </span>
                                   ) : null}
                                 </span>
-                                <span className="text-muted-foreground mt-1 line-clamp-2 text-sm">
+                                <span className="text-muted-foreground mt-1 line-clamp-2 text-sm break-words">
                                   {message.preview}
                                 </span>
-                                <time className="text-muted-foreground mt-2 block text-xs">
-                                  {new Date(message.created_at).toLocaleString(
-                                    "fa-IR",
-                                  )}
+                                <time
+                                  dateTime={message.created_at}
+                                  className="text-muted-foreground mt-2 block text-xs"
+                                >
+                                  {new Date(
+                                    message.created_at,
+                                  ).toLocaleDateString("fa-IR", {
+                                    month: "short",
+                                    day: "numeric",
+                                    hour: "2-digit",
+                                    minute: "2-digit",
+                                  })}
                                 </time>
                               </span>
                             </Link>
@@ -440,13 +518,16 @@ export function MessageCenterPage() {
 
         <section
           aria-label="جزئیات پیام"
-          className={cn("p-5 sm:p-7", !messageId && "hidden md:block")}
+          className={cn(
+            "min-w-0 p-4 sm:p-6 xl:max-h-[calc(100dvh-12rem)] xl:overflow-y-auto",
+            !messageId && "hidden xl:block",
+          )}
           role="region"
         >
           {messageId ? (
             <>
               <Link
-                className="mb-5 inline-flex min-h-11 items-center gap-2 text-sm font-semibold md:hidden"
+                className="mb-5 inline-flex min-h-11 items-center gap-2 text-sm font-semibold xl:hidden"
                 to={`/messages${searchParams.size ? `?${searchParams}` : ""}`}
               >
                 <ArrowRight aria-hidden="true" /> بازگشت به پیام‌ها
@@ -457,29 +538,52 @@ export function MessageCenterPage() {
                 <Alert variant="destructive">
                   <AlertDescription>
                     این پیام در دسترس نیست یا اجازه مشاهده آن را ندارید.
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => void detail.refetch()}
+                    >
+                      تلاش دوباره
+                    </Button>
                   </AlertDescription>
                 </Alert>
               ) : detail.data ? (
                 <article>
-                  <div className="text-primary bg-primary/10 mb-4 flex size-11 items-center justify-center rounded-full">
-                    {detail.data.kind === "support_request" ? (
-                      <Headphones aria-hidden="true" />
-                    ) : detail.data.kind === "listing_inquiry" ? (
-                      <MessageCircle aria-hidden="true" />
-                    ) : (
-                      <Bell aria-hidden="true" />
-                    )}
+                  <div className="mb-5 flex items-start gap-3">
+                    <div className="text-primary bg-primary/10 flex size-11 shrink-0 items-center justify-center rounded-xl">
+                      {detail.data.kind === "support_request" ? (
+                        <Headphones aria-hidden="true" />
+                      ) : detail.data.kind === "listing_inquiry" ? (
+                        <MessageCircle aria-hidden="true" />
+                      ) : (
+                        <Bell aria-hidden="true" />
+                      )}
+                    </div>
+                    <div className="min-w-0">
+                      <Badge variant="secondary" className="mb-2">
+                        {detail.data.kind === "support_request"
+                          ? "پشتیبانی"
+                          : detail.data.kind === "listing_inquiry"
+                            ? "پرسش آگهی"
+                            : "اعلان سامانه"}
+                      </Badge>
+                      <h2
+                        ref={detailHeading}
+                        className="text-xl leading-8 font-semibold break-words outline-none focus-visible:ring-0"
+                        tabIndex={-1}
+                      >
+                        {detail.data.title}
+                      </h2>
+                      <time
+                        dateTime={detail.data.created_at}
+                        className="text-muted-foreground mt-2 block text-xs"
+                      >
+                        {new Date(detail.data.created_at).toLocaleString(
+                          "fa-IR",
+                        )}
+                      </time>
+                    </div>
                   </div>
-                  <h2
-                    ref={detailHeading}
-                    className="text-2xl font-semibold outline-none"
-                    tabIndex={-1}
-                  >
-                    {detail.data.title}
-                  </h2>
-                  <time className="text-muted-foreground mt-2 block text-sm">
-                    {new Date(detail.data.created_at).toLocaleString("fa-IR")}
-                  </time>
                   {detail.data.kind === "support_request" ? (
                     <>
                       <p className="text-muted-foreground mt-3 text-sm">
@@ -495,9 +599,12 @@ export function MessageCenterPage() {
                         {detail.data.entries.map((entry) => (
                           <li
                             className={cn(
-                              "rounded-lg border p-4",
-                              entry.kind === "operator_reply" && "bg-primary/5",
-                              entry.kind === "status" && "bg-muted text-sm",
+                              "min-w-0 rounded-2xl border p-4",
+                              entry.kind === "operator_reply"
+                                ? "bg-muted/50 me-4"
+                                : "bg-primary/5 ms-4",
+                              entry.kind === "status" &&
+                                "bg-muted mx-0 text-center text-sm",
                             )}
                             key={`${entry.kind}-${entry.id}`}
                           >
@@ -511,48 +618,39 @@ export function MessageCenterPage() {
                                     : "شما"}
                                 </p>
                                 {editingId === entry.id ? (
-                                  <form
-                                    className="grid gap-2"
-                                    onSubmit={(event) => {
-                                      event.preventDefault();
-                                      const body = new FormData(
-                                        event.currentTarget,
-                                      ).get("edited_body");
-                                      if (
-                                        typeof body === "string" &&
-                                        body.trim()
-                                      ) {
-                                        editMessage.mutate({
-                                          id: entry.id,
-                                          body,
-                                        });
-                                      }
+                                  <MessageTextForm
+                                    id={`edit-${entry.id}`}
+                                    editing
+                                    initialBody={entry.body ?? ""}
+                                    pending={editMessage.isPending}
+                                    error={editMessage.isError}
+                                    onCancel={() => {
+                                      setEditingId(undefined);
+                                      editMessage.reset();
                                     }}
-                                  >
-                                    <Label htmlFor={`edit-${entry.id}`}>
-                                      ویرایش پیام
-                                    </Label>
-                                    <textarea
-                                      className="border-input min-h-24 rounded-md border p-3"
-                                      defaultValue={entry.body}
-                                      id={`edit-${entry.id}`}
-                                      maxLength={2000}
-                                      name="edited_body"
-                                      required
-                                    />
-                                    <Button
-                                      className="justify-self-start"
-                                      size="sm"
-                                      type="submit"
-                                    >
-                                      ذخیره ویرایش
-                                    </Button>
-                                  </form>
+                                    onSubmit={(body) =>
+                                      editMessage.mutate({ id: entry.id, body })
+                                    }
+                                  />
                                 ) : (
-                                  <p className="leading-7 whitespace-pre-wrap">
+                                  <p className="text-sm leading-7 break-words whitespace-pre-wrap">
                                     {safeText(entry.body ?? "")}
                                   </p>
                                 )}
+                                <time
+                                  dateTime={entry.created_at}
+                                  className="text-muted-foreground mt-3 block text-xs"
+                                >
+                                  {new Date(entry.created_at).toLocaleString(
+                                    "fa-IR",
+                                    {
+                                      month: "short",
+                                      day: "numeric",
+                                      hour: "2-digit",
+                                      minute: "2-digit",
+                                    },
+                                  )}
+                                </time>
                                 {entry.edited_at ? (
                                   <span className="text-muted-foreground mt-2 block text-xs">
                                     ویرایش‌شده
@@ -561,7 +659,10 @@ export function MessageCenterPage() {
                                 {entry.editable && editingId !== entry.id ? (
                                   <Button
                                     className="mt-2"
-                                    onClick={() => setEditingId(entry.id)}
+                                    onClick={() => {
+                                      editMessage.reset();
+                                      setEditingId(entry.id);
+                                    }}
                                     size="sm"
                                     type="button"
                                     variant="ghost"
@@ -575,26 +676,18 @@ export function MessageCenterPage() {
                         ))}
                       </ol>
                       {detail.data.reply_allowed ? (
-                        <form
-                          className="mt-6 grid gap-3"
-                          onSubmit={submitReply}
-                        >
-                          <Label htmlFor="support-reply">ادامه گفت‌وگو</Label>
-                          <textarea
-                            className="border-input min-h-28 rounded-md border p-3"
-                            id="support-reply"
-                            name="body"
-                            required
-                            maxLength={2000}
+                        <div className="mt-6">
+                          <MessageTextForm
+                            id={`reply-${messageId}`}
+                            initialBody={draft}
+                            onBodyChange={onDraftChange}
+                            pending={reply.isPending}
+                            error={reply.isError}
+                            onSubmit={(body, onSuccess) =>
+                              reply.mutate(body, { onSuccess })
+                            }
                           />
-                          <Button
-                            className="justify-self-start"
-                            disabled={reply.isPending}
-                            type="submit"
-                          >
-                            {reply.isPending ? "در حال ارسال…" : "ارسال پیام"}
-                          </Button>
-                        </form>
+                        </div>
                       ) : (
                         <Alert className="mt-6">
                           <AlertDescription>
@@ -694,8 +787,10 @@ export function MessageCenterPage() {
                         {detail.data.entries.map((entry) => (
                           <li
                             className={cn(
-                              "rounded-lg border p-4",
-                              entry.mine ? "bg-primary/5 ms-6" : "me-6",
+                              "min-w-0 rounded-2xl border p-4",
+                              entry.mine
+                                ? "bg-primary/5 ms-4"
+                                : "bg-muted/50 me-4",
                             )}
                             key={entry.id}
                           >
@@ -703,45 +798,42 @@ export function MessageCenterPage() {
                               {entry.author_name}
                             </p>
                             {editingId === entry.id ? (
-                              <form
-                                className="grid gap-2"
-                                onSubmit={(event) => {
-                                  event.preventDefault();
-                                  const body = new FormData(
-                                    event.currentTarget,
-                                  ).get("edited_body");
-                                  if (typeof body === "string" && body.trim()) {
-                                    editMessage.mutate({ id: entry.id, body });
-                                  }
+                              <MessageTextForm
+                                id={`edit-${entry.id}`}
+                                editing
+                                initialBody={entry.body ?? ""}
+                                pending={editMessage.isPending}
+                                error={editMessage.isError}
+                                onCancel={() => {
+                                  setEditingId(undefined);
+                                  editMessage.reset();
                                 }}
-                              >
-                                <Label htmlFor={`edit-inquiry-${entry.id}`}>
-                                  ویرایش پیام
-                                </Label>
-                                <textarea
-                                  className="border-input min-h-24 rounded-md border p-3"
-                                  defaultValue={entry.body}
-                                  id={`edit-inquiry-${entry.id}`}
-                                  maxLength={2000}
-                                  name="edited_body"
-                                  required
-                                />
-                                <Button
-                                  className="justify-self-start"
-                                  size="sm"
-                                  type="submit"
-                                >
-                                  ذخیره ویرایش
-                                </Button>
-                              </form>
+                                onSubmit={(body) =>
+                                  editMessage.mutate({ id: entry.id, body })
+                                }
+                              />
                             ) : (
-                              <p className="leading-7 whitespace-pre-wrap">
+                              <p className="text-sm leading-7 break-words whitespace-pre-wrap">
                                 {safeText(
                                   entry.body ?? "",
                                   requestExternalNavigation,
                                 )}
                               </p>
                             )}
+                            <time
+                              dateTime={entry.created_at}
+                              className="text-muted-foreground mt-3 block text-xs"
+                            >
+                              {new Date(entry.created_at).toLocaleString(
+                                "fa-IR",
+                                {
+                                  month: "short",
+                                  day: "numeric",
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                },
+                              )}
+                            </time>
                             {entry.edited_at ? (
                               <span className="text-muted-foreground mt-2 block text-xs">
                                 ویرایش‌شده
@@ -750,7 +842,10 @@ export function MessageCenterPage() {
                             {entry.editable && editingId !== entry.id ? (
                               <Button
                                 className="mt-2"
-                                onClick={() => setEditingId(entry.id)}
+                                onClick={() => {
+                                  editMessage.reset();
+                                  setEditingId(entry.id);
+                                }}
                                 size="sm"
                                 type="button"
                                 variant="ghost"
@@ -771,36 +866,18 @@ export function MessageCenterPage() {
                         ))}
                       </ol>
                       {detail.data.reply_allowed ? (
-                        <form
-                          className="mt-6 grid gap-3"
-                          onSubmit={submitReply}
-                        >
-                          <Label htmlFor="listing-inquiry-reply">
-                            ادامه گفت‌وگو
-                          </Label>
-                          <textarea
-                            className="border-input min-h-28 rounded-md border p-3"
-                            id="listing-inquiry-reply"
-                            maxLength={2000}
-                            name="body"
-                            required
+                        <div className="mt-6">
+                          <MessageTextForm
+                            id={`reply-${messageId}`}
+                            initialBody={draft}
+                            onBodyChange={onDraftChange}
+                            pending={reply.isPending}
+                            error={reply.isError}
+                            onSubmit={(body, onSuccess) =>
+                              reply.mutate(body, { onSuccess })
+                            }
                           />
-                          <Button
-                            className="justify-self-start"
-                            disabled={reply.isPending}
-                            type="submit"
-                          >
-                            {reply.isPending ? "در حال ارسال…" : "ارسال پیام"}
-                          </Button>
-                          {reply.isError ? (
-                            <p
-                              className="text-destructive text-sm"
-                              role="alert"
-                            >
-                              ارسال پیام انجام نشد.
-                            </p>
-                          ) : null}
-                        </form>
+                        </div>
                       ) : (
                         <Alert className="mt-6">
                           <AlertDescription>
@@ -819,7 +896,9 @@ export function MessageCenterPage() {
                       )}
                     </>
                   ) : (
-                    <p className="mt-6 leading-8">{detail.data.body}</p>
+                    <p className="bg-muted/50 mt-6 rounded-xl p-5 leading-8 break-words whitespace-pre-wrap">
+                      {detail.data.body}
+                    </p>
                   )}
                   <div className="mt-8 flex flex-wrap gap-3">
                     {detail.data.kind === "support_request" ? null : target ? (
@@ -840,6 +919,16 @@ export function MessageCenterPage() {
                       علامت‌گذاری به‌عنوان خوانده‌نشده
                     </Button>
                   </div>
+                  {markUnread.isSuccess && (
+                    <p role="status" className="text-primary mt-4 text-sm">
+                      پیام به‌عنوان خوانده‌نشده علامت‌گذاری شد.
+                    </p>
+                  )}
+                  {reportConversation.isSuccess && (
+                    <p role="status" className="text-primary mt-4 text-sm">
+                      گزارش شما برای بررسی ثبت شد.
+                    </p>
+                  )}
                   {markUnread.isError ? (
                     <p className="text-destructive mt-4" role="alert">
                       تغییر وضعیت پیام انجام نشد.
@@ -849,9 +938,14 @@ export function MessageCenterPage() {
               ) : null}
             </>
           ) : (
-            <Card className="hidden h-full place-items-center border-0 shadow-none md:grid">
+            <Card className="hidden h-full place-items-center border-0 shadow-none xl:grid">
               <CardContent className="text-muted-foreground text-center">
-                <MailOpen className="mx-auto mb-3 size-8" aria-hidden="true" />
+                <span className="bg-primary/10 text-primary mx-auto mb-5 flex size-20 items-center justify-center rounded-3xl">
+                  <MessageCircle className="size-9" aria-hidden="true" />
+                </span>
+                <h2 className="text-foreground mb-3 text-xl font-semibold">
+                  گفت‌وگوها در یک جا
+                </h2>
                 <p>برای مشاهده جزئیات، یک پیام را انتخاب کنید.</p>
               </CardContent>
             </Card>
@@ -871,11 +965,19 @@ export function MessageCenterPage() {
               می‌ماند.
             </AlertDialogDescription>
           </AlertDialogHeader>
+          {blockCounterpart.isError && (
+            <p role="alert" className="text-destructive mt-4 text-sm">
+              مسدود کردن حساب انجام نشد. دوباره تلاش کنید.
+            </p>
+          )}
           <AlertDialogFooter>
             <AlertDialogCancel>انصراف</AlertDialogCancel>
             <AlertDialogAction
               disabled={blockCounterpart.isPending}
-              onClick={() => blockCounterpart.mutate()}
+              onClick={(event) => {
+                event.preventDefault();
+                blockCounterpart.mutate();
+              }}
             >
               تأیید مسدودسازی
             </AlertDialogAction>
@@ -950,7 +1052,7 @@ export function MessageCenterPage() {
           </form>
         </AlertDialogContent>
       </AlertDialog>
-    </main>
+    </div>
   );
 }
 

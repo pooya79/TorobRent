@@ -3,6 +3,7 @@ import {
   Building2,
   CircleHelp,
   Globe2,
+  Heart,
   LayoutDashboard,
   Mail,
   Plus,
@@ -16,7 +17,7 @@ import { Button } from "@/components/ui/button";
 import { currentUserQuery } from "@/features/session/queries";
 import { cn } from "@/lib/utils";
 
-const links = [
+const submitterLinks = [
   { to: "/dashboard", label: "آگهی‌های من", icon: LayoutDashboard, end: true },
   {
     to: "/dashboard/profile",
@@ -33,13 +34,26 @@ const links = [
   },
 ];
 
-export function SubmitterWorkspace({ children }: { children: ReactNode }) {
+export function AccountWorkspace({ children }: { children: ReactNode }) {
   const user = useQuery(currentUserQuery);
+  const isSubmitter = user.data?.is_submitter === true;
+  const links = isSubmitter
+    ? submitterLinks
+    : [
+        {
+          to: "/dashboard/profile",
+          label: "پروفایل من",
+          icon: UserRound,
+          end: false,
+        },
+        { to: "/messages", label: "پیام‌ها", icon: Mail, end: false },
+        { to: "/favorites", label: "علاقه‌مندی‌ها", icon: Heart, end: false },
+      ];
   const name = user.data?.display_name || user.data?.first_name || "حساب من";
   const navigation = (
     <>
       <Button asChild className="mb-4 w-full rounded-xl">
-        <Link to="/add-submission?new=1">
+        <Link to={isSubmitter ? "/add-submission?new=1" : "/advertise"}>
           <Plus aria-hidden="true" />
           ثبت آگهی جدید
         </Link>
@@ -70,11 +84,11 @@ export function SubmitterWorkspace({ children }: { children: ReactNode }) {
     </>
   );
   return (
-    <PageMain className="max-w-360 py-6 lg:py-10">
+    <PageMain dir="rtl" className="max-w-360 py-6 lg:py-10">
       <div className="grid items-start gap-6 lg:grid-cols-[15rem_minmax(0,1fr)] lg:gap-8">
         <aside
           className="bg-card rounded-2xl border p-4 lg:sticky lg:top-6"
-          aria-label="پنل ثبت‌کننده"
+          aria-label="پنل حساب کاربری"
         >
           <Link
             to="/dashboard/profile"
@@ -86,7 +100,9 @@ export function SubmitterWorkspace({ children }: { children: ReactNode }) {
             <span className="min-w-0">
               <span className="block truncate font-semibold">{name}</span>
               <span className="text-muted-foreground mt-1 block text-xs">
-                مدیریت حساب و آگهی‌ها
+                {isSubmitter
+                  ? "مدیریت حساب و آگهی‌ها"
+                  : "مدیریت حساب و پیام‌ها"}
               </span>
             </span>
           </Link>
@@ -99,8 +115,9 @@ export function SubmitterWorkspace({ children }: { children: ReactNode }) {
           </details>
           <div className="text-muted-foreground mt-5 hidden border-t pt-5 text-xs leading-6 lg:block">
             <Building2 className="mb-2 size-5" aria-hidden="true" />
-            آگهی شما پس از بررسی منتشر می‌شود. وضعیت و درخواست‌های اصلاح را از
-            اینجا دنبال کنید.
+            {isSubmitter
+              ? "آگهی شما پس از بررسی منتشر می‌شود. وضعیت و درخواست‌های اصلاح را از اینجا دنبال کنید."
+              : "پیام‌ها، اطلاعات حساب و ملک‌های موردعلاقه خود را از اینجا دنبال کنید."}
             <Link
               to="/messages/new/support"
               className="text-foreground mt-3 flex min-h-11 items-center gap-2 font-medium"

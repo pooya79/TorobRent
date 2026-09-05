@@ -183,7 +183,7 @@ test("keeps older pages reachable and renders stale targets as disabled in RTL",
 
   expect(screen.getByRole("main")).toHaveAttribute("dir", "rtl");
   const detail = screen.getByRole("region", { name: "جزئیات پیام" });
-  expect(detail).toHaveClass("hidden", "md:block");
+  expect(detail).toHaveClass("hidden", "xl:block");
   await user.click(await screen.findByRole("button", { name: "صفحه بعد" }));
 
   await waitFor(() => expect(requestedPages).toContain("?page=2"));
@@ -194,13 +194,13 @@ test("keeps older pages reachable and renders stale targets as disabled in RTL",
 
   expect(screen.getByRole("region", { name: "فهرست پیام‌ها" })).toHaveClass(
     "hidden",
-    "md:block",
+    "xl:block",
   );
   expect(
     await screen.findByRole("button", { name: "مقصد دیگر در دسترس نیست" }),
   ).toBeDisabled();
   expect(screen.getByRole("link", { name: "بازگشت به پیام‌ها" })).toHaveClass(
-    "md:hidden",
+    "xl:hidden",
   );
 });
 
@@ -1016,4 +1016,137 @@ test("reports either one inquiry message or the whole conversation with an optio
   await user.click(screen.getByRole("button", { name: "ثبت گزارش" }));
   await waitFor(() => expect(reported).toHaveLength(2));
   expect(reported[1]).toEqual({ message_id: null, explanation: "" });
+});
+
+test("shows failed support replies without losing the draft", async () => {
+  const support = supportMessage(
+    "support-failure",
+    "پیگیری حساب",
+    "در حال بررسی",
+  );
+  server.use(
+    http.get("*/api/v1/messages/", () =>
+      HttpResponse.json({
+        count: 1,
+        next: null,
+        previous: null,
+        results: [support],
+      }),
+    ),
+    http.get("*/api/v1/messages/:messageId/", () =>
+      HttpResponse.json({
+        ...support,
+        read: true,
+        public_status: "in_progress",
+        reply_allowed: true,
+        entries: [],
+      }),
+    ),
+    http.post("*/api/v1/messages/support-requests/:messageId/replies/", () =>
+      HttpResponse.json({}, { status: 500 }),
+    ),
+  );
+  renderPage(`/messages/${support.id}`);
+  const user = userEvent.setup();
+  const input = await screen.findByRole("textbox", { name: "ادامه گفت‌وگو" });
+  await user.type(input, "لطفاً پیگیری کنید.");
+  await user.click(screen.getByRole("button", { name: "ارسال پیام" }));
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    "ارسال پیام انجام نشد",
+  );
+  expect(input).toHaveValue("لطفاً پیگیری کنید.");
+});
+
+test("keeps reply focus when conversation data refreshes", async () => {
+  const support = supportMessage(
+    "support-focus",
+    "پیگیری حساب",
+    "در حال بررسی",
+  );
+  const detail = {
+    ...support,
+    read: true,
+    public_status: "in_progress",
+    reply_allowed: true,
+    entries: [],
+  };
+  server.use(
+    http.get("*/api/v1/messages/", () =>
+      HttpResponse.json({
+        count: 1,
+        next: null,
+        previous: null,
+        results: [support],
+      }),
+    ),
+    http.get("*/api/v1/messages/:messageId/", () => HttpResponse.json(detail)),
+  );
+  const { queryClient } = renderPage(`/messages/${support.id}`);
+  const user = userEvent.setup();
+  const input = await screen.findByRole("textbox", { name: "ادامه گفت‌وگو" });
+  await user.type(input, "پاسخ من");
+  queryClient.setQueryData(["messages", "detail", support.id], {
+    ...detail,
+    title: "پاسخ تازه",
+  });
+  await screen.findByRole("heading", { name: "پاسخ تازه" });
+  expect(input).toHaveFocus();
+});
+
+test("keeps separate drafts while switching conversations inside the dashboard", async () => {
+  const first = supportMessage("draft-one", "درخواست اول", "پیگیری اول");
+  const second = supportMessage("draft-two", "درخواست دوم", "پیگیری دوم");
+  server.use(
+    http.get("*/api/v1/messages/", () =>
+      HttpResponse.json({
+        count: 2,
+        next: null,
+        previous: null,
+        results: [first, second],
+      }),
+    ),
+    http.get("*/api/v1/messages/:messageId/", ({ params }) =>
+      HttpResponse.json({
+        ...(params.messageId === first.id ? first : second),
+        read: true,
+        public_status: "in_progress",
+        reply_allowed: true,
+        entries: [],
+      }),
+    ),
+  );
+  renderPage(`/messages/${first.id}`);
+  const user = userEvent.setup();
+  await user.type(
+    await screen.findByRole("textbox", { name: "ادامه گفت‌وگو" }),
+    "پیش‌نویس اول",
+  );
+  const inbox = screen.getByRole("region", { name: "فهرست پیام‌ها" });
+  await user.click(
+    await within(inbox).findByRole("link", { name: /درخواست دوم/ }),
+  );
+  expect(
+    await screen.findByRole("textbox", { name: "ادامه گفت‌وگو" }),
+  ).toHaveValue("");
+  await user.type(
+    screen.getByRole("textbox", { name: "ادامه گفت‌وگو" }),
+    "پیش‌نویس دوم",
+  );
+  await user.click(
+    within(screen.getByRole("region", { name: "فهرست پیام‌ها" })).getByRole(
+      "link",
+      { name: /درخواست اول/ },
+    ),
+  );
+  expect(
+    await screen.findByRole("textbox", { name: "ادامه گفت‌وگو" }),
+  ).toHaveValue("پیش‌نویس اول");
+  expect(
+    screen.getByRole("complementary", { name: "پنل حساب کاربری" }),
+  ).toBeVisible();
+  await user.click(screen.getByRole("button", { name: "پشتیبانی" }));
+  expect(screen.queryByRole("textbox", { name: "ادامه گفت‌وگو" })).toBeNull();
+  expect(
+    screen.getByRole("complementary", { name: "پنل حساب کاربری" }),
+  ).toBeVisible();
 });

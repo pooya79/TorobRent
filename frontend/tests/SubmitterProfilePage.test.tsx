@@ -6,6 +6,7 @@ import { MemoryRouter } from "react-router";
 import { expect, test } from "vitest";
 
 import { SubmitterProfilePage } from "@/pages/SubmitterProfilePage";
+import SubmitterProfileRoute from "@/routes/submitter-profile";
 import { server } from "./server";
 
 const account = {
@@ -73,4 +74,37 @@ test("keeps the edited name when saving fails", async () => {
   await user.click(screen.getByRole("button", { name: "ذخیره تغییرات" }));
   expect(await screen.findByRole("alert")).toBeVisible();
   expect(input).toHaveValue("نام تازه");
+});
+
+test("opens profile settings for a verified renter without submitter onboarding", async () => {
+  server.use(
+    http.get("*/api/v1/auth/session/", () =>
+      HttpResponse.json({ authenticated: true, csrf_token: "test-token" }),
+    ),
+    http.get("*/api/v1/users/me/", () =>
+      HttpResponse.json({
+        ...account,
+        is_submitter: false,
+        phone: null,
+        phone_verified: false,
+      }),
+    ),
+  );
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  render(
+    <QueryClientProvider client={client}>
+      <MemoryRouter initialEntries={["/dashboard/profile"]}>
+        <SubmitterProfileRoute />
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+  expect(await screen.findByLabelText("نام نمایشی")).toHaveValue(
+    account.display_name,
+  );
+  for (const link of screen.getAllByRole("link", { name: "علاقه‌مندی‌ها" })) {
+    expect(link).toHaveAttribute("href", "/favorites");
+  }
+  expect(screen.queryByRole("link", { name: "آگهی‌های من" })).toBeNull();
 });

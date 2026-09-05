@@ -1,10 +1,10 @@
-import { ProtectedSubmitterRoute } from "@/features/session/ProtectedSubmitterRoute";
+import { ProtectedAccountRoute } from "@/features/account/ProtectedAccountRoute";
 import { SubmitterProfilePage } from "@/pages/SubmitterProfilePage";
 
 export default function SubmitterProfileRoute() {
   return (
-    <ProtectedSubmitterRoute>
+    <ProtectedAccountRoute>
       <SubmitterProfilePage />
-    </ProtectedSubmitterRoute>
+    </ProtectedAccountRoute>
   );
 }

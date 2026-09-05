@@ -3,7 +3,7 @@ import { Check, Save, ArrowLeft, ShieldCheck } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
 
-import { SubmitterWorkspace } from "@/features/submitter/SubmitterWorkspace";
+import { AccountWorkspace } from "@/features/account/AccountWorkspace";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -1346,7 +1346,7 @@ export function AddSubmissionPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const submissionId = searchParams.get("submission");
   return (
-    <SubmitterWorkspace>
+    <AccountWorkspace>
       {submissionId ? (
         <DraftFlow
           key={`${submissionId}-${searchParams.get("step") ?? ""}`}
@@ -1374,7 +1374,7 @@ export function AddSubmissionPage() {
           />
         </>
       )}
-    </SubmitterWorkspace>
+    </AccountWorkspace>
   );
 }
 
