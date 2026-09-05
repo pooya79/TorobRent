@@ -42,6 +42,7 @@ class OperatorExternalListingCandidateListView(APIView):
     def get(self, request: Request) -> Response:
         candidates = (
             ExternalListingCandidate.objects
+            .filter(discovery_version__isnull=True)
             .filter(
                 state__in=(
                     ExternalListingCandidateState.PENDING,

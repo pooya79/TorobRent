@@ -28,6 +28,8 @@ from playwright.sync_api import (
     TimeoutError as PlaywrightTimeoutError,
 )
 
+MAX_SOURCE_IMAGES = 12
+MAX_SOURCE_IMAGE_BYTES = 10 * 1024 * 1024
 MAX_REDIRECTS = 5
 MAX_RESPONSE_BYTES = 2 * 1024 * 1024
 MAX_PAGES = 50
@@ -387,6 +389,9 @@ class SourcePageFetcher:
         browser: BrowserRenderer | None = None,
     ) -> None:
         self._approved_host = _normalize_host(approved_host)
+        self._approved_hosts = {self._approved_host}
+        self._schemes = {"http", "https"}
+        self._max_response_bytes = MAX_RESPONSE_BYTES
         self._transport = transport or PinnedHttpTransport()
         self._resolver = resolver or resolve_addresses
         self._browser = browser or PlaywrightBrowserRenderer()
@@ -600,8 +605,19 @@ class SourcePageFetcher:
     def _fetch_url(
         self, requested_url: str, *, redirect_guard: RedirectGuard | None = None
     ) -> FetchRecord:
+        deadline = time.monotonic() + REQUEST_TIMEOUT_SECONDS
         current_url = requested_url
         for redirect_count in range(MAX_REDIRECTS + 1):
+            if time.monotonic() >= deadline:
+                return FetchRecord(
+                    requested_url=requested_url,
+                    failure=FetchFailure(
+                        FetchFailureCode.TIMEOUT,
+                        current_url,
+                        "Fetch deadline exceeded.",
+                        transient=True,
+                    ),
+                )
             failure = self._validate_url(current_url)
             if failure:
                 return FetchRecord(requested_url=requested_url, failure=failure)
@@ -612,7 +628,7 @@ class SourcePageFetcher:
                 addresses = tuple(
                     _run_with_deadline(
                         partial(self._resolver, host, port),
-                        timeout_seconds=REQUEST_TIMEOUT_SECONDS,
+                        timeout_seconds=max(0.0, deadline - time.monotonic()),
                         slots=self._resolver_slots,
                     )
                 )
@@ -663,12 +679,12 @@ class SourcePageFetcher:
                     connect_ip=addresses[0],
                     host=host,
                     port=port,
-                    timeout_seconds=REQUEST_TIMEOUT_SECONDS,
-                    max_response_bytes=MAX_RESPONSE_BYTES,
+                    timeout_seconds=max(0.0, deadline - time.monotonic()),
+                    max_response_bytes=self._max_response_bytes,
                 )
                 response = _run_with_deadline(
                     partial(self._transport.get, network_request),
-                    timeout_seconds=REQUEST_TIMEOUT_SECONDS,
+                    timeout_seconds=max(0.0, deadline - time.monotonic()),
                     slots=self._connection_slots,
                 )
             except OperationTimeout as exc:
@@ -708,13 +724,13 @@ class SourcePageFetcher:
                         transient=True,
                     ),
                 )
-            if len(response.body) > MAX_RESPONSE_BYTES:
+            if len(response.body) > self._max_response_bytes:
                 return FetchRecord(
                     requested_url=requested_url,
                     failure=FetchFailure(
                         FetchFailureCode.RESPONSE_TOO_LARGE,
                         current_url,
-                        f"Response exceeded the {MAX_RESPONSE_BYTES}-byte limit.",
+                        f"Response exceeded the {self._max_response_bytes}-byte limit.",
                     ),
                 )
             location = _header(response.headers, "location")
@@ -753,9 +769,9 @@ class SourcePageFetcher:
             port = parsed.port
         except ValueError:
             return FetchFailure(FetchFailureCode.INVALID_URL, url, "URL is malformed.")
-        if parsed.scheme.lower() not in {"http", "https"}:
+        if parsed.scheme.lower() not in self._schemes:
             return FetchFailure(
-                FetchFailureCode.INVALID_SCHEME, url, "Only HTTP and HTTPS URLs are allowed."
+                FetchFailureCode.INVALID_SCHEME, url, "URL scheme is not permitted."
             )
         if parsed.username is not None or parsed.password is not None:
             return FetchFailure(FetchFailureCode.CREDENTIALS, url, "URL credentials are forbidden.")
@@ -768,7 +784,7 @@ class SourcePageFetcher:
             normalized_host = _normalize_host(host)
         except UnicodeError:
             return FetchFailure(FetchFailureCode.INVALID_URL, url, "URL host is malformed.")
-        if normalized_host != self._approved_host:
+        if normalized_host not in self._approved_hosts:
             return FetchFailure(
                 FetchFailureCode.HOST_NOT_APPROVED,
                 url,
@@ -777,6 +793,38 @@ class SourcePageFetcher:
         if port is not None and not 1 <= port <= 65535:
             return FetchFailure(FetchFailureCode.INVALID_URL, url, "URL port is invalid.")
         return None
+
+
+class SourceImageFetcher(SourcePageFetcher):
+    """Bounded HTTPS media fetches through the same DNS-pinned connection boundary."""
+
+    def __init__(
+        self,
+        *,
+        approved_hosts: Sequence[str],
+        transport: HttpTransport | None = None,
+        resolver: Resolver | None = None,
+    ) -> None:
+        super().__init__(approved_host=approved_hosts[0], transport=transport, resolver=resolver)
+        self._approved_hosts = {_normalize_host(host) for host in approved_hosts}
+        self._schemes = {"https"}
+        self._max_response_bytes = MAX_SOURCE_IMAGE_BYTES
+
+    def fetch(self, urls: Sequence[str], *, render: bool = False) -> FetchBatch:
+        records = []
+        for index, url in enumerate(urls):
+            if index >= MAX_SOURCE_IMAGES:
+                records.append(
+                    FetchRecord(
+                        requested_url=url,
+                        failure=FetchFailure(
+                            FetchFailureCode.PAGE_LIMIT, url, "Image limit is twelve."
+                        ),
+                    )
+                )
+            else:
+                records.append(self._fetch_url(url))
+        return FetchBatch(tuple(records))
 
 
 def _normalize_host(host: str) -> str:

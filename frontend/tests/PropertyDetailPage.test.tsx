@@ -88,7 +88,7 @@ test("compares every active Listing and makes source disagreements visible", () 
   expect(external.getElementsByTagName("img")).toHaveLength(1);
   expect(external.getElementsByTagName("img")[0]).toHaveAttribute(
     "src",
-    "https://cdn.example-source.test/listings/42.jpg",
+    "/api/v1/catalog/media/image-42/",
   );
   expect(external.innerHTML).not.toContain("third-party.example/hotlink.jpg");
   expect(

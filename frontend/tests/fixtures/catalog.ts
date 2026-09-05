@@ -88,6 +88,7 @@ export const propertyDetail: components["schemas"]["PropertyDetail"] = {
       disagreements: [],
       continuation_url: null,
       media_url: null,
+      images: [],
       is_negotiable: false,
       is_convertible: false,
       availability_confirmed_at: "2026-08-21T10:00:00Z",
@@ -129,7 +130,21 @@ export const propertyDetail: components["schemas"]["PropertyDetail"] = {
         },
       ],
       continuation_url: "https://example-source.test/listings/42",
-      media_url: "https://cdn.example-source.test/listings/42.jpg",
+      media_url: "/api/v1/catalog/media/image-42/",
+      images: [
+        {
+          id: "image-42",
+          is_primary: true,
+          variants: [
+            {
+              kind: "medium",
+              url: "/api/v1/catalog/media/image-42/",
+              width: 960,
+              height: 640,
+            },
+          ],
+        },
+      ],
       is_negotiable: false,
       is_convertible: true,
       availability_confirmed_at: "2026-08-20T09:00:00Z",

@@ -30,3 +30,41 @@ def extract_source(self: Any, request_id: str) -> None:
 
     if run_extraction(request_id):
         raise self.retry(countdown=720)
+
+
+@shared_task  # type: ignore[untyped-decorator]
+def cleanup_external_images() -> int:
+    from .media_retention import cleanup_external_images as cleanup
+
+    return cleanup()
+
+
+@shared_task(
+    autoretry_for=(Exception,),
+    retry_backoff=True,
+    max_retries=3,
+    soft_time_limit=240,
+    time_limit=300,
+    acks_late=True,
+    reject_on_worker_lost=True,
+)  # type: ignore[untyped-decorator]
+def process_run_images(run_id: str) -> None:
+    from .external_media import stage_run_images
+
+    stage_run_images(run_id)
+
+
+@shared_task(
+    autoretry_for=(Exception,),
+    retry_backoff=True,
+    max_retries=3,
+    soft_time_limit=240,
+    time_limit=300,
+    acks_late=True,
+    reject_on_worker_lost=True,
+)  # type: ignore[untyped-decorator]
+def process_discovery_images(reservation_id: str) -> None:
+    from .external_media import stage_discovery_images
+    from .models import SourceReservation
+
+    stage_discovery_images(SourceReservation.objects.get(pk=reservation_id))

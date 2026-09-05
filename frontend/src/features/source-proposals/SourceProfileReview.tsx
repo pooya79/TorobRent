@@ -14,6 +14,8 @@ import {
   type OperatorSourceProposal,
 } from "./queries";
 
+import { CandidateMedia } from "./CandidateMedia";
+
 type Version = components["schemas"]["SourceProfileVersion"];
 const fields: Record<string, string> = {
   city: "شهر",
@@ -261,6 +263,14 @@ function ProfileEvidence({ version }: { version: Version }) {
             <summary className="break-all" dir="ltr">
               {sample.canonical_url}
             </summary>
+            <CandidateMedia
+              images={
+                version.media_candidates?.find(
+                  (candidate) =>
+                    candidate.external_url === sample.canonical_url,
+                )?.media ?? []
+              }
+            />
             <dl className="grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-3">
               {Object.entries(sample.normalized).map(([field, value]) => (
                 <div key={field}>

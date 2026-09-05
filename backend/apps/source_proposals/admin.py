@@ -1,7 +1,13 @@
+from typing import Any, cast
+
 from django.contrib import admin
+from django.http import HttpRequest
 from unfold.admin import ModelAdmin
 
-from .models import SourceProposal
+from apps.accounts.capabilities import OperatorCapability, has_capability
+from apps.accounts.models import User
+
+from .models import SourceImageHost, SourceProposal
 
 
 @admin.register(SourceProposal)
@@ -24,3 +30,38 @@ class SourceProposalAdmin(ModelAdmin):  # type: ignore[type-arg]
         "created_at",
         "updated_at",
     )
+
+
+@admin.register(SourceImageHost)
+class SourceImageHostAdmin(ModelAdmin):  # type: ignore[type-arg]
+    list_display = ("source", "host", "approved_by", "approved_at", "revoked_at")
+    readonly_fields = ("approved_by", "approved_at")
+
+    def has_add_permission(self, request: HttpRequest) -> bool:
+        return super().has_add_permission(request) and has_capability(
+            cast(User, request.user), OperatorCapability.REVIEW_SOURCE_PROPOSALS
+        )
+
+    def has_change_permission(
+        self, request: HttpRequest, obj: SourceImageHost | None = None
+    ) -> bool:
+        return super().has_change_permission(request, obj) and has_capability(
+            cast(User, request.user), OperatorCapability.REVIEW_SOURCE_PROPOSALS
+        )
+
+    def has_delete_permission(
+        self, request: HttpRequest, obj: SourceImageHost | None = None
+    ) -> bool:
+        return False
+
+    def get_readonly_fields(
+        self, request: HttpRequest, obj: SourceImageHost | None = None
+    ) -> tuple[str, ...]:
+        return (*self.readonly_fields, "source", "host") if obj else self.readonly_fields
+
+    def save_model(
+        self, request: HttpRequest, obj: SourceImageHost, form: Any, change: bool
+    ) -> None:
+        if not change:
+            obj.approved_by = cast(User, request.user)
+        super().save_model(request, obj, form, change)

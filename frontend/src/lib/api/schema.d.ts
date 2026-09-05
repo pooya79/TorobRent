@@ -259,6 +259,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/v1/catalog/media/{asset_id}/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Read a published first-party image */
+    get: operations["v1_catalog_media_retrieve"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/v1/catalog/properties/": {
     parameters: {
       query?: never;
@@ -680,6 +697,23 @@ export interface paths {
     put?: never;
     /** Correct an extracted External Listing candidate */
     post: operations["v1_operator_external_listing_candidates_correct_create"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/operator/external-listing-candidates/{candidate_id}/media/{variant_id}/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Read a processed candidate image */
+    get: operations["v1_operator_external_listing_candidates_media_retrieve"];
+    put?: never;
+    post?: never;
     delete?: never;
     options?: never;
     head?: never;
@@ -1850,6 +1884,7 @@ export interface components {
       reviewed_revision: number;
       reason: string;
       values: components["schemas"]["CandidateCorrectionValues"];
+      media?: components["schemas"]["CandidateImageChoice"][];
     };
     CandidateCorrectionValues: {
       /** Format: uuid */
@@ -1871,6 +1906,42 @@ export interface components {
       monthly_rent_rial?: number | null;
       description?: string;
       title?: string;
+    };
+    CandidateImage: {
+      /** Format: uuid */
+      readonly id: string;
+      original_url: string;
+      /** Format: int64 */
+      source_order: number;
+      /** Format: int64 */
+      position: number;
+      is_primary?: boolean;
+      excluded?: boolean;
+      state?: string;
+      failure_code?: string;
+      content_hash?: string;
+      readonly variants: components["schemas"]["CandidateImageVariant"][];
+      /** Format: date-time */
+      accepted_at?: string | null;
+      /** Format: uuid */
+      accepted_by?: string | null;
+    };
+    CandidateImageChoice: {
+      /** Format: uuid */
+      id: string;
+      excluded: boolean;
+      is_primary: boolean;
+      accept_as_property: boolean;
+    };
+    CandidateImageVariant: {
+      kind: string;
+      /** Format: int64 */
+      width: number;
+      /** Format: int64 */
+      height: number;
+      /** Format: int64 */
+      byte_size: number;
+      readonly url: string | null;
     };
     CatalogFacets: {
       property_types: components["schemas"]["FacetCount"][];
@@ -2206,7 +2277,7 @@ export interface components {
       /** Format: int64 */
       monthly_rent_rial?: number | null;
       description?: string;
-      readonly media: string[];
+      readonly media: components["schemas"]["CandidateImage"][];
       readonly history: components["schemas"]["ExternalListingCandidateEvent"][];
       /** Format: date-time */
       readonly created_at: string;
@@ -2455,6 +2526,18 @@ export interface components {
       monthly_rent_rial: number;
       currency: string;
     };
+    ListingMedia: {
+      /** Format: uuid */
+      id: string;
+      is_primary: boolean;
+      variants: components["schemas"]["ListingMediaVariant"][];
+    };
+    ListingMediaVariant: {
+      kind: string;
+      url: string;
+      width: number;
+      height: number;
+    };
     ListingPublic: {
       /** Format: uuid */
       id: string;
@@ -2466,8 +2549,8 @@ export interface components {
       disagreements: components["schemas"]["SourceDisagreement"][];
       /** Format: uri */
       continuation_url: string | null;
-      /** Format: uri */
       media_url: string | null;
+      images: components["schemas"]["ListingMedia"][];
       is_negotiable: boolean;
       is_convertible: boolean;
       /** Format: date-time */
@@ -3300,6 +3383,7 @@ export interface components {
       structural_fingerprint: string;
       readonly validation: components["schemas"]["ProfileValidation"];
       readonly samples: components["schemas"]["ProfileSample"][];
+      readonly media_candidates: components["schemas"]["ExternalListingCandidate"][];
       exclusions: unknown;
       diagnostics?: unknown;
       pipeline_version: string;
@@ -4791,6 +4875,27 @@ export interface operations {
       };
     };
   };
+  v1_catalog_media_retrieve: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        asset_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "image/webp": string;
+        };
+      };
+    };
+  };
   v1_catalog_properties_list: {
     parameters: {
       query?: {
@@ -5502,6 +5607,28 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["ExternalListingCandidate"];
+        };
+      };
+    };
+  };
+  v1_operator_external_listing_candidates_media_retrieve: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        candidate_id: string;
+        variant_id: number;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "image/webp": string;
         };
       };
     };

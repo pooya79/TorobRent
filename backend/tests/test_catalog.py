@@ -74,7 +74,8 @@ def test_public_catalog_query_count_is_bounded_for_representative_development_fi
     assert detail_response.status_code == 200
     # Page count, page data, Property Type/Bedroom facets, and five self-excluding features.
     assert len(search_queries) <= 9
-    assert len(detail_queries) <= 2
+    # Listings and Property, plus two bounded image/variant prefetches.
+    assert len(detail_queries) <= 4
 
 
 @pytest.mark.django_db
@@ -1879,7 +1880,8 @@ def test_property_detail_compares_active_source_listings_and_exposes_disagreemen
         "elevator": "present",
     }
     assert external["continuation_url"] == "https://comparison.example/listings/42"
-    assert external["media_url"] == "https://comparison.example/media/external-42.jpg"
+    assert external["media_url"] is None
+    assert external["images"] == []
     assert external["disagreements"] == [
         {"field": "area_sqm", "normalized_value": 110, "source_value": 108},
         {"field": "parking", "normalized_value": "present", "source_value": "absent"},

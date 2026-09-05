@@ -8,10 +8,12 @@ from .external_candidate_views import (
     OperatorExternalListingCandidateRejectView,
     OperatorExternalListingCandidateRequestChangesView,
 )
+from .media_views import CandidateImageView
 
 app_name = "operator-external-listing-candidates"
 
 urlpatterns = [
+    path("<uuid:candidate_id>/media/<int:variant_id>/", CandidateImageView.as_view(), name="media"),
     path(
         "<uuid:candidate_id>/correct/",
         OperatorExternalListingCandidateCorrectView.as_view(),

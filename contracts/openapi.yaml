@@ -573,6 +573,30 @@ paths:
                 items:
                   $ref: '#/components/schemas/LocationSuggestion'
           description: ''
+  /api/v1/catalog/media/{asset_id}/:
+    get:
+      operationId: v1_catalog_media_retrieve
+      summary: Read a published first-party image
+      parameters:
+      - in: path
+        name: asset_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            image/webp:
+              schema:
+                type: string
+                format: binary
+          description: ''
   /api/v1/catalog/properties/:
     get:
       operationId: v1_catalog_properties_list
@@ -1469,6 +1493,34 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ExternalListingCandidate'
+          description: ''
+  /api/v1/operator/external-listing-candidates/{candidate_id}/media/{variant_id}/:
+    get:
+      operationId: v1_operator_external_listing_candidates_media_retrieve
+      summary: Read a processed candidate image
+      parameters:
+      - in: path
+        name: candidate_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: variant_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            image/webp:
+              schema:
+                type: string
+                format: binary
           description: ''
   /api/v1/operator/external-listing-candidates/{candidate_id}/reject/:
     post:
@@ -3657,6 +3709,10 @@ components:
           maxLength: 2000
         values:
           $ref: '#/components/schemas/CandidateCorrectionValues'
+        media:
+          type: array
+          items:
+            $ref: '#/components/schemas/CandidateImageChoice'
       required:
       - reason
       - reviewed_revision
@@ -3716,6 +3772,108 @@ components:
         title:
           type: string
           maxLength: 200
+    CandidateImage:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        original_url:
+          type: string
+        source_order:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 0
+          format: int64
+        position:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 0
+          format: int64
+        is_primary:
+          type: boolean
+        excluded:
+          type: boolean
+        state:
+          type: string
+          maxLength: 16
+        failure_code:
+          type: string
+          maxLength: 64
+        content_hash:
+          type: string
+          maxLength: 64
+        variants:
+          type: array
+          items:
+            $ref: '#/components/schemas/CandidateImageVariant'
+          readOnly: true
+        accepted_at:
+          type:
+          - string
+          - 'null'
+          format: date-time
+        accepted_by:
+          type:
+          - string
+          - 'null'
+          format: uuid
+      required:
+      - id
+      - original_url
+      - position
+      - source_order
+      - variants
+    CandidateImageChoice:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        excluded:
+          type: boolean
+        is_primary:
+          type: boolean
+        accept_as_property:
+          type: boolean
+      required:
+      - accept_as_property
+      - excluded
+      - id
+      - is_primary
+    CandidateImageVariant:
+      type: object
+      properties:
+        kind:
+          type: string
+          maxLength: 8
+        width:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 0
+          format: int64
+        height:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 0
+          format: int64
+        byte_size:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 0
+          format: int64
+        url:
+          type:
+          - string
+          - 'null'
+          readOnly: true
+      required:
+      - byte_size
+      - height
+      - kind
+      - url
+      - width
     CatalogFacets:
       type: object
       properties:
@@ -4464,7 +4622,7 @@ components:
         media:
           type: array
           items:
-            type: string
+            $ref: '#/components/schemas/CandidateImage'
           readOnly: true
         history:
           type: array
@@ -5092,6 +5250,38 @@ components:
       - currency
       - deposit_rial
       - monthly_rent_rial
+    ListingMedia:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        is_primary:
+          type: boolean
+        variants:
+          type: array
+          items:
+            $ref: '#/components/schemas/ListingMediaVariant'
+      required:
+      - id
+      - is_primary
+      - variants
+    ListingMediaVariant:
+      type: object
+      properties:
+        kind:
+          type: string
+        url:
+          type: string
+        width:
+          type: integer
+        height:
+          type: integer
+      required:
+      - height
+      - kind
+      - url
+      - width
     ListingPublic:
       type: object
       properties:
@@ -5120,7 +5310,10 @@ components:
           type:
           - string
           - 'null'
-          format: uri
+        images:
+          type: array
+          items:
+            $ref: '#/components/schemas/ListingMedia'
         is_negotiable:
           type: boolean
         is_convertible:
@@ -5153,6 +5346,7 @@ components:
       - description
       - disagreements
       - id
+      - images
       - is_convertible
       - is_negotiable
       - is_responsible_submitter
@@ -7091,6 +7285,11 @@ components:
           items:
             $ref: '#/components/schemas/ProfileSample'
           readOnly: true
+        media_candidates:
+          type: array
+          items:
+            $ref: '#/components/schemas/ExternalListingCandidate'
+          readOnly: true
         exclusions: {}
         diagnostics: {}
         pipeline_version:
@@ -7124,6 +7323,7 @@ components:
       - exclusions
       - id
       - is_active
+      - media_candidates
       - number
       - pipeline_version
       - provenance

@@ -1,5 +1,6 @@
 from django.urls import path
 
+from .media_views import CatalogMediaView
 from .views import (
     CatalogStatisticsView,
     FavoriteCollectionView,
@@ -16,6 +17,7 @@ from .views import (
 app_name = "catalog"
 
 urlpatterns = [
+    path("media/<uuid:asset_id>/", CatalogMediaView.as_view(), name="media"),
     path("statistics/", CatalogStatisticsView.as_view(), name="statistics"),
     path("locations/", LocationAutocompleteView.as_view(), name="location-autocomplete"),
     path("supported-cities/", SupportedCityListView.as_view(), name="supported-city-list"),

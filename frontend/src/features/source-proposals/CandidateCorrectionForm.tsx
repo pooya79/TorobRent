@@ -14,6 +14,8 @@ import {
   operatorSourceProposalsQueryOptions,
 } from "./queries";
 
+import { CandidateMedia, type MediaChoice } from "./CandidateMedia";
+
 const numericFields = {
   area_sqm: "متراژ (متر مربع)",
   room_count: "تعداد اتاق خواب",
@@ -29,6 +31,15 @@ export function CandidateCorrectionForm({
   const [values, setValues] = useState<
     components["schemas"]["CandidateCorrectionValues"]
   >({});
+  const [media, setMedia] = useState<MediaChoice[]>(
+    candidate.media.map((image) => ({
+      id: image.id,
+      excluded: !!image.excluded,
+      is_primary: !!image.is_primary,
+      accept_as_property: !!image.accepted_at,
+    })),
+  );
+  const [mediaChanged, setMediaChanged] = useState(false);
   const [reason, setReason] = useState("");
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState(false);
@@ -40,7 +51,12 @@ export function CandidateCorrectionForm({
         "/api/v1/operator/external-listing-candidates/{candidate_id}/correct/",
         {
           params: { path: { candidate_id: candidate.id } },
-          body: { reviewed_revision: candidate.revision, reason, values },
+          body: {
+            reviewed_revision: candidate.revision,
+            reason,
+            values,
+            ...(mediaChanged ? { media } : {}),
+          },
         },
       );
       if (error || !data) throw apiError(error);
@@ -56,6 +72,7 @@ export function CandidateCorrectionForm({
         queryKey: operatorSourceProposalsQueryOptions.queryKey,
       });
       setValues({});
+      setMediaChanged(false);
     },
   });
   return (
@@ -148,6 +165,14 @@ export function CandidateCorrectionForm({
           </div>
         );
       })}
+      <CandidateMedia
+        images={candidate.media}
+        choices={media}
+        onChange={(next) => {
+          setMedia(next);
+          setMediaChanged(true);
+        }}
+      />
       <Label htmlFor={`correction-reason-${candidate.id}`}>دلیل اصلاح</Label>
       <Input
         id={`correction-reason-${candidate.id}`}
@@ -158,7 +183,7 @@ export function CandidateCorrectionForm({
         type="submit"
         disabled={
           !reason.trim() ||
-          Object.keys(values).length === 0 ||
+          (Object.keys(values).length === 0 && !mediaChanged) ||
           correction.isPending
         }
       >

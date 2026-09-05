@@ -238,6 +238,10 @@ CELERY_TASK_SOFT_TIME_LIMIT = 25 * 60
 CELERY_TASK_ACKS_LATE = True
 CELERY_WORKER_PREFETCH_MULTIPLIER = 1
 CELERY_BEAT_SCHEDULE = {
+    "cleanup-external-images": {
+        "task": "apps.source_proposals.tasks.cleanup_external_images",
+        "schedule": 3600.0,
+    },
     "expire-source-reservations": {
         "task": "apps.source_proposals.tasks.expire_source_reservations",
         "schedule": 60,

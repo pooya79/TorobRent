@@ -377,6 +377,7 @@ class ProfileSampleSerializer(serializers.Serializer[Any]):
 
 
 class SourceProfileVersionSerializer(serializers.ModelSerializer[SourceProfileVersion]):
+    media_candidates = ExternalListingCandidateSerializer(many=True, read_only=True)
     reservation = serializers.UUIDField(source="reservation_id", read_only=True)
     decision_reason = serializers.CharField(
         source="decision.event.reason", read_only=True, default=""
@@ -404,6 +405,7 @@ class SourceProfileVersionSerializer(serializers.ModelSerializer[SourceProfileVe
             "structural_fingerprint",
             "validation",
             "samples",
+            "media_candidates",
             "exclusions",
             "diagnostics",
             "pipeline_version",

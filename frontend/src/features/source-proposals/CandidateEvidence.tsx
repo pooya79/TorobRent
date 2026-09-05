@@ -1,5 +1,7 @@
 import type { ExternalListingCandidate } from "./queries";
 
+import { CandidateMedia } from "./CandidateMedia";
+
 const labels: Record<string, string> = {
   city: "شهر",
   district: "منطقه",
@@ -26,6 +28,7 @@ export function CandidateEvidence({
   return (
     <details className="text-sm">
       <summary>شواهد و اعتبارسنجی</summary>
+      <CandidateMedia images={candidate.media} />
       <dl className="grid gap-2 p-2">
         {showValidation &&
           Object.entries(candidate.validation_errors ?? {}).map(

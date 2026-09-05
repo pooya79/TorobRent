@@ -467,13 +467,26 @@ export function PropertyDetailPage({
                     </p>
                   </CardHeader>
                   <CardContent className="space-y-3">
-                    {listing.media_url && (
-                      <img
-                        className="aspect-video w-full rounded-lg object-cover"
-                        src={listing.media_url}
-                        alt={`تصویر آگهی ${listing.source.display_name}`}
-                      />
-                    )}
+                    {listing.images?.map((image) => {
+                      const medium = image.variants.find(
+                        (variant) => variant.kind === "medium",
+                      );
+                      return medium ? (
+                        <img
+                          key={image.id}
+                          className="aspect-video w-full rounded-lg object-cover"
+                          src={medium.url}
+                          srcSet={image.variants
+                            .map(
+                              (variant) => `${variant.url} ${variant.width}w`,
+                            )
+                            .join(", ")}
+                          sizes="(max-width: 640px) 100vw, 480px"
+                          alt={`تصویر آگهی ${listing.source.display_name}`}
+                          loading="lazy"
+                        />
+                      ) : null;
+                    })}
                     {listing.description && <p>{listing.description}</p>}
                     {listing.disagreements.length > 0 && (
                       <section className="bg-muted rounded-lg p-3">

@@ -298,6 +298,7 @@ def search_properties(
             ),
             selected_currency=Subquery(selected_listing.values("terms__currency")[:1]),
             primary_image_file=Subquery(primary_image_variant.values("asset__file")[:1]),
+            primary_image_asset_id=Subquery(primary_image_variant.values("asset_id")[:1]),
             primary_image_width=Subquery(primary_image_variant.values("asset__width")[:1]),
             primary_image_height=Subquery(primary_image_variant.values("asset__height")[:1]),
         )
@@ -409,6 +410,7 @@ def favorite_properties(
         ),
         selected_currency=Subquery(selected_listing.values("terms__currency")[:1]),
         primary_image_file=Subquery(primary_image_variant.values("asset__file")[:1]),
+        primary_image_asset_id=Subquery(primary_image_variant.values("asset_id")[:1]),
         primary_image_width=Subquery(primary_image_variant.values("asset__width")[:1]),
         primary_image_height=Subquery(primary_image_variant.values("asset__height")[:1]),
         is_favorite=Value(True),

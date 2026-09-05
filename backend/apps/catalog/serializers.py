@@ -392,7 +392,11 @@ class PropertySummarySerializer(serializers.Serializer[Any]):
         if not file_name:
             return None
         return {
-            "url": default_storage.url(str(file_name)),
+            "url": (
+                f"/api/v1/catalog/media/{property_.primary_image_asset_id}/"  # type: ignore[attr-defined]
+                if str(file_name).startswith("external-media/")
+                else default_storage.url(str(file_name))
+            ),
             "width": property_.primary_image_width,  # type: ignore[attr-defined]
             "height": property_.primary_image_height,  # type: ignore[attr-defined]
         }
@@ -491,6 +495,50 @@ class PropertySearchPageSerializer(serializers.Serializer[Any]):
     map = CatalogMapSerializer()
 
 
+class ListingMediaVariantSerializer(serializers.Serializer[Any]):
+    kind = serializers.CharField()
+    url = serializers.CharField()
+    width = serializers.IntegerField()
+    height = serializers.IntegerField()
+
+
+class ListingMediaSerializer(serializers.Serializer[Any]):
+    id = serializers.UUIDField()
+    is_primary = serializers.BooleanField()
+    variants = ListingMediaVariantSerializer(many=True)
+
+
+def listing_images(listing: Listing) -> list[dict[str, Any]]:
+    return [
+        {
+            "id": image.pk,
+            "is_primary": image.is_primary,
+            "variants": [
+                {
+                    "kind": variant.kind,
+                    "url": f"/api/v1/catalog/media/{variant.asset_id}/",
+                    "width": variant.asset.width,
+                    "height": variant.asset.height,
+                }
+                for variant in image.variants.all()
+            ],
+        }
+        for image in sorted(
+            listing.images.all(), key=lambda image: (not image.is_primary, image.position)
+        )
+    ]
+
+
+def listing_media_url(listing: Listing) -> str | None:
+    images = listing_images(listing)
+    if not images:
+        return None
+    return next(
+        (str(variant["url"]) for variant in images[0]["variants"] if variant["kind"] == "medium"),
+        None,
+    )
+
+
 class ListingPublicSerializer(serializers.Serializer[Any]):
     id = serializers.UUIDField()
     source = SourcePublicSerializer()  # type: ignore[assignment]
@@ -500,7 +548,8 @@ class ListingPublicSerializer(serializers.Serializer[Any]):
     source_claims = serializers.JSONField()
     disagreements = SourceDisagreementSerializer(many=True)
     continuation_url = serializers.URLField(allow_null=True)
-    media_url = serializers.URLField(allow_null=True)
+    media_url = serializers.CharField(allow_null=True)
+    images = ListingMediaSerializer(many=True)
     is_negotiable = serializers.BooleanField()
     is_convertible = serializers.BooleanField()
     availability_confirmed_at = serializers.DateTimeField()
@@ -679,11 +728,8 @@ def property_detail_data(
                     if listing.source.outbound_policy == OutboundPolicy.EXTERNAL_LINK
                     else None
                 ),
-                "media_url": (
-                    listing.external_media_url
-                    if listing.source.allows_external_media and listing.external_media_url
-                    else None
-                ),
+                "media_url": listing_media_url(listing),
+                "images": listing_images(listing),
                 "is_negotiable": listing.terms.is_negotiable,
                 "is_convertible": listing.terms.is_convertible,
                 "availability_confirmed_at": listing.availability_confirmed_at,

@@ -65,6 +65,14 @@ def _bounded_integer(value: Any, maximum: int) -> int | None:
 
 
 def create_run_candidates(run: ExtractionRun) -> None:
+    from django.db import transaction
+
+    from apps.source_extraction.fetching import MAX_SOURCE_IMAGES
+
+    from .models import CandidateImage
+    from .tasks import process_run_images
+
+    remaining_images = MAX_SOURCE_IMAGES
     for result in run.results:
         values = result["normalized"]
         city = next(
@@ -125,8 +133,17 @@ def create_run_candidates(run: ExtractionRun) -> None:
         )
         candidate.validation_errors = validation_errors(candidate)
         candidate.save()
+        urls = values.get("image_urls", [])
+        if isinstance(urls, list | tuple):
+            approved_urls = [url for url in urls if isinstance(url, str)][:remaining_images]
+            for order, url in enumerate(approved_urls):
+                CandidateImage.objects.create(
+                    candidate=candidate, original_url=url, source_order=order, position=order
+                )
+            remaining_images -= len(approved_urls)
+    transaction.on_commit(lambda: process_run_images.delay(str(run.pk)))
     run.needs_attention = run.candidates.exclude(validation_errors={}).count()
-    run.save(update_fields=("needs_attention",))
+    run.save(update_fields=("needs_attention", "errors"))
 
 
 def publish_candidate(candidate: ExternalListingCandidate) -> None:
@@ -158,6 +175,9 @@ def publish_candidate(candidate: ExternalListingCandidate) -> None:
     )
     candidate.listing = listing
     candidate.save(update_fields=("listing", "updated_at"))
+    from .external_media import promote_candidate_images
+
+    promote_candidate_images(candidate)
 
 
 def publish_automatic_candidates(run: ExtractionRun) -> None:

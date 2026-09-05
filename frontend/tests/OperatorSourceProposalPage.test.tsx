@@ -752,6 +752,7 @@ test("reviews run samples and sends one revision-checked batch approval", async 
     candidates: [
       {
         id: "valid",
+        media: [],
         title: "آپارتمان معتبر",
         external_url: "https://khaneh.example/valid",
         state: "pending",
@@ -762,6 +763,7 @@ test("reviews run samples and sends one revision-checked batch approval", async 
       },
       {
         id: "exception",
+        media: [],
         title: "متراژ نامشخص",
         external_url: "https://khaneh.example/exception",
         state: "pending",
@@ -856,6 +858,7 @@ test("corrects an exception and approves its new revision", async () => {
     state: "pending",
     revision: 1,
     simulated: false,
+    media: [],
     extraction_run: "run",
     external_url: "https://khaneh.example/detail",
     property_type: "apartment",

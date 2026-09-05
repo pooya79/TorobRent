@@ -263,6 +263,11 @@ def run_discovery(reservation_id: str) -> None:
             reason="کشف پایان یافت." if stage == DiscoveryStage.COMPLETE else "کشف ناموفق بود.",
         )
 
+    if profile is not None:
+        from .tasks import process_discovery_images
+
+        transaction.on_commit(lambda: process_discovery_images.delay(str(reservation.pk)))
+
 
 def release_reservations(proposal: SourceProposal, reason: str) -> None:
     SourceReservation.objects.filter(proposal=proposal, released_at__isnull=True).update(

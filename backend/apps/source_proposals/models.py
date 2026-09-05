@@ -225,6 +225,9 @@ class ExternalListingCandidateState(models.TextChoices):
 
 
 class ExternalListingCandidate(models.Model):
+    discovery_version = models.ForeignKey(
+        "SourceProfileVersion", on_delete=models.PROTECT, null=True, related_name="media_candidates"
+    )
     """A retained extraction result awaiting catalog publication or correction."""
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -281,10 +284,13 @@ class ExternalListingCandidate(models.Model):
             models.UniqueConstraint(
                 fields=("source_proposal", "external_url"),
                 name="unique_external_candidate_url_per_proposal",
-                condition=models.Q(extraction_run__isnull=True),
+                condition=models.Q(extraction_run__isnull=True, discovery_version__isnull=True),
             ),
             models.UniqueConstraint(
                 fields=("extraction_run", "external_url"), name="unique_candidate_url_per_run"
+            ),
+            models.UniqueConstraint(
+                fields=("discovery_version", "external_url"), name="unique_discovery_candidate_url"
             ),
         ]
 
@@ -629,3 +635,96 @@ class ExtractionRunDecision(ImmutableProfileRecord):
 
     def __str__(self) -> str:
         return f"Extraction Run {self.run_id}: approval of revision {self.revision}"
+
+
+class SourceImageHost(models.Model):
+    """An exact CDN host explicitly approved by an Operator for one Source."""
+
+    source = models.ForeignKey(
+        "catalog.Source", on_delete=models.PROTECT, related_name="image_hosts"
+    )
+    host = models.CharField(max_length=253)
+    approved_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    approved_at = models.DateTimeField(auto_now_add=True)
+    revoked_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=("source", "host"), name="unique_source_image_host")
+        ]
+
+    def __str__(self) -> str:
+        return self.host
+
+    def clean(self) -> None:
+        from .url_validation import normalize_public_domain
+
+        self.host = normalize_public_domain(f"https://{self.host}")
+
+
+class CandidateImage(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    candidate = models.ForeignKey(
+        ExternalListingCandidate, on_delete=models.PROTECT, related_name="images"
+    )
+    original_url = models.TextField()
+    source_order = models.PositiveSmallIntegerField()
+    position = models.PositiveSmallIntegerField()
+    is_primary = models.BooleanField(default=False)
+    excluded = models.BooleanField(default=False)
+    state = models.CharField(max_length=16, default="pending")
+    failure_code = models.CharField(max_length=64, blank=True)
+    content_hash = models.CharField(max_length=64, blank=True)
+    listing_image = models.OneToOneField(
+        "catalog.ListingImage", on_delete=models.SET_NULL, null=True, related_name="external_origin"
+    )
+    property_image = models.ForeignKey(
+        "catalog.PropertyImage",
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="external_origins",
+    )
+    accepted_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="accepted_external_images",
+    )
+    accepted_at = models.DateTimeField(null=True)
+    unreferenced_at = models.DateTimeField(null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ("position", "source_order", "id")
+        constraints = [
+            models.UniqueConstraint(
+                fields=("candidate", "source_order"), name="unique_candidate_image_source_order"
+            ),
+            models.UniqueConstraint(
+                fields=("candidate",),
+                condition=models.Q(is_primary=True),
+                name="one_primary_candidate_image",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.candidate_id}: {self.source_order}"
+
+
+class CandidateImageVariant(models.Model):
+    image = models.ForeignKey(CandidateImage, on_delete=models.PROTECT, related_name="variants")
+    kind = models.CharField(max_length=8)
+    asset = models.ForeignKey(
+        "common.MediaAsset", on_delete=models.PROTECT, null=True, related_name="candidate_variants"
+    )
+    width = models.PositiveIntegerField()
+    height = models.PositiveIntegerField()
+    byte_size = models.PositiveIntegerField()
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=("image", "kind"), name="unique_candidate_image_variant")
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.image_id}: {self.kind}"

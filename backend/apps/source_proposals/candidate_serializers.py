@@ -3,7 +3,12 @@ from typing import Any
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
-from .models import ExternalListingCandidate, ExternalListingCandidateEvent
+from .models import (
+    CandidateImage,
+    CandidateImageVariant,
+    ExternalListingCandidate,
+    ExternalListingCandidateEvent,
+)
 
 
 class ExternalCandidateSourceSerializer(serializers.Serializer[Any]):
@@ -34,11 +39,48 @@ class ExternalListingCandidateEventSerializer(
         )
 
 
+class CandidateImageVariantSerializer(serializers.ModelSerializer[CandidateImageVariant]):
+    url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = CandidateImageVariant
+        fields = ("kind", "width", "height", "byte_size", "url")
+
+    @extend_schema_field(serializers.CharField(allow_null=True))
+    def get_url(self, variant: CandidateImageVariant) -> str | None:
+        return (
+            f"/api/v1/operator/external-listing-candidates/{variant.image.candidate_id}/media/{variant.pk}/"
+            if variant.asset_id
+            else None
+        )
+
+
+class CandidateImageSerializer(serializers.ModelSerializer[CandidateImage]):
+    variants = CandidateImageVariantSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = CandidateImage
+        fields = (
+            "id",
+            "original_url",
+            "source_order",
+            "position",
+            "is_primary",
+            "excluded",
+            "state",
+            "failure_code",
+            "content_hash",
+            "variants",
+            "accepted_at",
+            "accepted_by",
+        )
+
+
 class ExternalListingCandidateSerializer(serializers.ModelSerializer[ExternalListingCandidate]):
     source = ExternalCandidateSourceSerializer(read_only=True)  # type: ignore[assignment]
     source_proposal_id = serializers.UUIDField(read_only=True)
     listing_id = serializers.UUIDField(read_only=True, allow_null=True)
-    media = serializers.SerializerMethodField()
+    media = CandidateImageSerializer(source="images", many=True, read_only=True)
     history = ExternalListingCandidateEventSerializer(source="events", many=True, read_only=True)
 
     class Meta:
@@ -74,10 +116,6 @@ class ExternalListingCandidateSerializer(serializers.ModelSerializer[ExternalLis
             "updated_at",
         )
 
-    @extend_schema_field(serializers.ListField(child=serializers.CharField()))
-    def get_media(self, _candidate: ExternalListingCandidate) -> list[str]:
-        return []
-
 
 class CandidateCorrectionValuesSerializer(serializers.ModelSerializer[ExternalListingCandidate]):
     class Meta:
@@ -104,7 +142,15 @@ class CandidateCorrectionValuesSerializer(serializers.ModelSerializer[ExternalLi
         return attrs
 
 
+class CandidateImageChoiceSerializer(serializers.Serializer[Any]):
+    id = serializers.UUIDField()
+    excluded = serializers.BooleanField()
+    is_primary = serializers.BooleanField()
+    accept_as_property = serializers.BooleanField()
+
+
 class CandidateCorrectionSerializer(serializers.Serializer[Any]):
     reviewed_revision = serializers.IntegerField(min_value=1)
     reason = serializers.CharField(max_length=2000)
     values = CandidateCorrectionValuesSerializer()
+    media = CandidateImageChoiceSerializer(many=True, required=False)

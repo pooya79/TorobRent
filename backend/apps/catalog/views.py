@@ -3,7 +3,7 @@ from collections import defaultdict
 from decimal import ROUND_FLOOR, Decimal
 from typing import cast
 
-from django.db.models import F, QuerySet
+from django.db.models import F, Prefetch, QuerySet
 from django.utils import timezone
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import (
@@ -24,7 +24,14 @@ from apps.accounts.permissions import HasVerifiedIdentifier
 from apps.common.pagination import StandardPageNumberPagination
 from apps.common.serializers import ProblemSerializer
 
-from .models import Favorite, Listing, OutboundPolicy, ProductEventType, Property
+from .models import (
+    Favorite,
+    Listing,
+    ListingImageVariant,
+    OutboundPolicy,
+    ProductEventType,
+    Property,
+)
 from .selectors import (
     autocomplete_locations,
     catalog_facets,
@@ -299,6 +306,11 @@ class PropertyDetailView(APIView):
             .active()
             .filter(property_id=property_id)
             .select_related("source", "terms", "submission")
+            .prefetch_related(
+                Prefetch(
+                    "images__variants", queryset=ListingImageVariant.objects.select_related("asset")
+                )
+            )
         )
         if not listings:
             raise NotFound("این ملک در دسترس نیست.")

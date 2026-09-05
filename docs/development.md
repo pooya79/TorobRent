@@ -144,3 +144,36 @@ versions, SHA-256 of the exact redacted evidence, bounded redacted structured ou
 start/finish times, duration and outcome. Failures preserve prior versions and the active pointer.
 If a process dies after recording the request, its history shows `interrupted` after 60 seconds;
 refresh the case and explicitly submit a new request if appropriate. No recovery task retries it.
+
+## External Listing Images
+
+Discovery previews and Extraction Run candidates own their image staging records. URL approval
+permits the exact Source host; an Operator with Source Proposal Review capability can approve
+additional exact CDN hosts through **Source image hosts** in Django administration. Approval keeps
+the reviewer and timestamp, host edits are disabled, and revocation stops subsequent downloads.
+No Submission is created for external media.
+
+Each Discovery or Extraction Run processes at most twelve source-ordered image URLs. Every image
+uses HTTPS, revalidates DNS and host approval across redirects, pins the public connection address,
+and shares a 15-second deadline across its redirect chain (at most five redirects). Encoded input
+is limited to 10 MiB and decoded JPEG/PNG/WebP input to 40 million pixels. The shared processor
+strips metadata and produces 480/960/1440-pixel WebP variants.
+
+Extraction commits valid rental facts before enqueueing the separate media task. Media tasks use
+stable run/reservation IDs, late acknowledgement, bounded retries, and 240/300-second soft/hard
+limits. Redelivery skips completed images. A durable Candidate Image owns its storage directory
+before processing, allowing interrupted output files to be reclaimed on retry or retirement.
+Image failure is recorded in candidate media and run errors and does not prevent publication.
+Published candidates receive completed images only while they remain the Listing's current source
+reference, so a delayed older run cannot overwrite a newer run's gallery.
+
+Operators can inspect first-party thumbnails while reviewing exceptions, reorder or exclude
+images, and choose a primary image. The separate Property Image checkbox records explicit
+acceptance and the reviewer; ordinary publication keeps the image source-specific. Public variants
+are served through the catalog media endpoint only while a public active Listing references them
+or the reviewed Property. Original Source image URLs are retained as private evidence.
+
+The hourly `cleanup_external_images` task preserves bytes referenced by any active Listing or
+reviewed Property. Unreferenced images receive a 30-day grace period, measured from known
+withdrawal/expiry or conservatively from the first unreferenced observation. Cleanup removes
+variant references and files but retains original URL, hash, processing status, and dimensions.

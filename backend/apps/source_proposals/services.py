@@ -483,6 +483,8 @@ def _lock_candidate(candidate: ExternalListingCandidate) -> ExternalListingCandi
     # Match batch publication and assignment revocation lock order.
     Source.objects.select_for_update().get(pk=candidate.source_id)
     candidate = ExternalListingCandidate.objects.select_for_update().get(pk=candidate.pk)
+    if candidate.discovery_version_id is not None:
+        raise ValidationError("پیش‌نمایش کشف قابل انتشار نیست؛ درخواست استخراج ثبت کنید.")
     if candidate.extraction_run is not None:
         from .extraction import authorized
 
@@ -678,6 +680,7 @@ def correct_external_listing_candidate(
     reviewed_revision: int,
     reason: str,
     values: dict[str, object],
+    media: list[dict[str, object]] | None = None,
 ) -> ExternalListingCandidate:
     from .candidate_publication import validation_errors
 
@@ -687,12 +690,17 @@ def correct_external_listing_candidate(
         candidate=candidate, actor=actor, reviewed_revision=reviewed_revision, allow_changes=True
     )
     reason = _candidate_reason(reason)
-    if candidate.extraction_run is None or not values:
+    if candidate.extraction_run is None or (not values and media is None):
         raise ValidationError("اصلاح نتیجه استخراج به مقادیر تازه نیاز دارد.")
     for name, value in values.items():
         setattr(candidate, name, value)
         candidate.corrections[name] = str(value.pk) if hasattr(value, "pk") else value
-    candidate.corrections["_structure_reviewed"] = True
+    if values:
+        candidate.corrections["_structure_reviewed"] = True
+    if media is not None:
+        from .external_media import review_candidate_images
+
+        review_candidate_images(candidate, actor, media)
     candidate.validation_errors = validation_errors(candidate)
     candidate.revision += 1
     candidate.save()
