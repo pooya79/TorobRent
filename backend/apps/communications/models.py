@@ -499,6 +499,18 @@ class SystemNotification(models.Model):
         null=True,
         blank=True,
     )
+    originating_run_decision = models.ForeignKey(
+        "source_proposals.ExtractionRunDecision",
+        on_delete=models.PROTECT,
+        null=True,
+        related_name="system_notifications",
+    )
+    originating_candidate_event = models.ForeignKey(
+        "source_proposals.ExternalListingCandidateEvent",
+        on_delete=models.PROTECT,
+        null=True,
+        related_name="system_notifications",
+    )
     target_submission = models.ForeignKey(
         "submissions.Submission",
         on_delete=models.SET_NULL,
@@ -528,15 +540,39 @@ class SystemNotification(models.Model):
                 fields=("recipient", "originating_source_proposal_event"),
                 name="one_system_notification_per_recipient_source_proposal_event",
             ),
+            models.UniqueConstraint(
+                fields=("recipient", "originating_run_decision"),
+                name="one_notification_per_run_decision",
+            ),
+            models.UniqueConstraint(
+                fields=("recipient", "originating_candidate_event"),
+                name="one_notification_per_candidate_event",
+            ),
             models.CheckConstraint(
                 condition=(
                     models.Q(
                         originating_event__isnull=False,
                         originating_source_proposal_event__isnull=True,
+                        originating_run_decision__isnull=True,
+                        originating_candidate_event__isnull=True,
                     )
                     | models.Q(
                         originating_event__isnull=True,
                         originating_source_proposal_event__isnull=False,
+                        originating_run_decision__isnull=True,
+                        originating_candidate_event__isnull=True,
+                    )
+                    | models.Q(
+                        originating_event__isnull=True,
+                        originating_source_proposal_event__isnull=True,
+                        originating_run_decision__isnull=False,
+                        originating_candidate_event__isnull=True,
+                    )
+                    | models.Q(
+                        originating_event__isnull=True,
+                        originating_source_proposal_event__isnull=True,
+                        originating_run_decision__isnull=True,
+                        originating_candidate_event__isnull=False,
                     )
                 ),
                 name="system_notification_has_exactly_one_originating_event",

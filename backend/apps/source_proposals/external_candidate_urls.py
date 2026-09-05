@@ -3,6 +3,7 @@ from django.urls import path
 from .external_candidate_views import (
     OperatorExternalListingCandidateApproveView,
     OperatorExternalListingCandidateClaimView,
+    OperatorExternalListingCandidateCorrectView,
     OperatorExternalListingCandidateListView,
     OperatorExternalListingCandidateRejectView,
     OperatorExternalListingCandidateRequestChangesView,
@@ -11,6 +12,11 @@ from .external_candidate_views import (
 app_name = "operator-external-listing-candidates"
 
 urlpatterns = [
+    path(
+        "<uuid:candidate_id>/correct/",
+        OperatorExternalListingCandidateCorrectView.as_view(),
+        name="correct",
+    ),
     path("", OperatorExternalListingCandidateListView.as_view(), name="list"),
     path(
         "<uuid:candidate_id>/claim/",

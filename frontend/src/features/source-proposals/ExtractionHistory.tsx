@@ -1,3 +1,4 @@
+import { ExtractionRunReview } from "./ExtractionRunReview";
 import type { components } from "@/lib/api/schema";
 
 const stateLabels: Record<string, string> = {
@@ -18,7 +19,9 @@ const counters = {
 
 export function ExtractionHistory({
   requests,
+  review,
 }: {
+  review?: { proposalId: string; canApprove: boolean };
   requests: components["schemas"]["ExtractionRequest"][];
 }) {
   return (
@@ -52,6 +55,7 @@ export function ExtractionHistory({
                   </div>
                 ))}
               </dl>
+              {review && <ExtractionRunReview run={request.run} {...review} />}
               {request.run.errors.map((error, index) => (
                 <p key={index}>
                   {error.transient && <strong>خطای موقت</strong>} {error.detail}

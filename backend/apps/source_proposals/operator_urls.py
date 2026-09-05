@@ -11,10 +11,16 @@ from .operator_views import (
     OperatorSourceProposalReleaseView,
     OperatorSourceProposalRequestChangesView,
 )
+from .run_views import OperatorRunApproveView
 
 app_name = "operator-source-proposals"
 
 urlpatterns = [
+    path(
+        "<uuid:proposal_id>/runs/<uuid:run_id>/approve/",
+        OperatorRunApproveView.as_view(),
+        name="run-approve",
+    ),
     path(
         "<uuid:proposal_id>/profile/repair/",
         OperatorSourceProfileRepairView.as_view(),

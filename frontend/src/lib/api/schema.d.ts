@@ -625,7 +625,7 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** List pending simulated External Listing candidates */
+    /** List External Listing candidates awaiting review or correction */
     get: operations["v1_operator_external_listing_candidates_list"];
     put?: never;
     post?: never;
@@ -663,6 +663,23 @@ export interface paths {
     put?: never;
     /** Claim an External Listing candidate review */
     post: operations["v1_operator_external_listing_candidates_claim_create"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/operator/external-listing-candidates/{candidate_id}/correct/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Correct an extracted External Listing candidate */
+    post: operations["v1_operator_external_listing_candidates_correct_create"];
     delete?: never;
     options?: never;
     head?: never;
@@ -850,6 +867,23 @@ export interface paths {
     put?: never;
     /** Request changes to a Source Proposal */
     post: operations["v1_operator_source_proposals_request_changes_create"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/operator/source-proposals/{proposal_id}/runs/{run_id}/approve/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Approve all valid results of an Extraction Run */
+    post: operations["v1_operator_source_proposals_runs_approve_create"];
     delete?: never;
     options?: never;
     head?: never;
@@ -1778,6 +1812,32 @@ export interface components {
     };
     /** @enum {unknown} */
     BlankEnum: "";
+    CandidateCorrection: {
+      reviewed_revision: number;
+      reason: string;
+      values: components["schemas"]["CandidateCorrectionValues"];
+    };
+    CandidateCorrectionValues: {
+      /** Format: uuid */
+      city?: string | null;
+      /** Format: uuid */
+      district?: string | null;
+      /** Format: uuid */
+      neighborhood?: string | null;
+      property_type?:
+        | components["schemas"]["PropertyTypeEnum"]
+        | components["schemas"]["BlankEnum"];
+      /** Format: int64 */
+      area_sqm?: number | null;
+      /** Format: int64 */
+      room_count?: number | null;
+      /** Format: int64 */
+      deposit_rial?: number | null;
+      /** Format: int64 */
+      monthly_rent_rial?: number | null;
+      description?: string;
+      title?: string;
+    };
     CatalogFacets: {
       property_types: components["schemas"]["FacetCount"][];
       bedroom_counts: components["schemas"]["FacetCount"][];
@@ -2078,6 +2138,19 @@ export interface components {
       readonly id: string;
       /** Format: uuid */
       readonly source_proposal_id: string;
+      /** Format: uuid */
+      extraction_run?: string | null;
+      /** Format: uuid */
+      city?: string | null;
+      /** Format: uuid */
+      district?: string | null;
+      /** Format: uuid */
+      neighborhood?: string | null;
+      source_claims?: unknown;
+      evidence?: unknown;
+      conflicts?: unknown;
+      validation_errors?: unknown;
+      corrections?: unknown;
       readonly source: components["schemas"]["ExternalCandidateSource"];
       /** Format: uuid */
       readonly listing_id: string | null;
@@ -2087,15 +2160,17 @@ export interface components {
       title: string;
       /** Format: uri */
       external_url: string;
-      property_type: components["schemas"]["PropertyTypeEnum"];
+      property_type?:
+        | components["schemas"]["PropertyTypeEnum"]
+        | components["schemas"]["BlankEnum"];
       /** Format: int64 */
-      area_sqm: number;
+      area_sqm?: number | null;
       /** Format: int64 */
       room_count?: number | null;
       /** Format: int64 */
-      deposit_rial: number;
+      deposit_rial?: number | null;
       /** Format: int64 */
-      monthly_rent_rial: number;
+      monthly_rent_rial?: number | null;
       description?: string;
       readonly media: string[];
       readonly history: components["schemas"]["ExternalListingCandidateEvent"][];
@@ -2114,6 +2189,7 @@ export interface components {
       prior_state: components["schemas"]["ExternalListingCandidateStateEnum"];
       new_state: components["schemas"]["ExternalListingCandidateStateEnum"];
       reason?: string;
+      corrections?: unknown;
       /** Format: date-time */
       readonly created_at: string;
     };
@@ -2168,6 +2244,9 @@ export interface components {
       /** Format: uuid */
       readonly profile_version: string;
       readonly pipeline_version: string;
+      readonly revision: number;
+      readonly candidates: components["schemas"]["ExternalListingCandidate"][];
+      readonly decisions: components["schemas"]["ExtractionRunDecision"][];
       readonly state: components["schemas"]["State299Enum"];
       readonly attempts: number;
       /** Format: date-time */
@@ -2181,6 +2260,17 @@ export interface components {
       readonly rejected: number;
       readonly failed: number;
       readonly errors: components["schemas"]["ExtractionError"][];
+      readonly withdrawals: unknown;
+    };
+    ExtractionRunDecision: {
+      readonly id: number;
+      /** Format: uuid */
+      actor: string;
+      /** Format: int64 */
+      revision: number;
+      candidate_ids?: unknown;
+      /** Format: date-time */
+      readonly created_at: string;
     };
     ExtractionSubmit: {
       assignment: number;
@@ -3074,6 +3164,8 @@ export interface components {
       /** Format: date-time */
       revoked_at?: string | null;
       readonly recent_requests: components["schemas"]["ExtractionRequest"][];
+      /** Format: uuid */
+      readonly review_operator: string | null;
     };
     /**
      * @description * `active` - active
@@ -5348,6 +5440,31 @@ export interface operations {
       };
     };
   };
+  v1_operator_external_listing_candidates_correct_create: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        candidate_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["CandidateCorrection"];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ExternalListingCandidate"];
+        };
+      };
+    };
+  };
   v1_operator_external_listing_candidates_reject_create: {
     parameters: {
       query?: never;
@@ -5609,6 +5726,32 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["OperatorSourceProposal"];
+        };
+      };
+    };
+  };
+  v1_operator_source_proposals_runs_approve_create: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        proposal_id: string;
+        run_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["SourceProposalApproval"];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ExtractionRun"];
         };
       };
     };

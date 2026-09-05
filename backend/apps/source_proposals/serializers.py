@@ -4,11 +4,12 @@ from django.utils import timezone
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
+from .candidate_serializers import (
+    ExternalListingCandidateSerializer as ExternalListingCandidateSerializer,
+)
 from .extraction_serializers import ExtractionRequestSerializer
 from .models import (
     DiscoveryStage,
-    ExternalListingCandidate,
-    ExternalListingCandidateEvent,
     ExternalListingCandidateReviewClaim,
     InventoryRange,
     SourceAssignment,
@@ -129,6 +130,9 @@ class AssignmentProfileVersionSerializer(serializers.Serializer[Any]):
 
 
 class SourceAssignmentSerializer(serializers.ModelSerializer[SourceAssignment]):
+    review_operator = serializers.UUIDField(
+        source="approval.event.actor_id", read_only=True, allow_null=True, default=None
+    )
     recent_requests = serializers.SerializerMethodField()
 
     @extend_schema_field(ExtractionRequestSerializer(many=True))
@@ -161,6 +165,7 @@ class SourceAssignmentSerializer(serializers.ModelSerializer[SourceAssignment]):
             "created_at",
             "revoked_at",
             "recent_requests",
+            "review_operator",
         )
 
     @extend_schema_field(serializers.ChoiceField(choices=("active", "revoked")))
@@ -525,67 +530,6 @@ class OperatorSourceProposalSerializer(SourceProposalSerializer):
             .exclude(submitter_id=proposal.submitter_id)
             .exists()
         )
-
-
-class ExternalCandidateSourceSerializer(serializers.Serializer[Any]):
-    id = serializers.UUIDField()
-    display_name = serializers.CharField()
-    domain = serializers.CharField()
-    is_active = serializers.BooleanField()
-
-
-class ExternalListingCandidateEventSerializer(
-    serializers.ModelSerializer[ExternalListingCandidateEvent]
-):
-    actor_label = serializers.EmailField(source="actor.email", read_only=True)
-
-    class Meta:
-        model = ExternalListingCandidateEvent
-        fields = (
-            "id",
-            "actor_label",
-            "revision",
-            "prior_state",
-            "new_state",
-            "reason",
-            "created_at",
-        )
-
-
-class ExternalListingCandidateSerializer(serializers.ModelSerializer[ExternalListingCandidate]):
-    source = ExternalCandidateSourceSerializer(read_only=True)  # type: ignore[assignment]
-    source_proposal_id = serializers.UUIDField(read_only=True)
-    listing_id = serializers.UUIDField(read_only=True, allow_null=True)
-    media = serializers.SerializerMethodField()
-    history = ExternalListingCandidateEventSerializer(source="events", many=True, read_only=True)
-
-    class Meta:
-        model = ExternalListingCandidate
-        fields = (
-            "id",
-            "source_proposal_id",
-            "source",
-            "listing_id",
-            "state",
-            "revision",
-            "simulated",
-            "title",
-            "external_url",
-            "property_type",
-            "area_sqm",
-            "room_count",
-            "deposit_rial",
-            "monthly_rent_rial",
-            "description",
-            "media",
-            "history",
-            "created_at",
-            "updated_at",
-        )
-
-    @extend_schema_field(serializers.ListField(child=serializers.CharField()))
-    def get_media(self, _candidate: ExternalListingCandidate) -> list[str]:
-        return []
 
 
 class ExternalListingCandidateReviewClaimSerializer(

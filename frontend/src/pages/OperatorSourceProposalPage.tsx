@@ -1,3 +1,5 @@
+import { CandidateEvidence } from "@/features/source-proposals/CandidateEvidence";
+import { CandidateCorrectionForm } from "@/features/source-proposals/CandidateCorrectionForm";
 import { SourceAssignmentSummary } from "@/features/source-proposals/SourceAssignmentSummary";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
@@ -311,7 +313,9 @@ function ExternalListingCandidateCard({
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h3 className="font-semibold">{candidate.title}</h3>
           <div className="flex gap-2">
-            <Badge variant="secondary">داده شبیه‌سازی‌شده</Badge>
+            <Badge variant="secondary">
+              {candidate.simulated ? "داده شبیه‌سازی‌شده" : "نتیجه استخراج"}
+            </Badge>
             <Badge variant="outline">بدون رسانه خارجی</Badge>
           </div>
         </div>
@@ -320,7 +324,7 @@ function ExternalListingCandidateCard({
         <Alert>
           <AlertTitle>این Candidate هنوز منتشر نشده است</AlertTitle>
           <AlertDescription>
-            تأیید Source فقط این داده محلی را برای بررسی مستقل آماده کرده است.
+            این آگهی برای بررسی و تصمیم مستقل آماده است.
           </AlertDescription>
         </Alert>
         <dl className="grid gap-4 sm:grid-cols-2">
@@ -329,18 +333,22 @@ function ExternalListingCandidateCard({
           <Detail label="پیوند اصلی آگهی" value={candidate.external_url} />
           <Detail
             label="متراژ"
-            value={`${candidate.area_sqm.toLocaleString("fa-IR")} متر`}
+            value={`${candidate.area_sqm?.toLocaleString("fa-IR") ?? "نامشخص"} متر`}
           />
           <Detail
             label="ودیعه"
-            value={`${candidate.deposit_rial.toLocaleString("fa-IR")} ریال`}
+            value={`${candidate.deposit_rial == null ? "نامشخص" : (candidate.deposit_rial / 10).toLocaleString("fa-IR")} تومان`}
           />
           <Detail
             label="اجاره ماهانه"
-            value={`${candidate.monthly_rent_rial.toLocaleString("fa-IR")} ریال`}
+            value={`${candidate.monthly_rent_rial == null ? "نامشخص" : (candidate.monthly_rent_rial / 10).toLocaleString("fa-IR")} تومان`}
           />
         </dl>
         <p className="text-muted-foreground text-sm">{candidate.description}</p>
+        {!candidate.simulated && <CandidateEvidence candidate={candidate} />}
+        {claimed && candidate.extraction_run && (
+          <CandidateCorrectionForm candidate={candidate} />
+        )}
         {!claimed ? (
           <Button
             onClick={() => claim.mutate()}
@@ -389,7 +397,12 @@ function ExternalListingCandidateCard({
                 رد Candidate
               </Button>
               <Button
-                disabled={!confirmed || decision.isPending}
+                disabled={
+                  !confirmed ||
+                  decision.isPending ||
+                  candidate.state !== "pending" ||
+                  Object.keys(candidate.validation_errors ?? {}).length > 0
+                }
                 onClick={() => decision.mutate("approve")}
                 aria-label={`تأیید و انتشار ${candidate.title}`}
               >
@@ -450,6 +463,12 @@ export function OperatorSourceProposalPage() {
       (current) => current?.filter((candidate) => candidate.id !== candidateId),
     );
     setListingCompleted(true);
+    void queryClient.invalidateQueries({
+      queryKey: operatorSourceProposalsQueryOptions.queryKey,
+    });
+    void queryClient.invalidateQueries({
+      queryKey: operatorExternalListingCandidatesQueryOptions.queryKey,
+    });
   };
   return (
     <PageMain>
@@ -479,7 +498,17 @@ export function OperatorSourceProposalPage() {
                 <CardTitle>{proposal.website_name}</CardTitle>
               </CardHeader>
               <CardContent>
-                <SourceAssignmentSummary assignment={proposal.assignment} />
+                <SourceAssignmentSummary
+                  assignment={proposal.assignment}
+                  review={{
+                    proposalId: proposal.id,
+                    canApprove:
+                      proposal.assignment.state === "active" &&
+                      proposal.assignment.review_mode === "approval_required" &&
+                      currentUser.data?.id ===
+                        proposal.assignment.review_operator,
+                  }}
+                />
               </CardContent>
             </Card>
           ) : (
@@ -501,8 +530,7 @@ export function OperatorSourceProposalPage() {
               بررسی مستقل External Listingها
             </h2>
             <p className="text-muted-foreground mt-2">
-              این Candidateها محلی و شبیه‌سازی‌شده‌اند و هرکدام تصمیم جداگانه
-              می‌گیرند.
+              هر آگهی در این بخش به بررسی و تصمیم جداگانه نیاز دارد.
             </p>
           </header>
           {candidates.isPending && (

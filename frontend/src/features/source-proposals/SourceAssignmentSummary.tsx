@@ -5,7 +5,9 @@ import type { components } from "@/lib/api/schema";
 export function SourceAssignmentSummary({
   assignment,
   proposalId,
+  review,
 }: {
+  review?: { proposalId: string; canApprove: boolean };
   proposalId?: string;
   assignment: components["schemas"]["SourceAssignment"];
 }) {
@@ -45,7 +47,10 @@ export function SourceAssignmentSummary({
             assignmentId={assignment.id}
           />
         )}
-      <ExtractionHistory requests={assignment.recent_requests ?? []} />
+      <ExtractionHistory
+        requests={assignment.recent_requests ?? []}
+        review={review}
+      />
     </section>
   );
 }

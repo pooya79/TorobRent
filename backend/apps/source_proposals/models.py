@@ -190,6 +190,31 @@ class SourceProposalReviewClaim(models.Model):
         return f"{self.proposal_id}: {self.operator_id} (revision {self.revision})"
 
 
+class ImmutableProfileQuerySet(models.QuerySet[Any]):
+    def update(self, **kwargs: Any) -> int:
+        raise ValidationError("Source Profile history is immutable.")
+
+    def delete(self) -> tuple[int, dict[str, int]]:
+        raise ValidationError("Source Profile history is immutable.")
+
+
+class ImmutableProfileRecord(models.Model):
+    objects: ClassVar[models.Manager[Any]] = models.Manager.from_queryset(
+        ImmutableProfileQuerySet
+    )()
+
+    class Meta:
+        abstract = True
+
+    def save(self, *args: Any, **kwargs: Any) -> None:
+        if not self._state.adding:
+            raise ValidationError("Source Profile history is immutable.")
+        super().save(*args, **kwargs)
+
+    def delete(self, *args: Any, **kwargs: Any) -> tuple[int, dict[str, int]]:
+        raise ValidationError("Source Profile history is immutable.")
+
+
 class ExternalListingCandidateState(models.TextChoices):
     PENDING = "pending", "در انتظار بررسی"
     CHANGES_REQUESTED = "changes_requested", "نیازمند اصلاح"
@@ -198,7 +223,7 @@ class ExternalListingCandidateState(models.TextChoices):
 
 
 class ExternalListingCandidate(models.Model):
-    """Deterministic sample discovery awaiting an independent Operator decision."""
+    """A retained extraction result awaiting catalog publication or correction."""
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     source_proposal = models.ForeignKey(
@@ -211,14 +236,22 @@ class ExternalListingCandidate(models.Model):
         on_delete=models.PROTECT,
         related_name="external_listing_candidates",
     )
-    listing = models.OneToOneField(
+    listing = models.ForeignKey(
         "catalog.Listing",
         on_delete=models.PROTECT,
-        related_name="external_candidate",
+        related_name="external_candidates",
         null=True,
         blank=True,
         editable=False,
     )
+    extraction_run = models.ForeignKey(
+        "ExtractionRun", on_delete=models.PROTECT, related_name="candidates", null=True
+    )
+    source_claims = models.JSONField(default=dict, db_default={})
+    evidence = models.JSONField(default=dict, db_default={})
+    conflicts = models.JSONField(default=dict, db_default={})
+    validation_errors = models.JSONField(default=dict, db_default={})
+    corrections = models.JSONField(default=dict, db_default={})
     state = models.CharField(
         max_length=20,
         choices=ExternalListingCandidateState,
@@ -228,14 +261,14 @@ class ExternalListingCandidate(models.Model):
     simulated = models.BooleanField(default=True, editable=False)
     title = models.CharField(max_length=200)
     external_url = models.URLField(max_length=1000)
-    city = models.ForeignKey("catalog.City", on_delete=models.PROTECT)
-    district = models.ForeignKey("catalog.District", on_delete=models.PROTECT)
-    neighborhood = models.ForeignKey("catalog.Neighborhood", on_delete=models.PROTECT)
-    property_type = models.CharField(max_length=16, choices=PropertyType)
-    area_sqm = models.PositiveIntegerField()
+    city = models.ForeignKey("catalog.City", on_delete=models.PROTECT, null=True)
+    district = models.ForeignKey("catalog.District", on_delete=models.PROTECT, null=True)
+    neighborhood = models.ForeignKey("catalog.Neighborhood", on_delete=models.PROTECT, null=True)
+    property_type = models.CharField(max_length=16, choices=PropertyType, blank=True)
+    area_sqm = models.PositiveIntegerField(null=True)
     room_count = models.PositiveSmallIntegerField(null=True, blank=True)
-    deposit_rial = models.PositiveBigIntegerField()
-    monthly_rent_rial = models.PositiveBigIntegerField()
+    deposit_rial = models.PositiveBigIntegerField(null=True)
+    monthly_rent_rial = models.PositiveBigIntegerField(null=True)
     description = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -246,14 +279,22 @@ class ExternalListingCandidate(models.Model):
             models.UniqueConstraint(
                 fields=("source_proposal", "external_url"),
                 name="unique_external_candidate_url_per_proposal",
-            )
+                condition=models.Q(extraction_run__isnull=True),
+            ),
+            models.UniqueConstraint(
+                fields=("extraction_run", "external_url"), name="unique_candidate_url_per_run"
+            ),
         ]
 
     def __str__(self) -> str:
         return self.title
 
 
-class ExternalListingCandidateEvent(models.Model):
+class ExternalListingCandidateEvent(ImmutableProfileRecord):
+    corrections = models.JSONField(default=dict, db_default={})
+    objects: ClassVar[models.Manager[ExternalListingCandidateEvent]] = models.Manager.from_queryset(
+        ImmutableProfileQuerySet
+    )()
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     candidate = models.ForeignKey(
         ExternalListingCandidate,
@@ -383,31 +424,6 @@ class SourceProfile(models.Model):
 
     def __str__(self) -> str:
         return f"Source Profile {self.source_id}"
-
-
-class ImmutableProfileQuerySet(models.QuerySet[Any]):
-    def update(self, **kwargs: Any) -> int:
-        raise ValidationError("Source Profile history is immutable.")
-
-    def delete(self) -> tuple[int, dict[str, int]]:
-        raise ValidationError("Source Profile history is immutable.")
-
-
-class ImmutableProfileRecord(models.Model):
-    objects: ClassVar[models.Manager[Any]] = models.Manager.from_queryset(
-        ImmutableProfileQuerySet
-    )()
-
-    class Meta:
-        abstract = True
-
-    def save(self, *args: Any, **kwargs: Any) -> None:
-        if not self._state.adding:
-            raise ValidationError("Source Profile history is immutable.")
-        super().save(*args, **kwargs)
-
-    def delete(self, *args: Any, **kwargs: Any) -> tuple[int, dict[str, int]]:
-        raise ValidationError("Source Profile history is immutable.")
 
 
 class SourceProfileVersion(ImmutableProfileRecord):
@@ -559,6 +575,9 @@ class ExtractionRequest(models.Model):
 
 
 class ExtractionRun(models.Model):
+    withdrawals = models.JSONField(default=list, db_default=[])
+    candidate_rejected = models.PositiveIntegerField(default=0, db_default=0)
+    revision = models.PositiveIntegerField(default=1, db_default=1)
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     request = models.OneToOneField(ExtractionRequest, on_delete=models.PROTECT, related_name="run")
     profile_version = models.ForeignKey(SourceProfileVersion, on_delete=models.PROTECT)
@@ -580,3 +599,24 @@ class ExtractionRun(models.Model):
 
     def __str__(self) -> str:
         return f"Extraction Run {self.pk}"
+
+
+class ExtractionRunDecision(ImmutableProfileRecord):
+    objects: ClassVar[models.Manager[ExtractionRunDecision]] = models.Manager.from_queryset(
+        ImmutableProfileQuerySet
+    )()
+    run = models.ForeignKey(ExtractionRun, on_delete=models.PROTECT, related_name="decisions")
+    actor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    revision = models.PositiveIntegerField()
+    candidate_ids = models.JSONField(default=list)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=("run", "revision"), name="one_decision_per_run_revision"
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"Extraction Run {self.run_id}: approval of revision {self.revision}"

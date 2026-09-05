@@ -69,3 +69,28 @@ def forbid_implicit_llm_requests(monkeypatch):
     monkeypatch.setattr(http.client, "HTTPSConnection", guarded_connection)
     yield
     assert calls == [], "An automatic workflow invoked the LLM"
+
+
+@pytest.fixture
+def assigned_case(api_client, discovered_case, monkeypatch):
+    monkeypatch.setattr(
+        "apps.source_extraction.fetching.resolve_addresses", lambda *args: ["93.184.216.34"]
+    )
+    from django.core.management import call_command
+
+    call_command("loaddata", "catalog_seed", verbosity=0)
+    proposal, base, operator, representative, fetcher = discovered_case
+    version = api_client.get("/api/v1/operator/source-proposals/").data[0]["profile_versions"][0]
+    response = api_client.post(
+        f"{base}/profile/approve/",
+        {
+            "reviewed_revision": 1,
+            "reviewed_profile_version": version["id"],
+            "confirmed": True,
+            "review_mode": "approval_required",
+        },
+        format="json",
+    )
+    assert response.status_code == 200
+    api_client.force_authenticate(representative)
+    return proposal, response.data["assignment"], operator, representative, fetcher

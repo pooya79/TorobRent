@@ -1,28 +1,6 @@
 import pytest
 
 
-@pytest.fixture
-def assigned_case(api_client, discovered_case, monkeypatch):
-    monkeypatch.setattr(
-        "apps.source_extraction.fetching.resolve_addresses", lambda *args: ["93.184.216.34"]
-    )
-    proposal, base, operator, representative, fetcher = discovered_case
-    version = api_client.get("/api/v1/operator/source-proposals/").data[0]["profile_versions"][0]
-    response = api_client.post(
-        f"{base}/profile/approve/",
-        {
-            "reviewed_revision": 1,
-            "reviewed_profile_version": version["id"],
-            "confirmed": True,
-            "review_mode": "approval_required",
-        },
-        format="json",
-    )
-    assert response.status_code == 200
-    api_client.force_authenticate(representative)
-    return proposal, response.data["assignment"], operator, representative, fetcher
-
-
 @pytest.mark.django_db
 def test_request_records_authorization_and_queues_after_commit(api_client, assigned_case):
     proposal, assignment, _, representative, _ = assigned_case

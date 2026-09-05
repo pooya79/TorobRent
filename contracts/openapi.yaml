@@ -1378,7 +1378,7 @@ paths:
   /api/v1/operator/external-listing-candidates/:
     get:
       operationId: v1_operator_external_listing_candidates_list
-      summary: List pending simulated External Listing candidates
+      summary: List External Listing candidates awaiting review or correction
       tags:
       - v1
       security:
@@ -1441,6 +1441,34 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ExternalListingCandidateReviewClaim'
+          description: ''
+  /api/v1/operator/external-listing-candidates/{candidate_id}/correct/:
+    post:
+      operationId: v1_operator_external_listing_candidates_correct_create
+      summary: Correct an extracted External Listing candidate
+      parameters:
+      - in: path
+        name: candidate_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CandidateCorrection'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExternalListingCandidate'
           description: ''
   /api/v1/operator/external-listing-candidates/{candidate_id}/reject/:
     post:
@@ -1732,6 +1760,40 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/OperatorSourceProposal'
+          description: ''
+  /api/v1/operator/source-proposals/{proposal_id}/runs/{run_id}/approve/:
+    post:
+      operationId: v1_operator_source_proposals_runs_approve_create
+      summary: Approve all valid results of an Extraction Run
+      parameters:
+      - in: path
+        name: proposal_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: run_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SourceProposalApproval'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExtractionRun'
           description: ''
   /api/v1/operator/submissions/:
     get:
@@ -3528,6 +3590,76 @@ components:
     BlankEnum:
       enum:
       - ''
+    CandidateCorrection:
+      type: object
+      properties:
+        reviewed_revision:
+          type: integer
+          minimum: 1
+        reason:
+          type: string
+          maxLength: 2000
+        values:
+          $ref: '#/components/schemas/CandidateCorrectionValues'
+      required:
+      - reason
+      - reviewed_revision
+      - values
+    CandidateCorrectionValues:
+      type: object
+      properties:
+        city:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        district:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        neighborhood:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        property_type:
+          oneOf:
+          - $ref: '#/components/schemas/PropertyTypeEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+        area_sqm:
+          type:
+          - integer
+          - 'null'
+          maximum: 9223372036854775807
+          minimum: 0
+          format: int64
+        room_count:
+          type:
+          - integer
+          - 'null'
+          maximum: 9223372036854775807
+          minimum: 0
+          format: int64
+        deposit_rial:
+          type:
+          - integer
+          - 'null'
+          maximum: 9223372036854775807
+          minimum: 0
+          format: int64
+        monthly_rent_rial:
+          type:
+          - integer
+          - 'null'
+          maximum: 9223372036854775807
+          minimum: 0
+          format: int64
+        description:
+          type: string
+        title:
+          type: string
+          maxLength: 200
     CatalogFacets:
       type: object
       properties:
@@ -4189,6 +4321,31 @@ components:
           type: string
           format: uuid
           readOnly: true
+        extraction_run:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        city:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        district:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        neighborhood:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        source_claims: {}
+        evidence: {}
+        conflicts: {}
+        validation_errors: {}
+        corrections: {}
         source:
           allOf:
           - $ref: '#/components/schemas/ExternalCandidateSource'
@@ -4215,9 +4372,13 @@ components:
           format: uri
           maxLength: 1000
         property_type:
-          $ref: '#/components/schemas/PropertyTypeEnum'
+          oneOf:
+          - $ref: '#/components/schemas/PropertyTypeEnum'
+          - $ref: '#/components/schemas/BlankEnum'
         area_sqm:
-          type: integer
+          type:
+          - integer
+          - 'null'
           maximum: 9223372036854775807
           minimum: 0
           format: int64
@@ -4229,12 +4390,16 @@ components:
           minimum: 0
           format: int64
         deposit_rial:
-          type: integer
+          type:
+          - integer
+          - 'null'
           maximum: 9223372036854775807
           minimum: 0
           format: int64
         monthly_rent_rial:
-          type: integer
+          type:
+          - integer
+          - 'null'
           maximum: 9223372036854775807
           minimum: 0
           format: int64
@@ -4259,16 +4424,12 @@ components:
           format: date-time
           readOnly: true
       required:
-      - area_sqm
       - created_at
-      - deposit_rial
       - external_url
       - history
       - id
       - listing_id
       - media
-      - monthly_rent_rial
-      - property_type
       - revision
       - simulated
       - source
@@ -4297,6 +4458,7 @@ components:
           $ref: '#/components/schemas/ExternalListingCandidateStateEnum'
         reason:
           type: string
+        corrections: {}
         created_at:
           type: string
           format: date-time
@@ -4432,6 +4594,19 @@ components:
         pipeline_version:
           type: string
           readOnly: true
+        revision:
+          type: integer
+          readOnly: true
+        candidates:
+          type: array
+          items:
+            $ref: '#/components/schemas/ExternalListingCandidate'
+          readOnly: true
+        decisions:
+          type: array
+          items:
+            $ref: '#/components/schemas/ExtractionRunDecision'
+          readOnly: true
         state:
           allOf:
           - $ref: '#/components/schemas/State299Enum'
@@ -4472,9 +4647,13 @@ components:
           items:
             $ref: '#/components/schemas/ExtractionError'
           readOnly: true
+        withdrawals:
+          readOnly: true
       required:
       - attempts
+      - candidates
       - completed_at
+      - decisions
       - discovered
       - errors
       - extracted
@@ -4485,8 +4664,34 @@ components:
       - profile_version
       - published
       - rejected
+      - revision
       - started_at
       - state
+      - withdrawals
+    ExtractionRunDecision:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        actor:
+          type: string
+          format: uuid
+        revision:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 0
+          format: int64
+        candidate_ids: {}
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - actor
+      - created_at
+      - id
+      - revision
     ExtractionSubmit:
       type: object
       properties:
@@ -6557,12 +6762,19 @@ components:
           items:
             $ref: '#/components/schemas/ExtractionRequest'
           readOnly: true
+        review_operator:
+          type:
+          - string
+          - 'null'
+          format: uuid
+          readOnly: true
       required:
       - active_profile_version
       - created_at
       - id
       - recent_requests
       - review_mode
+      - review_operator
       - source
       - state
     SourceAssignmentStateEnum:

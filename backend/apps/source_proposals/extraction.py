@@ -161,20 +161,28 @@ def run_extraction(request_id: str) -> bool:
         request.save(update_fields=("state", "updated_at"))
         attempt = run.attempts
     results = []
+    withdrawals = []
     errors = []
     discovered = failed = rejected = 0
     state = ExtractionState.COMPLETE
     try:
         if not authorized(request):
             raise AuthorizationEnded
-        contract = ExtractionContract(AssignedSourceFetcher(request), max_pages=20, max_depth=2)
+        from .extraction_availability import unavailable_reason
+
+        fetcher = AssignedSourceFetcher(request)
+        contract = ExtractionContract(fetcher, max_pages=20, max_depth=2)
         discovery = contract.discover(request.canonical_url)
         pages = []
         for page in discovery.pages:
             if normalize_public_domain(page.url) != request.assignment.source.domain:
                 raise AuthorizationEnded
+            reason = unavailable_reason(page, fetcher)
+            if reason:
+                withdrawals.append({"url": page.url, "reason": reason})
             if (
-                page.classification.kind == PageKind.RENTAL_LISTING
+                not reason
+                and page.classification.kind == PageKind.RENTAL_LISTING
                 and page.sanitized_html is not None
             ):
                 pages.append(ExtractionPage(page.url, page.sanitized_html))
@@ -241,8 +249,17 @@ def run_extraction(request_id: str) -> bool:
         run.rejected = rejected
         run.failed = failed
         run.results = results
+        run.withdrawals = withdrawals if state != ExtractionState.CANCELLED else []
         run.errors = errors[:20]
         run.save()
+        if state == ExtractionState.COMPLETE:
+            from .candidate_publication import create_run_candidates
+
+            create_run_candidates(run)
+        if run.withdrawals:
+            from .extraction_availability import withdraw_listings
+
+            withdraw_listings(run)
         request.state = state
         request.save(update_fields=("state", "updated_at"))
         return (

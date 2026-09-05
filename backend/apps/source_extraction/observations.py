@@ -112,6 +112,10 @@ def parse_money_rial(value: Any, *, label: str = "") -> int | None:
 def normalize_property_type(value: Any) -> str | None:
     text = normalize_text(value).casefold()
     aliases = {
+        "office": ("دفتر اداری", "اداری", "office"),
+        "shop": ("مغازه", "shop", "store"),
+        "warehouse": ("انبار", "warehouse"),
+        "workshop": ("کارگاه", "workshop"),
         "apartment": ("آپارتمان", "اپارتمان", "apartment", "flat"),
         "villa": ("ویلا", "ویلایی", "villa"),
         "house": ("خانه", "منزل", "کلنگی", "house", "home"),
@@ -141,7 +145,7 @@ def plausible_profile_value(field_name: str, value: Any) -> bool:
         text = normalize_text(value)
         return 2 <= len(text) <= 100 and "تهران" not in text and "پیش" not in text
     if field_name == "property_type":
-        return value in {"apartment", "house", "villa"}
+        return value in {"apartment", "house", "villa", "office", "shop", "warehouse", "workshop"}
     if field_name == "floor_area_sqm":
         return isinstance(value, int) and 5 <= value <= 100_000
     if field_name == "bedroom_count":
@@ -1445,7 +1449,10 @@ def resolve_candidates(observations: list[FieldCandidate]) -> Resolution:
         if winner:
             values[field_name] = winner.normalized_value
             accepted[field_name] = winner
-    unresolved = [name for name in CORE_FIELDS if name not in values]
+    required = list(CORE_FIELDS)
+    if values.get("property_type") in {"office", "shop", "warehouse", "workshop"}:
+        required.remove("bedroom_count")
+    unresolved = [name for name in required if name not in values]
     both_terms_are_zero = (
         isinstance(values.get("deposit_rial"), int)
         and isinstance(values.get("monthly_rent_rial"), int)

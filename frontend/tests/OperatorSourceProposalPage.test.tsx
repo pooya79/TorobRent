@@ -694,3 +694,209 @@ test("keeps approved Source cases available for run monitoring", async () => {
   expect(screen.queryByRole("button", { name: "شروع بررسی" })).toBeNull();
   expect(screen.queryByRole("button", { name: "درخواست استخراج" })).toBeNull();
 });
+
+test("reviews run samples and sends one revision-checked batch approval", async () => {
+  const user = userEvent.setup();
+  let approved = false;
+  const bodies: unknown[] = [];
+  const run = {
+    id: "run-1",
+    revision: 4,
+    state: "complete",
+    attempts: 1,
+    discovered: 2,
+    extracted: 2,
+    published: 0,
+    needs_attention: 1,
+    rejected: 0,
+    failed: 0,
+    errors: [],
+    decisions: [],
+    candidates: [
+      {
+        id: "valid",
+        title: "آپارتمان معتبر",
+        external_url: "https://khaneh.example/valid",
+        state: "pending",
+        validation_errors: {},
+        area_sqm: 85,
+        deposit_rial: 5000000000,
+        monthly_rent_rial: 200000000,
+      },
+      {
+        id: "exception",
+        title: "متراژ نامشخص",
+        external_url: "https://khaneh.example/exception",
+        state: "pending",
+        validation_errors: { area_sqm: ["متراژ الزامی است"] },
+      },
+    ],
+  };
+  server.use(
+    http.get("*/api/v1/users/me/", () =>
+      HttpResponse.json({
+        id: "operator",
+        operator_capabilities: ["review_source_proposals"],
+      }),
+    ),
+    http.get("*/api/v1/operator/external-listing-candidates/", () =>
+      HttpResponse.json([]),
+    ),
+    http.get("*/api/v1/operator/source-proposals/", () =>
+      HttpResponse.json([
+        {
+          ...proposal,
+          state: "approved",
+          assignment: {
+            id: 8,
+            state: "active",
+            review_operator: "operator",
+            source: { domain: "khaneh.example", display_name: "خانه‌یاب" },
+            active_profile_version: { id: "version", number: 1 },
+            review_mode: "approval_required",
+            recent_requests: [
+              {
+                id: "request",
+                canonical_url: "https://khaneh.example/rentals",
+                state: "complete",
+                created_at: "2026-09-05T08:00:00Z",
+                run: approved
+                  ? {
+                      ...run,
+                      revision: 5,
+                      published: 1,
+                      candidates: run.candidates.map((c) =>
+                        c.id === "valid" ? { ...c, state: "published" } : c,
+                      ),
+                    }
+                  : run,
+              },
+            ],
+          },
+        },
+      ]),
+    ),
+    http.post(
+      "*/api/v1/operator/source-proposals/:proposalId/runs/:runId/approve/",
+      async ({ request }) => {
+        bodies.push(await request.json());
+        approved = true;
+        return HttpResponse.json({ ...run, published: 1, revision: 5 });
+      },
+    ),
+  );
+  render(
+    <QueryClientProvider
+      client={
+        new QueryClient({ defaultOptions: { queries: { retry: false } } })
+      }
+    >
+      <MemoryRouter>
+        <OperatorSourceProposalPage />
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+  expect(await screen.findByText("آپارتمان معتبر")).toBeVisible();
+  expect(screen.getByText("متراژ الزامی است")).toBeVisible();
+  const button = screen.getByRole("button", { name: "انتشار همه نتایج معتبر" });
+  expect(button).toBeDisabled();
+  await user.click(
+    screen.getByLabelText(
+      "نمونه‌ها را بررسی و انتشار نتایج معتبر را تأیید می‌کنم",
+    ),
+  );
+  await user.click(button);
+  expect(await screen.findByText("نتایج معتبر منتشر شد.")).toBeVisible();
+  expect(bodies).toEqual([{ reviewed_revision: 4, confirmed: true }]);
+});
+
+test("corrects an exception and approves its new revision", async () => {
+  const user = userEvent.setup();
+  let candidate = {
+    id: "exception",
+    title: "آگهی نیازمند اصلاح",
+    source: { display_name: "خانه‌یاب", domain: "khaneh.example" },
+    state: "pending",
+    revision: 1,
+    simulated: false,
+    extraction_run: "run",
+    external_url: "https://khaneh.example/detail",
+    property_type: "apartment",
+    area_sqm: null as number | null,
+    room_count: 2,
+    deposit_rial: 5000000000,
+    monthly_rent_rial: 200000000,
+    validation_errors: { area_sqm: ["متراژ را بررسی کنید"] } as Record<
+      string,
+      string[]
+    >,
+    evidence: {},
+    history: [],
+  };
+  const corrections: unknown[] = [];
+  const approvals: unknown[] = [];
+  server.use(
+    http.get("*/api/v1/operator/source-proposals/", () =>
+      HttpResponse.json([]),
+    ),
+    http.get("*/api/v1/operator/external-listing-candidates/", () =>
+      HttpResponse.json(candidate.state === "published" ? [] : [candidate]),
+    ),
+    http.post(
+      "*/api/v1/operator/external-listing-candidates/:candidateId/claim/",
+      () => HttpResponse.json({ revision: 1 }, { status: 201 }),
+    ),
+    http.post(
+      "*/api/v1/operator/external-listing-candidates/:candidateId/correct/",
+      async ({ request }) => {
+        corrections.push(await request.json());
+        candidate = {
+          ...candidate,
+          area_sqm: 95,
+          revision: 2,
+          validation_errors: {},
+        };
+        return HttpResponse.json(candidate);
+      },
+    ),
+    http.post(
+      "*/api/v1/operator/external-listing-candidates/:candidateId/approve/",
+      async ({ request }) => {
+        approvals.push(await request.json());
+        candidate = { ...candidate, state: "published" };
+        return HttpResponse.json(candidate);
+      },
+    ),
+  );
+  render(
+    <QueryClientProvider
+      client={
+        new QueryClient({ defaultOptions: { queries: { retry: false } } })
+      }
+    >
+      <MemoryRouter>
+        <OperatorSourceProposalPage />
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+  await user.click(
+    await screen.findByRole("button", {
+      name: "شروع بررسی آگهی نیازمند اصلاح",
+    }),
+  );
+  await user.type(screen.getByLabelText("متراژ (متر مربع)"), "95");
+  await user.type(screen.getByLabelText("دلیل اصلاح"), "بررسی سند");
+  await user.click(screen.getByRole("button", { name: "ذخیره اصلاح آگهی" }));
+  expect(
+    await screen.findByText("اصلاح ذخیره شد؛ اعتبارسنجی دوباره انجام شد."),
+  ).toBeVisible();
+  expect(corrections).toEqual([
+    { reviewed_revision: 1, reason: "بررسی سند", values: { area_sqm: 95 } },
+  ]);
+  await user.click(screen.getByLabelText("تأیید انتشار آگهی نیازمند اصلاح"));
+  await user.click(
+    screen.getByRole("button", { name: "تأیید و انتشار آگهی نیازمند اصلاح" }),
+  );
+  expect(await screen.findByText("تصمیم Listing ثبت شد.")).toBeVisible();
+  expect(approvals).toEqual([{ reviewed_revision: 2, confirmed: true }]);
+});

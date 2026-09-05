@@ -238,18 +238,28 @@ def materialize_direct_listing(*, spec: DirectListingSpec) -> Listing:
 
 @transaction.atomic
 def materialize_external_listing(*, spec: ExternalListingSpec) -> Listing:
-    property_ = Property(**spec.property_values)
+    # Serialize refreshes and first publication by Source, including absent identities.
+    Source.objects.select_for_update().get(pk=spec.source.pk)
+    listing = (
+        Listing.objects
+        .select_for_update()
+        .filter(source=spec.source, external_url=spec.listing_values["external_url"])
+        .first()
+    )
+    property_ = listing.property if listing else Property()
+    terms = listing.terms if listing else RentalTerms()
+    for field, value in spec.property_values.items():
+        setattr(property_, field, value)
+    for field, value in spec.terms_values.items():
+        setattr(terms, field, value)
     property_.full_clean()
     property_.save()
-    terms = RentalTerms(**spec.terms_values)
     terms.full_clean()
     terms.save()
-    listing = Listing(
-        property=property_,
-        source=spec.source,
-        terms=terms,
-        **spec.listing_values,
-    )
+    if listing is None:
+        listing = Listing(property=property_, source=spec.source, terms=terms)
+    for field, value in spec.listing_values.items():
+        setattr(listing, field, value)
     listing.full_clean()
     listing.save()
     return publish_listing(listing)

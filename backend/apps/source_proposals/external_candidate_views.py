@@ -2,6 +2,7 @@ from collections.abc import Callable
 from typing import Any, cast
 
 from django.core.exceptions import ValidationError as DjangoValidationError
+from django.db.models import Q
 from drf_spectacular.utils import extend_schema
 from rest_framework import status
 from rest_framework.exceptions import ValidationError
@@ -12,6 +13,7 @@ from rest_framework.views import APIView
 
 from apps.accounts.models import User
 
+from .candidate_serializers import CandidateCorrectionSerializer
 from .models import ExternalListingCandidate, ExternalListingCandidateState
 from .operator_views import CanReviewSourceProposal
 from .review_claims import SourceProposalReviewConflict
@@ -24,6 +26,7 @@ from .serializers import (
 from .services import (
     approve_external_listing_candidate,
     claim_external_listing_candidate_review,
+    correct_external_listing_candidate,
     reject_external_listing_candidate,
     request_external_listing_candidate_changes,
 )
@@ -33,13 +36,19 @@ class OperatorExternalListingCandidateListView(APIView):
     permission_classes = (CanReviewSourceProposal,)
 
     @extend_schema(
-        summary="List pending simulated External Listing candidates",
+        summary="List External Listing candidates awaiting review or correction",
         responses=ExternalListingCandidateSerializer(many=True),
     )
     def get(self, request: Request) -> Response:
         candidates = (
             ExternalListingCandidate.objects
-            .filter(state=ExternalListingCandidateState.PENDING)
+            .filter(
+                state__in=(
+                    ExternalListingCandidateState.PENDING,
+                    ExternalListingCandidateState.CHANGES_REQUESTED,
+                )
+            )
+            .filter(Q(extraction_run__isnull=True) | ~Q(validation_errors={}) | ~Q(corrections={}))
             .exclude(source_proposal__submitter=cast(User, request.user))
             .select_related("source", "source_proposal")
             .prefetch_related("events__actor")
@@ -75,7 +84,11 @@ class OperatorExternalListingCandidateClaimView(APIView):
         )
 
 
-DecisionSerializer = type[SourceProposalDecisionSerializer | SourceProposalApprovalSerializer]
+DecisionSerializer = type[
+    SourceProposalDecisionSerializer
+    | SourceProposalApprovalSerializer
+    | CandidateCorrectionSerializer
+]
 
 
 def _decision_response(
@@ -149,4 +162,21 @@ class OperatorExternalListingCandidateApproveView(APIView):
             candidate_id=candidate_id,
             serializer_class=SourceProposalApprovalSerializer,
             transition=approve_external_listing_candidate,
+        )
+
+
+class OperatorExternalListingCandidateCorrectView(APIView):
+    permission_classes = (CanReviewSourceProposal,)
+
+    @extend_schema(
+        summary="Correct an extracted External Listing candidate",
+        request=CandidateCorrectionSerializer,
+        responses=ExternalListingCandidateSerializer,
+    )
+    def post(self, request: Request, candidate_id: str) -> Response:
+        return _decision_response(
+            request=request,
+            candidate_id=candidate_id,
+            serializer_class=CandidateCorrectionSerializer,
+            transition=correct_external_listing_candidate,
         )

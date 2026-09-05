@@ -343,3 +343,29 @@ def test_revalidation_keeps_held_out_split_and_optional_claims_do_not_block() ->
     assert updated.validation.held_out_page_urls == profile.validation.held_out_page_urls
     assert updated.validation.fields["construction_year"].passed is False
     assert updated.validation.approval_enabled is True
+
+
+def test_commercial_extraction_does_not_require_bedrooms():
+    pages = {
+        f"https://example.com/listing/{number}": listing_html(area=85 + number)
+        for number in range(10)
+    }
+    seed = "https://example.com/rentals"
+    pages[seed] = "<h1>رهن و اجاره</h1>" + "".join(
+        f'<a href="{url}">اجاره آپارتمان تهران</a>' for url in pages
+    )
+    contract = ExtractionContract(FixtureFetcher(pages))
+    profile = contract.propose_profile(contract.discover(seed))
+    office = (
+        listing_html()
+        .replace("Apartment", "Office")
+        .replace("آپارتمان", "دفتر اداری")
+        .replace(',"numberOfRooms":2', "")
+        .replace('<dt>اتاق خواب</dt><dd class="rooms">2</dd>', "")
+    )
+    result = contract.apply_profile(
+        profile, [ExtractionPage("https://example.com/listing/office", office)]
+    )[0]
+    assert result.normalized["property_type"] == "office"
+    assert "bedroom_count" not in result.unresolved
+    assert result.status == "accepted"

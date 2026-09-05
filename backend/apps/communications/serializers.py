@@ -144,6 +144,15 @@ class MessageSummarySerializer(serializers.Serializer[MessageItem]):
             return f"پرسش درباره {notification.listing.property.title}"
         if isinstance(notification, SupportRequest):
             return notification.subject or notification.get_intake_kind_display()
+        if notification.originating_run_decision_id:
+            return "نتایج معتبر استخراج منتشر شد"
+        if notification.originating_candidate_event is not None:
+            return {
+                "pending": "نتیجه استخراج اصلاح شد",
+                "changes_requested": "نتیجه استخراج نیازمند اصلاح است",
+                "rejected": "نتیجه استخراج رد شد",
+                "published": "نتیجه استخراج منتشر شد",
+            }[notification.originating_candidate_event.new_state]
         source_proposal_event = notification.originating_source_proposal_event
         if source_proposal_event is not None:
             return {
@@ -169,6 +178,14 @@ class MessageSummarySerializer(serializers.Serializer[MessageItem]):
                 latest_support_message.body
                 if latest_support_message is not None
                 else notification.message
+            )
+        if notification.originating_run_decision is not None:
+            count = len(notification.originating_run_decision.candidate_ids)
+            return f"{count} نتیجه معتبر بررسی و منتشر شد."
+        if notification.originating_candidate_event is not None:
+            return (
+                notification.originating_candidate_event.reason
+                or "نتیجه بررسی آگهی استخراج‌شده ثبت شد."
             )
         source_proposal_event = notification.originating_source_proposal_event
         event = source_proposal_event or notification.originating_event
@@ -228,6 +245,13 @@ class MessageSummarySerializer(serializers.Serializer[MessageItem]):
                 "id": str(notification.id),
                 "label": "پشتیبانی",
             }
+        if notification.originating_run_decision_id or notification.originating_candidate_event_id:
+            proposal = notification.target_source_proposal
+            return {
+                "kind": "source_proposal",
+                "id": str(proposal.pk) if proposal else "",
+                "label": "نتایج استخراج",
+            }
         source_proposal_event = notification.originating_source_proposal_event
         if source_proposal_event is not None:
             proposal = source_proposal_event.proposal
@@ -275,7 +299,11 @@ class MessageDetailSerializer(MessageSummarySerializer):
             }
         if isinstance(notification, SupportRequest):
             return None
-        if notification.originating_source_proposal_event is not None:
+        if (
+            notification.originating_source_proposal_event_id
+            or notification.originating_run_decision_id
+            or notification.originating_candidate_event_id
+        ):
             proposal = notification.target_source_proposal
             if (
                 proposal is None

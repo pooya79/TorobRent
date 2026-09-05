@@ -2,7 +2,8 @@ from typing import Any
 
 from rest_framework import serializers
 
-from .models import ExtractionRequest, ExtractionRun
+from .candidate_serializers import ExternalListingCandidateSerializer
+from .models import ExtractionRequest, ExtractionRun, ExtractionRunDecision
 
 
 class ExtractionErrorSerializer(serializers.Serializer[Any]):
@@ -11,7 +12,15 @@ class ExtractionErrorSerializer(serializers.Serializer[Any]):
     transient = serializers.BooleanField()
 
 
+class ExtractionRunDecisionSerializer(serializers.ModelSerializer[ExtractionRunDecision]):
+    class Meta:
+        model = ExtractionRunDecision
+        fields = ("id", "actor", "revision", "candidate_ids", "created_at")
+
+
 class ExtractionRunSerializer(serializers.ModelSerializer[ExtractionRun]):
+    candidates = ExternalListingCandidateSerializer(many=True, read_only=True)
+    decisions = ExtractionRunDecisionSerializer(many=True, read_only=True)
     errors = ExtractionErrorSerializer(many=True, read_only=True)  # type: ignore[assignment]
 
     class Meta:
@@ -20,6 +29,9 @@ class ExtractionRunSerializer(serializers.ModelSerializer[ExtractionRun]):
             "id",
             "profile_version",
             "pipeline_version",
+            "revision",
+            "candidates",
+            "decisions",
             "state",
             "attempts",
             "started_at",
@@ -31,6 +43,7 @@ class ExtractionRunSerializer(serializers.ModelSerializer[ExtractionRun]):
             "rejected",
             "failed",
             "errors",
+            "withdrawals",
         )
         read_only_fields = fields
 

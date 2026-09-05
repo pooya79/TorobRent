@@ -71,6 +71,9 @@ def system_notifications_for(
     notifications = SystemNotification.objects.filter(recipient=recipient).select_related(
         "originating_event__submission",
         "originating_source_proposal_event__proposal",
+        "originating_run_decision",
+        "originating_candidate_event",
+        "target_source_proposal",
     )
     if kind not in ("all", MessageKind.SYSTEM_NOTIFICATION):
         return notifications.none()
