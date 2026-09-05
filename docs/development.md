@@ -177,3 +177,15 @@ The hourly `cleanup_external_images` task preserves bytes referenced by any acti
 reviewed Property. Unreferenced images receive a 30-day grace period, measured from known
 withdrawal/expiry or conservatively from the first unreferenced observation. Cleanup removes
 variant references and files but retains original URL, hash, processing status, and dimensions.
+
+
+Source retention tasks run hourly with 240/300-second soft/hard deadlines and at most 200 records
+per invocation. `cleanup_source_snapshots` deletes expired 30-day HTML input; profile evidence and
+model-call audits remain durable. Fetch adapters currently store no screenshots.
+`cleanup_external_images` visits the least-recently checked records first, including retired
+records whose file deletion may need retry, so retained images cannot starve later cleanup work.
+
+Deploy source-proposal migrations 0022 and 0023 before switching application workers. Simulation
+retirement preserves history and leaves its unused physical column with a default for compatibility;
+a future release may drop that column after old workers are drained. Do not run old simulation
+producers after retirement.

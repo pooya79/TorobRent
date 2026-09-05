@@ -61,7 +61,7 @@ page counts. Celery applies a 10-minute soft limit and an 11-minute hard limit. 
 reservation maintenance task marks an interrupted attempt failed after 12 minutes and releases its
 host; redelivery performs the same recovery check. Retrying failed work requires a fresh explicit
 URL approval and creates a new reservation, preserving the earlier attempt. Completed Discovery
-retains bounded evidence summaries. URL approval does not generate simulated candidates.
+retains bounded evidence summaries. URL approval queues bounded Source Discovery.
 
 ## Source Profile review
 
@@ -86,7 +86,7 @@ atomically creates the Source Assignment, activates the reviewed version with th
 mode, releases the reservation and claim, and notifies the representative. Rejection and requested
 changes require a reason and retain a version-specific immutable decision. Profile edits and
 approval reject stale version IDs. Expired evidence requires new explicit URL approval and Discovery.
-Real candidate creation and explicit LLM repair remain separate delivery slices.
+Extraction Runs create real candidates; explicit LLM repair remains a separate Operator action.
 
 ## Source Assignment approval and dashboard
 
@@ -132,7 +132,7 @@ a durable terminal response such as `404` or `410`, or an Operator decides it.
 - **Extraction Run**: profile version, pipeline version, attempts, timing, page and result counters,
   terminal outcome, and bounded error summary.
 - **External Listing candidate additions**: Extraction Run, canonical external URL, raw source
-  claims, field evidence and conflicts, correction diff, and real rather than simulated provenance.
+  claims, field evidence and conflicts, correction diff, and Extraction Run provenance.
 - **Candidate image staging**: original URL, order, primary marker, processing state, failure reason,
   content hash, and processed variant assets.
 
@@ -163,8 +163,10 @@ processing outcomes, and decision history remain as evidence.
   DNS-rebinding access, including subresources and every redirect hop.
 - Only the exact approved Source host is in scope. A subdomain requires its own Source review.
 - Phone-like content is redacted from retained snapshots, field evidence, and LLM inputs.
-- Sanitized HTML snapshots and review screenshots expire after 30 days. Extracted values, evidence
-  summaries, hashes, profile versions, decisions, and counters remain auditable.
+- Sanitized HTML snapshots expire after 30 days through hourly bounded cleanup. The current
+  fetch adapters do not capture or store review screenshots, so there are no screenshot files to
+  retain or clean. Extracted values, evidence summaries, hashes, profile versions, decisions, and
+  counters remain auditable.
 - Pipeline work runs outside web requests with bounded concurrency, idempotency, timeouts, and
   limited retries. Retries never invoke an LLM.
 
@@ -190,17 +192,18 @@ Adapt discovery, browser fetching, orchestration, snapshots, profile persistence
 auditing behind Django services, models, and Celery tasks. Do not port the FastAPI routes, SQLite
 database layer, synchronous run lifecycle, or unrestricted prototype networking.
 
-## Delivery slices
+## Supported workflow and historical records
 
-1. Port and harden the pure discovery and extraction engine, then replace the simulated preview
-   with an asynchronous, URL-gated Discovery result.
-2. Add Source Assignment, versioned Source Profile, reservation, and the staged Operator review.
-3. Add Extraction Request and Run persistence, real candidate creation, canonical-URL updates,
-   batch approval, and automatic-mode exception routing.
-4. Generalize the existing image processor, add candidate-owned media staging, and promote accepted
-   variants into Listing and reviewed Property images.
-5. Add the small Submitter and Operator run summaries and remove the simulated-candidate path after
-   migration tests cover the real workflow.
+The staged workflow above is the supported Source path. The submission `preview` endpoint is a
+no-fetch confirmation summary; it never estimates discovered inventory or generates candidates.
+The public contract has no simulation flag or sample-listing fields.
+
+Migration 0022 retires historical simulated candidates, releases their Review Claims, and withdraws
+any published Listings they produced. Candidate values, URLs, decisions, and original proposal
+preview JSON remain retained privately; `legacy_simulation` in candidate evidence identifies this
+history. The API renders the current confirmation summary even for an older proposal. The unused
+physical simulation column stays for rolling-deployment compatibility, with a database default for
+new inserts. Drop it in a later deployment after all old workers have stopped.
 
 ## Assigned Extraction Requests and Runs
 
@@ -217,10 +220,32 @@ between fetches, before extraction, and under the Source lock before retaining r
 
 Discovery is limited to twenty pages and depth two. Extraction applies the approved profile without
 training or LLM calls. Results are deduplicated by canonical URL and retained with their evidence
-on the run for the candidate/publication workflow in #113. This slice does not publish candidates;
-the published counter stays zero. Missing pages in a bounded run never withdraw existing Listings.
+on the run. Valid candidates publish automatically in automatic mode or after one batch approval
+in approval-required mode; exceptions require individual review in either mode. The published
+counter records successful publications. Missing pages in a bounded run never withdraw existing
+Listings.
 
 The dashboard and approved Operator Source cases show the ten most recent requests, state,
 attempt count, six counters, and bounded transient failure messages. Transport exception text and
 HTML are not exposed in these summaries. Successful partial runs retain page failures alongside
 valid extraction results; failed transient runs retry after twelve minutes.
+
+## Operator checklist
+
+Claim the Source Proposal, validate its exact host, then approve the URL to start Source Discovery.
+Inspect coverage, exclusions, training and held-out evidence. Manual edits create a new version;
+select specific fields and explicitly request repair to use the LLM. A failure remains in history
+and never activates a profile. Approve the reviewed version in the appropriate review mode.
+
+In approval-required mode, approve valid Extraction Run candidates as one batch. In automatic
+mode, valid results publish when the run finishes. In either mode, claim exceptional candidates,
+inspect evidence, correct or reject them, or request changes. Candidate corrections do not edit the
+Source Profile. Inspect downloaded images, exclude or reorder them, and explicitly accept an image
+as a Property Image only when it represents the shared Property. An image failure is optional and
+does not block valid rental facts.
+
+Use the case run summary to inspect discovered, extracted, published, needs-attention, rejected,
+and failed counts. Transient failures and missing pages in bounded Discovery do not withdraw active
+Listings. Revoke a mistaken Source Assignment to stop requests and automatic publication, cancel
+unpublished candidates, and withdraw its Listings. History remains; reassignment requires a new
+Source Proposal and explicit approval.

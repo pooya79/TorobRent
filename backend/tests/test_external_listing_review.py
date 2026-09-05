@@ -2,7 +2,6 @@ from datetime import timedelta
 
 import pytest
 from django.contrib.auth.models import Permission
-from django.core.exceptions import ValidationError
 from django.core.management import call_command
 from django.utils import timezone
 
@@ -21,8 +20,7 @@ from apps.catalog.services import (
     expire_listings,
     mark_listing_unavailable,
 )
-from apps.source_proposals.models import SourceProposal
-from apps.source_proposals.services import generate_simulated_external_listing_candidates
+from apps.source_proposals.models import ExternalListingCandidate, SourceProposal
 
 
 def make_representative() -> User:
@@ -54,42 +52,6 @@ def make_operator(email: str) -> User:
 
 
 @pytest.mark.django_db
-def test_only_approved_source_proposal_generates_deterministic_simulated_candidates():
-    call_command("loaddata", "catalog_seed", verbosity=0)
-    proposal = SourceProposal.objects.create(
-        submitter=make_representative(),
-        state="pending",
-        website_name="خانه‌یاب",
-        website_url="https://khaneh.example/rentals",
-        normalized_domain="khaneh.example",
-        source=Source.objects.create(
-            name="external-khaneh",
-            domain="khaneh.example",
-            display_name="خانه‌یاب",
-            outbound_policy=OutboundPolicy.EXTERNAL_LINK,
-        ),
-    )
-
-    with pytest.raises(ValidationError):
-        generate_simulated_external_listing_candidates(proposal=proposal)
-
-    proposal.state = "approved"
-    proposal.save(update_fields=("state",))
-    first = generate_simulated_external_listing_candidates(proposal=proposal)
-    second = generate_simulated_external_listing_candidates(proposal=proposal)
-
-    assert [candidate.id for candidate in second] == [candidate.id for candidate in first]
-    assert len(first) == 2
-    assert all(candidate.simulated for candidate in first)
-    assert all(candidate.state == "pending" for candidate in first)
-    assert all(candidate.source_id == proposal.source_id for candidate in first)
-    assert [candidate.external_url for candidate in first] == [
-        "https://khaneh.example/sample-listings/residential-1",
-        "https://khaneh.example/sample-listings/commercial-2",
-    ]
-
-
-@pytest.mark.django_db
 def test_each_candidate_has_independent_protected_review_and_external_publication(api_client):
     call_command("loaddata", "catalog_seed", verbosity=0)
     representative = make_representative()
@@ -107,7 +69,26 @@ def test_each_candidate_has_independent_protected_review_and_external_publicatio
         normalized_domain="khaneh.example",
         source=source,
     )
-    first, second = generate_simulated_external_listing_candidates(proposal=proposal)
+    from apps.catalog.models import Neighborhood
+
+    neighborhood = Neighborhood.objects.select_related("district").first()
+    first, second = [
+        ExternalListingCandidate.objects.create(
+            source_proposal=proposal,
+            source=source,
+            title=f"Result {number}",
+            external_url=f"https://khaneh.example/listing/{number}",
+            city=neighborhood.district.city,
+            district=neighborhood.district,
+            neighborhood=neighborhood,
+            property_type="apartment",
+            area_sqm=85,
+            room_count=2,
+            deposit_rial=5_000_000_000,
+            monthly_rent_rial=250_000_000,
+        )
+        for number in (1, 2)
+    ]
     first_operator = make_operator("first-operator@example.com")
     second_operator = make_operator("second-operator@example.com")
     representative.user_permissions.add(
@@ -127,7 +108,7 @@ def test_each_candidate_has_independent_protected_review_and_external_publicatio
     queue = api_client.get(queue_url)
     assert queue.status_code == 200
     assert [item["id"] for item in queue.data] == [str(first.id), str(second.id)]
-    assert queue.data[0]["simulated"] is True
+    assert "simulated" not in queue.data[0]
     assert queue.data[0]["source"]["domain"] == "khaneh.example"
     assert queue.data[0]["external_url"] == first.external_url
     assert queue.data[0]["media"] == []

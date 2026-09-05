@@ -336,8 +336,7 @@ export function SourceProposalPage() {
           <CardContent className="space-y-5">
             {!showPreview && (
               <p className="text-muted-foreground">
-                پس از ذخیره اطلاعات، نمونه ثابت روند کشف اینجا نمایش داده
-                می‌شود.
+                پس از ذخیره، اطلاعات وب‌سایت برای تأیید نهایی نمایش داده می‌شود.
               </p>
             )}
             {showPreview && (
@@ -351,16 +350,6 @@ export function SourceProposalPage() {
                   این بازه فقط اطلاعات برنامه‌ریزی است؛ تعداد قطعی یا
                   تضمین‌شده‌ای برای کشف اعلام نمی‌شود.
                 </p>
-                <ul className="space-y-3">
-                  {previewData.examples?.map((example) => (
-                    <li className="rounded-lg border p-3" key={example.title}>
-                      <p className="font-medium">{example.title}</p>
-                      <p className="text-muted-foreground text-sm">
-                        {example.status}
-                      </p>
-                    </li>
-                  ))}
-                </ul>
                 <div className="flex items-start gap-3">
                   <Checkbox
                     id="preview-confirmed"

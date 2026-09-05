@@ -179,10 +179,10 @@ def test_no_fetch_summary_is_deterministic_explicit_and_survives_reload(api_clie
     assert first.status_code == 200
     assert second.data["preview"] == first.data["preview"]
     assert resumed.data["preview"] == first.data["preview"]
-    assert first.data["preview"]["simulated"] is False
+    assert "simulated" not in first.data["preview"]
     assert "هیچ درخواستی" in first.data["preview"]["disclaimer"]
-    assert first.data["preview"]["estimated_count"] is None
-    assert first.data["preview"]["examples"] == []
+    assert "estimated_count" not in first.data["preview"]
+    assert "examples" not in first.data["preview"]
 
 
 @pytest.mark.django_db

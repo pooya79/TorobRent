@@ -101,7 +101,6 @@ class ExternalListingCandidateSerializer(serializers.ModelSerializer[ExternalLis
             "listing_id",
             "state",
             "revision",
-            "simulated",
             "title",
             "external_url",
             "property_type",

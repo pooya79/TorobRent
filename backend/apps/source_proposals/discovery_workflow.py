@@ -353,9 +353,6 @@ def recover_interrupted_discovery(reservation_id: str) -> None:
 
 
 def expire_reservations() -> None:
-    from .models import SourceProfileSnapshots
-
-    SourceProfileSnapshots.objects.filter(expires_at__lte=timezone.now()).delete()
     interrupted = SourceReservation.objects.filter(
         released_at__isnull=True,
         completed_at__isnull=True,

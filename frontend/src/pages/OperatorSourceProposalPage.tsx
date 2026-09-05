@@ -403,10 +403,7 @@ function ExternalListingCandidateCard({
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h3 className="font-semibold">{candidate.title}</h3>
           <div className="flex gap-2">
-            <Badge variant="secondary">
-              {candidate.simulated ? "داده شبیه‌سازی‌شده" : "نتیجه استخراج"}
-            </Badge>
-            <Badge variant="outline">بدون رسانه خارجی</Badge>
+            <Badge variant="secondary">نتیجه استخراج</Badge>
           </div>
         </div>
       </CardHeader>
@@ -435,7 +432,7 @@ function ExternalListingCandidateCard({
           />
         </dl>
         <p className="text-muted-foreground text-sm">{candidate.description}</p>
-        {!candidate.simulated && <CandidateEvidence candidate={candidate} />}
+        <CandidateEvidence candidate={candidate} />
         {claimed && candidate.extraction_run && (
           <CandidateCorrectionForm candidate={candidate} />
         )}

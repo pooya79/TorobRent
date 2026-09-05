@@ -46,8 +46,7 @@ def make_pending_proposal(*, submitter: User, domain: str = "khaneh.example") ->
         operator_note="دسته اجاره از فروش جداست.",
         authority_declared=True,
         preview={
-            "simulated": True,
-            "title": "پیش‌نمایش شبیه‌سازی‌شده",
+            "title": "بازبینی اطلاعات وب‌سایت",
             "disclaimer": "هیچ درخواست زنده‌ای ارسال نشده است.",
             "estimated_count": None,
             "inventory_range": "51_200",

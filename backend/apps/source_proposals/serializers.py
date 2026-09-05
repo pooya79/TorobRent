@@ -83,18 +83,10 @@ class SourceProposalSubmitSerializer(serializers.Serializer[Any]):
         return value
 
 
-class PreviewExampleSerializer(serializers.Serializer[Any]):
-    title = serializers.CharField()
-    status = serializers.CharField()
-
-
 class SourceProposalPreviewSerializer(serializers.Serializer[Any]):
-    simulated = serializers.BooleanField()
     title = serializers.CharField()
     disclaimer = serializers.CharField()
-    estimated_count = serializers.IntegerField(allow_null=True)
     inventory_range = serializers.ChoiceField(choices=InventoryRange.choices)
-    examples = PreviewExampleSerializer(many=True)
 
 
 class SourceProposalEventSerializer(serializers.ModelSerializer[SourceProposalEvent]):
@@ -251,7 +243,7 @@ class SourceProposalSerializer(serializers.ModelSerializer[SourceProposal]):
     def get_preview(self, proposal: SourceProposal) -> dict[str, Any] | None:
         if not proposal.preview:
             return None
-        return dict(SourceProposalPreviewSerializer(proposal.preview).data)
+        return dict(SourceProposalPreviewSerializer(proposal.confirmation_summary()).data)
 
     @extend_schema_field(SourceProposalEventSerializer(many=True))
     def get_history(self, proposal: SourceProposal) -> list[dict[str, Any]]:

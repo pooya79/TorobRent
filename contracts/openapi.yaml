@@ -4575,9 +4575,6 @@ components:
         revision:
           type: integer
           readOnly: true
-        simulated:
-          type: boolean
-          readOnly: true
         title:
           type: string
           maxLength: 200
@@ -4645,7 +4642,6 @@ components:
       - listing_id
       - media
       - revision
-      - simulated
       - source
       - source_proposal_id
       - title
@@ -6250,16 +6246,6 @@ components:
       description: |-
         * `approximate` - Approximate
         * `neighborhood` - Neighborhood
-    PreviewExample:
-      type: object
-      properties:
-        title:
-          type: string
-        status:
-          type: string
-      required:
-      - status
-      - title
     PrivacyActionTypeEnum:
       enum:
       - defensive_contact_removal
@@ -7507,28 +7493,15 @@ components:
     SourceProposalPreview:
       type: object
       properties:
-        simulated:
-          type: boolean
         title:
           type: string
         disclaimer:
           type: string
-        estimated_count:
-          type:
-          - integer
-          - 'null'
         inventory_range:
           $ref: '#/components/schemas/SourceProposalInventoryRangeEnum'
-        examples:
-          type: array
-          items:
-            $ref: '#/components/schemas/PreviewExample'
       required:
       - disclaimer
-      - estimated_count
-      - examples
       - inventory_range
-      - simulated
       - title
     SourceProposalRelationshipEnum:
       enum:

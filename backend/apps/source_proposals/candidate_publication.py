@@ -113,7 +113,6 @@ def create_run_candidates(run: ExtractionRun) -> None:
             extraction_run=run,
             source_proposal=run.request.assignment.proposal,
             source=run.request.assignment.source,
-            simulated=False,
             external_url=result["canonical_url"],
             title=str(values.get("title") or "نتیجه استخراج")[:200],
             description=str(values.get("description") or ""),
@@ -153,7 +152,7 @@ def publish_candidate(candidate: ExternalListingCandidate) -> None:
     provenance = (
         f"Extraction Run {candidate.extraction_run_id}"
         if candidate.extraction_run_id
-        else f"Simulated Source Proposal {candidate.source_proposal_id}"
+        else f"Source Proposal {candidate.source_proposal_id}"
     )
     listing = materialize_external_listing(
         spec=ExternalListingSpec(
@@ -163,9 +162,7 @@ def publish_candidate(candidate: ExternalListingCandidate) -> None:
             listing_values={
                 "description": candidate.description,
                 "source_reference": str(candidate.id),
-                "source_claims": candidate.source_claims
-                if not candidate.simulated
-                else {"simulated": True},
+                "source_claims": candidate.source_claims,
                 "provenance_note": provenance,
                 "external_url": candidate.external_url,
                 "external_media_url": "",

@@ -18,7 +18,7 @@ def execute_run(api_client, assigned_case, monkeypatch, django_capture_on_commit
 
 
 @pytest.mark.django_db
-def test_run_candidates_preserve_evidence_and_batch_publishes_once(
+def test_source_proposal_to_publication_journey_preserves_evidence_and_publishes_once(
     api_client, assigned_case, monkeypatch, django_capture_on_commit_callbacks
 ):
     from apps.catalog.models import Listing
@@ -26,7 +26,7 @@ def test_run_candidates_preserve_evidence_and_batch_publishes_once(
     run = execute_run(api_client, assigned_case, monkeypatch, django_capture_on_commit_callbacks)
     assert len(run["candidates"]) == 10
     sample = run["candidates"][0]
-    assert sample["simulated"] is False
+    assert "simulated" not in sample
     assert sample["extraction_run"] == run["id"]
     assert sample["validation_errors"] == {}
     assert sample["evidence"]["floor_area_sqm"]

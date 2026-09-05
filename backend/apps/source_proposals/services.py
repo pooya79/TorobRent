@@ -1,5 +1,4 @@
 import uuid
-from dataclasses import dataclass
 from datetime import timedelta
 
 from django.core.exceptions import ValidationError
@@ -7,7 +6,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from apps.accounts.models import User
-from apps.catalog.models import TEHRAN_CITY_ID, Neighborhood, PropertyType, Source
+from apps.catalog.models import Source
 from apps.communications.services import create_source_proposal_review_notification
 
 from .models import (
@@ -29,96 +28,6 @@ from .review_claims import (
     require_review_claim,
 )
 from .url_validation import normalize_public_domain, normalize_public_url
-
-
-@dataclass(frozen=True)
-class SimulatedCandidateSpec:
-    slug: str
-    title: str
-    property_type: PropertyType
-    area_sqm: int
-    room_count: int | None
-    deposit_rial: int
-    monthly_rent_rial: int
-
-
-SIMULATED_CANDIDATE_SPECS = (
-    SimulatedCandidateSpec(
-        slug="residential-1",
-        title="آپارتمان شبیه‌سازی‌شده برای بررسی",
-        property_type=PropertyType.APARTMENT,
-        area_sqm=85,
-        room_count=2,
-        deposit_rial=5_000_000_000,
-        monthly_rent_rial=250_000_000,
-    ),
-    SimulatedCandidateSpec(
-        slug="commercial-2",
-        title="دفتر شبیه‌سازی‌شده برای بررسی",
-        property_type=PropertyType.OFFICE,
-        area_sqm=110,
-        room_count=None,
-        deposit_rial=8_000_000_000,
-        monthly_rent_rial=400_000_000,
-    ),
-)
-
-
-@transaction.atomic
-def generate_simulated_external_listing_candidates(
-    *, proposal: SourceProposal
-) -> list[ExternalListingCandidate]:
-    proposal = (
-        SourceProposal.objects
-        .select_for_update(of=("self",))
-        .select_related("source")
-        .get(id=proposal.id)
-    )
-    source = proposal.source
-    if proposal.state != SourceProposalState.APPROVED or source is None:
-        raise ValidationError("Only an approved Source Proposal can produce Listing candidates.")
-    neighborhoods = list(
-        Neighborhood.objects
-        .filter(
-            reviewed=True,
-            district__reviewed=True,
-            district__city_id=TEHRAN_CITY_ID,
-            district__city__reviewed=True,
-        )
-        .select_related("district")
-        .order_by("district__number", "name_fa")[: len(SIMULATED_CANDIDATE_SPECS)]
-    )
-    if len(neighborhoods) < len(SIMULATED_CANDIDATE_SPECS):
-        return []
-    candidates: list[ExternalListingCandidate] = []
-    for index, (spec, neighborhood) in enumerate(
-        zip(SIMULATED_CANDIDATE_SPECS, neighborhoods, strict=True), start=1
-    ):
-        external_url = f"https://{proposal.normalized_domain}/sample-listings/{spec.slug}"
-        candidate, _created = ExternalListingCandidate.objects.get_or_create(
-            id=uuid.uuid5(proposal.id, f"simulated-external-listing-{index}"),
-            defaults={
-                "source_proposal": proposal,
-                "source": source,
-                "title": spec.title,
-                "external_url": external_url,
-                "city_id": TEHRAN_CITY_ID,
-                "district": neighborhood.district,
-                "neighborhood": neighborhood,
-                "property_type": spec.property_type,
-                "area_sqm": spec.area_sqm,
-                "room_count": spec.room_count,
-                "deposit_rial": spec.deposit_rial,
-                "monthly_rent_rial": spec.monthly_rent_rial,
-                "description": (
-                    "داده ساختگی و محلی برای اثبات مرز بررسی؛ هیچ رسانه یا "
-                    "داده‌ای از وب‌سایت Source دریافت نشده است."
-                ),
-            },
-        )
-        candidates.append(candidate)
-    return candidates
-
 
 SOURCE_PROPOSAL_CLAIM_DURATION = timedelta(minutes=15)
 
@@ -293,14 +202,7 @@ def generate_proposal_preview(*, proposal: SourceProposal, actor: User) -> Sourc
     locked = _lock_editable_source_proposal(proposal=proposal, actor=actor)
     if locked.current_step != SourceProposalStep.PREVIEW or not locked.normalized_domain:
         raise ValidationError("ابتدا اطلاعات وب‌سایت را کامل کنید.")
-    locked.preview = {
-        "simulated": False,
-        "title": "بازبینی اطلاعات وب‌سایت",
-        "disclaimer": "تا پیش از تأیید نشانی توسط اپراتور هیچ درخواستی به وب‌سایت ارسال نمی‌شود.",
-        "estimated_count": None,
-        "inventory_range": locked.inventory_range,
-        "examples": [],
-    }
+    locked.preview = locked.confirmation_summary()
     locked.preview_confirmed = False
     locked.save(update_fields=("preview", "preview_confirmed", "updated_at"))
     return locked

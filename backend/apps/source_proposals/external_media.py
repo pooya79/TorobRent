@@ -235,7 +235,6 @@ def stage_discovery_images(reservation: SourceReservation) -> None:
             extraction_run=None,
             defaults={
                 "source": reservation.source,
-                "simulated": False,
                 "title": "پیش‌نمایش تصاویر کشف",
             },
         )

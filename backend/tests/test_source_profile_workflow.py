@@ -256,12 +256,15 @@ def test_expired_snapshots_are_removed_without_erasing_versions(api_client, disc
     from django.utils import timezone
 
     from apps.source_proposals.models import SourceProfileSnapshots
-    from apps.source_proposals.tasks import expire_source_reservations
+    from apps.source_proposals.tasks import cleanup_source_snapshots
 
     _, base, _, _, _ = discovered_case
     original = api_client.get("/api/v1/operator/source-proposals/").data[0]["profile_versions"][0]
     SourceProfileSnapshots.objects.update(expires_at=timezone.now() - timedelta(seconds=1))
-    expire_source_reservations()
+    assert cleanup_source_snapshots(batch_size=0) == 0
+    assert SourceProfileSnapshots.objects.exists()
+    assert cleanup_source_snapshots(batch_size=1) == 1
+    assert cleanup_source_snapshots() == 0
     assert not SourceProfileSnapshots.objects.exists()
     response = api_client.post(
         f"{base}/profile/edit/",

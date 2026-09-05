@@ -2261,7 +2261,6 @@ export interface components {
       readonly listing_id: string | null;
       state?: components["schemas"]["ExternalListingCandidateStateEnum"];
       readonly revision: number;
-      readonly simulated: boolean;
       title: string;
       /** Format: uri */
       external_url: string;
@@ -2956,10 +2955,6 @@ export interface components {
      * @enum {string}
      */
     PrecisionEnum: "approximate" | "neighborhood";
-    PreviewExample: {
-      title: string;
-      status: string;
-    };
     /**
      * @description * `defensive_contact_removal` - حذف دفاعی اطلاعات تماس عمومی
      *     * `permanent_account_action` - اقدام دائمی حساب
@@ -3462,12 +3457,9 @@ export interface components {
     SourceProposalInventoryRangeEnum:
       "1_10" | "11_50" | "51_200" | "more_than_200" | "unknown";
     SourceProposalPreview: {
-      simulated: boolean;
       title: string;
       disclaimer: string;
-      estimated_count: number | null;
       inventory_range: components["schemas"]["SourceProposalInventoryRangeEnum"];
-      examples: components["schemas"]["PreviewExample"][];
     };
     /**
      * @description * `website_owner` - مالک وب‌سایت

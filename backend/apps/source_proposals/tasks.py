@@ -32,7 +32,7 @@ def extract_source(self: Any, request_id: str) -> None:
         raise self.retry(countdown=720)
 
 
-@shared_task  # type: ignore[untyped-decorator]
+@shared_task(soft_time_limit=240, time_limit=300)  # type: ignore[untyped-decorator]
 def cleanup_external_images() -> int:
     from .media_retention import cleanup_external_images as cleanup
 
@@ -68,3 +68,10 @@ def process_discovery_images(reservation_id: str) -> None:
     from .models import SourceReservation
 
     stage_discovery_images(SourceReservation.objects.get(pk=reservation_id))
+
+
+@shared_task(soft_time_limit=240, time_limit=300)  # type: ignore[untyped-decorator]
+def cleanup_source_snapshots(*, batch_size: int = 200) -> int:
+    from .snapshot_retention import cleanup_source_snapshots as cleanup
+
+    return cleanup(batch_size=batch_size)

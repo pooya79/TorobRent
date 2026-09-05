@@ -17,10 +17,31 @@ def user(db) -> User:
 @pytest.fixture
 def discovered_case(api_client, monkeypatch, django_capture_on_commit_callbacks):
     from tests.test_source_extraction_contract import FixtureFetcher, listing_html
-    from tests.test_source_proposal_review import make_operator, make_pending_proposal, make_user
+    from tests.test_source_proposal_review import make_operator, make_user
 
     representative = make_user(email="profile-rep@example.com", submitter=True)
-    proposal = make_pending_proposal(submitter=representative)
+    from apps.source_proposals.models import SourceProposal
+
+    api_client.force_authenticate(representative)
+    created = api_client.post("/api/v1/source-proposals/", {}, format="json")
+    assert created.status_code == 201
+    proposal_url = f"/api/v1/source-proposals/{created.data['id']}/"
+    details = {
+        "website_name": "خانه‌یاب",
+        "website_url": "https://khaneh.example/rentals",
+        "relationship": "website_manager",
+        "inventory_range": "51_200",
+        "sitemap_url": "https://khaneh.example/sitemap.xml",
+        "authority_declared": True,
+    }
+    assert api_client.patch(proposal_url, details, format="json").status_code == 200
+    assert api_client.post(f"{proposal_url}preview/", {}, format="json").status_code == 200
+    submitted = api_client.post(
+        f"{proposal_url}submit/", {"preview_confirmed": True}, format="json"
+    )
+    assert submitted.status_code == 200
+    assert submitted.data["discovery_stage"] == "awaiting_url"
+    proposal = SourceProposal.objects.get(pk=created.data["id"])
     urls = [f"https://khaneh.example/listing/{number}" for number in range(10000, 10010)]
     fetcher = FixtureFetcher({
         proposal.website_url: "<h1>رهن و اجاره خانه</h1>"

@@ -37,7 +37,7 @@ superuser:
 	cd backend && uv run python manage.py createsuperuser
 
 api-schema:
-	cd backend && uv run python manage.py spectacular --settings=config.settings.test --file ../contracts/openapi.yaml --validate
+	cd backend && TEST_DATABASE_URL= uv run python manage.py spectacular --settings=config.settings.test --file ../contracts/openapi.yaml --validate
 
 api-client: api-schema
 	cd backend && uv run python manage.py generate_property_taxonomy --output ../frontend/src/features/catalog/property-taxonomy.ts

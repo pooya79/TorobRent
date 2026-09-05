@@ -39,7 +39,7 @@ test("publishes Persian Guide, Privacy, Terms, and honest alpha guidance", () =>
     {
       page: <GuidePage />,
       heading: "راهنمای ترب‌رنت",
-      copy: "اطلاعات نسخه آلفا از داده‌های ساختگی و ورود دستی",
+      copy: "اطلاعات از پیشنهادهای تأییدشده و استخراج منابع مجاز",
     },
     {
       page: <PrivacyPage />,
@@ -49,7 +49,7 @@ test("publishes Persian Guide, Privacy, Terms, and honest alpha guidance", () =>
     {
       page: <TermsPage />,
       heading: "شرایط استفاده",
-      copy: "موجودی زنده سامانه‌های گردآورنده آگهی نیستند",
+      copy: "استخراج اطلاعات به معنی تضمین به‌روز بودن آن نیست",
     },
   ];
 
@@ -93,7 +93,7 @@ test("compares the Property and Source Proposal journeys truthfully", () => {
   expect(sourceJourney).toHaveTextContent("پیشنهاد منبع");
   expect(sourceJourney).toHaveTextContent("آگهی بیرونی");
   expect(sourceJourney).toHaveTextContent("نشانی آگهی اصلی");
-  expect(sourceJourney).toHaveTextContent("کشف شبیه‌سازی‌شده");
+  expect(sourceJourney).toHaveTextContent("تأیید نشانی و پروفایل منبع");
   expect(sourceJourney).not.toHaveTextContent("هفت مرحله");
 });
 
@@ -130,15 +130,13 @@ test("answers acquisition FAQs without unsupported marketplace claims", () => {
     "شماره تلفن من برای همه نمایش داده می‌شود؟",
     "موقعیت دقیق ملک منتشر می‌شود؟",
     "چطور یک وب‌سایت اجاره را معرفی کنم؟",
-    "کشف شبیه‌سازی‌شده یعنی چه؟",
+    "استخراج اطلاعات منبع چطور انجام می‌شود؟",
     "بعد از ارسال چه اتفاقی می‌افتد؟",
   ]) {
     expect(screen.getByText(question)).toBeVisible();
   }
   expect(screen.getByText(/نسخه آلفا/)).toBeVisible();
-  expect(
-    screen.getByText(/کشف خودکار زنده یا انتشار خودکار نیست/),
-  ).toBeVisible();
+  expect(screen.getByText(/لغو تخصیص منبع/)).toBeVisible();
   expect(
     screen.queryByText(/بزرگ‌ترین|موفقیت|تضمین تأیید|کمتر از .* ساعت/),
   ).toBeNull();

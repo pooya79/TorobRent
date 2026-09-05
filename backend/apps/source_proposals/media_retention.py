@@ -4,7 +4,7 @@ from datetime import timedelta
 from functools import partial
 
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import F, Q
 from django.utils import timezone
 
 from apps.catalog.models import Listing, ListingState, Source
@@ -15,14 +15,19 @@ from .external_media import cleanup_owned_image_files
 from .models import CandidateImage
 
 
-def cleanup_external_images() -> int:
+def cleanup_external_images(*, batch_size: int = 200) -> int:
     retired = 0
-    for image_id, source_id in CandidateImage.objects.values_list(
-        "pk", "candidate__source_id"
-    ).iterator():
+    images = list(
+        CandidateImage.objects.order_by(
+            F("retention_checked_at").asc(nulls_first=True), "created_at", "pk"
+        ).values_list("pk", "candidate__source_id")[: max(0, min(batch_size, 200))]
+    )
+    for image_id, source_id in images:
         with transaction.atomic():
             Source.objects.select_for_update().get(pk=source_id)
             image = CandidateImage.objects.select_for_update().get(pk=image_id)
+            image.retention_checked_at = timezone.now()
+            image.save(update_fields=("retention_checked_at",))
             if image.state == "retired":
                 cleanup_owned_image_files(image)
                 continue

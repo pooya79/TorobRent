@@ -32,8 +32,7 @@ const proposal = {
   operator_note: "دسته اجاره از فروش جداست.",
   authority_declared: true,
   preview: {
-    simulated: true,
-    title: "پیش‌نمایش شبیه‌سازی‌شده",
+    title: "بازبینی اطلاعات وب‌سایت",
     disclaimer: "هیچ درخواست زنده‌ای ارسال نشده است.",
     estimated_count: null,
     inventory_range: "51_200",
@@ -119,7 +118,7 @@ test("inspects, claims, and requests changes to a Source Proposal", async () => 
   ).toBeVisible();
 });
 
-test("reviews each simulated External Listing candidate independently", async () => {
+test("reviews each External Listing candidate independently", async () => {
   const user = userEvent.setup();
   const candidates = [
     {
@@ -134,8 +133,8 @@ test("reviews each simulated External Listing candidate independently", async ()
       listing_id: null,
       state: "pending",
       revision: 1,
-      simulated: true,
-      title: "آپارتمان شبیه‌سازی‌شده برای بررسی",
+
+      title: "آپارتمان برای بررسی",
       external_url: "https://khaneh.example/sample-listings/residential-1",
       property_type: "apartment",
       area_sqm: 85,
@@ -160,8 +159,8 @@ test("reviews each simulated External Listing candidate independently", async ()
       listing_id: null,
       state: "pending",
       revision: 1,
-      simulated: true,
-      title: "دفتر شبیه‌سازی‌شده برای بررسی",
+
+      title: "دفتر برای بررسی",
       external_url: "https://khaneh.example/sample-listings/commercial-2",
       property_type: "office",
       area_sqm: 110,
@@ -237,25 +236,25 @@ test("reviews each simulated External Listing candidate independently", async ()
 
   expect(
     await screen.findByRole("heading", {
-      name: "آپارتمان شبیه‌سازی‌شده برای بررسی",
+      name: "آپارتمان برای بررسی",
     }),
   ).toBeVisible();
-  expect(screen.getAllByText("داده شبیه‌سازی‌شده")).toHaveLength(2);
-  expect(screen.getAllByText("بدون رسانه خارجی")).toHaveLength(2);
+  expect(screen.getAllByText("نتیجه استخراج")).toHaveLength(2);
+  expect(screen.queryByText("بدون رسانه خارجی")).toBeNull();
   expect(screen.getByText(candidates[0]!.external_url)).toBeVisible();
 
   await user.click(
     screen.getByRole("button", {
-      name: "شروع بررسی آپارتمان شبیه‌سازی‌شده برای بررسی",
+      name: "شروع بررسی آپارتمان برای بررسی",
     }),
   );
   await user.type(
-    screen.getByLabelText("دلیل تصمیم آپارتمان شبیه‌سازی‌شده برای بررسی"),
+    screen.getByLabelText("دلیل تصمیم آپارتمان برای بررسی"),
     "جزئیات این مورد نیازمند اصلاح است.",
   );
   await user.click(
     screen.getByRole("button", {
-      name: "درخواست اصلاح آپارتمان شبیه‌سازی‌شده برای بررسی",
+      name: "درخواست اصلاح آپارتمان برای بررسی",
     }),
   );
   expect(decisions[0]).toEqual({
@@ -265,21 +264,19 @@ test("reviews each simulated External Listing candidate independently", async ()
   });
   expect(
     screen.getByRole("heading", {
-      name: "دفتر شبیه‌سازی‌شده برای بررسی",
+      name: "دفتر برای بررسی",
     }),
   ).toBeVisible();
 
   await user.click(
     screen.getByRole("button", {
-      name: "شروع بررسی دفتر شبیه‌سازی‌شده برای بررسی",
+      name: "شروع بررسی دفتر برای بررسی",
     }),
   );
-  await user.click(
-    screen.getByLabelText("تأیید انتشار دفتر شبیه‌سازی‌شده برای بررسی"),
-  );
+  await user.click(screen.getByLabelText("تأیید انتشار دفتر برای بررسی"));
   await user.click(
     screen.getByRole("button", {
-      name: "تأیید و انتشار دفتر شبیه‌سازی‌شده برای بررسی",
+      name: "تأیید و انتشار دفتر برای بررسی",
     }),
   );
   expect(decisions[1]).toEqual({ id: candidates[1]!.id, kind: "approve" });
@@ -857,7 +854,7 @@ test("corrects an exception and approves its new revision", async () => {
     source: { display_name: "خانه‌یاب", domain: "khaneh.example" },
     state: "pending",
     revision: 1,
-    simulated: false,
+
     media: [],
     extraction_run: "run",
     external_url: "https://khaneh.example/detail",

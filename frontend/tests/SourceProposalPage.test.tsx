@@ -55,14 +55,9 @@ test("saves website details and confirms the no-fetch summary", async () => {
         ...base,
         current_step: "preview",
         preview: {
-          simulated: false,
           title: "بازبینی اطلاعات وب‌سایت",
           disclaimer:
-            "این نمونه فقط برای نمایش روند آینده ساخته شده و هیچ درخواست زنده‌ای به وب‌سایت شما ارسال نشده است.",
-          estimated_count: null,
-          examples: [
-            { title: "نمونه ملک مسکونی", status: "نیازمند بررسی اپراتور" },
-          ],
+            "تا پیش از تأیید نشانی توسط اپراتور هیچ درخواستی به وب‌سایت ارسال نمی‌شود.",
         },
       }),
     ),
@@ -111,7 +106,7 @@ test("saves website details and confirms the no-fetch summary", async () => {
   );
 
   expect(await screen.findByText("بازبینی اطلاعات وب‌سایت")).toBeVisible();
-  expect(screen.getByText(/هیچ درخواست زنده‌ای/)).toBeVisible();
+  expect(screen.getByText(/هیچ درخواستی به وب‌سایت/)).toBeVisible();
   expect(screen.getByText(/تعداد قطعی یا تضمین‌شده‌ای/)).toBeVisible();
   expect(savedBody).toMatchObject({
     website_name: "خانه‌یاب",
@@ -142,7 +137,7 @@ test("restores a pending Source Proposal after reload", async () => {
         sitemap_url: "",
         operator_note: "",
         authority_declared: true,
-        preview: { simulated: false },
+        preview: { title: "بازبینی اطلاعات وب‌سایت" },
         preview_confirmed: true,
         pending_since: "2026-08-31T09:00:00Z",
         available_actions: [],

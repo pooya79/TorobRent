@@ -115,6 +115,15 @@ class SourceProposal(models.Model):
     def __str__(self) -> str:
         return self.website_name or f"Source Proposal {self.id}"
 
+    def confirmation_summary(self) -> dict[str, str]:
+        return {
+            "title": "بازبینی اطلاعات وب‌سایت",
+            "disclaimer": (
+                "تا پیش از تأیید نشانی توسط اپراتور هیچ درخواستی به وب‌سایت ارسال نمی‌شود."
+            ),
+            "inventory_range": self.inventory_range,
+        }
+
     @property
     def can_discard(self) -> bool:
         return self.state == SourceProposalState.DRAFT and self.discarded_at is None
@@ -263,7 +272,6 @@ class ExternalListingCandidate(models.Model):
         default=ExternalListingCandidateState.PENDING,
     )
     revision = models.PositiveIntegerField(default=1, editable=False)
-    simulated = models.BooleanField(default=True, editable=False)
     title = models.CharField(max_length=200)
     external_url = models.URLField(max_length=1000)
     city = models.ForeignKey("catalog.City", on_delete=models.PROTECT, null=True)
@@ -691,6 +699,7 @@ class CandidateImage(models.Model):
         related_name="accepted_external_images",
     )
     accepted_at = models.DateTimeField(null=True)
+    retention_checked_at = models.DateTimeField(null=True, db_index=True)
     unreferenced_at = models.DateTimeField(null=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
