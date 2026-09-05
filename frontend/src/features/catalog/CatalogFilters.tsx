@@ -1,4 +1,19 @@
 import type { FormEvent } from "react";
+import { ChevronDown } from "lucide-react";
+import { cn } from "@/lib/utils";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  MoneyRangeFields,
+  moneyFilterNames,
+  moneyInToman,
+  compactToman,
+} from "./MoneyRangeFields";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -71,7 +86,6 @@ const formFilterNames = [
   "storage",
   "balcony",
   "furnished",
-  "ordering",
 ] as const;
 
 function paramsFromForm(form: HTMLFormElement, current: URLSearchParams) {
@@ -80,9 +94,13 @@ function paramsFromForm(form: HTMLFormElement, current: URLSearchParams) {
   for (const name of formFilterNames) {
     const entry = data.get(name);
     const rawValue = typeof entry === "string" ? entry.trim() : "";
-    const value = numericFilters.has(name as FilterName)
-      ? normalizeNumericEntry(rawValue)
-      : rawValue;
+    const field = form.elements.namedItem(name);
+    const value =
+      field instanceof HTMLInputElement && field.dataset.moneyUnit
+        ? moneyInToman(rawValue, Number(field.dataset.moneyUnit))
+        : numericFilters.has(name)
+          ? normalizeNumericEntry(rawValue)
+          : rawValue;
     if (value) next.set(name, value);
     else next.delete(name);
   }
@@ -97,28 +115,13 @@ function RangeFields({
   minimum,
   maximum,
   unit,
-  bounded,
-  grouped = false,
 }: {
   prefix: string;
   searchParams: URLSearchParams;
   minimum: FilterName;
   maximum: FilterName;
   unit: string;
-  bounded?: { min: number; max: number; step: number };
-  grouped?: boolean;
 }) {
-  const syncSlider = (
-    name: FilterName,
-    value: string,
-    form: HTMLFormElement | null,
-  ) => {
-    const field = form?.elements.namedItem(name);
-    if (field instanceof HTMLInputElement) {
-      field.value = value;
-      field.dispatchEvent(new Event("input", { bubbles: true }));
-    }
-  };
   return (
     <fieldset className="space-y-3">
       <legend className="font-medium">{unit}</legend>
@@ -130,15 +133,8 @@ function RangeFields({
               id={`${prefix}-${name}`}
               name={name}
               inputMode="numeric"
-              defaultValue={
-                grouped && searchParams.get(name)
-                  ? new Intl.NumberFormat("fa-IR").format(
-                      Number(
-                        normalizeNumericEntry(searchParams.get(name) ?? ""),
-                      ),
-                    )
-                  : persianDigits(searchParams.get(name))
-              }
+              defaultValue={persianDigits(searchParams.get(name))}
+              placeholder="بدون محدودیت"
               onBlur={(event) => {
                 const value = Number(
                   normalizeNumericEntry(event.currentTarget.value),
@@ -153,27 +149,6 @@ function RangeFields({
                 }
               }}
             />
-            {bounded && (
-              <input
-                className="accent-primary w-full"
-                type="range"
-                aria-label={`${filterLabels[name]}، کنترل بازه`}
-                min={bounded.min}
-                max={bounded.max}
-                step={bounded.step}
-                defaultValue={
-                  normalizeNumericEntry(searchParams.get(name) ?? "") ||
-                  (name === minimum ? bounded.min : bounded.max)
-                }
-                onChange={(event) =>
-                  syncSlider(
-                    name,
-                    event.currentTarget.value,
-                    event.currentTarget.form,
-                  )
-                }
-              />
-            )}
           </div>
         ))}
       </div>
@@ -186,23 +161,48 @@ function SegmentedChoices({
   label,
   value,
   choices,
+  inline = false,
 }: {
   name: string;
   label: string;
   value: string;
+  inline?: boolean;
   choices: readonly { value: string; label: string; disabled?: boolean }[];
 }) {
   return (
-    <fieldset className="space-y-2">
-      <legend className="text-sm font-medium">{label}</legend>
-      <div className="bg-muted grid grid-cols-3 gap-1 rounded-lg p-1">
+    <fieldset
+      className={cn(
+        "space-y-2",
+        inline &&
+          "min-[440px]:flex min-[440px]:items-center min-[440px]:justify-between min-[440px]:gap-3 min-[440px]:space-y-0",
+      )}
+    >
+      <legend
+        className={cn(
+          "text-sm font-medium",
+          inline && "min-[440px]:float-start",
+        )}
+      >
+        {label}
+      </legend>
+      <div
+        className={cn(
+          "flex gap-1 rounded-xl",
+          inline ? "bg-muted p-1" : "flex-wrap",
+        )}
+      >
         {choices.map((choice) => (
           <label
             key={choice.value || "any"}
-            className="has-checked:bg-background has-focus-visible:ring-ring flex min-h-10 cursor-pointer items-center justify-center rounded-md px-2 text-center text-xs has-focus-visible:ring-2 has-disabled:cursor-not-allowed has-disabled:opacity-50"
+            className={cn(
+              "has-checked:text-primary has-focus-visible:ring-ring flex min-h-11 flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-lg border px-3 text-center text-sm whitespace-nowrap has-focus-visible:ring-2 has-disabled:cursor-not-allowed has-disabled:opacity-50",
+              inline
+                ? "has-checked:bg-background has-checked:border-border border-transparent"
+                : "has-checked:border-primary has-checked:bg-primary/5",
+            )}
           >
             <input
-              className="sr-only"
+              className="accent-primary size-3 shrink-0"
               type="radio"
               name={name}
               value={choice.value}
@@ -277,66 +277,89 @@ export function CatalogFilters({
   return (
     <form
       className="flex min-h-full flex-col"
-      onInput={(event) =>
-        onDraftChange(paramsFromForm(event.currentTarget, searchParams))
-      }
+      onInput={(event) => {
+        const form = event.currentTarget;
+        for (const name of moneyFilterNames) {
+          const field = form.elements.namedItem(name);
+          if (field instanceof HTMLInputElement) {
+            field.setCustomValidity(
+              moneyInToman(field.value, Number(field.dataset.moneyUnit)) ===
+                undefined
+                ? "مبلغ معتبر و غیرمنفی وارد کنید."
+                : "",
+            );
+          }
+        }
+        for (const parameter of ["deposit", "monthly_rent"]) {
+          const min = form.elements.namedItem(`${parameter}_min_toman`);
+          const max = form.elements.namedItem(`${parameter}_max_toman`);
+          if (
+            min instanceof HTMLInputElement &&
+            max instanceof HTMLInputElement
+          ) {
+            const minimum = moneyInToman(
+              min.value,
+              Number(min.dataset.moneyUnit),
+            );
+            const maximum = moneyInToman(
+              max.value,
+              Number(max.dataset.moneyUnit),
+            );
+            if (minimum && maximum && Number(minimum) > Number(maximum))
+              max.setCustomValidity("حداکثر مبلغ نباید کمتر از حداقل باشد.");
+          }
+        }
+        if (form.checkValidity())
+          onDraftChange(paramsFromForm(form, searchParams));
+      }}
       onSubmit={(event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
         onApply();
       }}
     >
       <div className="flex-1 space-y-6 overflow-y-auto px-1 pb-28">
-        <fieldset className="space-y-3">
-          <legend className="font-medium">محدوده‌های تهران</legend>
-          <p className="text-muted-foreground text-sm">
-            منطقه و محله مستقل از شهر انتخاب می‌شوند.
-          </p>
-          <LocationMultiSelect
-            kind="district"
-            label="منطقه"
-            selected={selectedAreas(searchParams, "district")}
-            onSelectionChange={(areas) => updateAreas("district", areas)}
-          />
-          <LocationMultiSelect
-            kind="neighborhood"
-            label="محله"
-            selected={selectedAreas(searchParams, "neighborhood")}
-            onSelectionChange={(areas) => updateAreas("neighborhood", areas)}
-          />
-        </fieldset>
-
-        <RangeFields
-          prefix={prefix}
-          searchParams={searchParams}
-          minimum="deposit_min_toman"
-          maximum="deposit_max_toman"
-          unit="ودیعه (تومان)"
-          grouped
-        />
-        <RangeFields
-          prefix={prefix}
-          searchParams={searchParams}
-          minimum="monthly_rent_min_toman"
-          maximum="monthly_rent_max_toman"
-          unit="اجاره ماهانه (تومان)"
-          grouped
-        />
-        <RangeFields
-          prefix={prefix}
-          searchParams={searchParams}
-          minimum="area_min"
-          maximum="area_max"
-          unit="متراژ (متر مربع)"
-          bounded={{ min: 20, max: 1000, step: 5 }}
-        />
-        <RangeFields
-          prefix={prefix}
-          searchParams={searchParams}
-          minimum="construction_year_min"
-          maximum="construction_year_max"
-          unit="سال ساخت"
-          bounded={{ min: 1200, max: 1500, step: 1 }}
-        />
+        <details
+          className="group border-b pb-6"
+          open={
+            searchParams.has("district") || searchParams.has("neighborhood")
+          }
+        >
+          <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 font-medium">
+            محله‌ها و مناطق
+            <span className="text-muted-foreground min-w-0 flex-1 truncate text-end text-sm font-normal">
+              {[
+                ...selectedAreas(searchParams, "district"),
+                ...selectedAreas(searchParams, "neighborhood"),
+              ]
+                .map((area) => area.label)
+                .join("، ") || "همه محدوده‌ها"}
+            </span>
+            <ChevronDown
+              className="size-4 shrink-0 transition-transform group-open:rotate-180"
+              aria-hidden="true"
+            />
+          </summary>
+          <fieldset className="mt-3 space-y-3">
+            <legend className="sr-only">محدوده‌های تهران</legend>
+            <p className="text-muted-foreground text-sm">
+              منطقه و محله مستقل از شهر انتخاب می‌شوند.
+            </p>
+            <LocationMultiSelect
+              kind="district"
+              label="منطقه"
+              selected={selectedAreas(searchParams, "district")}
+              onSelectionChange={(areas) => updateAreas("district", areas)}
+            />
+            <LocationMultiSelect
+              kind="neighborhood"
+              label="محله"
+              selected={selectedAreas(searchParams, "neighborhood")}
+              onSelectionChange={(areas) => updateAreas("neighborhood", areas)}
+            />
+          </fieldset>
+        </details>
+        <MoneyRangeFields prefix={prefix} searchParams={searchParams} deposit />
+        <MoneyRangeFields prefix={prefix} searchParams={searchParams} />
 
         {propertyCategory === "residential" && (
           <SegmentedChoices
@@ -369,6 +392,7 @@ export function CatalogFilters({
             return (
               <SegmentedChoices
                 key={name}
+                inline
                 name={name}
                 label={filterLabels[name]}
                 value={selected}
@@ -394,29 +418,87 @@ export function CatalogFilters({
           </p>
         </fieldset>
 
+        <details
+          className="group border-y py-4"
+          open={
+            searchParams.has("area_min") ||
+            searchParams.has("area_max") ||
+            searchParams.has("construction_year_min") ||
+            searchParams.has("construction_year_max")
+          }
+        >
+          <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between font-medium">
+            متراژ و سال ساخت{" "}
+            <ChevronDown
+              className="size-4 group-open:rotate-180"
+              aria-hidden="true"
+            />
+          </summary>
+          <div className="mt-4 space-y-5">
+            <RangeFields
+              prefix={prefix}
+              searchParams={searchParams}
+              minimum="area_min"
+              maximum="area_max"
+              unit="متراژ (متر مربع)"
+            />
+            <RangeFields
+              prefix={prefix}
+              searchParams={searchParams}
+              minimum="construction_year_min"
+              maximum="construction_year_max"
+              unit="سال ساخت"
+            />
+          </div>
+        </details>
         <div className="space-y-2">
           <Label htmlFor={`${prefix}-ordering`}>مرتب‌سازی</Label>
-          <select
-            id={`${prefix}-ordering`}
-            name="ordering"
-            className="border-input bg-background h-11 w-full rounded-md border px-3 text-sm shadow-sm"
-            defaultValue={
-              searchParams.get("ordering") === "newest" ||
-              searchParams.get("ordering") === "freshness"
-                ? ""
-                : (searchParams.get("ordering") ?? "")
+          <Select
+            dir="rtl"
+            value={
+              !["", "newest", "freshness"].includes(
+                searchParams.get("ordering") ?? "",
+              )
+                ? searchParams.get("ordering")!
+                : "newest"
             }
+            onValueChange={(value) => {
+              const next = new URLSearchParams(searchParams);
+              if (value === "newest") next.delete("ordering");
+              else next.set("ordering", value);
+              next.delete("page");
+              onDraftChange(next);
+            }}
           >
-            <option value="">جدیدترین</option>
-            <option value="monthly_rent">کمترین اجاره ماهانه</option>
-            <option value="deposit">کمترین ودیعه</option>
-            <option value="area_desc">بیشترین متراژ</option>
-            <option value="area_asc">کمترین متراژ</option>
-          </select>
+            <SelectTrigger id={`${prefix}-ordering`}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="newest">جدیدترین</SelectItem>
+              <SelectItem value="monthly_rent">کمترین اجاره ماهانه</SelectItem>
+              <SelectItem value="deposit">کمترین ودیعه</SelectItem>
+              <SelectItem value="area_desc">بیشترین متراژ</SelectItem>
+              <SelectItem value="area_asc">کمترین متراژ</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
       </div>
 
       <div className="bg-background sticky bottom-0 -mx-1 mt-auto grid grid-cols-2 gap-2 border-t px-1 pt-4">
+        <div className="text-muted-foreground col-span-2 mb-2 text-sm leading-6">
+          {(["deposit", "monthly_rent"] as const).map((parameter) => {
+            const minimum = searchParams.get(`${parameter}_min_toman`);
+            const maximum = searchParams.get(`${parameter}_max_toman`);
+            return (
+              <p key={parameter}>
+                {parameter === "deposit" ? "ودیعه" : "اجاره ماهانه"}:{" "}
+                {minimum ? `از ${compactToman(minimum)} ` : ""}
+                {maximum ? `تا ${compactToman(maximum)} ` : ""}
+                {minimum || maximum ? "تومان" : "بدون محدودیت"}
+              </p>
+            );
+          })}
+        </div>
         <Button type="button" variant="ghost" onClick={onClear}>
           پاک کردن همه
         </Button>

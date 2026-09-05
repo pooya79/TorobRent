@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { X } from "lucide-react";
+import { Search, X } from "lucide-react";
 import { useId, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -39,54 +39,61 @@ export function LocationMultiSelect({
 
   return (
     <div className="relative space-y-2">
-      <Input
-        type="search"
-        role="combobox"
-        aria-label={label}
-        aria-autocomplete="list"
-        aria-controls={open && options.length > 0 ? listboxId : undefined}
-        aria-activedescendant={
-          activeOption ? `${listboxId}-option-${activeIndex}` : undefined
-        }
-        aria-expanded={open && options.length > 0}
-        placeholder={`${label} را جست‌وجو کنید`}
-        value={query}
-        onChange={(event) => {
-          setQuery(event.currentTarget.value);
-          setOpen(true);
-          setActiveIndex(null);
-        }}
-        onFocus={() => setOpen(true)}
-        onKeyDown={(event) => {
-          if (event.key === "Escape") {
-            setOpen(false);
+      <div className="relative">
+        <Search
+          className="text-muted-foreground pointer-events-none absolute start-3 top-3.5 size-4"
+          aria-hidden="true"
+        />
+        <Input
+          className="rounded-xl ps-10 shadow-none"
+          type="search"
+          role="combobox"
+          aria-label={label}
+          aria-autocomplete="list"
+          aria-controls={open && options.length > 0 ? listboxId : undefined}
+          aria-activedescendant={
+            activeOption ? `${listboxId}-option-${activeIndex}` : undefined
+          }
+          aria-expanded={open && options.length > 0}
+          placeholder={`${label} را جست‌وجو کنید`}
+          value={query}
+          onChange={(event) => {
+            setQuery(event.currentTarget.value);
+            setOpen(true);
             setActiveIndex(null);
-            return;
-          }
-          if (event.key === "ArrowDown" && options.length > 0) {
-            event.preventDefault();
-            setOpen(true);
-            setActiveIndex((index) =>
-              index === null ? 0 : (index + 1) % options.length,
-            );
-            return;
-          }
-          if (event.key === "ArrowUp" && options.length > 0) {
-            event.preventDefault();
-            setOpen(true);
-            setActiveIndex((index) =>
-              index === null
-                ? options.length - 1
-                : (index - 1 + options.length) % options.length,
-            );
-            return;
-          }
-          if (event.key === "Enter" && activeOption) {
-            event.preventDefault();
-            selectOption(activeOption);
-          }
-        }}
-      />
+          }}
+          onFocus={() => setOpen(true)}
+          onKeyDown={(event) => {
+            if (event.key === "Escape") {
+              setOpen(false);
+              setActiveIndex(null);
+              return;
+            }
+            if (event.key === "ArrowDown" && options.length > 0) {
+              event.preventDefault();
+              setOpen(true);
+              setActiveIndex((index) =>
+                index === null ? 0 : (index + 1) % options.length,
+              );
+              return;
+            }
+            if (event.key === "ArrowUp" && options.length > 0) {
+              event.preventDefault();
+              setOpen(true);
+              setActiveIndex((index) =>
+                index === null
+                  ? options.length - 1
+                  : (index - 1 + options.length) % options.length,
+              );
+              return;
+            }
+            if (event.key === "Enter" && activeOption) {
+              event.preventDefault();
+              selectOption(activeOption);
+            }
+          }}
+        />
+      </div>
       {selected.length > 0 && (
         <ul className="flex flex-wrap gap-2" aria-label={`${label} انتخاب‌شده`}>
           {selected.map((area) => (
@@ -94,6 +101,7 @@ export function LocationMultiSelect({
               <Button
                 type="button"
                 size="sm"
+                className="bg-primary/5 text-primary border-primary/20 rounded-lg border"
                 variant="secondary"
                 aria-label={`حذف ${area.label}`}
                 onClick={() =>
@@ -110,7 +118,7 @@ export function LocationMultiSelect({
         </ul>
       )}
       {open && query.trim().length >= 2 && (
-        <div className="border-border bg-popover absolute z-30 mt-1 w-full rounded-lg border p-1 shadow-md">
+        <div className="border-border bg-popover absolute z-30 mt-1 w-full rounded-xl border p-2 shadow-md">
           {suggestions.isPending && (
             <p
               className="text-muted-foreground px-3 py-2 text-sm"

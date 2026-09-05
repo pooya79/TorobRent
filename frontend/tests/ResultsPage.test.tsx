@@ -586,13 +586,18 @@ test("stages Advanced Filters, previews the count, and commits or discards as on
   const trigger = screen.getByRole("button", { name: "فیلترهای پیشرفته" });
   await user.click(trigger);
   let panel = await screen.findByRole("dialog", { name: "فیلترهای پیشرفته" });
-  expect(within(panel).getByLabelText("مرتب‌سازی")).toHaveValue("deposit");
+  expect(within(panel).getByLabelText("مرتب‌سازی")).toHaveTextContent(
+    "کمترین ودیعه",
+  );
   expect(
     within(within(panel).getByRole("group", { name: "بالکن" })).getByRole(
       "radio",
       { name: "نباشد" },
     ),
   ).toBeChecked();
+  if (!within(panel).getByText("متراژ و سال ساخت").closest("details")?.open) {
+    await user.click(within(panel).getByText("متراژ و سال ساخت"));
+  }
   await user.type(within(panel).getByLabelText("حداقل متراژ"), "۹۰");
 
   expect(screen.getByLabelText("وضعیت جست‌وجو")).not.toHaveTextContent(
@@ -613,6 +618,9 @@ test("stages Advanced Filters, previews the count, and commits or discards as on
   await user.click(trigger);
   panel = await screen.findByRole("dialog", { name: "فیلترهای پیشرفته" });
   expect(within(panel).getByLabelText("حداقل متراژ")).toHaveValue("");
+  if (!within(panel).getByText("متراژ و سال ساخت").closest("details")?.open) {
+    await user.click(within(panel).getByText("متراژ و سال ساخت"));
+  }
   await user.type(within(panel).getByLabelText("حداقل متراژ"), "90");
   await user.click(
     await within(panel).findByRole("button", { name: "نمایش ۷ ملک" }),
@@ -683,6 +691,7 @@ test("selects several districts and neighborhoods independently of the city", as
     name: "فیلترهای پیشرفته",
   });
 
+  await user.click(within(panel).getByText("محله‌ها و مناطق"));
   const district = within(panel).getByRole("combobox", { name: "منطقه" });
   await user.type(district, "منطقه");
   const districtOption = await within(panel).findByRole("option", {
@@ -739,6 +748,9 @@ test("announces an Advanced Filters preview failure and prevents a stale apply",
   const panel = await screen.findByRole("dialog", {
     name: "فیلترهای پیشرفته",
   });
+  if (!within(panel).getByText("متراژ و سال ساخت").closest("details")?.open) {
+    await user.click(within(panel).getByText("متراژ و سال ساخت"));
+  }
   await user.type(within(panel).getByLabelText("حداقل متراژ"), "90");
 
   expect(
@@ -1187,11 +1199,10 @@ test("offers the five specified sort choices with Newest selected by default", a
     name: "فیلترهای پیشرفته",
   });
   const sorting = within(filters).getByLabelText("مرتب‌سازی");
-  expect(sorting).toHaveValue("");
+  expect(sorting).toHaveTextContent("جدیدترین");
+  await user.click(sorting);
   expect(
-    within(sorting)
-      .getAllByRole("option")
-      .map((option) => option.textContent),
+    screen.getAllByRole("option").map((option) => option.textContent),
   ).toEqual([
     "جدیدترین",
     "کمترین اجاره ماهانه",
@@ -1199,6 +1210,13 @@ test("offers the five specified sort choices with Newest selected by default", a
     "بیشترین متراژ",
     "کمترین متراژ",
   ]);
+  await user.click(screen.getByRole("option", { name: "کمترین ودیعه" }));
+  await user.click(
+    await within(filters).findByRole("button", { name: "نمایش ۱ ملک" }),
+  );
+  expect(screen.getByLabelText("وضعیت جست‌وجو")).toHaveTextContent(
+    "ordering=deposit",
+  );
 });
 
 test("renders public approximate markers and uncertainty circles through the map adapter", async () => {
@@ -2085,7 +2103,7 @@ test("applies Advanced Filters with tolerant numeric entry and exposes removable
   const filters = await screen.findByRole("dialog", {
     name: "فیلترهای پیشرفته",
   });
-  await user.type(within(filters).getByLabelText("حداقل ودیعه"), "۵۰۰٬۰۰۰٬۰۰۰");
+  await user.type(within(filters).getByLabelText("حداقل ودیعه"), "۵۰۰");
   await user.click(
     within(
       within(filters).getByRole("group", { name: "تعداد اتاق خواب" }),
@@ -2231,4 +2249,47 @@ test("honors Persian digits in a shared filter URL and keeps controls synchroniz
   });
   expect(requestedArea).toBe("100");
   expect(within(filters).getByLabelText("حداکثر متراژ")).toHaveValue("۱۰۰");
+});
+
+test("preserves exact toman amounts while editing units, applying, and reopening filters", async () => {
+  const user = userEvent.setup();
+  renderResults(
+    "/search?deposit_min_toman=500000000&deposit_max_toman=1500000000",
+  );
+  await user.click(screen.getByRole("button", { name: "فیلترهای پیشرفته" }));
+  let panel = await screen.findByRole("dialog", { name: "فیلترهای پیشرفته" });
+  expect(within(panel).getByLabelText("حداقل ودیعه")).toHaveValue("۵۰۰");
+  expect(within(panel).getByLabelText("حداکثر ودیعه")).toHaveValue("۱٫۵");
+  await user.click(
+    within(panel).getByRole("button", {
+      name: "تغییر واحد حداکثر ودیعه، میلیارد تومان",
+    }),
+  );
+  expect(within(panel).getByLabelText("حداکثر ودیعه")).toHaveValue("۱٬۵۰۰");
+  await user.click(
+    within(panel).getByRole("button", {
+      name: "تغییر واحد حداکثر ودیعه، میلیون تومان",
+    }),
+  );
+  await user.clear(within(panel).getByLabelText("حداکثر ودیعه"));
+  await user.type(within(panel).getByLabelText("حداکثر ودیعه"), "٢٫٢٥");
+  await user.type(within(panel).getByLabelText("حداکثر اجاره ماهانه"), "۱۲٫۵");
+  await user.click(
+    await within(panel).findByRole("button", { name: "نمایش ۱ ملک" }),
+  );
+  expect(screen.getByLabelText("وضعیت جست‌وجو")).toHaveTextContent(
+    "deposit_max_toman=2250000000",
+  );
+  expect(screen.getByLabelText("وضعیت جست‌وجو")).toHaveTextContent(
+    "monthly_rent_max_toman=12500000",
+  );
+  await user.click(screen.getByRole("button", { name: "فیلترهای پیشرفته" }));
+  panel = await screen.findByRole("dialog", { name: "فیلترهای پیشرفته" });
+  expect(within(panel).getByLabelText("حداکثر ودیعه")).toHaveValue("۲٫۲۵");
+  await user.clear(within(panel).getByLabelText("حداکثر ودیعه"));
+  await user.type(within(panel).getByLabelText("حداکثر ودیعه"), "۰٫۲");
+  expect(within(panel).getByLabelText("حداکثر ودیعه")).toBeInvalid();
+  await user.click(within(panel).getByRole("button", { name: "پاک کردن همه" }));
+  expect(within(panel).getByLabelText("حداکثر ودیعه")).toHaveValue("");
+  expect(within(panel).getByLabelText("حداکثر ودیعه")).toBeValid();
 });
