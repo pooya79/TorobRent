@@ -276,7 +276,7 @@ export function CatalogFilters({
 
   return (
     <form
-      className="flex min-h-full flex-col"
+      className="flex h-full min-h-0 flex-col"
       onInput={(event) => {
         const form = event.currentTarget;
         for (const name of moneyFilterNames) {
@@ -317,7 +317,7 @@ export function CatalogFilters({
         onApply();
       }}
     >
-      <div className="flex-1 space-y-6 overflow-y-auto px-1 pb-28">
+      <div className="min-h-0 flex-1 space-y-6 overflow-y-auto overscroll-contain px-1 pb-6">
         <details
           className="group border-b pb-6"
           open={
@@ -484,7 +484,7 @@ export function CatalogFilters({
         </div>
       </div>
 
-      <div className="bg-background sticky bottom-0 -mx-1 mt-auto grid grid-cols-2 gap-2 border-t px-1 pt-4">
+      <div className="bg-background -mx-1 grid shrink-0 grid-cols-2 gap-2 border-t px-1 pt-4">
         <div className="text-muted-foreground col-span-2 mb-2 text-sm leading-6">
           {(["deposit", "monthly_rent"] as const).map((parameter) => {
             const minimum = searchParams.get(`${parameter}_min_toman`);
