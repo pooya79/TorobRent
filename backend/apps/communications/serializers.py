@@ -155,6 +155,8 @@ class MessageSummarySerializer(serializers.Serializer[MessageItem]):
             }[notification.originating_candidate_event.new_state]
         source_proposal_event = notification.originating_source_proposal_event
         if source_proposal_event is not None:
+            if hasattr(source_proposal_event, "publication_mode_change"):
+                return "روش انتشار منبع تغییر کرد"
             return {
                 "changes_requested": "منبع پیشنهادی نیازمند اصلاح است",
                 "rejected": "منبع پیشنهادی شما رد شد",
@@ -191,6 +193,10 @@ class MessageSummarySerializer(serializers.Serializer[MessageItem]):
         source_proposal_event = notification.originating_source_proposal_event
         event = source_proposal_event or notification.originating_event
         assert event is not None
+        if source_proposal_event is not None and hasattr(
+            source_proposal_event, "publication_mode_change"
+        ):
+            return event.reason
         if source_proposal_event is not None and event.new_state == "approved":
             return "منبع پیشنهادی شما بررسی و تایید شد."
         if event.new_state == "published":

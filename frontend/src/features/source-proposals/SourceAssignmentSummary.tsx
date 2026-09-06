@@ -33,7 +33,7 @@ export function SourceAssignmentSummary({
       {assignment.state === "active" && (
         <p>
           {assignment.review_mode === "automatic"
-            ? "نتایج معتبر هر بار استخراج می‌تواند خودکار منتشر شود."
+            ? "نتایج معتبر درخواست‌های تازه خودکار منتشر می‌شود."
             : assignment.review_mode === "approval_required"
               ? "نتایج هر بار استخراج نیازمند تأیید اپراتور است."
               : "روش بررسی برای این تخصیص ثبت نشده است."}

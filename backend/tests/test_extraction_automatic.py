@@ -28,35 +28,6 @@ def test_valid_results_publish_automatically_and_reuse_canonical_identity(
 
 @pytest.mark.django_db
 @pytest.mark.parametrize("assigned_case", ["automatic"], indirect=True)
-def test_changed_review_mode_cancels_queued_work(api_client, assigned_case, monkeypatch):
-    from django.db import connection
-
-    from apps.source_proposals.extraction import run_extraction
-
-    proposal, assignment, _, _, fetcher = assigned_case
-    monkeypatch.setattr("apps.source_proposals.extraction.SourcePageFetcher", lambda **kw: fetcher)
-    response = api_client.post(
-        f"/api/v1/source-proposals/{proposal.pk}/extraction-requests/",
-        {"assignment": assignment["id"], "url": proposal.website_url},
-        format="json",
-    )
-    assert response.status_code == 201
-    # Simulate an administrative authority change, bypassing immutable decision APIs.
-    with connection.cursor() as cursor:
-        cursor.execute(
-            "UPDATE source_proposals_sourceprofiledecision SET review_mode = %s",
-            ["approval_required"],
-        )
-    assert run_extraction(response.json()["id"]) is False
-    case = api_client.get(f"/api/v1/source-proposals/{proposal.pk}/").json()
-    run = case["assignment"]["recent_requests"][0]["run"]
-    assert run["state"] == "cancelled"
-    assert run["published"] == 0
-    assert run["candidates"] == []
-
-
-@pytest.mark.django_db
-@pytest.mark.parametrize("assigned_case", ["automatic"], indirect=True)
 @pytest.mark.parametrize("exception", ["conflict", "missing", "low_coverage", "drift"])
 def test_exceptions_stay_individually_reviewable_while_other_pages_publish(
     api_client, assigned_case, monkeypatch, django_capture_on_commit_callbacks, exception

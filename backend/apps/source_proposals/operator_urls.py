@@ -12,6 +12,7 @@ from .operator_views import (
     OperatorSourceProposalRejectView,
     OperatorSourceProposalReleaseView,
     OperatorSourceProposalRequestChangesView,
+    OperatorSourcePublicationModeView,
     OperatorSourceResponsibilityView,
 )
 from .run_views import OperatorRunApproveView
@@ -19,6 +20,11 @@ from .run_views import OperatorRunApproveView
 app_name = "operator-source-proposals"
 
 urlpatterns = [
+    path(
+        "<uuid:proposal_id>/publication-mode/",
+        OperatorSourcePublicationModeView.as_view(),
+        name="publication-mode",
+    ),
     path(
         "<uuid:proposal_id>/responsibility/",
         OperatorSourceResponsibilityView.as_view(),

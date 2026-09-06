@@ -27,6 +27,7 @@ from .serializers import (
     SourceProposalApprovalSerializer,
     SourceProposalDecisionSerializer,
     SourceProposalReviewClaimSerializer,
+    SourcePublicationModeRequestSerializer,
     SourceResponsibilityRequestSerializer,
     SourceURLApprovalSerializer,
 )
@@ -81,6 +82,7 @@ DecisionSerializer = type[
     | SourceProfileEditSerializer
     | SourceProfileRepairRequestSerializer
     | SourceResponsibilityRequestSerializer
+    | SourcePublicationModeRequestSerializer
 ]
 
 
@@ -308,4 +310,23 @@ class OperatorSourceResponsibilityView(APIView):
             proposal_id=proposal_id,
             serializer_class=SourceResponsibilityRequestSerializer,
             transition=reassign_responsibility,
+        )
+
+
+class OperatorSourcePublicationModeView(APIView):
+    permission_classes = (CanReviewSourceProposal,)
+
+    @extend_schema(
+        summary="Change publication mode for the approved Source profile",
+        request=SourcePublicationModeRequestSerializer,
+        responses=OperatorSourceProposalSerializer,
+    )
+    def post(self, request: Request, proposal_id: str) -> Response:
+        from .publication_modes import change_publication_mode
+
+        return _decision_response(
+            request=request,
+            proposal_id=proposal_id,
+            serializer_class=SourcePublicationModeRequestSerializer,
+            transition=change_publication_mode,
         )

@@ -338,42 +338,57 @@ test("keeps entered details available when URL validation fails", async () => {
   expect(url).toHaveValue("https://unsafe.example/catalog");
 });
 
-test("resumes an active website with replacement guidance and no introduction form", async () => {
-  server.use(
-    http.post("*/api/v1/source-proposals/", () =>
-      HttpResponse.json({
-        id: proposalId,
-        state: "approved",
-        is_current: true,
-        current_website_conflict: false,
-        website_name: "خانه‌یاب",
-        website_url: "https://khaneh.example/",
-        available_actions: [],
-        assignment: {
-          id: 12,
-          state: "active",
-          source: { display_name: "خانه‌یاب", domain: "khaneh.example" },
-          active_profile_version: null,
-          recent_requests: [],
-        },
-      }),
-    ),
-  );
-  render(
-    <QueryClientProvider
-      client={
-        new QueryClient({ defaultOptions: { queries: { retry: false } } })
-      }
-    >
-      <MemoryRouter initialEntries={["/source-proposal?new=1"]}>
-        <SourceProposalPage />
-      </MemoryRouter>
-    </QueryClientProvider>,
-  );
-  expect(await screen.findByText("وب‌سایت جاری شما")).toBeInTheDocument();
-  expect(screen.getByText(/برای جایگزینی وب‌سایت، ابتدا/)).toBeInTheDocument();
-  expect(screen.queryByLabelText("نام وب‌سایت")).not.toBeInTheDocument();
-  expect(
-    screen.getByRole("link", { name: "هماهنگی با اپراتور در مرکز پیام‌ها" }),
-  ).toHaveAttribute("href", "/messages");
-});
+test.each([
+  ["automatic", "نتایج معتبر درخواست‌های تازه خودکار منتشر می‌شود."],
+  ["approval_required", "نتایج هر بار استخراج نیازمند تأیید اپراتور است."],
+])(
+  "resumes an active website showing %s publication mode without operator controls",
+  async (mode, label) => {
+    server.use(
+      http.post("*/api/v1/source-proposals/", () =>
+        HttpResponse.json({
+          id: proposalId,
+          state: "approved",
+          is_current: true,
+          current_website_conflict: false,
+          website_name: "خانه‌یاب",
+          website_url: "https://khaneh.example/",
+          available_actions: [],
+          assignment: {
+            id: 12,
+            state: "active",
+            source: { display_name: "خانه‌یاب", domain: "khaneh.example" },
+            active_profile_version: { id: "version", number: 1 },
+            review_mode: mode,
+            mode_revision: 1,
+            recent_requests: [],
+          },
+        }),
+      ),
+    );
+    render(
+      <QueryClientProvider
+        client={
+          new QueryClient({ defaultOptions: { queries: { retry: false } } })
+        }
+      >
+        <MemoryRouter initialEntries={["/source-proposal?new=1"]}>
+          <SourceProposalPage />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    expect(await screen.findByText("وب‌سایت جاری شما")).toBeInTheDocument();
+    expect(screen.getByText(label)).toBeVisible();
+    expect(screen.queryByRole("radio")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "ثبت روش انتشار" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByText(/برای جایگزینی وب‌سایت، ابتدا/),
+    ).toBeInTheDocument();
+    expect(screen.queryByLabelText("نام وب‌سایت")).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "هماهنگی با اپراتور در مرکز پیام‌ها" }),
+    ).toHaveAttribute("href", "/messages");
+  },
+);

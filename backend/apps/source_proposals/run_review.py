@@ -14,7 +14,6 @@ from .models import (
     ExtractionRun,
     ExtractionRunDecision,
     ExtractionState,
-    ProfileReviewMode,
 )
 from .responsibility import require_source_responsibility
 from .review_claims import SourceProposalReviewConflict
@@ -28,12 +27,8 @@ def approve_run(
     Source.objects.select_for_update().get(pk=run.request.assignment.source_id)
     run = ExtractionRun.objects.select_for_update().get(pk=run.pk)
     approval = run.request.assignment.approval
-    if (
-        not authorized(run.request)
-        or not approval
-        or approval.review_mode != ProfileReviewMode.APPROVAL_REQUIRED
-    ):
-        raise ValidationError("تخصیص یا پروفایل فعال و نیازمند تأیید لازم است.")
+    if not authorized(run.request) or not approval:
+        raise ValidationError("تخصیص و پروفایل فعال لازم است.")
     require_source_responsibility(proposal=run.request.assignment.proposal, actor=actor)
     if actor.pk == run.request.requester_id:
         raise ValidationError("فقط اپراتور مسئول منبع می‌تواند نتایج را تأیید کند.")

@@ -149,13 +149,19 @@ class SourceAssignmentSerializer(serializers.ModelSerializer[SourceAssignment]):
     source = AssignmentSourceSerializer(read_only=True)  # type: ignore[assignment]
     state = serializers.SerializerMethodField()
     active_profile_version = serializers.SerializerMethodField()
-    review_mode = serializers.ChoiceField(
-        source="approval.review_mode",
-        choices=("approval_required", "automatic"),
-        read_only=True,
-        allow_null=True,
-        default=None,
-    )
+    review_mode = serializers.SerializerMethodField()
+    mode_revision = serializers.SerializerMethodField()
+
+    @extend_schema_field(serializers.ChoiceField(choices=("approval_required", "automatic", "")))
+    def get_review_mode(self, assignment: SourceAssignment) -> str:
+        from .publication_modes import publication_mode
+
+        return publication_mode(assignment.approval)[0]
+
+    def get_mode_revision(self, assignment: SourceAssignment) -> int:
+        from .publication_modes import publication_mode
+
+        return publication_mode(assignment.approval)[1]
 
     class Meta:
         model = SourceAssignment
@@ -169,6 +175,7 @@ class SourceAssignmentSerializer(serializers.ModelSerializer[SourceAssignment]):
             "revoked_at",
             "recent_requests",
             "review_operator",
+            "mode_revision",
         )
 
     @extend_schema_field(serializers.ChoiceField(choices=("active", "revoked")))
@@ -704,3 +711,9 @@ class SourceProfileRepairRequestSerializer(serializers.Serializer[Any]):
     selected_fields = serializers.ListField(
         child=serializers.CharField(max_length=40), min_length=1, max_length=4
     )
+
+
+class SourcePublicationModeRequestSerializer(serializers.Serializer[Any]):
+    reviewed_profile_version = serializers.UUIDField()
+    reviewed_mode_revision = serializers.IntegerField(min_value=0)
+    review_mode = serializers.ChoiceField(choices=("approval_required", "automatic"))

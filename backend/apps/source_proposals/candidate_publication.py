@@ -179,10 +179,22 @@ def publish_candidate(candidate: ExternalListingCandidate) -> None:
 
 def publish_automatic_candidates(run: ExtractionRun) -> None:
     """Publish valid candidates inside the worker's Source-locked completion transaction."""
-    from .models import ExternalListingCandidateState
+    from .extraction import authorized
+    from .models import ExternalListingCandidateState, ProfileReviewMode, SourceAssignment
+    from .publication_modes import publication_mode
     from .run_review import refresh_run_counts
     from .services import record_candidate_transition
 
+    request = run.request
+    assignment = SourceAssignment.objects.get(pk=request.assignment_id)
+    mode, revision = publication_mode(assignment.approval)
+    if (
+        not authorized(request)
+        or request.review_mode != ProfileReviewMode.AUTOMATIC
+        or mode != ProfileReviewMode.AUTOMATIC
+        or request.publication_revision != revision
+    ):
+        return
     for candidate in run.candidates.filter(
         state=ExternalListingCandidateState.PENDING, validation_errors={}
     ):

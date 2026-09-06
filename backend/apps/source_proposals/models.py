@@ -582,6 +582,7 @@ class ExtractionState(models.TextChoices):
 
 
 class ExtractionRequest(models.Model):
+    publication_revision = models.PositiveIntegerField(default=0, db_default=0)
     review_mode = models.CharField(
         max_length=24, choices=ProfileReviewMode, default="", db_default=""
     )
@@ -776,3 +777,28 @@ class SourceResponsibilityChange(ImmutableProfileRecord):
 
     def __str__(self) -> str:
         return f"{self.source_id}: responsibility {self.revision}"
+
+
+class SourcePublicationModeChange(ImmutableProfileRecord):
+    objects: ClassVar[models.Manager[SourcePublicationModeChange]] = models.Manager.from_queryset(
+        ImmutableProfileQuerySet
+    )()
+    approval = models.ForeignKey(
+        SourceProfileDecision, on_delete=models.PROTECT, related_name="publication_changes"
+    )
+    event = models.OneToOneField(
+        SourceProposalEvent, on_delete=models.PROTECT, related_name="publication_mode_change"
+    )
+    revision = models.PositiveIntegerField()
+    review_mode = models.CharField(max_length=24, choices=ProfileReviewMode)
+
+    class Meta:
+        ordering = ("revision",)
+        constraints = [
+            models.UniqueConstraint(
+                fields=("approval", "revision"), name="unique_publication_mode_revision"
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"Publication mode {self.approval_id}: revision {self.revision}"

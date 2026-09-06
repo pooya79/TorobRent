@@ -27,6 +27,7 @@ from .models import (
     SourceProfile,
 )
 from .profiles import extractor_profile
+from .publication_modes import publication_mode
 from .url_validation import normalize_public_domain, normalize_public_url
 
 
@@ -51,11 +52,13 @@ def submit_request(
         raise ValidationError("نشانی باید روی دامنه دقیق منبع باشد.")
     if not validate_public_destination(canonical, approved_host=assignment.source.domain):
         raise ValidationError("مقصد عمومی امن در دسترس نیست؛ نشانی را بررسی یا دوباره تلاش کنید.")
+    mode, revision = publication_mode(assignment.approval)
     request = ExtractionRequest.objects.create(
         assignment=assignment,
         requester=actor,
         profile_version=assignment.approval.version,
-        review_mode=assignment.approval.review_mode,
+        review_mode=mode,
+        publication_revision=revision,
         submitted_url=url,
         canonical_url=canonical,
     )
@@ -90,7 +93,6 @@ def authorized(request: ExtractionRequest) -> bool:
             revoked_at__isnull=True,
             representative_id=request.requester_id,
             approval__version_id=request.profile_version_id,
-            approval__review_mode=request.review_mode,
             proposal__state="approved",
         ).exists()
         and SourceProfile.objects.filter(

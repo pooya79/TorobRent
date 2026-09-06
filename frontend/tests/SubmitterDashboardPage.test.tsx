@@ -433,7 +433,7 @@ test("warns about final-week expiry and confirms unchanged availability in one a
 
 test.each([
   ["approval_required", "نتایج هر بار استخراج نیازمند تأیید اپراتور است."],
-  ["automatic", "نتایج معتبر هر بار استخراج می‌تواند خودکار منتشر شود."],
+  ["automatic", "نتایج معتبر درخواست‌های تازه خودکار منتشر می‌شود."],
 ])(
   "shows the approved Source Assignment and %s review mode",
   async (mode, explanation) => {

@@ -203,7 +203,7 @@ def test_transient_failure_is_bounded_and_retry_reuses_run(api_client, assigned_
 @pytest.mark.django_db(transaction=True)
 @pytest.mark.parametrize("assigned_case", ["automatic", "approval_required"], indirect=True)
 @pytest.mark.parametrize("change", ["revoked", "profile", "mode", "suspended"])
-def test_concurrent_delivery_and_revocation_discard_inflight_results(
+def test_concurrent_delivery_rechecks_extraction_and_publication_authority(
     api_client, assigned_case, monkeypatch, change
 ):
     from concurrent.futures import ThreadPoolExecutor
@@ -266,22 +266,29 @@ def test_concurrent_delivery_and_revocation_discard_inflight_results(
 
                 SourceProposal.objects.filter(pk=proposal.pk).update(state="pending")
             else:
-                with connection.cursor() as cursor:
-                    cursor.execute(
-                        "UPDATE source_proposals_sourceprofiledecision SET review_mode = %s",
-                        [
-                            "approval_required"
-                            if assignment["review_mode"] == "automatic"
-                            else "automatic"
-                        ],
-                    )
+                from tests.test_publication_modes import change_mode
+
+                response = change_mode(
+                    api_client,
+                    assigned_case,
+                    "approval_required"
+                    if assignment["review_mode"] == "automatic"
+                    else "automatic",
+                )
+                assert response.status_code == 200
         finally:
             release.set()
         assert future.result(timeout=15) is False
     assert ExtractionRun.objects.filter(request_id=record["id"]).count() == 1
     request = ExtractionRequest.objects.get(pk=record["id"])
-    assert request.state == "cancelled"
-    assert request.run.results == []
+    if change == "mode":
+        assert request.state == "complete"
+        assert len(request.run.results) == 10
+        assert request.run.published == 0
+        assert all(candidate.state == "pending" for candidate in request.run.candidates.all())
+    else:
+        assert request.state == "cancelled"
+        assert request.run.results == []
     assert request.run.attempts == 1
 
 

@@ -907,6 +907,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/v1/operator/source-proposals/{proposal_id}/publication-mode/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Change publication mode for the approved Source profile */
+    post: operations["v1_operator_source_proposals_publication_mode_create"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/v1/operator/source-proposals/{proposal_id}/reject/": {
     parameters: {
       query?: never;
@@ -3316,6 +3333,7 @@ export interface components {
     /**
      * @description * `approval_required` - approval_required
      *     * `automatic` - automatic
+     *     * `` -
      * @enum {string}
      */
     ReviewModeEnum: "approval_required" | "automatic";
@@ -3347,7 +3365,7 @@ export interface components {
         components["schemas"]["AssignmentProfileVersion"] | null;
       readonly review_mode:
         | components["schemas"]["ReviewModeEnum"]
-        | components["schemas"]["NullEnum"];
+        | components["schemas"]["BlankEnum"];
       /** Format: date-time */
       readonly created_at: string;
       /** Format: date-time */
@@ -3355,6 +3373,7 @@ export interface components {
       readonly recent_requests: components["schemas"]["ExtractionRequest"][];
       /** Format: uuid */
       readonly review_operator: string | null;
+      readonly mode_revision: number;
     };
     /**
      * @description * `active` - active
@@ -3607,6 +3626,12 @@ export interface components {
       name: string;
       display_name: string;
       outbound_policy: components["schemas"]["OutboundPolicyEnum"];
+    };
+    SourcePublicationModeRequest: {
+      /** Format: uuid */
+      reviewed_profile_version: string;
+      reviewed_mode_revision: number;
+      review_mode: components["schemas"]["ReviewModeEnum"];
     };
     SourceResponsibility: {
       /** Format: uuid */
@@ -6009,6 +6034,31 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": components["schemas"]["SourceURLApproval"];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["OperatorSourceProposal"];
+        };
+      };
+    };
+  };
+  v1_operator_source_proposals_publication_mode_create: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        proposal_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["SourcePublicationModeRequest"];
       };
     };
     responses: {

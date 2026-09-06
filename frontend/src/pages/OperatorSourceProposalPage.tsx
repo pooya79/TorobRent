@@ -1,3 +1,4 @@
+import { SourcePublicationModePanel } from "@/features/source-proposals/SourcePublicationModePanel";
 import { SourceResponsibilityPanel } from "@/features/source-proposals/SourceResponsibilityPanel";
 import { CandidateEvidence } from "@/features/source-proposals/CandidateEvidence";
 import { CandidateCorrectionForm } from "@/features/source-proposals/CandidateCorrectionForm";
@@ -208,6 +209,14 @@ function ProposalReviewCard({
             onDecisionSuccess(updated);
           }}
         />
+        {proposal.state === "approved" &&
+          proposal.assignment?.state === "active" &&
+          canDecideSource && (
+            <SourcePublicationModePanel
+              proposal={proposal}
+              onUpdate={onDecisionSuccess}
+            />
+          )}
         {proposal.assignment && (
           <SourceAssignmentSummary
             assignment={proposal.assignment}
@@ -216,7 +225,6 @@ function ProposalReviewCard({
               canApprove:
                 proposal.state === "approved" &&
                 proposal.assignment.state === "active" &&
-                proposal.assignment.review_mode === "approval_required" &&
                 canDecideSource,
             }}
           />
