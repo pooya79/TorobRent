@@ -1,3 +1,4 @@
+import { SourceConversationButton } from "@/features/source-proposals/SourceConversationButton";
 import { SourceExclusionsPanel } from "@/features/source-proposals/SourceExclusionsPanel";
 import { SourcePublicationModePanel } from "@/features/source-proposals/SourcePublicationModePanel";
 import { SourceResponsibilityPanel } from "@/features/source-proposals/SourceResponsibilityPanel";
@@ -6,6 +7,7 @@ import { CandidateCorrectionForm } from "@/features/source-proposals/CandidateCo
 import { SourceAssignmentSummary } from "@/features/source-proposals/SourceAssignmentSummary";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { useSearchParams } from "react-router";
 
 import { PageMain } from "@/components/layout/PageMain";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -24,6 +26,7 @@ import {
   decideSourceProposal,
   operatorExternalListingCandidatesQueryOptions,
   operatorSourceProposalsQueryOptions,
+  operatorSourceContextQueryOptions,
   type ExternalListingCandidate,
   type OperatorSourceProposal,
 } from "@/features/source-proposals/queries";
@@ -148,6 +151,9 @@ function ProposalReviewCard({
         </div>
       </CardHeader>
       <CardContent className="grid gap-6">
+        {canReview && (
+          <SourceConversationButton proposalId={proposal.id} operator />
+        )}
         {proposal.current_website_conflict && (
           <Alert variant="destructive">
             <AlertTitle>تعارض وب‌سایت‌های جاری ارسال‌کننده</AlertTitle>
@@ -631,7 +637,11 @@ export function OperatorSourceProposalPage() {
   const queryClient = useQueryClient();
   const [completed, setCompleted] = useState(false);
   const [listingCompleted, setListingCompleted] = useState(false);
-  const proposals = useQuery(operatorSourceProposalsQueryOptions);
+  const [searchParams] = useSearchParams();
+  const contextOptions = operatorSourceContextQueryOptions(
+    searchParams.get("proposal"),
+  );
+  const proposals = useQuery(contextOptions);
   const currentUser = useQuery(currentUserQuery);
   const mayReview =
     currentUser.data?.operator_capabilities.includes(
@@ -643,7 +653,7 @@ export function OperatorSourceProposalPage() {
   });
   const removeCompletedProposal = (updated: OperatorSourceProposal) => {
     queryClient.setQueryData<OperatorSourceProposal[]>(
-      operatorSourceProposalsQueryOptions.queryKey,
+      contextOptions.queryKey,
       (current) =>
         current?.flatMap((proposal) =>
           proposal.id !== updated.id

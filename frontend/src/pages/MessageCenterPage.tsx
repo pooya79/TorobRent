@@ -1,3 +1,4 @@
+import { SourceConversationPicker } from "@/features/messages/SourceConversationPicker";
 import { AccountWorkspace } from "@/features/account/AccountWorkspace";
 import { MessageTextForm } from "@/features/messages/MessageTextForm";
 import { Badge } from "@/components/ui/badge";
@@ -34,6 +35,7 @@ import {
   messageDetailQueryOptions,
   messagesQueryOptions,
   replyToSupportRequest,
+  replyToSourceConversation,
   replyToListingInquiry,
   reportListingInquiry,
   type MessageFilter,
@@ -45,12 +47,14 @@ const filters: { label: string; value: MessageFilter }[] = [
   { label: "همه", value: "all" },
   { label: "اعلان‌های سامانه", value: "system_notification" },
   { label: "پرسش‌های آگهی", value: "listing_inquiry" },
+  { label: "گفت‌وگوهای منبع", value: "source_conversation" },
   { label: "پشتیبانی", value: "support_request" },
   { label: "خوانده‌نشده", value: "unread" },
 ];
 
 function filterFrom(value: string | null): MessageFilter {
-  return value === "system_notification" ||
+  return value === "source_conversation" ||
+    value === "system_notification" ||
     value === "listing_inquiry" ||
     value === "support_request" ||
     value === "unread"
@@ -195,6 +199,8 @@ function MessageCenterContent({
       if (detail.data?.kind === "listing_inquiry") {
         return replyToListingInquiry(messageId, body);
       }
+      if (detail.data?.kind === "source_conversation")
+        return replyToSourceConversation(messageId, body);
       return replyToSupportRequest(messageId, body);
     },
     onSuccess: () => {
@@ -303,7 +309,8 @@ function MessageCenterContent({
               messageId && "hidden xl:block",
             )}
           >
-            گفت‌وگوهای آگهی، پاسخ‌های پشتیبانی و اعلان‌های حساب را دنبال کنید.
+            گفت‌وگوهای آگهی و منبع، پاسخ‌های پشتیبانی و اعلان‌های حساب را دنبال
+            کنید.
           </p>
         </div>
         <Button
@@ -346,6 +353,9 @@ function MessageCenterContent({
         ))}
       </nav>
 
+      {filter === "source_conversation" && !messageId && (
+        <SourceConversationPicker />
+      )}
       <div className="bg-card grid min-h-128 min-w-0 overflow-hidden rounded-2xl border xl:grid-cols-[minmax(16rem,0.85fr)_minmax(0,1.6fr)]">
         <section
           aria-label="فهرست پیام‌ها"
@@ -437,7 +447,8 @@ function MessageCenterContent({
                                     className="size-4"
                                     aria-hidden="true"
                                   />
-                                ) : message.kind === "listing_inquiry" ? (
+                                ) : message.kind === "listing_inquiry" ||
+                                  message.kind === "source_conversation" ? (
                                   <MessageCircle
                                     className="size-4"
                                     aria-hidden="true"
@@ -553,7 +564,8 @@ function MessageCenterContent({
                     <div className="text-primary bg-primary/10 flex size-11 shrink-0 items-center justify-center rounded-xl">
                       {detail.data.kind === "support_request" ? (
                         <Headphones aria-hidden="true" />
-                      ) : detail.data.kind === "listing_inquiry" ? (
+                      ) : detail.data.kind === "source_conversation" ||
+                        detail.data.kind === "listing_inquiry" ? (
                         <MessageCircle aria-hidden="true" />
                       ) : (
                         <Bell aria-hidden="true" />
@@ -563,9 +575,11 @@ function MessageCenterContent({
                       <Badge variant="secondary" className="mb-2">
                         {detail.data.kind === "support_request"
                           ? "پشتیبانی"
-                          : detail.data.kind === "listing_inquiry"
-                            ? "پرسش آگهی"
-                            : "اعلان سامانه"}
+                          : detail.data.kind === "source_conversation"
+                            ? "گفت‌وگوی منبع"
+                            : detail.data.kind === "listing_inquiry"
+                              ? "پرسش آگهی"
+                              : "اعلان سامانه"}
                       </Badge>
                       <h2
                         ref={detailHeading}
@@ -699,6 +713,59 @@ function MessageCenterContent({
                             </Button>
                           </AlertDescription>
                         </Alert>
+                      )}
+                    </>
+                  ) : detail.data.kind === "source_conversation" ? (
+                    <>
+                      <p className="text-muted-foreground mt-3 text-sm">
+                        پیام‌ها تصمیم بررسی یا وضعیت استخراج و انتشار را تغییر
+                        نمی‌دهند.
+                      </p>
+                      <ol aria-label="گفت‌وگوی منبع" className="mt-6 space-y-3">
+                        {detail.data.entries.map((entry) => (
+                          <li
+                            key={entry.id}
+                            className={cn(
+                              "rounded-2xl border p-4",
+                              entry.mine
+                                ? "bg-primary/5 ms-4"
+                                : "bg-muted/50 me-4",
+                            )}
+                          >
+                            <p className="mb-2 text-xs font-semibold">
+                              {entry.author_name}
+                            </p>
+                            <p className="text-sm leading-7 break-words whitespace-pre-wrap">
+                              {entry.body}
+                            </p>
+                            <time
+                              dateTime={entry.created_at}
+                              className="text-muted-foreground mt-3 block text-xs"
+                            >
+                              {new Date(entry.created_at).toLocaleString(
+                                "fa-IR",
+                              )}
+                            </time>
+                          </li>
+                        ))}
+                      </ol>
+                      {detail.data.reply_allowed ? (
+                        <div className="mt-6">
+                          <MessageTextForm
+                            id={`reply-${messageId}`}
+                            initialBody={draft}
+                            onBodyChange={onDraftChange}
+                            pending={reply.isPending}
+                            error={reply.isError}
+                            onSubmit={(body, onSuccess) =>
+                              reply.mutate(body, { onSuccess })
+                            }
+                          />
+                        </div>
+                      ) : (
+                        <p className="mt-6">
+                          حساب نماینده حذف شده و گفت‌وگو فقط خواندنی است.
+                        </p>
                       )}
                     </>
                   ) : detail.data.kind === "listing_inquiry" ? (

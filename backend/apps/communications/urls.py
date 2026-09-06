@@ -1,5 +1,6 @@
 from django.urls import path
 
+from .source_views import SourceConversationOpenView, SourceConversationReplyView
 from .views import (
     ListingInquiryBlockView,
     ListingInquiryCreateView,
@@ -17,6 +18,16 @@ from .views import (
 app_name = "communications"
 
 urlpatterns = [
+    path(
+        "source-conversations/",
+        SourceConversationOpenView.as_view(),
+        name="source-conversation-open",
+    ),
+    path(
+        "source-conversations/<uuid:conversation_id>/replies/",
+        SourceConversationReplyView.as_view(),
+        name="source-conversation-reply",
+    ),
     path(
         "listing-inquiries/<uuid:inquiry_id>/block/",
         ListingInquiryBlockView.as_view(),

@@ -4,7 +4,7 @@ from typing import Any, cast
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db.models import Q
 from drf_spectacular.utils import extend_schema
-from rest_framework import status
+from rest_framework import serializers, status
 from rest_framework.exceptions import ValidationError
 from rest_framework.generics import get_object_or_404
 from rest_framework.permissions import BasePermission
@@ -51,11 +51,16 @@ class CanReleaseSourceProposal(BasePermission):
         )
 
 
+class SourceProposalContextQuerySerializer(serializers.Serializer[Any]):
+    proposal = serializers.UUIDField(required=False)
+
+
 class OperatorSourceProposalListView(APIView):
     permission_classes = (CanReleaseSourceProposal,)
 
     @extend_schema(
-        summary="List pending Source Proposals for Operator review",
+        summary="List Source Proposals for Operator review or open a conversation context",
+        parameters=[SourceProposalContextQuerySerializer],
         responses=OperatorSourceProposalSerializer(many=True),
     )
     def get(self, request: Request) -> Response:
@@ -69,6 +74,16 @@ class OperatorSourceProposalListView(APIView):
             .exclude(submitter=cast(User, request.user))
             .prefetch_related("events__actor")
         )
+        query = SourceProposalContextQuerySerializer(data=request.query_params)
+        query.is_valid(raise_exception=True)
+        if proposal_id := query.validated_data.get("proposal"):
+            from apps.communications.source_conversations import conversation_proposals_for
+
+            proposals = (
+                conversation_proposals_for(cast(User, request.user))
+                .filter(pk=proposal_id)
+                .exclude(submitter=cast(User, request.user))
+            )
         return Response(OperatorSourceProposalSerializer(proposals, many=True).data)
 
 

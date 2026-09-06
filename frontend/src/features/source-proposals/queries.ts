@@ -94,15 +94,8 @@ export async function submitSourceProposal(proposalId: string) {
   return data;
 }
 
-export const operatorSourceProposalsQueryOptions = queryOptions({
-  queryKey: ["operator-source-proposals"] as const,
-  refetchInterval: 5000,
-  queryFn: async () => {
-    const { data, error } = await api.GET("/api/v1/operator/source-proposals/");
-    if (error || !data) throw apiError(error);
-    return data;
-  },
-});
+export const operatorSourceProposalsQueryOptions =
+  operatorSourceContextQueryOptions(null);
 
 export async function claimSourceProposal(proposalId: string) {
   const { data, error } = await api.POST(
@@ -369,4 +362,23 @@ export async function withdrawExcludedListings(
   );
   if (error || !data) throw apiError(error);
   return data;
+}
+
+export function operatorSourceContextQueryOptions(proposalId: string | null) {
+  return queryOptions({
+    queryKey: proposalId
+      ? ["operator-source-proposals", proposalId]
+      : ["operator-source-proposals"],
+    refetchInterval: 5000,
+    queryFn: async () => {
+      const { data, error } = await api.GET(
+        "/api/v1/operator/source-proposals/",
+        {
+          params: { query: proposalId ? { proposal: proposalId } : {} },
+        },
+      );
+      if (error || !data) throw apiError(error);
+      return data;
+    },
+  });
 }

@@ -4,6 +4,7 @@ from typing import cast
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.core.paginator import InvalidPage, Paginator
 from django.db import models
+from django.db.models.functions import Coalesce
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from drf_spectacular.utils import OpenApiResponse, extend_schema, extend_schema_view
@@ -28,6 +29,7 @@ from apps.contact.services import (
 from .models import (
     ListingInquiry,
     ListingInquiryMessage,
+    SourceConversation,
     SystemNotification,
     SystemNotificationReadState,
 )
@@ -59,6 +61,7 @@ from .services import (
     report_listing_inquiry,
     start_listing_inquiry,
 )
+from .source_conversations import mark_source_conversation_read, source_conversations_for
 
 
 class MessageConflict(APIException):
@@ -133,10 +136,13 @@ class MessageListView(APIView):
         inquiries = ListingInquiry.objects.none()
         if kind in ("all", "listing_inquiry"):
             inquiries = listing_inquiries_for(user, unread=unread)
+        conversations = source_conversations_for(user, unread=unread)
+        if kind not in ("all", "source_conversation"):
+            conversations = conversations.none()
         paginator = self.pagination_class()
         page_size = paginator.get_page_size(request)
         assert page_size is not None
-        total = notifications.count() + requests.count() + inquiries.count()
+        total = notifications.count() + requests.count() + inquiries.count() + conversations.count()
         django_paginator = Paginator(range(total), page_size)
         page_number = paginator.get_page_number(request, django_paginator)
         try:
@@ -176,10 +182,21 @@ class MessageListView(APIView):
             )
             .values("id", "timeline_at", "timeline_source")
         )
+        conversation_timeline = (
+            conversations
+            .order_by()
+            .annotate(
+                timeline_at=Coalesce("latest_activity_at", "created_at"),
+                timeline_source=models.Value(
+                    "source_conversation", output_field=models.CharField()
+                ),
+            )
+            .values("id", "timeline_at", "timeline_source")
+        )
         timeline = list(
-            notification_timeline.union(request_timeline, inquiry_timeline, all=True).order_by(
-                "-timeline_at", "-id"
-            )[start:end]
+            notification_timeline.union(
+                request_timeline, inquiry_timeline, conversation_timeline, all=True
+            ).order_by("-timeline_at", "-id")[start:end]
         )
         notification_ids = [
             item["id"] for item in timeline if item["timeline_source"] == "notification"
@@ -195,14 +212,26 @@ class MessageListView(APIView):
         }
         request_items = {item.id: item for item in requests.filter(id__in=request_ids)}
         inquiry_items = {item.id: item for item in inquiries.filter(id__in=inquiry_ids)}
-        items: list[SystemNotification | SupportRequest | ListingInquiry] = [
+        conversation_items = {
+            item.id: item
+            for item in conversations.filter(
+                id__in=[
+                    row["id"] for row in timeline if row["timeline_source"] == "source_conversation"
+                ]
+            )
+        }
+        items: list[SystemNotification | SupportRequest | ListingInquiry | SourceConversation] = [
             (
                 notification_items[item["id"]]
                 if item["timeline_source"] == "notification"
                 else (
                     request_items[item["id"]]
                     if item["timeline_source"] == "support_request"
-                    else inquiry_items[item["id"]]
+                    else (
+                        inquiry_items[item["id"]]
+                        if item["timeline_source"] == "listing_inquiry"
+                        else conversation_items[item["id"]]
+                    )
                 )
             )
             for item in timeline
@@ -218,8 +247,11 @@ class MessageDetailView(APIView):
 
     def item(
         self, request: Request, message_id: str
-    ) -> SystemNotification | SupportRequest | ListingInquiry:
+    ) -> SystemNotification | SupportRequest | ListingInquiry | SourceConversation:
         user = cast(User, request.user)
+        conversation = source_conversations_for(user).filter(pk=message_id).first()
+        if conversation is not None:
+            return conversation
         inquiry = (
             ListingInquiry.objects
             .filter(id=message_id)
@@ -253,7 +285,11 @@ class MessageDetailView(APIView):
     @extend_schema(summary="Open a Message Center item", responses={200: MessageDetailSerializer})
     def get(self, request: Request, message_id: str) -> Response:
         item = self.item(request, message_id)
-        if isinstance(item, SystemNotification):
+        if isinstance(item, SourceConversation):
+            mark_source_conversation_read(
+                conversation=item, actor=cast(User, request.user), read=True
+            )
+        elif isinstance(item, SystemNotification):
             SystemNotificationReadState.objects.get_or_create(notification=item)
         elif isinstance(item, ListingInquiry):
             now = timezone.now()
@@ -277,7 +313,13 @@ class MessageDetailView(APIView):
         item = self.item(request, message_id)
         update = MessageReadUpdateSerializer(data=request.data)
         update.is_valid(raise_exception=True)
-        if isinstance(item, SystemNotification) and update.validated_data["read"]:
+        if isinstance(item, SourceConversation):
+            mark_source_conversation_read(
+                conversation=item,
+                actor=cast(User, request.user),
+                read=update.validated_data["read"],
+            )
+        elif isinstance(item, SystemNotification) and update.validated_data["read"]:
             SystemNotificationReadState.objects.get_or_create(notification=item)
         elif isinstance(item, SystemNotification):
             SystemNotificationReadState.objects.filter(notification=item).delete()
@@ -315,7 +357,10 @@ class UnreadMessageCountView(APIView):
         )
         inquiry_unread = listing_inquiries_for(user, unread=True).count()
         count = (
-            system_notifications_for(user, unread=True).count() + support_unread + inquiry_unread
+            system_notifications_for(user, unread=True).count()
+            + support_unread
+            + inquiry_unread
+            + source_conversations_for(user, unread=True).count()
         )
         return Response({"count": count})
 

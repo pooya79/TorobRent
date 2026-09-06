@@ -10,6 +10,7 @@ from django.db import models
 
 
 class MessageKind(models.TextChoices):
+    SOURCE_CONVERSATION = "source_conversation", "Source Conversation"
     SYSTEM_NOTIFICATION = "system_notification", "System Notification"
     LISTING_INQUIRY = "listing_inquiry", "Listing Inquiry"
     SUPPORT_REQUEST = "support_request", "Support Request"
@@ -603,3 +604,61 @@ class SystemNotificationReadState(models.Model):
 
     def __str__(self) -> str:
         return f"Read {self.notification_id}"
+
+
+class SourceConversation(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    proposal = models.OneToOneField(
+        "source_proposals.SourceProposal", on_delete=models.PROTECT, related_name="conversation"
+    )
+    latest_activity_at = models.DateTimeField(null=True, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ("-latest_activity_at", "-id")
+
+    def __str__(self) -> str:
+        return f"Source Conversation {self.proposal_id}"
+
+
+class SourceConversationMessage(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    conversation = models.ForeignKey(
+        SourceConversation, on_delete=models.PROTECT, related_name="messages"
+    )
+    author = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True)
+    from_representative = models.BooleanField()
+    body = models.TextField(max_length=2000)
+    created_at = models.DateTimeField(auto_now_add=True)
+    redacted_at = models.DateTimeField(null=True, editable=False)
+    redacted_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        null=True,
+        related_name="redacted_source_messages",
+        editable=False,
+    )
+
+    class Meta:
+        ordering = ("created_at", "id")
+
+    def __str__(self) -> str:
+        return f"{self.conversation_id}: {self.created_at}"
+
+
+class SourceConversationReadState(models.Model):
+    conversation = models.ForeignKey(
+        SourceConversation, on_delete=models.CASCADE, related_name="read_states"
+    )
+    account = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    read_at = models.DateTimeField(null=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=("conversation", "account"), name="one_source_conversation_read_state"
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.conversation_id}: {self.account_id}"

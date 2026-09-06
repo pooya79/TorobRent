@@ -499,6 +499,41 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/v1/messages/source-conversations/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List accessible Source Conversation contexts */
+    get: operations["v1_messages_source_conversations_list"];
+    put?: never;
+    /** Open the Source Conversation for a proposal */
+    post: operations["v1_messages_source_conversations_create"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/messages/source-conversations/{conversation_id}/replies/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Reply to a Source Conversation */
+    post: operations["v1_messages_source_conversations_replies_create"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/v1/messages/support-requests/": {
     parameters: {
       query?: never;
@@ -761,7 +796,7 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** List pending Source Proposals for Operator review */
+    /** List Source Proposals for Operator review or open a conversation context */
     get: operations["v1_operator_source_proposals_list"];
     put?: never;
     post?: never;
@@ -2838,13 +2873,17 @@ export interface components {
     MessageGroupKindEnum:
       "submission" | "source_proposal" | "support_request" | "listing_inquiry";
     /**
-     * @description * `system_notification` - System Notification
+     * @description * `source_conversation` - Source Conversation
+     *     * `system_notification` - System Notification
      *     * `listing_inquiry` - Listing Inquiry
      *     * `support_request` - Support Request
      * @enum {string}
      */
     MessageKindEnum:
-      "system_notification" | "listing_inquiry" | "support_request";
+      | "source_conversation"
+      | "system_notification"
+      | "listing_inquiry"
+      | "support_request";
     MessageSummary: {
       /** Format: uuid */
       readonly id: string;
@@ -3507,6 +3546,28 @@ export interface components {
      * @enum {string}
      */
     SourceAssignmentStateEnum: "active" | "revoked";
+    SourceConversationMessage: {
+      /** Format: uuid */
+      id: string;
+      body: string;
+      /** Format: date-time */
+      created_at: string;
+    };
+    SourceConversationOpen: {
+      /** Format: uuid */
+      proposal_id: string;
+    };
+    SourceConversationOpened: {
+      /** Format: uuid */
+      id: string;
+      href: string;
+    };
+    SourceConversationOption: {
+      /** Format: uuid */
+      proposal_id: string;
+      website_name: string;
+      operator: boolean;
+    };
     SourceDisagreement: {
       field: string;
       normalized_value: unknown;
@@ -5500,12 +5561,17 @@ export interface operations {
       query?: {
         /**
          * @description * `all` - all
+         *     * `source_conversation` - source_conversation
          *     * `system_notification` - system_notification
          *     * `listing_inquiry` - listing_inquiry
          *     * `support_request` - support_request
          */
         kind?:
-          "all" | "system_notification" | "listing_inquiry" | "support_request";
+          | "all"
+          | "source_conversation"
+          | "system_notification"
+          | "listing_inquiry"
+          | "support_request";
         /** @description A page number within the paginated result set. */
         page?: number;
         /** @description Number of results to return per page. */
@@ -5699,6 +5765,73 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["ConversationReportCreated"];
+        };
+      };
+    };
+  };
+  v1_messages_source_conversations_list: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SourceConversationOption"][];
+        };
+      };
+    };
+  };
+  v1_messages_source_conversations_create: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["SourceConversationOpen"];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SourceConversationOpened"];
+        };
+      };
+    };
+  };
+  v1_messages_source_conversations_replies_create: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        conversation_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["MessageBody"];
+      };
+    };
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SourceConversationMessage"];
         };
       };
     };
@@ -6055,7 +6188,9 @@ export interface operations {
   };
   v1_operator_source_proposals_list: {
     parameters: {
-      query?: never;
+      query?: {
+        proposal?: string;
+      };
       header?: never;
       path?: never;
       cookie?: never;

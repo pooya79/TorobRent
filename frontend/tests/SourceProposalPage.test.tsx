@@ -392,3 +392,41 @@ test.each([
     ).toHaveAttribute("href", "/messages");
   },
 );
+
+test("keeps Contact review team available while correcting a requested revision", async () => {
+  server.use(
+    http.get("*/api/v1/source-proposals/:proposalId/", () =>
+      HttpResponse.json({
+        id: proposalId,
+        state: "draft",
+        revision: 2,
+        current_step: "details",
+        website_name: "خانه‌یاب",
+        website_url: "https://khaneh.example/rentals",
+        relationship: "website_manager",
+        inventory_range: "51_200",
+        sitemap_url: "",
+        operator_note: "",
+        authority_declared: true,
+        preview: {},
+        history: [],
+      }),
+    ),
+  );
+  render(
+    <QueryClientProvider
+      client={
+        new QueryClient({ defaultOptions: { queries: { retry: false } } })
+      }
+    >
+      <MemoryRouter
+        initialEntries={[`/source-proposal?proposal=${proposalId}`]}
+      >
+        <SourceProposalPage />
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+  expect(
+    await screen.findByRole("button", { name: "تماس با تیم بررسی" }),
+  ).toBeEnabled();
+});

@@ -973,6 +973,7 @@ paths:
         schema:
           enum:
           - all
+          - source_conversation
           - system_notification
           - listing_inquiry
           - support_request
@@ -981,6 +982,7 @@ paths:
           minLength: 1
         description: |-
           * `all` - all
+          * `source_conversation` - source_conversation
           * `system_notification` - system_notification
           * `listing_inquiry` - listing_inquiry
           * `support_request` - support_request
@@ -1196,6 +1198,71 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ConversationReportCreated'
+          description: ''
+  /api/v1/messages/source-conversations/:
+    get:
+      operationId: v1_messages_source_conversations_list
+      summary: List accessible Source Conversation contexts
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SourceConversationOption'
+          description: ''
+    post:
+      operationId: v1_messages_source_conversations_create
+      summary: Open the Source Conversation for a proposal
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SourceConversationOpen'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SourceConversationOpened'
+          description: ''
+  /api/v1/messages/source-conversations/{conversation_id}/replies/:
+    post:
+      operationId: v1_messages_source_conversations_replies_create
+      summary: Reply to a Source Conversation
+      parameters:
+      - in: path
+        name: conversation_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MessageBody'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SourceConversationMessage'
           description: ''
   /api/v1/messages/support-requests/:
     post:
@@ -1581,7 +1648,13 @@ paths:
   /api/v1/operator/source-proposals/:
     get:
       operationId: v1_operator_source_proposals_list
-      summary: List pending Source Proposals for Operator review
+      summary: List Source Proposals for Operator review or open a conversation context
+      parameters:
+      - in: query
+        name: proposal
+        schema:
+          type: string
+          format: uuid
       tags:
       - v1
       security:
@@ -5924,11 +5997,13 @@ components:
         * `listing_inquiry` - listing_inquiry
     MessageKindEnum:
       enum:
+      - source_conversation
       - system_notification
       - listing_inquiry
       - support_request
       type: string
       description: |-
+        * `source_conversation` - Source Conversation
         * `system_notification` - System Notification
         * `listing_inquiry` - Listing Inquiry
         * `support_request` - Support Request
@@ -7490,6 +7565,54 @@ components:
       description: |-
         * `active` - active
         * `revoked` - revoked
+    SourceConversationMessage:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        body:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+      required:
+      - body
+      - created_at
+      - id
+    SourceConversationOpen:
+      type: object
+      properties:
+        proposal_id:
+          type: string
+          format: uuid
+      required:
+      - proposal_id
+    SourceConversationOpened:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        href:
+          type: string
+      required:
+      - href
+      - id
+    SourceConversationOption:
+      type: object
+      properties:
+        proposal_id:
+          type: string
+          format: uuid
+        website_name:
+          type: string
+        operator:
+          type: boolean
+      required:
+      - operator
+      - proposal_id
+      - website_name
     SourceDisagreement:
       type: object
       properties:

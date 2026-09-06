@@ -1,3 +1,4 @@
+import { SourceConversationButton } from "@/features/source-proposals/SourceConversationButton";
 import { CurrentWebsiteStatus } from "@/features/source-proposals/CurrentWebsiteStatus";
 import { SourceAssignmentSummary } from "@/features/source-proposals/SourceAssignmentSummary";
 import { AccountWorkspace } from "@/features/account/AccountWorkspace";
@@ -149,6 +150,9 @@ export function SourceProposalPage() {
         <Card className="mx-auto max-w-2xl shadow-none">
           <CardContent className="grid gap-5 pt-6">
             <CurrentWebsiteStatus proposal={proposal} />
+            {(proposal.state !== "draft" || (proposal.revision ?? 1) > 1) && (
+              <SourceConversationButton proposalId={proposal.id} />
+            )}
             <p dir="ltr" className="break-all">
               {proposal.website_url}
             </p>
@@ -177,6 +181,7 @@ export function SourceProposalPage() {
             />
             <h1 className="text-2xl font-semibold">در انتظار بررسی اپراتور</h1>
             <CurrentWebsiteStatus proposal={proposal} />
+            <SourceConversationButton proposalId={proposal.id} />
             <p role="status">
               {discoveryStageLabels[proposal.discovery_stage ?? "awaiting_url"]}
             </p>
@@ -212,6 +217,9 @@ export function SourceProposalPage() {
   return (
     <PageFrame>
       <CurrentWebsiteStatus proposal={proposal} />
+      {(proposal.state !== "draft" || (proposal.revision ?? 1) > 1) && (
+        <SourceConversationButton proposalId={proposal.id} />
+      )}
       <header className="mb-8 max-w-3xl">
         <p className="text-primary mb-2 text-sm font-semibold">
           معرفی منبع بیرونی

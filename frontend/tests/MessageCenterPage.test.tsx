@@ -1150,3 +1150,68 @@ test("keeps separate drafts while switching conversations inside the dashboard",
     screen.getByRole("complementary", { name: "پنل حساب کاربری" }),
   ).toBeVisible();
 });
+
+test("opens and replies to a source conversation separately from decisions", async () => {
+  const user = userEvent.setup();
+  let replyBody = "";
+  const conversation = {
+    ...message,
+    kind: "source_conversation",
+    title: "گفت‌وگوی منبع خانه‌یاب",
+    group: { kind: "source_proposal", id: "proposal-id", label: "خانه‌یاب" },
+    reply_allowed: true,
+    public_status: null,
+    counterpart: null,
+    listing_context: null,
+    target: {
+      label: "مشاهده منبع پیشنهادی",
+      href: "/source-proposal?proposal=proposal-id",
+    },
+    entries: [
+      {
+        id: "entry-1",
+        kind: "operator_reply",
+        body: "نمونه نشانی را بفرستید",
+        author_name: "تیم بررسی منبع",
+        created_at: message.created_at,
+        editable: false,
+      },
+    ],
+  };
+  server.use(
+    http.get("*/api/v1/messages/", () =>
+      HttpResponse.json({
+        count: 1,
+        next: null,
+        previous: null,
+        results: [conversation],
+      }),
+    ),
+    http.get("*/api/v1/messages/:messageId/", () =>
+      HttpResponse.json(conversation),
+    ),
+    http.post(
+      "*/api/v1/messages/source-conversations/:id/replies/",
+      async ({ request }) => {
+        replyBody = ((await request.json()) as { body: string }).body;
+        return HttpResponse.json(
+          { id: "reply-id", body: replyBody, created_at: message.created_at },
+          { status: 201 },
+        );
+      },
+    ),
+  );
+  renderPage(`/messages/${message.id}`);
+  expect(
+    await screen.findByRole("list", { name: "گفت‌وگوی منبع" }),
+  ).toHaveTextContent("نمونه نشانی را بفرستید");
+  expect(
+    screen.getByRole("link", { name: "مشاهده منبع پیشنهادی" }),
+  ).toHaveAttribute("href", "/source-proposal?proposal=proposal-id");
+  expect(
+    screen.queryByRole("button", { name: "گزارش گفت‌وگو" }),
+  ).not.toBeInTheDocument();
+  await user.type(screen.getByRole("textbox"), "نشانی تازه آماده است");
+  await user.click(screen.getByRole("button", { name: "ارسال پیام" }));
+  await waitFor(() => expect(replyBody).toBe("نشانی تازه آماده است"));
+});

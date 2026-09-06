@@ -11,6 +11,7 @@ export type MessagePage = components["schemas"]["PaginatedMessageSummaryList"];
 export type MessageFilter =
   | "all"
   | "system_notification"
+  | "source_conversation"
   | "listing_inquiry"
   | "support_request"
   | "unread";
@@ -22,13 +23,15 @@ export function messagesQueryOptions(filter: MessageFilter, page = 1) {
       const filterQuery =
         filter === "unread"
           ? { unread: true }
-          : filter === "system_notification"
-            ? { kind: "system_notification" as const }
-            : filter === "listing_inquiry"
-              ? { kind: "listing_inquiry" as const }
-              : filter === "support_request"
-                ? { kind: "support_request" as const }
-                : undefined;
+          : filter === "source_conversation"
+            ? { kind: "source_conversation" as const }
+            : filter === "system_notification"
+              ? { kind: "system_notification" as const }
+              : filter === "listing_inquiry"
+                ? { kind: "listing_inquiry" as const }
+                : filter === "support_request"
+                  ? { kind: "support_request" as const }
+                  : undefined;
       const query = { ...filterQuery, ...(page > 1 ? { page } : {}) };
       const { data, error } = await api.GET("/api/v1/messages/", {
         params: { query },
@@ -173,6 +176,43 @@ export const unreadMessageCountQuery = queryOptions({
   queryKey: ["messages", "unread-count"],
   queryFn: async () => {
     const { data, error } = await api.GET("/api/v1/messages/unread-count/");
+    if (error || !data) throw apiError(error);
+    return data;
+  },
+});
+
+export async function openSourceConversation(proposalId: string) {
+  const { data, error } = await api.POST(
+    "/api/v1/messages/source-conversations/",
+    {
+      body: { proposal_id: proposalId },
+    },
+  );
+  if (error || !data) throw apiError(error);
+  return data;
+}
+
+export async function replyToSourceConversation(
+  conversationId: string,
+  body: string,
+) {
+  const { data, error } = await api.POST(
+    "/api/v1/messages/source-conversations/{conversation_id}/replies/",
+    {
+      params: { path: { conversation_id: conversationId } },
+      body: { body },
+    },
+  );
+  if (error || !data) throw apiError(error);
+  return data;
+}
+
+export const sourceConversationOptions = queryOptions({
+  queryKey: ["messages", "source-options"],
+  queryFn: async () => {
+    const { data, error } = await api.GET(
+      "/api/v1/messages/source-conversations/",
+    );
     if (error || !data) throw apiError(error);
     return data;
   },

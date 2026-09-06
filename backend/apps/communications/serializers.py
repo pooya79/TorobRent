@@ -19,11 +19,12 @@ from .models import (
     ListingInquiry,
     ListingInquiryReplyUnavailableReason,
     MessageKind,
+    SourceConversation,
     SystemNotification,
 )
 from .services import inquiry_message_edit_denied_reason, inquiry_reply_unavailable_reason
 
-MessageItem = SystemNotification | SupportRequest | ListingInquiry
+MessageItem = SystemNotification | SupportRequest | ListingInquiry | SourceConversation
 PUBLIC_SUPPORT_EVENT_TYPES = (
     SupportRequestEventType.ASSIGNED,
     SupportRequestEventType.ESCALATED,
@@ -125,6 +126,8 @@ class MessageSummarySerializer(serializers.Serializer[MessageItem]):
 
     @extend_schema_field(serializers.ChoiceField(choices=MessageKind.choices))
     def get_kind(self, item: MessageItem) -> str:
+        if isinstance(item, SourceConversation):
+            return MessageKind.SOURCE_CONVERSATION
         if isinstance(item, SystemNotification):
             return MessageKind.SYSTEM_NOTIFICATION
         if isinstance(item, ListingInquiry):
@@ -135,11 +138,15 @@ class MessageSummarySerializer(serializers.Serializer[MessageItem]):
     def get_created_at(self, item: MessageItem) -> datetime:
         if isinstance(item, SystemNotification):
             return item.created_at
+        if isinstance(item, SourceConversation):
+            return item.latest_activity_at or item.created_at
         if isinstance(item, ListingInquiry):
             return item.latest_activity_at
         return item.public_updated_at
 
     def get_title(self, notification: MessageItem) -> str:
+        if isinstance(notification, SourceConversation):
+            return f"گفت‌وگوی منبع {notification.proposal.website_name}"
         if isinstance(notification, ListingInquiry):
             return f"پرسش درباره {notification.listing.property.title}"
         if isinstance(notification, SupportRequest):
@@ -172,6 +179,9 @@ class MessageSummarySerializer(serializers.Serializer[MessageItem]):
         }[submission_event.new_state]
 
     def get_preview(self, notification: MessageItem) -> str:
+        if isinstance(notification, SourceConversation):
+            messages = list(notification.messages.all())
+            return messages[-1].body if messages else ""
         if isinstance(notification, ListingInquiry):
             latest_inquiry_message = notification.messages.last()
             return latest_inquiry_message.body if latest_inquiry_message is not None else ""
@@ -206,6 +216,11 @@ class MessageSummarySerializer(serializers.Serializer[MessageItem]):
         return "نتیجه بررسی پیشنهاد شما ثبت شد."
 
     def get_read(self, notification: MessageItem) -> bool:
+        if isinstance(notification, SourceConversation):
+            return (
+                bool(getattr(notification, "is_read", False))
+                or notification.latest_activity_at is None
+            )
         if isinstance(notification, ListingInquiry):
             request = self.context.get("request")
             user_id = getattr(getattr(request, "user", None), "id", None)
@@ -240,6 +255,12 @@ class MessageSummarySerializer(serializers.Serializer[MessageItem]):
         )
     )
     def get_group(self, notification: MessageItem) -> dict[str, str]:
+        if isinstance(notification, SourceConversation):
+            return {
+                "kind": "source_proposal",
+                "id": str(notification.proposal_id),
+                "label": notification.proposal.website_name,
+            }
         if isinstance(notification, ListingInquiry):
             return {
                 "kind": "listing_inquiry",
@@ -298,6 +319,17 @@ class MessageDetailSerializer(MessageSummarySerializer):
         )
     )
     def get_target(self, notification: MessageItem) -> dict[str, str] | None:
+        if isinstance(notification, SourceConversation):
+            user = self.context["request"].user
+            path = (
+                "/source-proposal"
+                if user.pk == notification.proposal.submitter_id
+                else "/operator/source-proposals"
+            )
+            return {
+                "label": "مشاهده منبع پیشنهادی",
+                "href": f"{path}?proposal={notification.proposal_id}",
+            }
         if isinstance(notification, ListingInquiry):
             property_ = notification.listing.property
             return {
@@ -349,11 +381,13 @@ class MessageDetailSerializer(MessageSummarySerializer):
         return public_status_for_event(event)
 
     def get_public_status(self, item: MessageItem) -> str | None:
-        if isinstance(item, (SystemNotification, ListingInquiry)):
+        if isinstance(item, (SystemNotification, ListingInquiry, SourceConversation)):
             return None
         return self.public_status_for(item)
 
     def get_reply_allowed(self, item: MessageItem) -> bool:
+        if isinstance(item, SourceConversation):
+            return item.proposal.submitter_id is not None
         if isinstance(item, SystemNotification):
             return False
         if isinstance(item, ListingInquiry):
@@ -453,6 +487,24 @@ class MessageDetailSerializer(MessageSummarySerializer):
         )
     )
     def get_entries(self, item: MessageItem) -> list[dict[str, object]]:
+        if isinstance(item, SourceConversation):
+            user = self.context["request"].user
+            return [
+                {
+                    "id": message.pk,
+                    "kind": "requester_message"
+                    if message.from_representative
+                    else "operator_reply",
+                    "body": message.body,
+                    "created_at": message.created_at,
+                    "editable": False,
+                    "mine": message.author_id == user.pk,
+                    "author_name": "نماینده منبع"
+                    if message.from_representative
+                    else "تیم بررسی منبع",
+                }
+                for message in item.messages.all()
+            ]
         if isinstance(item, SystemNotification):
             return []
         if isinstance(item, ListingInquiry):
