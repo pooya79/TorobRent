@@ -106,6 +106,11 @@ Source. A Source has one profile lineage with at most one active approved versio
 mode determines whether future Extraction Runs require approval.
 _Avoid_: Crawler configuration, scraping rule
 
+**Source Exclusion**:
+An Operator-defined, reasoned restriction identifying pages of a Source that TorobRent is not
+intended to process. An extraction failure alone does not make a page excluded.
+_Avoid_: Invalid page, failed page
+
 **Extraction Request**:
 A Source Representative's request for TorobRent to process a URL belonging to their Source
 Assignment.
@@ -189,8 +194,9 @@ _Avoid_: Saved Listing, bookmark, like
 ## Communication
 
 **Message Center**:
-An account holder's private in-app view of Listing Inquiries, Support Requests, and System
-Notifications. It unifies their presentation without making them the same kind of record.
+An account holder's private in-app view of Listing Inquiries, Source Conversations, Support
+Requests, and System Notifications. It unifies their presentation without making them the same
+kind of record.
 _Avoid_: Chat
 
 **Display Name**:
@@ -207,6 +213,12 @@ _Avoid_: Property inquiry, contact message
 A non-replyable in-app notice informing an account holder about a TorobRent event and linking to
 the relevant domain object when one exists.
 _Avoid_: System message, automated conversation
+
+**Source Conversation**:
+A replyable conversation attached to a Source Proposal between its Source Representative and
+Operators about introducing and maintaining that Source. Messages do not themselves change review
+decisions or permission to extract or publish.
+_Avoid_: Listing Inquiry, Support Request
 
 **Conversation Report**:
 A participant's request for an Operator to investigate a Listing Inquiry or one of its messages
