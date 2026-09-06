@@ -25,8 +25,10 @@ const numericFields = {
 
 export function CandidateCorrectionForm({
   candidate,
+  onCorrected,
 }: {
   candidate: ExternalListingCandidate;
+  onCorrected?: () => void;
 }) {
   const [values, setValues] = useState<
     components["schemas"]["CandidateCorrectionValues"]
@@ -71,6 +73,7 @@ export function CandidateCorrectionForm({
       void queryClient.invalidateQueries({
         queryKey: operatorSourceProposalsQueryOptions.queryKey,
       });
+      onCorrected?.();
       setValues({});
       setMediaChanged(false);
     },

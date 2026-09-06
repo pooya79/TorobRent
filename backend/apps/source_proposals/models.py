@@ -924,3 +924,15 @@ class SourceExceptionAttempt(models.Model):
 
     def __str__(self) -> str:
         return f"Exception attempt {self.run_id}/{self.attempt}"
+
+
+class SourceBulkAction(models.Model):
+    source = models.ForeignKey("catalog.Source", on_delete=models.PROTECT)
+    actor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True)
+    token_hash = models.CharField(max_length=64, unique=True)
+    action = models.CharField(max_length=24)
+    exception_ids = models.JSONField(default=list)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self) -> str:
+        return f"Source bulk {self.action} {self.pk}"

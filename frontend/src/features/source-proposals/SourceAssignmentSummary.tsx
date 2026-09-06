@@ -1,3 +1,4 @@
+import { SourceBulkActions } from "./SourceBulkActions";
 import { SourceExceptionsPanel } from "./SourceExceptionsPanel";
 import { SourceExclusionsSummary } from "./SourceExclusionsPanel";
 import { ExtractionHistory } from "./ExtractionHistory";
@@ -64,6 +65,13 @@ export function SourceAssignmentSummary({
             assignmentId={assignment.id}
           />
         )}
+      {review?.canApprove && assignment.state === "active" && (
+        <SourceBulkActions
+          key={review.proposalId}
+          proposalId={review.proposalId}
+          pages={assignment.current_results ?? []}
+        />
+      )}
       <SourceExceptionsPanel
         exceptions={assignment.exceptions ?? []}
         proposalId={proposalId ?? review?.proposalId ?? ""}

@@ -1,5 +1,6 @@
 from django.urls import path
 
+from .bulk_views import SourceBulkApplyView, SourceBulkPreviewView
 from .exception_views import OperatorSourceExceptionRetryView
 from .exclusion_views import (
     OperatorExclusionAddView,
@@ -28,6 +29,16 @@ from .run_views import OperatorRunApproveView
 app_name = "operator-source-proposals"
 
 urlpatterns = [
+    path(
+        "<uuid:proposal_id>/exceptions/bulk/preview/",
+        SourceBulkPreviewView.as_view(),
+        name="bulk-preview",
+    ),
+    path(
+        "<uuid:proposal_id>/exceptions/bulk/apply/",
+        SourceBulkApplyView.as_view(),
+        name="bulk-apply",
+    ),
     path(
         "<uuid:proposal_id>/processing/", OperatorSourceProcessingView.as_view(), name="processing"
     ),

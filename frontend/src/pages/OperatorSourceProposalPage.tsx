@@ -278,6 +278,7 @@ function ProposalReviewCard({
           </div>
         )}
         <DiscoveryEvidence proposal={proposal} />
+        <div id={`source-profile-${proposal.id}`} />
         <SourceProfileReview
           proposal={proposal}
           claimed={claimed && canReview}

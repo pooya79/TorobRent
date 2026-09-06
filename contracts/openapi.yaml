@@ -1514,7 +1514,7 @@ paths:
   /api/v1/operator/external-listing-candidates/{candidate_id}/claim/:
     post:
       operationId: v1_operator_external_listing_candidates_claim_create
-      summary: Claim an External Listing candidate review
+      summary: Claim an External Listing candidate review or explicit correction
       parameters:
       - in: path
         name: candidate_id
@@ -1524,6 +1524,17 @@ paths:
         required: true
       tags:
       - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CandidateReviewClaimRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CandidateReviewClaimRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CandidateReviewClaimRequest'
       security:
       - cookieAuth: []
       responses:
@@ -1773,6 +1784,62 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/OperatorSourceProposal'
+          description: ''
+  /api/v1/operator/source-proposals/{proposal_id}/exceptions/bulk/apply/:
+    post:
+      operationId: v1_operator_source_proposals_exceptions_bulk_apply_create
+      summary: Apply a confirmed, unchanged Source bulk preview once
+      parameters:
+      - in: path
+        name: proposal_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SourceBulkApplyRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SourceBulkResult'
+          description: ''
+  /api/v1/operator/source-proposals/{proposal_id}/exceptions/bulk/preview/:
+    post:
+      operationId: v1_operator_source_proposals_exceptions_bulk_preview_create
+      summary: Preview selected current Source results before a bulk action
+      parameters:
+      - in: path
+        name: proposal_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SourceBulkPreviewRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SourceBulkPreview'
           description: ''
   /api/v1/operator/source-proposals/{proposal_id}/exceptions/retry/:
     post:
@@ -4218,6 +4285,12 @@ components:
       - kind
       - url
       - width
+    CandidateReviewClaimRequest:
+      type: object
+      properties:
+        for_correction:
+          type: boolean
+          default: false
     CatalogFacets:
       type: object
       properties:
@@ -7578,6 +7651,11 @@ components:
           items:
             $ref: '#/components/schemas/SourceExtractionException'
           readOnly: true
+        current_results:
+          type: array
+          items:
+            $ref: '#/components/schemas/SourceExtractionException'
+          readOnly: true
         review_operator:
           type:
           - string
@@ -7590,6 +7668,7 @@ components:
       required:
       - active_profile_version
       - created_at
+      - current_results
       - exceptions
       - exclusions
       - id
@@ -7607,6 +7686,117 @@ components:
       description: |-
         * `active` - active
         * `revoked` - revoked
+    SourceBulkApplyRequest:
+      type: object
+      properties:
+        token:
+          type: string
+          maxLength: 16000
+        confirmed:
+          type: boolean
+      required:
+      - confirmed
+      - token
+    SourceBulkItem:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        url:
+          type: string
+          format: uri
+        status:
+          $ref: '#/components/schemas/SourceBulkItemStatusEnum'
+        detail:
+          type: string
+        candidate_id:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        candidate:
+          oneOf:
+          - $ref: '#/components/schemas/ExternalListingCandidate'
+          - type: 'null'
+          readOnly: true
+        action_eligible:
+          type: boolean
+        published_listing_count:
+          type: integer
+      required:
+      - action_eligible
+      - candidate
+      - candidate_id
+      - detail
+      - id
+      - published_listing_count
+      - status
+      - url
+    SourceBulkItemStatusEnum:
+      enum:
+      - eligible
+      - blocked
+      - excluded
+      - obsolete
+      type: string
+      description: |-
+        * `eligible` - eligible
+        * `blocked` - blocked
+        * `excluded` - excluded
+        * `obsolete` - obsolete
+    SourceBulkPreview:
+      type: object
+      properties:
+        token:
+          type: string
+        source_id:
+          type: string
+          format: uuid
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/SourceBulkItem'
+      required:
+      - items
+      - source_id
+      - token
+    SourceBulkPreviewRequest:
+      type: object
+      properties:
+        exception_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+          maxItems: 20
+          minItems: 1
+        action:
+          $ref: '#/components/schemas/SourceBulkPreviewRequestActionEnum'
+        reason:
+          type: string
+          default: ''
+          maxLength: 4000
+      required:
+      - action
+      - exception_ids
+    SourceBulkPreviewRequestActionEnum:
+      enum:
+      - publish
+      - exclude
+      - request_action
+      type: string
+      description: |-
+        * `publish` - publish
+        * `exclude` - exclude
+        * `request_action` - request_action
+    SourceBulkResult:
+      type: object
+      properties:
+        affected:
+          type: integer
+      required:
+      - affected
     SourceConversationMessage:
       type: object
       properties:

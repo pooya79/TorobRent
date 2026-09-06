@@ -387,7 +387,9 @@ def _active_candidate_claim(
     return candidate.review_claims.filter(released_at__isnull=True).first()
 
 
-def _lock_candidate(candidate: ExternalListingCandidate) -> ExternalListingCandidate:
+def _lock_candidate(
+    candidate: ExternalListingCandidate, *, for_correction: bool = False
+) -> ExternalListingCandidate:
     # Match batch publication and assignment revocation lock order.
     Source.objects.select_for_update().get(pk=candidate.source_id)
     candidate = ExternalListingCandidate.objects.select_for_update().get(pk=candidate.pk)
@@ -400,16 +402,16 @@ def _lock_candidate(candidate: ExternalListingCandidate) -> ExternalListingCandi
 
         if not authorized(candidate.extraction_run.request):
             raise ValidationError("تخصیص یا پروفایل این نتیجه دیگر فعال نیست.")
-        if not candidate.validation_errors and not candidate.corrections:
+        if not for_correction and not candidate.validation_errors and not candidate.corrections:
             raise ValidationError("نتیجه معتبر باید با تصمیم گروهی استخراج منتشر شود.")
     return candidate
 
 
 @transaction.atomic
 def claim_external_listing_candidate_review(
-    *, candidate: ExternalListingCandidate, actor: User
+    *, candidate: ExternalListingCandidate, actor: User, for_correction: bool = False
 ) -> ExternalListingCandidateReviewClaim:
-    candidate = _lock_candidate(candidate)
+    candidate = _lock_candidate(candidate, for_correction=for_correction)
     _require_candidate_review_authority(candidate=candidate, actor=actor)
     if candidate.state not in (
         ExternalListingCandidateState.PENDING,
@@ -594,7 +596,7 @@ def correct_external_listing_candidate(
 ) -> ExternalListingCandidate:
     from .candidate_publication import validation_errors
 
-    candidate = _lock_candidate(candidate)
+    candidate = _lock_candidate(candidate, for_correction=True)
     _require_candidate_review_authority(candidate=candidate, actor=actor)
     claim = _current_candidate_claim(
         candidate=candidate, actor=actor, reviewed_revision=reviewed_revision, allow_changes=True

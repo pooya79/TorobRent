@@ -142,6 +142,18 @@ class SourceAssignmentSerializer(serializers.ModelSerializer[SourceAssignment]):
     )
     exclusions = SourceExclusionSerializer(source="source.exclusions", many=True, read_only=True)
     exceptions = serializers.SerializerMethodField()
+    current_results = serializers.SerializerMethodField()
+
+    @extend_schema_field(SourceExtractionExceptionSerializer(many=True))
+    def get_current_results(self, assignment: SourceAssignment) -> list[dict[str, Any]]:
+        if assignment.revoked_at:
+            return []
+        return list(
+            SourceExtractionExceptionSerializer(
+                assignment.source.exceptions.select_related("source").prefetch_related("history"),
+                many=True,
+            ).data
+        )
 
     @extend_schema_field(SourceExtractionExceptionSerializer(many=True))
     def get_exceptions(self, assignment: SourceAssignment) -> list[dict[str, Any]]:
@@ -197,6 +209,7 @@ class SourceAssignmentSerializer(serializers.ModelSerializer[SourceAssignment]):
             "recent_requests",
             "exclusions",
             "exceptions",
+            "current_results",
             "review_operator",
             "mode_revision",
         )
