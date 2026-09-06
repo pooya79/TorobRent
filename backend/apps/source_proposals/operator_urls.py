@@ -22,11 +22,15 @@ from .operator_views import (
     OperatorSourcePublicationModeView,
     OperatorSourceResponsibilityView,
 )
+from .processing_views import OperatorSourceProcessingView
 from .run_views import OperatorRunApproveView
 
 app_name = "operator-source-proposals"
 
 urlpatterns = [
+    path(
+        "<uuid:proposal_id>/processing/", OperatorSourceProcessingView.as_view(), name="processing"
+    ),
     path(
         "<uuid:proposal_id>/exceptions/retry/",
         OperatorSourceExceptionRetryView.as_view(),

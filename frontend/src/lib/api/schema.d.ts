@@ -959,6 +959,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/v1/operator/source-proposals/{proposal_id}/processing/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Pause or resume Source processing independently of its Assignment */
+    post: operations["v1_operator_source_proposals_processing_create"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/v1/operator/source-proposals/{proposal_id}/profile/approve/": {
     parameters: {
       query?: never;
@@ -2001,6 +2018,8 @@ export interface components {
       number: number;
     };
     AssignmentSource: {
+      readonly processing_paused: boolean;
+      readonly processing_revision: number;
       /** Format: uuid */
       id: string;
       display_name: string;
@@ -2431,6 +2450,7 @@ export interface components {
       url: string;
     };
     ExternalListingCandidate: {
+      superseded?: boolean;
       /** Format: uuid */
       readonly id: string;
       /** Format: uuid */
@@ -2523,6 +2543,7 @@ export interface components {
     ExtractionRequest: {
       /** Format: uuid */
       readonly id: string;
+      readonly is_current: boolean;
       readonly assignment: number;
       /** Format: uuid */
       readonly requester: string | null;
@@ -3691,6 +3712,17 @@ export interface components {
       source_claims?: unknown;
       provenance_note?: string;
     };
+    SourceProcessingRequest: {
+      action: components["schemas"]["SourceProcessingRequestActionEnum"];
+      reviewed_processing_revision: number;
+      review_mode?: components["schemas"]["ReviewModeEnum"];
+    };
+    /**
+     * @description * `pause` - pause
+     *     * `resume` - resume
+     * @enum {string}
+     */
+    SourceProcessingRequestActionEnum: "pause" | "resume";
     SourceProfileApproval: {
       reviewed_revision: number;
       confirmed: boolean;
@@ -6415,6 +6447,31 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": components["schemas"]["SourceExclusionWithdraw"];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["OperatorSourceProposal"];
+        };
+      };
+    };
+  };
+  v1_operator_source_proposals_processing_create: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        proposal_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["SourceProcessingRequest"];
       };
     };
     responses: {

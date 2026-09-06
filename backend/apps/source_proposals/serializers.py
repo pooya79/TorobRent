@@ -124,6 +124,8 @@ class SourceProposalEventSerializer(serializers.ModelSerializer[SourceProposalEv
 
 
 class AssignmentSourceSerializer(serializers.Serializer[Any]):
+    processing_paused = serializers.BooleanField(read_only=True)
+    processing_revision = serializers.IntegerField(read_only=True)
     id = serializers.UUIDField()
     display_name = serializers.CharField()
     domain = serializers.CharField()
@@ -738,3 +740,11 @@ class SourcePublicationModeRequestSerializer(serializers.Serializer[Any]):
     reviewed_profile_version = serializers.UUIDField()
     reviewed_mode_revision = serializers.IntegerField(min_value=0)
     review_mode = serializers.ChoiceField(choices=("approval_required", "automatic"))
+
+
+class SourceProcessingRequestSerializer(serializers.Serializer[Any]):
+    action = serializers.ChoiceField(choices=("pause", "resume"))
+    reviewed_processing_revision = serializers.IntegerField(min_value=0)
+    review_mode = serializers.ChoiceField(
+        choices=("approval_required", "automatic"), required=False
+    )

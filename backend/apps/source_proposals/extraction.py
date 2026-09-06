@@ -42,13 +42,13 @@ def submit_request(
     *, assignment_id: int, proposal_id: str, actor: User, url: str, initiated_by: User | None = None
 ) -> ExtractionRequest:
     assignment = SourceAssignment.objects.select_related("source").get(pk=assignment_id)
-    Source.objects.select_for_update().get(pk=assignment.source_id)
+    source = Source.objects.select_for_update().get(pk=assignment.source_id)
     assignment.refresh_from_db()
     if (
-        assignment.representative_id != actor.pk
+        source.processing_paused
+        or assignment.representative_id != actor.pk
         or str(assignment.proposal_id) != str(proposal_id)
         or assignment.revoked_at
-        or assignment.proposal.state != "approved"
         or assignment.approval is None
         or assignment.source.profile.active_version_id != assignment.approval.version_id
     ):
@@ -62,6 +62,7 @@ def submit_request(
         assignment=assignment,
         canonical_url=canonical,
         profile_version=assignment.approval.version,
+        processing_revision=source.processing_revision,
         state__in=(ExtractionState.QUEUED, ExtractionState.RUNNING),
     ).first()
     if pending:
@@ -74,6 +75,7 @@ def submit_request(
         profile_version=assignment.approval.version,
         review_mode=mode,
         publication_revision=revision,
+        processing_revision=source.processing_revision,
         submitted_url=url,
         canonical_url=canonical,
     )
@@ -106,9 +108,10 @@ def authorized(request: ExtractionRequest) -> bool:
         and SourceAssignment.objects.filter(
             pk=request.assignment_id,
             revoked_at__isnull=True,
+            source__processing_paused=False,
+            source__processing_revision=request.processing_revision,
             representative_id=request.requester_id,
             approval__version_id=request.profile_version_id,
-            proposal__state="approved",
         ).exists()
         and SourceProfile.objects.filter(
             source_id=request.assignment.source_id, active_version_id=request.profile_version_id
@@ -338,13 +341,13 @@ def run_extraction(request_id: str) -> bool:
             from .candidate_publication import create_run_candidates
 
             create_run_candidates(run)
-            if request.review_mode == ProfileReviewMode.AUTOMATIC:
-                from .candidate_publication import publish_automatic_candidates
-
-                publish_automatic_candidates(run)
         from .exceptions import record_exceptions
 
         record_exceptions(run)
+        if state == ExtractionState.COMPLETE and request.review_mode == ProfileReviewMode.AUTOMATIC:
+            from .candidate_publication import publish_automatic_candidates
+
+            publish_automatic_candidates(run)
         if run.withdrawals:
             from .extraction_availability import withdraw_listings
 

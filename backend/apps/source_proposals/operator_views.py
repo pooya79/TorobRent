@@ -20,6 +20,7 @@ from .models import SourceProposal, SourceProposalState
 from .review_claims import SourceProposalReviewConflict
 from .serializers import (
     OperatorSourceProposalSerializer,
+    SourceProcessingRequestSerializer,
     SourceProfileApprovalSerializer,
     SourceProfileDecisionSerializer,
     SourceProfileEditSerializer,
@@ -98,6 +99,7 @@ DecisionSerializer = type[
     | SourceProfileRepairRequestSerializer
     | SourceResponsibilityRequestSerializer
     | SourcePublicationModeRequestSerializer
+    | SourceProcessingRequestSerializer
 ]
 
 

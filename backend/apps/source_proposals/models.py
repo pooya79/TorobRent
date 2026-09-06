@@ -142,6 +142,7 @@ class ImmutableSourceProposalEventQuerySet(models.QuerySet["SourceProposalEvent"
 
 
 class SourceProposalEvent(models.Model):
+    processing_action = models.CharField(max_length=6, blank=True, default="", db_default="")
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     proposal = models.ForeignKey(SourceProposal, on_delete=models.PROTECT, related_name="events")
     actor = models.ForeignKey(
@@ -238,6 +239,7 @@ class ExternalListingCandidateState(models.TextChoices):
 
 
 class ExternalListingCandidate(models.Model):
+    superseded = models.BooleanField(default=False, db_default=False)
     exclusion_hold = models.ForeignKey(
         "SourceExclusion", on_delete=models.PROTECT, null=True, related_name="held_candidates"
     )
@@ -585,6 +587,7 @@ class ExtractionState(models.TextChoices):
 
 
 class ExtractionRequest(models.Model):
+    processing_revision = models.PositiveIntegerField(default=0, db_default=0)
     initiated_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,

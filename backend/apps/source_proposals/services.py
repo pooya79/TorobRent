@@ -391,6 +391,8 @@ def _lock_candidate(candidate: ExternalListingCandidate) -> ExternalListingCandi
     # Match batch publication and assignment revocation lock order.
     Source.objects.select_for_update().get(pk=candidate.source_id)
     candidate = ExternalListingCandidate.objects.select_for_update().get(pk=candidate.pk)
+    if candidate.source.processing_paused or candidate.superseded:
+        raise ValidationError("پردازش متوقف است یا نتیجه با استخراج تازه جایگزین شده است.")
     if candidate.discovery_version_id is not None:
         raise ValidationError("پیش‌نمایش کشف قابل انتشار نیست؛ درخواست استخراج ثبت کنید.")
     if candidate.extraction_run is not None:

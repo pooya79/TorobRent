@@ -1916,6 +1916,34 @@ paths:
               schema:
                 $ref: '#/components/schemas/OperatorSourceProposal'
           description: ''
+  /api/v1/operator/source-proposals/{proposal_id}/processing/:
+    post:
+      operationId: v1_operator_source_proposals_processing_create
+      summary: Pause or resume Source processing independently of its Assignment
+      parameters:
+      - in: path
+        name: proposal_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SourceProcessingRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatorSourceProposal'
+          description: ''
   /api/v1/operator/source-proposals/{proposal_id}/profile/approve/:
     post:
       operationId: v1_operator_source_proposals_profile_approve_create
@@ -3903,6 +3931,12 @@ components:
     AssignmentSource:
       type: object
       properties:
+        processing_paused:
+          type: boolean
+          readOnly: true
+        processing_revision:
+          type: integer
+          readOnly: true
         id:
           type: string
           format: uuid
@@ -3914,6 +3948,8 @@ components:
       - display_name
       - domain
       - id
+      - processing_paused
+      - processing_revision
     AuditedFormatting:
       type: object
       properties:
@@ -4877,6 +4913,8 @@ components:
     ExternalListingCandidate:
       type: object
       properties:
+        superseded:
+          type: boolean
         id:
           type: string
           format: uuid
@@ -5104,6 +5142,9 @@ components:
           type: string
           format: uuid
           readOnly: true
+        is_current:
+          type: boolean
+          readOnly: true
         assignment:
           type: integer
           readOnly: true
@@ -5147,6 +5188,7 @@ components:
       - canonical_url
       - created_at
       - id
+      - is_current
       - profile_version
       - requester
       - run
@@ -7955,6 +7997,27 @@ components:
         source_claims: {}
         provenance_note:
           type: string
+    SourceProcessingRequest:
+      type: object
+      properties:
+        action:
+          $ref: '#/components/schemas/SourceProcessingRequestActionEnum'
+        reviewed_processing_revision:
+          type: integer
+          minimum: 0
+        review_mode:
+          $ref: '#/components/schemas/ReviewModeEnum'
+      required:
+      - action
+      - reviewed_processing_revision
+    SourceProcessingRequestActionEnum:
+      enum:
+      - pause
+      - resume
+      type: string
+      description: |-
+        * `pause` - pause
+        * `resume` - resume
     SourceProfileApproval:
       type: object
       properties:

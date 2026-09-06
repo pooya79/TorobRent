@@ -2,7 +2,7 @@ from collections.abc import Callable
 from typing import Any, cast
 
 from django.core.exceptions import ValidationError as DjangoValidationError
-from django.db.models import Q
+from django.db.models import F, Q
 from drf_spectacular.utils import extend_schema
 from rest_framework import status
 from rest_framework.exceptions import ValidationError
@@ -42,7 +42,17 @@ class OperatorExternalListingCandidateListView(APIView):
     def get(self, request: Request) -> Response:
         candidates = (
             ExternalListingCandidate.objects
-            .filter(discovery_version__isnull=True)
+            .filter(
+                discovery_version__isnull=True, superseded=False, source__processing_paused=False
+            )
+            .filter(
+                Q(extraction_run__isnull=True)
+                | Q(
+                    extraction_run__request__processing_revision=F("source__processing_revision"),
+                    extraction_run__request__profile_version=F("source__profile__active_version"),
+                    extraction_run__request__assignment__revoked_at__isnull=True,
+                )
+            )
             .filter(
                 state__in=(
                     ExternalListingCandidateState.PENDING,

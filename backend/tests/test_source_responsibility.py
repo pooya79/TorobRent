@@ -285,6 +285,8 @@ def test_admin_cannot_reassign_source_without_workflow(client, api_client, assig
             "outbound_policy": "external_link",
             "responsible_operator": str(successor.pk),
             "responsibility_revision": 99,
+            "processing_paused": "on",
+            "processing_revision": 99,
             "_save": "Save",
         },
     )
@@ -293,6 +295,9 @@ def test_admin_cannot_reassign_source_without_workflow(client, api_client, assig
     result = api_client.get("/api/v1/operator/source-proposals/").json()[0]["responsibility"]
     assert result["operator"] == str(operator.pk)
     assert result["revision"] == 1
+    source = api_client.get("/api/v1/operator/source-proposals/").json()[0]["assignment"]["source"]
+    assert source["processing_paused"] is False
+    assert source["processing_revision"] == 0
 
 
 @pytest.mark.django_db

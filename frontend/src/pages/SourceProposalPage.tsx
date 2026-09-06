@@ -5,7 +5,13 @@ import { AccountWorkspace } from "@/features/account/AccountWorkspace";
 import { discoveryStageLabels } from "@/features/source-proposals/discovery-labels";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CheckCircle2, Globe2, ShieldCheck } from "lucide-react";
-import { useEffect, useState, type FormEvent, type ReactNode } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+  type ReactNode,
+} from "react";
 import { Link, useSearchParams } from "react-router";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -65,6 +71,7 @@ export function SourceProposalPage() {
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
   const [proposalId] = useState(() => searchParams.get("proposal"));
+  const resolvedProposalId = useRef(proposalId);
   const [startNew] = useState(
     () => !proposalId && searchParams.get("new") === "1",
   );
@@ -74,10 +81,16 @@ export function SourceProposalPage() {
   const [previewConfirmed, setPreviewConfirmed] = useState(false);
   const resume = useQuery({
     queryKey: ["source-proposal-resume", proposalId, startNew],
-    queryFn: () =>
-      proposalId
-        ? getSourceProposal(proposalId)
-        : resumeOrCreateSourceProposal(startNew),
+    queryFn: async () => {
+      const id = resolvedProposalId.current;
+      const result = await (id
+        ? getSourceProposal(id)
+        : resumeOrCreateSourceProposal(startNew));
+      resolvedProposalId.current = result.id;
+      return result;
+    },
+    refetchInterval: (query) =>
+      query.state.data?.assignment?.state === "active" ? 5000 : false,
     retry: false,
   });
   const proposal = proposalOverride ?? resume.data;
@@ -142,6 +155,7 @@ export function SourceProposalPage() {
   }
   if (
     proposal.current_website_conflict ||
+    proposal.assignment?.state === "active" ||
     proposal.discarded_at ||
     ["approved", "rejected", "revoked"].includes(proposal.state ?? "")
   ) {

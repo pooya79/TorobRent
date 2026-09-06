@@ -94,6 +94,7 @@ class ExternalListingCandidateSerializer(serializers.ModelSerializer[ExternalLis
     class Meta:
         model = ExternalListingCandidate
         fields = (
+            "superseded",
             "id",
             "source_proposal_id",
             "extraction_run",

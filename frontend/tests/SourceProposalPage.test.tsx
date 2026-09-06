@@ -430,3 +430,142 @@ test("keeps Contact review team available while correcting a requested revision"
     await screen.findByRole("button", { name: "تماس با تیم بررسی" }),
   ).toBeEnabled();
 });
+
+test.each(["approved", "pending"])(
+  "representative sees a paused Source during %s without extraction or resume controls",
+  async (state) => {
+    server.use(
+      http.post("*/api/v1/source-proposals/", () =>
+        HttpResponse.json({
+          id: proposalId,
+          state,
+          is_current: true,
+          current_website_conflict: false,
+          website_name: "خانه‌یاب",
+          website_url: "https://khaneh.example/",
+          available_actions: [],
+          assignment: {
+            id: 12,
+            state: "active",
+            source: {
+              display_name: "خانه‌یاب",
+              domain: "khaneh.example",
+              processing_paused: true,
+              processing_revision: 1,
+            },
+            active_profile_version: { id: "version", number: 1 },
+            review_mode: "automatic",
+            mode_revision: 0,
+            recent_requests: [],
+          },
+        }),
+      ),
+    );
+    render(
+      <QueryClientProvider
+        client={
+          new QueryClient({ defaultOptions: { queries: { retry: false } } })
+        }
+      >
+        <MemoryRouter initialEntries={["/source-proposal?new=1"]}>
+          <SourceProposalPage />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    expect(await screen.findByText("پردازش منبع متوقف است.")).toBeVisible();
+    expect(screen.getByText("تخصیص منبع فعال است")).toBeVisible();
+    expect(
+      screen.queryByRole("button", { name: "ازسرگیری با استخراج تازه" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "درخواست استخراج" }),
+    ).not.toBeInTheDocument();
+  },
+);
+
+test("refreshes active Source status while the representative keeps the screen open", async () => {
+  let paused = false;
+  const current = () => ({
+    id: proposalId,
+    state: "approved",
+    is_current: true,
+    current_website_conflict: false,
+    website_name: "خانه‌یاب",
+    website_url: "https://khaneh.example/",
+    available_actions: [],
+    assignment: {
+      id: 12,
+      state: "active",
+      source: {
+        display_name: "خانه‌یاب",
+        domain: "khaneh.example",
+        processing_paused: paused,
+        processing_revision: paused ? 1 : 0,
+      },
+      active_profile_version: { id: "version", number: 1 },
+      review_mode: "automatic",
+      mode_revision: 0,
+      recent_requests: [],
+    },
+  });
+  server.use(
+    http.post("*/api/v1/source-proposals/", () => HttpResponse.json(current())),
+    http.get("*/api/v1/source-proposals/:proposalId/", () =>
+      HttpResponse.json(current()),
+    ),
+  );
+  render(
+    <QueryClientProvider
+      client={
+        new QueryClient({ defaultOptions: { queries: { retry: false } } })
+      }
+    >
+      <MemoryRouter initialEntries={["/source-proposal?new=1"]}>
+        <SourceProposalPage />
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+  expect(await screen.findByText("پردازش منبع فعال است.")).toBeVisible();
+  paused = true;
+  expect(
+    await screen.findByText("پردازش منبع متوقف است.", {}, { timeout: 6500 }),
+  ).toBeVisible();
+  expect(
+    screen.queryByRole("button", { name: "درخواست استخراج" }),
+  ).not.toBeInTheDocument();
+}, 10000);
+
+test("resolves the current website again when returning with an old revoked case cached", async () => {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  client.setQueryData(["source-proposal-resume", null, true], {
+    id: "old-proposal",
+    state: "revoked",
+    available_actions: [],
+    website_url: "https://old.example/",
+  });
+  let created = false;
+  server.use(
+    http.post("*/api/v1/source-proposals/", () => {
+      created = true;
+      return HttpResponse.json({
+        id: proposalId,
+        state: "draft",
+        current_step: "details",
+        website_name: "",
+        website_url: "",
+        available_actions: [],
+      });
+    }),
+  );
+  render(
+    <QueryClientProvider client={client}>
+      <MemoryRouter initialEntries={["/source-proposal?new=1"]}>
+        <SourceProposalPage />
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+  await waitFor(() => expect(created).toBe(true));
+  expect(await screen.findByLabelText("نام وب‌سایت")).toBeVisible();
+});

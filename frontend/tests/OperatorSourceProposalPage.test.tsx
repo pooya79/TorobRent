@@ -1884,3 +1884,102 @@ test("responsible operator switches publication mode using the reviewed profile 
     review_mode: "approval_required",
   });
 });
+
+test("pauses a Source separately and resumes with explicit fresh publication mode", async () => {
+  const user = userEvent.setup();
+  const bodies: unknown[] = [];
+  let caseData = {
+    ...proposal,
+    state: "approved",
+    assignment: {
+      id: 8,
+      state: "active",
+      review_operator: "operator",
+      source: {
+        domain: "khaneh.example",
+        display_name: "خانه‌یاب",
+        processing_paused: false,
+        processing_revision: 0,
+      },
+      active_profile_version: { id: "version", number: 1 },
+      review_mode: "automatic",
+      mode_revision: 0,
+      recent_requests: [],
+    },
+  };
+  server.use(
+    http.get("*/api/v1/users/me/", () =>
+      HttpResponse.json({
+        id: "operator",
+        operator_capabilities: ["review_source_proposals"],
+      }),
+    ),
+    http.get("*/api/v1/operator/source-proposals/", () =>
+      HttpResponse.json([caseData]),
+    ),
+    http.get("*/api/v1/operator/external-listing-candidates/", () =>
+      HttpResponse.json([]),
+    ),
+    http.post(
+      "*/api/v1/operator/source-proposals/:proposalId/processing/",
+      async ({ request }) => {
+        const body = (await request.json()) as {
+          action: string;
+          review_mode?: string;
+        };
+        bodies.push(body);
+        caseData = {
+          ...caseData,
+          assignment: {
+            ...caseData.assignment,
+            review_mode: body.review_mode ?? caseData.assignment.review_mode,
+            source: {
+              ...caseData.assignment.source,
+              processing_paused: body.action === "pause",
+              processing_revision:
+                caseData.assignment.source.processing_revision + 1,
+            },
+          },
+        };
+        return HttpResponse.json(caseData);
+      },
+    ),
+  );
+  render(
+    <QueryClientProvider
+      client={
+        new QueryClient({ defaultOptions: { queries: { retry: false } } })
+      }
+    >
+      <MemoryRouter>
+        <OperatorSourceProposalPage />
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+  await user.click(
+    await screen.findByRole("button", { name: "توقف پردازش منبع" }),
+  );
+  expect(await screen.findByText("پردازش منبع متوقف است.")).toBeVisible();
+  expect(screen.getByText("تخصیص منبع فعال است")).toBeVisible();
+  const resume = screen.getByRole("button", {
+    name: "ازسرگیری با استخراج تازه",
+  });
+  expect(resume).toBeDisabled();
+  await user.click(
+    screen.getByRole("radio", { name: "بررسی اپراتور پیش از انتشار تازه" }),
+  );
+  await user.click(resume);
+  await waitFor(() =>
+    expect(bodies).toEqual([
+      { action: "pause", reviewed_processing_revision: 0 },
+      {
+        action: "resume",
+        reviewed_processing_revision: 1,
+        review_mode: "approval_required",
+      },
+    ]),
+  );
+  expect(
+    await screen.findByRole("button", { name: "توقف پردازش منبع" }),
+  ).toBeVisible();
+});
