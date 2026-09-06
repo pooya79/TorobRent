@@ -3025,8 +3025,23 @@ export interface components {
       fields: {
         [key: string]: components["schemas"]["ProfileFieldValidation"];
       };
-      pages: unknown[];
+      pages: components["schemas"]["ProfileValidationPage"][];
       approval_enabled: boolean;
+      readonly rules_valid: boolean | null;
+      readonly quality_passed: boolean;
+      /** @default true */
+      readonly limitations_present: boolean;
+    };
+    ProfileValidationPage: {
+      url: string;
+      status: string;
+      unresolved: string[];
+      conflicts: {
+        [key: string]: unknown[];
+      };
+      evidence: {
+        [key: string]: components["schemas"]["ProfileFieldEvidence"][];
+      };
     };
     /**
      * @description * `residential` - مسکونی
@@ -3320,6 +3335,10 @@ export interface components {
       /** Format: uuid */
       reviewed_profile_version: string;
       review_mode: components["schemas"]["ReviewModeEnum"];
+      /** @default false */
+      limitations_acknowledged: boolean;
+      /** @default  */
+      reason: string;
     };
     SourceProfileDecision: {
       reviewed_revision: number;
@@ -3372,6 +3391,8 @@ export interface components {
       readonly reservation: string;
       /** @default  */
       readonly decision_reason: string;
+      /** @default false */
+      readonly limitations_acknowledged: boolean;
       /** Format: date-time */
       readonly decided_at: string;
       /** Format: int64 */

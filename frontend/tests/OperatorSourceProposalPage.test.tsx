@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { MemoryRouter } from "react-router";
@@ -484,6 +484,9 @@ test("reviews profile evidence, edits a field, and approves only a validated ver
               validation: {
                 ...version.validation,
                 approval_enabled: true,
+                quality_passed: true,
+                limitations_present: false,
+                rules_valid: true,
                 fields: {
                   floor_area_sqm: { coverage: 1, passed: true, conflicts: 0 },
                 },
@@ -502,6 +505,8 @@ test("reviews profile evidence, edits a field, and approves only a validated ver
           reviewed_profile_version: "profile-2",
           confirmed: true,
           review_mode: "automatic",
+          limitations_acknowledged: false,
+          reason: "",
         });
         approved = true;
         return HttpResponse.json({ ...caseData, state: "approved" });
@@ -1038,3 +1043,133 @@ test("revokes an assignment with a reason and the reviewed revision", async () =
   expect(await screen.findByText("تصمیم ثبت شد.")).toBeVisible();
   expect(screen.queryByRole("button", { name: "لغو تخصیص منبع" })).toBeNull();
 });
+
+test.each([
+  ["approval_required", false],
+  ["automatic", false],
+  ["approval_required", true],
+  ["automatic", true],
+] as const)(
+  "approves sample limitations only with acknowledgement and a reason (%s, quality=%s)",
+  async (mode, qualityPassed) => {
+    const user = userEvent.setup();
+    const version = {
+      id: "limited-profile",
+      reservation: "limited-discovery",
+      number: 1,
+      status: "proposed",
+      rules: {},
+      validation: {
+        rules_valid: true,
+        quality_passed: qualityPassed,
+        limitations_present: true,
+        approval_enabled: true,
+        training_page_urls: ["https://khaneh.example/train"],
+        held_out_page_urls: ["https://khaneh.example/held"],
+        fields: {
+          floor_area_sqm: { coverage: 0, conflicts: 1, passed: false },
+        },
+        pages: [
+          {
+            url: "https://khaneh.example/held",
+            status: "needs_review",
+            unresolved: ["floor_area_sqm"],
+            conflicts: { floor_area_sqm: [85, 500] },
+            evidence: {},
+          },
+        ],
+      },
+      samples: [
+        {
+          canonical_url: "https://khaneh.example/held",
+          normalized: {},
+          unresolved: ["floor_area_sqm"],
+          conflicts: {},
+          evidence: {},
+          status: "needs_review",
+        },
+      ],
+    };
+    const caseData = {
+      ...proposal,
+      discovery_stage: "complete",
+      discovery: { id: "limited-discovery", evidence: { page_count: 10 } },
+      profile_versions: [version],
+    };
+    const approvals: unknown[] = [];
+    server.use(
+      http.get("*/api/v1/operator/source-proposals/", () =>
+        HttpResponse.json([caseData]),
+      ),
+      http.post("*/api/v1/operator/source-proposals/:proposalId/claim/", () =>
+        HttpResponse.json({}, { status: 201 }),
+      ),
+      http.post(
+        "*/api/v1/operator/source-proposals/:proposalId/profile/approve/",
+        async ({ request }) => {
+          approvals.push(await request.json());
+          return HttpResponse.json({
+            ...caseData,
+            state: "approved",
+            profile_versions: [{ ...version, status: "approved" }],
+          });
+        },
+      ),
+    );
+    render(
+      <QueryClientProvider
+        client={
+          new QueryClient({ defaultOptions: { queries: { retry: false } } })
+        }
+      >
+        <MemoryRouter>
+          <OperatorSourceProposalPage />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    expect(
+      await screen.findByText("قواعد از نظر فنی معتبر و قابل اجرا هستند."),
+    ).toBeVisible();
+    expect(
+      screen.getByText(/اعتبارسنجی تضمین درستی واقعی اطلاعات نیست/),
+    ).toBeVisible();
+    expect(
+      screen.getAllByText(/فیلدهای حل‌نشده: متراژ/).length,
+    ).toBeGreaterThan(0);
+    await user.click(screen.getByRole("button", { name: "شروع بررسی" }));
+    await user.selectOptions(screen.getByLabelText("روش بررسی نتایج"), mode);
+    await user.click(
+      screen.getByLabelText("نمونه‌ها و اعتبارسنجی پروفایل را بررسی کردم."),
+    );
+    const approve = screen.getByRole("button", {
+      name: "تأیید پروفایل و تخصیص منبع",
+    });
+    expect(approve).toBeDisabled();
+    await user.click(screen.getByLabelText("محدودیت‌های کیفیت را می‌پذیرم."));
+    expect(approve).toBeDisabled();
+    await user.type(
+      screen.getByLabelText("دلیل تأیید با وجود محدودیت‌ها"),
+      "   ",
+    );
+    expect(approve).toBeDisabled();
+    await user.clear(screen.getByLabelText("دلیل تأیید با وجود محدودیت‌ها"));
+    await user.type(
+      screen.getByLabelText("دلیل تأیید با وجود محدودیت‌ها"),
+      "نتایج معتبر قابل استفاده هستند",
+    );
+    expect(approve).toBeEnabled();
+    await user.click(approve);
+    await waitFor(() =>
+      expect(approvals).toEqual([
+        {
+          reviewed_revision: 1,
+          reviewed_profile_version: "limited-profile",
+          confirmed: true,
+          review_mode: mode,
+          limitations_acknowledged: true,
+          reason: "نتایج معتبر قابل استفاده هستند",
+        },
+      ]),
+    );
+  },
+);

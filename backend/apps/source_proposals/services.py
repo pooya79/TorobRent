@@ -302,6 +302,7 @@ def _record_review_decision(
     reason: str = "",
     reviewed_profile_version: uuid.UUID | None = None,
     review_mode: str = "",
+    limitations_acknowledged: bool = False,
 ) -> SourceProposal:
     from .discovery_workflow import release_reservations
     from .models import SourceProfileDecision, SourceProfileVersion
@@ -333,6 +334,7 @@ def _record_review_decision(
             version=version,
             event=decision,
             review_mode=review_mode,
+            limitations_acknowledged=limitations_acknowledged,
             representative=proposal.submitter,
         )
     create_source_proposal_review_notification(decision)

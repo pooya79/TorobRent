@@ -195,10 +195,57 @@ function ProfileEvidence({ version }: { version: Version }) {
       </p>
       {version.decision_reason && <p>{version.decision_reason}</p>}
       <p>
-        {version.validation.approval_enabled
-          ? "اعتبارسنجی هشت فیلد اصلی موفق بود."
-          : "فیلدهای اصلی هنوز آماده تأیید نیستند."}
+        {version.validation.rules_valid === true
+          ? "قواعد از نظر فنی معتبر و قابل اجرا هستند."
+          : version.validation.rules_valid === false
+            ? "قواعد از نظر فنی قابل تأیید نیستند."
+            : "اعتبار فنی این نسخه قدیمی هنگام تأیید دوباره بررسی می‌شود."}
       </p>
+      <p>
+        {version.validation.quality_passed
+          ? "اعتبارسنجی هشت فیلد اصلی موفق بود."
+          : "کیفیت فیلدهای اصلی محدودیت دارد."}
+      </p>
+      {version.validation.limitations_present && (
+        <p>
+          نمونه‌ها یا شواهد محدودیت دارند؛ تأیید نیازمند پذیرش محدودیت‌ها و ثبت
+          دلیل است.
+        </p>
+      )}
+      <p className="text-muted-foreground text-sm">
+        این شواهد برای تصمیم شماست؛ اعتبارسنجی تضمین درستی واقعی اطلاعات نیست.
+        هر نتیجه پیش از انتشار جداگانه بررسی می‌شود.
+      </p>
+      {version.limitations_acknowledged && (
+        <p>محدودیت‌های کیفیت هنگام تأیید پذیرفته شد.</p>
+      )}
+      <details>
+        <summary>یافته‌های هر صفحه اعتبارسنجی</summary>
+        {(version.validation.pages ?? []).map((page) => (
+          <div key={page.url} className="grid gap-1 border-b py-2 text-sm">
+            <p dir="ltr" className="break-all">
+              {page.url}
+            </p>
+            <p>
+              {page.unresolved.length || Object.keys(page.conflicts).length
+                ? "نیازمند بررسی"
+                : "بدون فیلد اصلی حل‌نشده یا متعارض"}
+            </p>
+            <p>
+              فیلدهای حل‌نشده:{" "}
+              {page.unresolved
+                .map((field) => fields[field] ?? field)
+                .join("، ") || "ندارد"}
+            </p>
+            {Object.entries(page.conflicts).map(([field, values]) => (
+              <p key={field}>
+                تعارض {fields[field] ?? field}:{" "}
+                {values.map((value) => displayField(field, value)).join("، ")}
+              </p>
+            ))}
+          </div>
+        ))}
+      </details>
       <div className="overflow-x-auto">
         <table className="w-full text-start text-sm">
           <caption className="text-start font-medium">
@@ -263,6 +310,12 @@ function ProfileEvidence({ version }: { version: Version }) {
             <summary className="break-all" dir="ltr">
               {sample.canonical_url}
             </summary>
+            <p className="text-sm">
+              فیلدهای حل‌نشده:{" "}
+              {sample.unresolved
+                .map((field) => fields[field] ?? field)
+                .join("، ") || "ندارد"}
+            </p>
             <CandidateMedia
               images={
                 version.media_candidates?.find(
@@ -333,6 +386,9 @@ function ProfileEditor({
   const [attribute, setAttribute] = useState("");
   const [currency, setCurrency] = useState("");
   const [confirmed, setConfirmed] = useState(false);
+  const [limitationsAcknowledged, setLimitationsAcknowledged] = useState(false);
+  const [reason, setReason] = useState("");
+  const hasLimitations = version.validation.limitations_present;
   const [mode, setMode] = useState<"" | "approval_required" | "automatic">("");
   const transform = [
     "floor_area_sqm",
@@ -381,6 +437,8 @@ function ProfileEditor({
         ...common,
         confirmed,
         review_mode: mode,
+        limitations_acknowledged: hasLimitations && limitationsAcknowledged,
+        reason: hasLimitations ? reason.trim() : "",
       });
     },
     onSuccess: onUpdate,
@@ -559,9 +617,37 @@ function ProfileEditor({
         />
         نمونه‌ها و اعتبارسنجی پروفایل را بررسی کردم.
       </label>
+      {hasLimitations && (
+        <fieldset className="grid gap-3 rounded-md border p-3" disabled={busy}>
+          <legend>تأیید با وجود محدودیت‌های کیفیت</legend>
+          <label className="flex gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={limitationsAcknowledged}
+              onChange={(event) =>
+                setLimitationsAcknowledged(event.target.checked)
+              }
+            />
+            محدودیت‌های کیفیت را می‌پذیرم.
+          </label>
+          <Label htmlFor={`limitations-reason-${version.id}`}>
+            دلیل تأیید با وجود محدودیت‌ها
+          </Label>
+          <Input
+            id={`limitations-reason-${version.id}`}
+            value={reason}
+            maxLength={2000}
+            onChange={(event) => setReason(event.target.value)}
+          />
+        </fieldset>
+      )}
       <Button
         disabled={
-          busy || !mode || !confirmed || !version.validation.approval_enabled
+          busy ||
+          !mode ||
+          !confirmed ||
+          version.validation.rules_valid === false ||
+          (hasLimitations && (!limitationsAcknowledged || !reason.trim()))
         }
         onClick={() => approve.mutate()}
       >

@@ -359,13 +359,29 @@ class ProfileFieldValidationSerializer(serializers.Serializer[Any]):
     conflict_page_urls = serializers.ListField(child=serializers.CharField())
 
 
+class ProfileValidationPageSerializer(serializers.Serializer[Any]):
+    url = serializers.CharField()
+    status = serializers.CharField()
+    unresolved = serializers.ListField(child=serializers.CharField())
+    conflicts = serializers.DictField(child=serializers.ListField(child=serializers.JSONField()))
+    evidence = serializers.DictField(child=ProfileFieldEvidenceSerializer(many=True))
+
+
 class ProfileValidationSerializer(serializers.Serializer[Any]):
     training_page_urls = serializers.ListField(child=serializers.CharField())
     held_out_page_urls = serializers.ListField(child=serializers.CharField())
     required_resolved = serializers.IntegerField()
     fields = serializers.DictField(child=ProfileFieldValidationSerializer())  # type: ignore[assignment]
-    pages = serializers.ListField(child=serializers.JSONField())
+    pages = ProfileValidationPageSerializer(many=True)
     approval_enabled = serializers.BooleanField()
+    rules_valid = serializers.BooleanField(default=None, allow_null=True, read_only=True)
+    quality_passed = serializers.SerializerMethodField()
+    # Legacy evidence has no complete limitation assessment; require explicit review.
+    limitations_present = serializers.BooleanField(default=True, read_only=True)
+
+    def get_quality_passed(self, validation: dict[str, Any]) -> bool:
+        # Historical evidence retains the old quality gate without rewriting its JSON.
+        return bool(validation.get("quality_passed", validation.get("approval_enabled", False)))
 
 
 class ProfileSampleSerializer(serializers.Serializer[Any]):
@@ -385,6 +401,9 @@ class ProfileSampleSerializer(serializers.Serializer[Any]):
 class SourceProfileVersionSerializer(serializers.ModelSerializer[SourceProfileVersion]):
     media_candidates = ExternalListingCandidateSerializer(many=True, read_only=True)
     reservation = serializers.UUIDField(source="reservation_id", read_only=True)
+    limitations_acknowledged = serializers.BooleanField(
+        source="decision.limitations_acknowledged", read_only=True, default=False
+    )
     decision_reason = serializers.CharField(
         source="decision.event.reason", read_only=True, default=""
     )
@@ -404,6 +423,7 @@ class SourceProfileVersionSerializer(serializers.ModelSerializer[SourceProfileVe
             "id",
             "reservation",
             "decision_reason",
+            "limitations_acknowledged",
             "decided_at",
             "number",
             "parent",
@@ -567,6 +587,8 @@ class SourceProfileEditSerializer(serializers.Serializer[Any]):
 class SourceProfileApprovalSerializer(SourceProposalApprovalSerializer):
     reviewed_profile_version = serializers.UUIDField()
     review_mode = serializers.ChoiceField(choices=("approval_required", "automatic"))
+    limitations_acknowledged = serializers.BooleanField(default=False)
+    reason = serializers.CharField(max_length=2000, required=False, allow_blank=True, default="")
 
 
 class SourceProfileRepairRequestSerializer(serializers.Serializer[Any]):

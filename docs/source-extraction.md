@@ -80,13 +80,27 @@ properties. The UI replaces one field's variants with a CSS or JSON-LD rule. Eve
 proposed version, preserves the original split, and validates retained pages without network access.
 
 Profile approval checks the current claim, proposal revision, version, and live host reservation,
-then reruns validation. Each of the eight core fields must resolve on at least four of the five
-held-out pages with no conflicting evidence; optional claims do not block approval. Approval
+then reruns rule safety and execution checks against the retained pages. Field quality is advisory:
+the existing four-of-five core-field coverage measure and conflicts remain visible, alongside
+page-level findings and unresolved fields. Neither publication mode requires quality success.
+Approving despite any unresolved, conflicting, or drifted sample requires explicit acknowledgement
+and a nonblank reason,
+retained in the immutable decision. Validation is evidence, not a guarantee of factual correctness;
+individual candidate publication checks remain mandatory in both modes. Approval
 atomically creates the Source Assignment, activates the reviewed version with the selected review
 mode, releases the reservation and claim, and notifies the representative. Rejection and requested
 changes require a reason and retain a version-specific immutable decision. Profile edits and
 approval reject stale version IDs. Expired evidence requires new explicit URL approval and Discovery.
 Extraction Runs create real candidates; explicit LLM repair remains a separate Operator action.
+
+Migration 0025 adds acknowledgement with a database default of false for existing decisions and
+older workers. It does not rewrite historical validation JSON or invent acknowledgements. New
+evidence separates `rules_valid`, `quality_passed`, and `approval_enabled`; the last describes
+technical eligibility, still subject to the live review gates. `limitations_present` also considers
+training samples and partial page failures even when the aggregate quality threshold passes.
+Historical evidence exposes unknown
+technical validity and retains its original quality outcome; approval rechecks the actual rules.
+Apply the migration before deploying the updated API workers.
 
 ## Source Assignment approval and dashboard
 

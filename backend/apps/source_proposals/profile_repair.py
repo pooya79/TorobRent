@@ -152,7 +152,7 @@ def repair_profile(
                 extractor_profile(version), pages, {**version.rules, **rules}
             )
             validation = asdict(checked.validation)
-            if not checked.validation.approval_enabled or any(
+            if not checked.validation.quality_passed or any(
                 not checked.validation.fields[field].passed for field in fields
             ):
                 raise RepairFailure(

@@ -11,7 +11,13 @@ from django.utils import timezone
 
 from apps.accounts.models import User
 from apps.catalog.models import Source
-from apps.source_extraction.contract import ExtractionContract, ExtractionPage, SourceDiscovery
+from apps.source_extraction.contract import (
+    ExtractedListing,
+    ExtractionContract,
+    ExtractionContractError,
+    ExtractionPage,
+    SourceDiscovery,
+)
 from apps.source_extraction.contract import SourceProfile as ExtractorProfile
 
 from .models import (
@@ -25,14 +31,24 @@ from .models import (
 from .review_claims import SourceProposalReviewConflict
 
 
+def _has_limitations(profile: ExtractorProfile, samples: tuple[ExtractedListing, ...]) -> bool:
+    return not profile.validation.quality_passed or any(
+        sample.unresolved or sample.conflicts or sample.structural_drift for sample in samples
+    )
+
+
 def _version_evidence(
     profile: ExtractorProfile, pages: list[ExtractionPage], contract: ExtractionContract
 ) -> dict[str, Any]:
+    samples = contract.apply_profile(profile, pages)
     return {
         "rules": dict(profile.mapping),
         "structural_fingerprint": profile.structural_fingerprint,
-        "validation": asdict(profile.validation),
-        "samples": [asdict(sample) for sample in contract.apply_profile(profile, pages)],
+        "validation": {
+            **asdict(profile.validation),
+            "limitations_present": _has_limitations(profile, samples),
+        },
+        "samples": [asdict(sample) for sample in samples],
         "diagnostics": dict(profile.mapping_diagnostics),
         "pipeline_version": profile.profile_version,
     }
@@ -154,7 +170,7 @@ def edit_profile(
     contract = ExtractionContract()
     try:
         checked = contract.revalidate_profile(extractor_profile(version), pages, rules)
-    except ValueError as exc:
+    except (ValueError, ExtractionContractError) as exc:
         raise ValidationError(str(exc)) from None
     previous = version.profile.versions.latest("number")
     SourceProfileVersion.objects.create(
@@ -179,6 +195,8 @@ def approve_profile(
     reviewed_profile_version: UUID,
     confirmed: bool,
     review_mode: str,
+    limitations_acknowledged: bool = False,
+    reason: str = "",
 ) -> SourceProposal:
     from .models import (
         ProfileReviewMode,
@@ -208,11 +226,16 @@ def approve_profile(
         raise SourceProposalReviewConflict(
             "source_host_unavailable", "The Source cannot be assigned."
         )
-    checked = ExtractionContract().revalidate_profile(
-        extractor_profile(version), validation_pages(version), version.rules
-    )
-    if not checked.validation.approval_enabled:
-        raise ValidationError("All eight core fields must pass deterministic held-out validation.")
+    contract = ExtractionContract()
+    pages = validation_pages(version)
+    try:
+        checked = contract.revalidate_profile(extractor_profile(version), pages, version.rules)
+        samples = contract.apply_profile(checked, pages)
+    except (ValueError, ExtractionContractError) as exc:
+        raise ValidationError(str(exc)) from None
+    reason = reason.strip()
+    if _has_limitations(checked, samples) and (not limitations_acknowledged or not reason):
+        raise ValidationError("محدودیت‌های اعتبارسنجی را بپذیرید و دلیل تأیید را ثبت کنید.")
     # URL approvals for a competing case serialize on Source. Recheck after waiting
     # for that lock and validating, because the reservation may have expired meanwhile.
     reservation = SourceReservation.objects.select_for_update().get(pk=version.reservation_id)
@@ -229,7 +252,8 @@ def approve_profile(
         new_state=SourceProposalState.APPROVED,
         reviewed_profile_version=version.pk,
         review_mode=review_mode,
-        reason="پروفایل منبع تأیید شد.",
+        reason=reason or "پروفایل منبع تأیید شد.",
+        limitations_acknowledged=limitations_acknowledged,
     )
 
     assignment = SourceAssignment.objects.filter(

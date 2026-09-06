@@ -130,6 +130,8 @@ class ProfileValidation:
     fields: Mapping[str, FieldValidation]
     pages: tuple[ValidationPage, ...]
     approval_enabled: bool
+    rules_valid: bool = False
+    quality_passed: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -640,7 +642,9 @@ class ExtractionContract:
             required_resolved=required_resolved,
             fields=fields,
             pages=tuple(page_reports),
-            approval_enabled=all(fields[field_name].passed for field_name in CORE_FIELDS),
+            rules_valid=True,
+            quality_passed=all(fields[field_name].passed for field_name in CORE_FIELDS),
+            approval_enabled=True,
         )
 
     @staticmethod

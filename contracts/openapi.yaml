@@ -6411,16 +6411,60 @@ components:
             $ref: '#/components/schemas/ProfileFieldValidation'
         pages:
           type: array
-          items: {}
+          items:
+            $ref: '#/components/schemas/ProfileValidationPage'
         approval_enabled:
           type: boolean
+        rules_valid:
+          type:
+          - boolean
+          - 'null'
+          readOnly: true
+        quality_passed:
+          type: boolean
+          readOnly: true
+        limitations_present:
+          type: boolean
+          readOnly: true
+          default: true
       required:
       - approval_enabled
       - fields
       - held_out_page_urls
+      - limitations_present
       - pages
+      - quality_passed
       - required_resolved
+      - rules_valid
       - training_page_urls
+    ProfileValidationPage:
+      type: object
+      properties:
+        url:
+          type: string
+        status:
+          type: string
+        unresolved:
+          type: array
+          items:
+            type: string
+        conflicts:
+          type: object
+          additionalProperties:
+            type: array
+            items: {}
+        evidence:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              $ref: '#/components/schemas/ProfileFieldEvidence'
+      required:
+      - conflicts
+      - evidence
+      - status
+      - unresolved
+      - url
     PropertyCategoryEnum:
       enum:
       - residential
@@ -7102,6 +7146,13 @@ components:
           format: uuid
         review_mode:
           $ref: '#/components/schemas/ReviewModeEnum'
+        limitations_acknowledged:
+          type: boolean
+          default: false
+        reason:
+          type: string
+          default: ''
+          maxLength: 2000
       required:
       - confirmed
       - review_mode
@@ -7255,6 +7306,10 @@ components:
           type: string
           readOnly: true
           default: ''
+        limitations_acknowledged:
+          type: boolean
+          readOnly: true
+          default: false
         decided_at:
           type: string
           format: date-time
@@ -7319,6 +7374,7 @@ components:
       - exclusions
       - id
       - is_active
+      - limitations_acknowledged
       - media_candidates
       - number
       - pipeline_version

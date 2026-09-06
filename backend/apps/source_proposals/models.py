@@ -507,6 +507,7 @@ class SourceProfileDecision(ImmutableProfileRecord):
     )
     event = models.OneToOneField(SourceProposalEvent, on_delete=models.PROTECT)
     review_mode = models.CharField(max_length=24, choices=ProfileReviewMode, blank=True)
+    limitations_acknowledged = models.BooleanField(default=False, db_default=False)
 
     def __str__(self) -> str:
         return f"Profile decision {self.version_id}"
