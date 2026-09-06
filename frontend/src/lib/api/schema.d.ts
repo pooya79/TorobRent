@@ -1960,6 +1960,13 @@ export interface components {
       covered_neighborhood_count: number;
     };
     /**
+     * @description * `improved` - improved
+     *     * `regressed` - regressed
+     *     * `changed` - changed
+     * @enum {string}
+     */
+    ChangeEnum: "improved" | "regressed" | "changed";
+    /**
      * @description * `unclaimed` - unclaimed
      *     * `claimed_by_me` - claimed_by_me
      *     * `claimed_by_another` - claimed_by_another
@@ -2980,6 +2987,33 @@ export interface components {
       code: string;
       message: string;
     };
+    ProfileComparisonResult: {
+      value: unknown | null;
+      conflicts: unknown[];
+      status: components["schemas"]["ProfileComparisonResultStatusEnum"];
+    };
+    /**
+     * @description * `resolved` - resolved
+     *     * `missing` - missing
+     *     * `conflict` - conflict
+     * @enum {string}
+     */
+    ProfileComparisonResultStatusEnum: "resolved" | "missing" | "conflict";
+    ProfileComparisonSample: {
+      url: string;
+      split: components["schemas"]["SplitEnum"];
+      before: components["schemas"]["ProfileComparisonResult"];
+      after: components["schemas"]["ProfileComparisonResult"];
+      change: components["schemas"]["ChangeEnum"];
+    };
+    ProfileFieldComparison: {
+      field: string;
+      before_rule: unknown | null;
+      after_rule: unknown | null;
+      before_validation: components["schemas"]["ProfileFieldValidation"] | null;
+      after_validation: components["schemas"]["ProfileFieldValidation"] | null;
+      samples: components["schemas"]["ProfileComparisonSample"][];
+    };
     ProfileFieldEvidence: {
       observer_name: string;
       raw_value: unknown;
@@ -3390,6 +3424,7 @@ export interface components {
       readonly id: string;
       /** Format: uuid */
       readonly reservation: string;
+      readonly comparison: components["schemas"]["ProfileFieldComparison"][];
       /** @default  */
       readonly decision_reason: string;
       /** @default false */
@@ -3546,6 +3581,12 @@ export interface components {
       max_pages: number;
       target_detail_pages: number;
     };
+    /**
+     * @description * `training` - training
+     *     * `held_out` - held_out
+     * @enum {string}
+     */
+    SplitEnum: "training" | "held_out";
     /**
      * @description * `queued` - در صف
      *     * `running` - در حال استخراج

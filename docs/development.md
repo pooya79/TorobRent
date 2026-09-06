@@ -152,8 +152,16 @@ Model input contains only the selected fields' observation locators and snippets
 training samples, with three observations per field/sample. Locators are capped at 300 characters
 and snippets at 240 after phone, email and URL redaction. Raw HTML, page URLs, other fields and
 held-out samples are excluded. Source Profile validation still uses the retained original training
-and held-out split. All core fields and the selected fields must pass before a new proposed
-version is created; approval remains a separate Operator decision.
+and held-out split. Safe executable rules create an immutable proposed version even when selected or unrelated fields
+still fail quality checks. Malformed or unsafe output remains an unsuccessful recorded attempt.
+The active version stays unchanged until the Operator explicitly approves the draft, chooses a
+publication mode, and acknowledges any limitations with a reason.
+
+The Operator sees a before/after comparison of changed rules, independent-validation counts and
+coverage, and affected sample values/conflicts. Improvements and regressions mean a field became
+resolved or stopped being resolved; changed resolved values are not claimed as improvements.
+Training and held-out samples are labeled separately. Comparisons use the immutable parent and
+draft evidence, so they survive snapshot expiry without re-fetching pages or rewriting history.
 
 Immutable request/result records retain actor, parent, selected fields, model, prompt/schema
 versions, SHA-256 of the exact redacted evidence, bounded redacted structured output, validation,

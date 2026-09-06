@@ -152,13 +152,6 @@ def repair_profile(
                 extractor_profile(version), pages, {**version.rules, **rules}
             )
             validation = asdict(checked.validation)
-            if not checked.validation.quality_passed or any(
-                not checked.validation.fields[field].passed for field in fields
-            ):
-                raise RepairFailure(
-                    "validation_failed",
-                    "اعتبارسنجی اصلاح موفق نبود؛ شواهد را بررسی و فیلدها را دستی اصلاح کنید.",
-                )
             new_version = SourceProfileVersion.objects.create(
                 profile=version.profile,
                 reservation=version.reservation,

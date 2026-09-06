@@ -127,7 +127,6 @@ def test_nonstandard_json_is_an_audited_failure(api_client, discovered_case, llm
         ("oversize", "malformed_output"),
         ("extra_field", "malformed_output"),
         ("script", "malformed_output"),
-        ("validation", "validation_failed"),
         ("refusal", "malformed_output"),
         ("tools", "malformed_output"),
         ("incomplete", "malformed_output"),
@@ -166,8 +165,6 @@ def test_repair_failure_preserves_parent_and_active_version(
         content["city"] = rule
     elif failure == "script":
         rule["selector"] = "script:contains(eval())"
-    elif failure == "validation":
-        rule["selector"] = ".deposit"
     elif failure == "refusal":
         envelope["choices"][0]["message"]["refusal"] = "Refused"
     elif failure == "tools":
@@ -200,8 +197,6 @@ def test_repair_failure_preserves_parent_and_active_version(
     assert audit["detail"]
     assert audit["result_version"] is None
     assert "SECRET" not in str(response.data)
-    if failure == "validation":
-        assert audit["validation"]["fields"]["floor_area_sqm"]["conflicts"] == 5
     retained = api_client.get("/api/v1/operator/source-proposals/").data[0]
     assert retained["profile_repairs"] == response.data["profile_repairs"]
     assert retained["profile_versions"] == [original]
@@ -408,3 +403,161 @@ def test_malformed_provider_message_is_recorded_without_changing_profile(
     assert response.status_code == 200
     assert response.data["profile_repairs"][0]["outcome"] == "malformed_output"
     assert response.data["profile_versions"] == [original]
+
+
+@pytest.mark.django_db
+def test_safe_repair_retains_regression_as_draft(api_client, discovered_case, llm_http):
+    from apps.source_proposals.models import SourceProfile
+
+    proposal, base, _, _, _ = discovered_case
+    lineage = SourceProfile.objects.get(source=proposal.reservations.get().source)
+    lineage.active_version = lineage.versions.first()
+    lineage.save()
+    original = api_client.get("/api/v1/operator/source-proposals/").data[0]["profile_versions"][0]
+    llm_http.getresponse.return_value.read1.side_effect = [
+        json.dumps({
+            "choices": [
+                {
+                    "finish_reason": "stop",
+                    "message": {
+                        "content": json.dumps({
+                            "floor_area_sqm": {
+                                "kind": "css",
+                                "selector": ".deposit",
+                                "path": None,
+                                "transform": "integer",
+                                "attribute": None,
+                                "currency_hint": None,
+                            }
+                        })
+                    },
+                }
+            ]
+        }).encode(),
+        b"",
+    ]
+    response = api_client.post(
+        f"{base}/profile/repair/",
+        {
+            "request_id": str(uuid.uuid4()),
+            "reviewed_revision": 1,
+            "reviewed_profile_version": original["id"],
+            "selected_fields": ["floor_area_sqm"],
+        },
+        format="json",
+    )
+    assert response.status_code == 200
+    repaired, retained = response.data["profile_versions"]
+    assert retained == original
+    assert repaired["validation"]["rules_valid"] is True
+    assert repaired["validation"]["quality_passed"] is False
+    assert repaired["status"] == "proposed"
+    assert repaired["is_active"] is False
+    assert response.data["profile_repairs"][0]["outcome"] == "succeeded"
+    area = next(item for item in repaired["comparison"] if item["field"] == "floor_area_sqm")
+    assert area["before_validation"]["conflicts"] == 0
+    assert area["after_validation"]["conflicts"] == 5
+    assert len(area["samples"]) == 10
+    assert {sample["change"] for sample in area["samples"]} == {"regressed"}
+    assert (
+        api_client.get("/api/v1/operator/source-proposals/").data[0]["profile_versions"]
+        == response.data["profile_versions"]
+    )
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("mode", ["approval_required", "automatic"])
+def test_rent_improvement_is_reviewable_while_area_still_fails(
+    api_client, discovered_case, llm_http, mode
+):
+    _, base, _, representative, _ = discovered_case
+    original = api_client.get("/api/v1/operator/source-proposals/").data[0]["profile_versions"][0]
+    edited = api_client.post(
+        f"{base}/profile/edit/",
+        {
+            "reviewed_revision": 1,
+            "reviewed_profile_version": original["id"],
+            "rules": {
+                **original["rules"],
+                "floor_area_sqm": {"kind": "css", "selector": ".deposit", "transform": "integer"},
+                "monthly_rent_rial": {
+                    "kind": "css",
+                    "selector": ".deposit",
+                    "transform": "money_rial",
+                },
+            },
+        },
+        format="json",
+    )
+    assert edited.status_code == 200
+    parent = edited.data["profile_versions"][0]
+    assert parent["validation"]["fields"]["monthly_rent_rial"]["passed"] is False
+    llm_http.getresponse.return_value.read1.side_effect = [
+        json.dumps({
+            "choices": [
+                {
+                    "finish_reason": "stop",
+                    "message": {
+                        "content": json.dumps({
+                            "monthly_rent_rial": {
+                                "kind": "css",
+                                "selector": ".rent",
+                                "path": None,
+                                "transform": "money_rial",
+                                "attribute": None,
+                                "currency_hint": None,
+                            }
+                        })
+                    },
+                }
+            ]
+        }).encode(),
+        b"",
+    ]
+    payload = {
+        "request_id": str(uuid.uuid4()),
+        "reviewed_revision": 1,
+        "reviewed_profile_version": parent["id"],
+        "selected_fields": ["monthly_rent_rial"],
+    }
+    response = api_client.post(f"{base}/profile/repair/", payload, format="json")
+    assert response.status_code == 200
+    draft = response.data["profile_versions"][0]
+    assert draft["validation"]["fields"]["monthly_rent_rial"]["passed"] is True
+    assert draft["validation"]["fields"]["floor_area_sqm"]["passed"] is False
+    assert draft["validation"]["quality_passed"] is False
+    assert draft["is_active"] is False
+    assert draft["status"] == "proposed"
+    comparison = draft["comparison"]
+    rent = next(item for item in comparison if item["field"] == "monthly_rent_rial")
+    assert rent["before_validation"]["resolved"] == 0
+    assert rent["after_validation"]["resolved"] == 5
+    assert rent["before_rule"]["selector"] == ".deposit"
+    assert rent["after_rule"]["selector"] == ".rent"
+    assert len(rent["samples"]) == 10
+    assert {sample["change"] for sample in rent["samples"]} == {"improved"}
+    assert {sample["after"]["value"] for sample in rent["samples"]} == {200000000}
+    assert {sample["url"] for sample in rent["samples"]} == {
+        sample["canonical_url"] for sample in draft["samples"]
+    }
+    assert {sample["split"] for sample in rent["samples"]} == {"training", "held_out"}
+    assert api_client.post(f"{base}/profile/repair/", payload, format="json").data == response.data
+    approval = {
+        "reviewed_revision": 1,
+        "reviewed_profile_version": draft["id"],
+        "confirmed": True,
+        "review_mode": mode,
+    }
+    assert api_client.post(f"{base}/profile/approve/", approval, format="json").status_code == 400
+    approval.update(limitations_acknowledged=True, reason="محدودیت متراژ بررسی شد.")
+    stale = {**approval, "reviewed_profile_version": parent["id"]}
+    assert api_client.post(f"{base}/profile/approve/", stale, format="json").status_code == 409
+    approved = api_client.post(f"{base}/profile/approve/", approval, format="json")
+    assert approved.status_code == 200
+    assert approved.data["profile_versions"][0]["is_active"] is True
+    assert approved.data["profile_versions"][0]["comparison"] == comparison
+    api_client.force_authenticate(representative)
+    own = api_client.get(f"/api/v1/source-proposals/{response.data['id']}/")
+    assert own.status_code == 200
+    assert "profile_versions" not in own.data
+    assert "profile_repairs" not in own.data

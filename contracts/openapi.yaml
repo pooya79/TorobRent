@@ -3929,6 +3929,16 @@ components:
       - active_listing_count
       - covered_neighborhood_count
       - searchable_property_count
+    ChangeEnum:
+      enum:
+      - improved
+      - regressed
+      - changed
+      type: string
+      description: |-
+        * `improved` - improved
+        * `regressed` - regressed
+        * `changed` - changed
     ClaimStatusEnum:
       enum:
       - unclaimed
@@ -6300,6 +6310,83 @@ components:
       required:
       - code
       - message
+    ProfileComparisonResult:
+      type: object
+      properties:
+        value:
+          oneOf:
+          - {}
+          - type: 'null'
+        conflicts:
+          type: array
+          items: {}
+        status:
+          $ref: '#/components/schemas/ProfileComparisonResultStatusEnum'
+      required:
+      - conflicts
+      - status
+      - value
+    ProfileComparisonResultStatusEnum:
+      enum:
+      - resolved
+      - missing
+      - conflict
+      type: string
+      description: |-
+        * `resolved` - resolved
+        * `missing` - missing
+        * `conflict` - conflict
+    ProfileComparisonSample:
+      type: object
+      properties:
+        url:
+          type: string
+        split:
+          $ref: '#/components/schemas/SplitEnum'
+        before:
+          $ref: '#/components/schemas/ProfileComparisonResult'
+        after:
+          $ref: '#/components/schemas/ProfileComparisonResult'
+        change:
+          $ref: '#/components/schemas/ChangeEnum'
+      required:
+      - after
+      - before
+      - change
+      - split
+      - url
+    ProfileFieldComparison:
+      type: object
+      properties:
+        field:
+          type: string
+        before_rule:
+          oneOf:
+          - {}
+          - type: 'null'
+        after_rule:
+          oneOf:
+          - {}
+          - type: 'null'
+        before_validation:
+          oneOf:
+          - $ref: '#/components/schemas/ProfileFieldValidation'
+          - type: 'null'
+        after_validation:
+          oneOf:
+          - $ref: '#/components/schemas/ProfileFieldValidation'
+          - type: 'null'
+        samples:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProfileComparisonSample'
+      required:
+      - after_rule
+      - after_validation
+      - before_rule
+      - before_validation
+      - field
+      - samples
     ProfileFieldEvidence:
       type: object
       properties:
@@ -7310,6 +7397,11 @@ components:
           type: string
           format: uuid
           readOnly: true
+        comparison:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProfileFieldComparison'
+          readOnly: true
         decision_reason:
           type: string
           readOnly: true
@@ -7375,6 +7467,7 @@ components:
           readOnly: true
           default: ''
       required:
+      - comparison
       - created_at
       - created_by_label
       - decided_at
@@ -7689,6 +7782,14 @@ components:
       - max_pages
       - reviewed_revision
       - target_detail_pages
+    SplitEnum:
+      enum:
+      - training
+      - held_out
+      type: string
+      description: |-
+        * `training` - training
+        * `held_out` - held_out
     State299Enum:
       enum:
       - queued

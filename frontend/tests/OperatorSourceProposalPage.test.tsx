@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { MemoryRouter } from "react-router";
@@ -1280,3 +1280,194 @@ test.each([
     }
   },
 );
+
+test("compares imperfect repair evidence and requires a fresh explicit approval", async () => {
+  const user = userEvent.setup();
+  const validation = {
+    rules_valid: true,
+    quality_passed: false,
+    approval_enabled: true,
+    limitations_present: true,
+    training_page_urls: [],
+    held_out_page_urls: [],
+    fields: {},
+  };
+  const parent = {
+    id: "before-repair",
+    reservation: "discovery-1",
+    number: 1,
+    provenance: "manual",
+    status: "proposed",
+    is_active: true,
+    rules: {},
+    validation,
+    samples: [],
+    exclusions: [],
+  };
+  const counts = {
+    resolved: 0,
+    conflicts: 1,
+    coverage: 0,
+    passed: false,
+    missing_page_urls: [],
+    conflict_page_urls: ["https://khaneh.example/listing/10001"],
+  };
+  const draft = {
+    ...parent,
+    id: "after-repair",
+    parent: parent.id,
+    number: 2,
+    provenance: "llm",
+    is_active: false,
+    comparison: [
+      {
+        field: "monthly_rent_rial",
+        before_rule: { selector: ".deposit" },
+        after_rule: { selector: ".rent" },
+        before_validation: counts,
+        after_validation: {
+          ...counts,
+          resolved: 1,
+          conflicts: 0,
+          coverage: 1,
+          passed: true,
+        },
+        samples: [
+          {
+            url: "https://khaneh.example/listing/10001",
+            split: "held_out",
+            change: "improved",
+            before: {
+              value: null,
+              conflicts: [200000000, 5000000000],
+              status: "conflict",
+            },
+            after: { value: 200000000, conflicts: [], status: "resolved" },
+          },
+        ],
+      },
+      {
+        field: "floor_area_sqm",
+        before_rule: {},
+        after_rule: {},
+        before_validation: {
+          ...counts,
+          resolved: 1,
+          conflicts: 0,
+          coverage: 1,
+          passed: true,
+        },
+        after_validation: counts,
+        samples: [
+          {
+            url: "https://khaneh.example/listing/10002",
+            split: "training",
+            change: "regressed",
+            before: { value: 85, conflicts: [], status: "resolved" },
+            after: { value: null, conflicts: [85, 500], status: "conflict" },
+          },
+        ],
+      },
+    ],
+  };
+  const caseData = {
+    ...proposal,
+    discovery_stage: "complete",
+    discovery: { id: "discovery-1", evidence: { page_count: 10 } },
+    profile_versions: [parent],
+    profile_repairs: [],
+  };
+  let approvalBody: unknown;
+  server.use(
+    http.get("*/api/v1/operator/source-proposals/", () =>
+      HttpResponse.json([caseData]),
+    ),
+    http.post("*/api/v1/operator/source-proposals/:proposalId/claim/", () =>
+      HttpResponse.json({}, { status: 201 }),
+    ),
+    http.post(
+      "*/api/v1/operator/source-proposals/:proposalId/profile/repair/",
+      () =>
+        HttpResponse.json({
+          ...caseData,
+          profile_versions: [draft, parent],
+        }),
+    ),
+    http.post(
+      "*/api/v1/operator/source-proposals/:proposalId/profile/approve/",
+      async ({ request }) => {
+        approvalBody = await request.json();
+        return HttpResponse.json(
+          { detail: "نسخه پروفایل تغییر کرده است؛ پرونده را تازه کنید." },
+          { status: 409 },
+        );
+      },
+    ),
+  );
+  render(
+    <QueryClientProvider
+      client={
+        new QueryClient({ defaultOptions: { queries: { retry: false } } })
+      }
+    >
+      <MemoryRouter>
+        <OperatorSourceProposalPage />
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+  await screen.findByText("پروفایل منبع — نسخه ۱");
+  await user.click(screen.getByRole("button", { name: "شروع بررسی" }));
+  await user.selectOptions(
+    screen.getByLabelText("روش بررسی نتایج"),
+    "automatic",
+  );
+  await user.click(
+    screen.getByLabelText("نمونه‌ها و اعتبارسنجی پروفایل را بررسی کردم."),
+  );
+  await user.click(screen.getByLabelText("اصلاح هوشمند اجاره ماهانه"));
+  await user.click(
+    screen.getByRole("button", { name: "درخواست اصلاح هوشمند" }),
+  );
+  expect(
+    await screen.findByRole("heading", { name: "مقایسه اصلاح با نسخه پیشین" }),
+  ).toBeVisible();
+  expect(screen.getByText("بهبود: ۱ صفحه · پسرفت: ۰ صفحه")).toBeVisible();
+  expect(screen.getByText("بهبود: ۰ صفحه · پسرفت: ۱ صفحه")).toBeVisible();
+  const rentComparison = within(
+    screen.getByRole("article", { name: "مقایسه اجاره ماهانه" }),
+  );
+  await user.click(rentComparison.getByText("صفحات نمونه تحت تأثیر"));
+  expect(
+    screen.getByText("https://khaneh.example/listing/10001"),
+  ).toBeVisible();
+  expect(screen.getByText("۲۰٬۰۰۰٬۰۰۰ تومان")).toBeVisible();
+  expect(rentComparison.getByText("اعتبارسنجی مستقل")).toBeVisible();
+  const approve = screen.getByRole("button", {
+    name: "تأیید پروفایل و تخصیص منبع",
+  });
+  expect(approve).toBeDisabled();
+  expect(approvalBody).toBeUndefined();
+  await user.selectOptions(
+    screen.getByLabelText("روش بررسی نتایج"),
+    "approval_required",
+  );
+  await user.click(
+    screen.getByLabelText("نمونه‌ها و اعتبارسنجی پروفایل را بررسی کردم."),
+  );
+  await user.click(screen.getByLabelText("محدودیت‌های کیفیت را می‌پذیرم."));
+  await user.type(
+    screen.getByLabelText("دلیل تأیید با وجود محدودیت‌ها"),
+    "شواهد بررسی شد.",
+  );
+  await user.click(approve);
+  expect(
+    await screen.findByText(
+      "نسخه پروفایل تغییر کرده است؛ پرونده را تازه کنید.",
+    ),
+  ).toBeVisible();
+  expect(approvalBody).toMatchObject({
+    reviewed_profile_version: "after-repair",
+    review_mode: "approval_required",
+    limitations_acknowledged: true,
+  });
+});

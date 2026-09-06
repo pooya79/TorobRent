@@ -179,6 +179,146 @@ export function SourceProfileReview({
   );
 }
 
+function ProfileComparison({ version }: { version: Version }) {
+  if (version.provenance !== "llm" || !version.comparison) return null;
+  const resultLabels = {
+    resolved: "حل‌شده",
+    missing: "حل‌نشده",
+    conflict: "متعارض",
+  };
+  const changeLabels = {
+    improved: "بهبود",
+    regressed: "پسرفت",
+    changed: "تغییر مقدار یا تعارض",
+  };
+  function quality(
+    value: components["schemas"]["ProfileFieldValidation"] | null,
+  ) {
+    if (!value) return "شواهد ثبت نشده";
+    const coverage =
+      value.coverage === null
+        ? "نامشخص"
+        : `${(value.coverage * 100).toLocaleString("fa-IR")}٪`;
+    return `حل‌شده: ${value.resolved.toLocaleString("fa-IR")} · تعارض: ${value.conflicts.toLocaleString("fa-IR")} · پوشش: ${coverage}`;
+  }
+  return (
+    <section
+      className="grid min-w-0 gap-3 rounded-md border p-3"
+      aria-label="مقایسه اصلاح"
+    >
+      <h4 className="font-semibold">مقایسه اصلاح با نسخه پیشین</h4>
+      <p className="text-muted-foreground text-sm">
+        بهبود و پسرفت نشان‌دهنده حل‌شدن یا حل‌نشده‌شدن فیلد در نمونه‌هاست؛ درستی
+        واقعی مقدار را تأیید نمی‌کند.
+      </p>
+      {version.status === "proposed" && (
+        <p className="text-sm">
+          این نسخه پیش‌نویس است؛ نسخه فعال تا تأیید صریح شما تغییر نمی‌کند.
+        </p>
+      )}
+      {version.comparison.length === 0 && (
+        <p>قواعد، مقادیر و وضعیت فیلدها نسبت به نسخه پیشین تغییری نکرده‌اند.</p>
+      )}
+      {version.comparison.map((item) => (
+        <article
+          key={item.field}
+          className="grid min-w-0 gap-2 border-t pt-3"
+          aria-label={`مقایسه ${fields[item.field] ?? item.field}`}
+        >
+          <h5 className="font-medium">{fields[item.field] ?? item.field}</h5>
+          <p className="text-sm">
+            بهبود:{" "}
+            {item.samples
+              .filter((sample) => sample.change === "improved")
+              .length.toLocaleString("fa-IR")}{" "}
+            صفحه · پسرفت:{" "}
+            {item.samples
+              .filter((sample) => sample.change === "regressed")
+              .length.toLocaleString("fa-IR")}{" "}
+            صفحه
+          </p>
+          <dl className="grid gap-2 text-sm sm:grid-cols-2">
+            <div>
+              <dt className="font-medium">پیش از اصلاح — اعتبارسنجی مستقل</dt>
+              <dd>{quality(item.before_validation)}</dd>
+            </div>
+            <div>
+              <dt className="font-medium">پس از اصلاح — اعتبارسنجی مستقل</dt>
+              <dd>{quality(item.after_validation)}</dd>
+            </div>
+          </dl>
+          <details>
+            <summary>قواعد پیش و پس از اصلاح</summary>
+            <div className="grid min-w-0 gap-2 sm:grid-cols-2">
+              <div className="min-w-0">
+                <p>پیش از اصلاح</p>
+                <pre dir="ltr" className="overflow-x-auto text-xs">
+                  {JSON.stringify(item.before_rule, null, 2) ?? "—"}
+                </pre>
+              </div>
+              <div className="min-w-0">
+                <p>پس از اصلاح</p>
+                <pre dir="ltr" className="overflow-x-auto text-xs">
+                  {JSON.stringify(item.after_rule, null, 2) ?? "—"}
+                </pre>
+              </div>
+            </div>
+          </details>
+          <details>
+            <summary>صفحات نمونه تحت تأثیر</summary>
+            {item.samples.length === 0 && (
+              <p className="text-sm">
+                مقدار و وضعیت فیلد در نمونه‌ها تغییر نکرده است.
+              </p>
+            )}
+            {item.samples.map((sample) => (
+              <div
+                key={sample.url}
+                className="grid gap-2 border-t py-3 text-sm"
+              >
+                <p className="break-all" dir="ltr">
+                  {sample.url}
+                </p>
+                <p>
+                  <strong>{changeLabels[sample.change]}</strong> ·{" "}
+                  <span>
+                    {sample.split === "held_out"
+                      ? "اعتبارسنجی مستقل"
+                      : "نمونه آموزشی"}
+                  </span>
+                </p>
+                <dl className="grid gap-2 sm:grid-cols-2">
+                  {(["before", "after"] as const).map((side) => (
+                    <div key={side} className="min-w-0 break-words">
+                      <dt className="font-medium">
+                        {side === "before" ? "پیش از اصلاح" : "پس از اصلاح"} —{" "}
+                        {resultLabels[sample[side].status]}
+                      </dt>
+                      <dd>
+                        {sample[side].value == null
+                          ? "—"
+                          : displayField(item.field, sample[side].value)}
+                      </dd>
+                      {sample[side].conflicts.length > 0 && (
+                        <dd>
+                          مقادیر متعارض:{" "}
+                          {sample[side].conflicts
+                            .map((value) => displayField(item.field, value))
+                            .join("، ")}
+                        </dd>
+                      )}
+                    </div>
+                  ))}
+                </dl>
+              </div>
+            ))}
+          </details>
+        </article>
+      ))}
+    </section>
+  );
+}
+
 function ProfileEvidence({ version }: { version: Version }) {
   const trainingCount = version.validation.training_page_urls.length;
   const validationCount = version.validation.held_out_page_urls.length;
@@ -196,6 +336,7 @@ function ProfileEvidence({ version }: { version: Version }) {
         · {version.created_by_label || "سامانه"}
       </p>
       {version.decision_reason && <p>{version.decision_reason}</p>}
+      <ProfileComparison version={version} />
       <p>
         {version.validation.rules_valid === true
           ? "قواعد از نظر فنی معتبر و قابل اجرا هستند."
@@ -490,8 +631,8 @@ function ProfileEditor({
         </legend>
         <p className="text-sm">
           یک تا چهار فیلد را انتخاب کنید. فقط شواهد محدود و بدون شماره تماس برای
-          مدل ارسال می‌شود. هر اصلاح موفق نسخه تازه‌ای می‌سازد که نیازمند بررسی
-          شماست.
+          مدل ارسال می‌شود. قواعد معتبر حتی با وجود خطای کیفیت، پیش‌نویس تازه‌ای
+          می‌سازند که پیش از تأیید باید بررسی کنید.
         </p>
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
           {Object.entries(fields).map(([name, label]) => (

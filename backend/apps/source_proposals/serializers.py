@@ -404,7 +404,31 @@ class ProfileSampleSerializer(serializers.Serializer[Any]):
     fingerprint_similarity = serializers.FloatField()
 
 
+class ProfileComparisonResultSerializer(serializers.Serializer[Any]):
+    value = serializers.JSONField(allow_null=True)
+    conflicts = serializers.ListField(child=serializers.JSONField())
+    status = serializers.ChoiceField(choices=("resolved", "missing", "conflict"))
+
+
+class ProfileComparisonSampleSerializer(serializers.Serializer[Any]):
+    url = serializers.CharField()
+    split = serializers.ChoiceField(choices=("training", "held_out"))
+    before = ProfileComparisonResultSerializer()
+    after = ProfileComparisonResultSerializer()
+    change = serializers.ChoiceField(choices=("improved", "regressed", "changed"))
+
+
+class ProfileFieldComparisonSerializer(serializers.Serializer[Any]):
+    field = serializers.CharField()
+    before_rule = serializers.JSONField(allow_null=True)
+    after_rule = serializers.JSONField(allow_null=True)
+    before_validation = ProfileFieldValidationSerializer(allow_null=True)
+    after_validation = ProfileFieldValidationSerializer(allow_null=True)
+    samples = ProfileComparisonSampleSerializer(many=True)
+
+
 class SourceProfileVersionSerializer(serializers.ModelSerializer[SourceProfileVersion]):
+    comparison = serializers.SerializerMethodField()
     media_candidates = ExternalListingCandidateSerializer(many=True, read_only=True)
     reservation = serializers.UUIDField(source="reservation_id", read_only=True)
     limitations_acknowledged = serializers.BooleanField(
@@ -428,6 +452,7 @@ class SourceProfileVersionSerializer(serializers.ModelSerializer[SourceProfileVe
         fields = (
             "id",
             "reservation",
+            "comparison",
             "decision_reason",
             "limitations_acknowledged",
             "decided_at",
@@ -448,6 +473,12 @@ class SourceProfileVersionSerializer(serializers.ModelSerializer[SourceProfileVe
             "is_active",
             "review_mode",
         )
+
+    @extend_schema_field(ProfileFieldComparisonSerializer(many=True))
+    def get_comparison(self, version: SourceProfileVersion) -> list[dict[str, Any]]:
+        from .profile_comparison import compare_profile
+
+        return list(ProfileFieldComparisonSerializer(compare_profile(version), many=True).data)
 
     def get_status(self, version: SourceProfileVersion) -> str:
         return version.decision.event.new_state if hasattr(version, "decision") else "proposed"
@@ -539,7 +570,7 @@ class OperatorSourceProposalSerializer(SourceProposalSerializer):
     def get_profile_versions(self, proposal: SourceProposal) -> list[dict[str, Any]]:
         versions = SourceProfileVersion.objects.filter(
             reservation__proposal=proposal
-        ).select_related("profile", "decision__event", "created_by")
+        ).select_related("profile", "parent", "decision__event", "created_by")
         return list(SourceProfileVersionSerializer(versions, many=True).data)
 
     @extend_schema_field(SourceDiscoverySerializer(allow_null=True))
