@@ -618,6 +618,8 @@ class ExtractionRequest(models.Model):
 
 
 class ExtractionRun(models.Model):
+    attempted_pages = models.PositiveIntegerField(null=True)
+    usable_results = models.PositiveIntegerField(null=True)
     skipped_pages = models.JSONField(default=list, db_default=[])
     withdrawals = models.JSONField(default=list, db_default=[])
     candidate_rejected = models.PositiveIntegerField(default=0, db_default=0)
@@ -936,3 +938,35 @@ class SourceBulkAction(models.Model):
 
     def __str__(self) -> str:
         return f"Source bulk {self.action} {self.pk}"
+
+
+class SourceExceptionNotificationState(models.Model):
+    source = models.OneToOneField("catalog.Source", on_delete=models.CASCADE, primary_key=True)
+    pending_changes = models.JSONField(default=dict)
+    last_summary_date = models.DateField(null=True)
+    last_delivery_check = models.DateTimeField(null=True)
+    failing = models.BooleanField(default=False)
+    failure_notified = models.BooleanField(default=False)
+    last_run = models.ForeignKey(ExtractionRun, on_delete=models.PROTECT, null=True)
+    last_attempt = models.PositiveIntegerField(default=0)
+
+    def __str__(self) -> str:
+        return f"Exception notification state for {self.source_id}"
+
+
+class SourceExceptionNotice(ImmutableProfileRecord):
+    source = models.ForeignKey("catalog.Source", on_delete=models.PROTECT)
+    kind = models.CharField(max_length=16, choices=(("summary", "Summary"), ("failure", "Failure")))
+    changes = models.JSONField(default=dict)
+    summary_date = models.DateField(null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=("source", "summary_date"), name="one_source_exception_summary_daily"
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.kind}: {self.source_id}"

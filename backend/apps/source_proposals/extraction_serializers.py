@@ -44,6 +44,8 @@ class ExtractionRunSerializer(serializers.ModelSerializer[ExtractionRun]):
             "attempts",
             "started_at",
             "completed_at",
+            "attempted_pages",
+            "usable_results",
             "discovered",
             "extracted",
             "published",

@@ -2613,6 +2613,8 @@ export interface components {
       readonly started_at: string;
       /** Format: date-time */
       readonly completed_at: string | null;
+      readonly attempted_pages: number | null;
+      readonly usable_results: number | null;
       readonly discovered: number;
       readonly extracted: number;
       readonly published: number;

@@ -17,6 +17,7 @@ from .models import (
 def record_exceptions(run: ExtractionRun) -> None:
     if run.state == "cancelled":
         return
+    changes: dict[str, int] = {}
     outcomes: dict[str, tuple[str, str, str]] = {}
     for error in run.errors:
         outcomes[normalize_url(error.get("url", run.request.canonical_url))] = (
@@ -84,6 +85,16 @@ def record_exceptions(run: ExtractionRun) -> None:
             candidates.filter(extraction_run=run).update(superseded=True)
         if not recorded:
             continue
+        if (current and state != exception.state) or created:
+            change = (
+                ("new" if created or exception.first_occurrence is None else "reopened")
+                if state == "open"
+                else "resolved"
+                if not created and exception.state == "open" and state == "resolved"
+                else ""
+            )
+            if change:
+                changes[change] = changes.get(change, 0) + 1
         if state != "resolved" and (
             exception.first_occurrence is None or run.started_at < exception.first_occurrence
         ):
@@ -104,3 +115,8 @@ def record_exceptions(run: ExtractionRun) -> None:
         ).exists()
     ]
     run.save(update_fields=("withdrawals",))
+
+    if changes:
+        from .exception_notifications import aggregate_changes
+
+        aggregate_changes(run.request.assignment.source, changes)

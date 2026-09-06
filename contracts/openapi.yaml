@@ -5312,6 +5312,16 @@ components:
           - 'null'
           format: date-time
           readOnly: true
+        attempted_pages:
+          type:
+          - integer
+          - 'null'
+          readOnly: true
+        usable_results:
+          type:
+          - integer
+          - 'null'
+          readOnly: true
         discovered:
           type: integer
           readOnly: true
@@ -5343,6 +5353,7 @@ components:
             $ref: '#/components/schemas/ExcludedPage'
           readOnly: true
       required:
+      - attempted_pages
       - attempts
       - candidates
       - completed_at
@@ -5361,6 +5372,7 @@ components:
       - skipped_pages
       - started_at
       - state
+      - usable_results
       - withdrawals
     ExtractionRunDecision:
       type: object

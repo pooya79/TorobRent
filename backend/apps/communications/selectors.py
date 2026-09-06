@@ -72,6 +72,7 @@ def system_notifications_for(
         "originating_event__submission",
         "originating_source_proposal_event__proposal",
         "originating_run_decision",
+        "originating_source_exception_notice__source__responsible_operator",
         "originating_candidate_event",
         "target_source_proposal",
     )

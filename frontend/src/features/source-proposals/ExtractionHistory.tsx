@@ -9,6 +9,8 @@ const stateLabels: Record<string, string> = {
   cancelled: "لغوشده",
 };
 const counters = {
+  attempted_pages: "صفحه‌های پردازش‌شده خارج از محدودیت",
+  usable_results: "نتایج قابل استفاده",
   discovered: "کشف‌شده",
   extracted: "استخراج‌شده",
   published: "منتشرشده",
@@ -53,7 +55,7 @@ export function ExtractionHistory({
                     <dd>
                       {request.run![
                         key as keyof typeof counters
-                      ].toLocaleString("fa-IR")}
+                      ]?.toLocaleString("fa-IR") ?? "ثبت نشده"}
                     </dd>
                   </div>
                 ))}

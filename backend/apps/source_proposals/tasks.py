@@ -75,3 +75,10 @@ def cleanup_source_snapshots(*, batch_size: int = 200) -> int:
     from .snapshot_retention import cleanup_source_snapshots as cleanup
 
     return cleanup(batch_size=batch_size)
+
+
+@shared_task(soft_time_limit=240, time_limit=300)  # type: ignore[untyped-decorator]
+def deliver_source_exception_summaries() -> int:
+    from .exception_notifications import deliver_summaries
+
+    return deliver_summaries()

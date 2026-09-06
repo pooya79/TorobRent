@@ -111,3 +111,12 @@ test("allows fresh extraction after an exclusion is removed while preserving its
     screen.getByRole("button", { name: "استخراج دوباره صفحه" }),
   ).toBeEnabled();
 });
+
+test("representatives can inspect pages without treating failures as action requests", () => {
+  renderPanel();
+  expect(screen.getByText(/درخواست اقدام فقط در گفت‌وگوی منبع/)).toBeVisible();
+  expect(
+    screen.getByRole("link", { name: exception.canonical_url }),
+  ).toBeVisible();
+  expect(screen.getByText(/مشکلات باز:.*۱/)).toBeVisible();
+});
