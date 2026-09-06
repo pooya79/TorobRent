@@ -147,6 +147,7 @@ export function SourceProposalPage() {
             <p role="status">
               {discoveryStageLabels[proposal.discovery_stage ?? "awaiting_url"]}
             </p>
+            {proposal.discovery_message && <p>{proposal.discovery_message}</p>}
             <p className="text-muted-foreground leading-7">
               پیشنهاد وب‌سایت {proposal.website_name} ثبت شده است. کشف اطلاعات
               به معنی تأیید منبع یا انتشار آگهی نیست.

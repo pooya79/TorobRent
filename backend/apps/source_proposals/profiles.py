@@ -32,8 +32,12 @@ from .review_claims import SourceProposalReviewConflict
 
 
 def _has_limitations(profile: ExtractorProfile, samples: tuple[ExtractedListing, ...]) -> bool:
-    return not profile.validation.quality_passed or any(
-        sample.unresolved or sample.conflicts or sample.structural_drift for sample in samples
+    return (
+        len(profile.validation.training_page_urls) + len(profile.validation.held_out_page_urls) < 10
+        or not profile.validation.quality_passed
+        or any(
+            sample.unresolved or sample.conflicts or sample.structural_drift for sample in samples
+        )
     )
 
 

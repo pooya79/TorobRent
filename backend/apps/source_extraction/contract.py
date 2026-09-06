@@ -107,8 +107,8 @@ class FieldEvidence:
 class FieldValidation:
     resolved: int
     conflicts: int
-    coverage: float
-    passed: bool
+    coverage: float | None
+    passed: bool | None
     missing_page_urls: tuple[str, ...]
     conflict_page_urls: tuple[str, ...]
 
@@ -360,16 +360,19 @@ class ExtractionContract:
             for page in discovery.pages
             if page.url in selected_urls and page.sanitized_html is not None
         ]
-        if len(candidates) < required:
-            raise ExtractionContractError(
-                f"Profile creation needs {required} pages in the dominant supported structure; "
-                f"found {len(candidates)} of {discovery.detail_page_count} detail pages"
-            )
+        if not candidates:
+            raise ExtractionContractError("No usable supported rental-detail page was discovered")
         representatives = sorted(
             candidates, key=lambda page: hashlib.sha256(page.html.encode()).hexdigest()
         )[:required]
-        training = representatives[:training_page_count]
-        held_out = representatives[training_page_count:]
+        # Counts are upper bounds. Reserve independent evidence even for small sites,
+        # while a lone page can only supply training evidence.
+        training_count = min(
+            training_page_count,
+            max(len(representatives) - validation_page_count, math.ceil(len(representatives) / 2)),
+        )
+        training = representatives[:training_count]
+        held_out = representatives[training_count : training_count + validation_page_count]
         training_mappings = [page.as_legacy_mapping(index) for index, page in enumerate(training)]
         mapping, diagnostics = build_deterministic_profile(training_mappings)
         validate_field_rules(mapping)
@@ -388,8 +391,8 @@ class ExtractionContract:
         by_url = {page.url: page for page in pages}
         training_urls = profile.validation.training_page_urls
         held_out_urls = profile.validation.held_out_page_urls
-        if not training_urls or not held_out_urls or set(training_urls) & set(held_out_urls):
-            raise ExtractionContractError("Independent training and held-out pages are required")
+        if not training_urls or set(training_urls) & set(held_out_urls):
+            raise ExtractionContractError("Training pages and a disjoint held-out set are required")
         if any(url not in by_url for url in (*training_urls, *held_out_urls)):
             raise ExtractionContractError("Validation snapshots are no longer available")
 
@@ -629,8 +632,10 @@ class ExtractionContract:
             field_name: FieldValidation(
                 resolved=resolved[field_name],
                 conflicts=conflicts[field_name],
-                coverage=resolved[field_name] / len(held_out),
-                passed=(resolved[field_name] >= required_resolved and conflicts[field_name] == 0),
+                coverage=resolved[field_name] / len(held_out) if held_out else None,
+                passed=(resolved[field_name] >= required_resolved and conflicts[field_name] == 0)
+                if held_out
+                else None,
                 missing_page_urls=tuple(missing_urls[field_name]),
                 conflict_page_urls=tuple(conflict_urls[field_name]),
             )

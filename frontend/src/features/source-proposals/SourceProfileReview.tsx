@@ -180,6 +180,8 @@ export function SourceProfileReview({
 }
 
 function ProfileEvidence({ version }: { version: Version }) {
+  const trainingCount = version.validation.training_page_urls.length;
+  const validationCount = version.validation.held_out_page_urls.length;
   return (
     <div className="grid min-w-0 gap-3">
       <h3 className="font-semibold">
@@ -202,10 +204,21 @@ function ProfileEvidence({ version }: { version: Version }) {
             : "اعتبار فنی این نسخه قدیمی هنگام تأیید دوباره بررسی می‌شود."}
       </p>
       <p>
-        {version.validation.quality_passed
-          ? "اعتبارسنجی هشت فیلد اصلی موفق بود."
-          : "کیفیت فیلدهای اصلی محدودیت دارد."}
+        آموزش: {trainingCount.toLocaleString("fa-IR")} صفحه · اعتبارسنجی مستقل:{" "}
+        {validationCount.toLocaleString("fa-IR")} صفحه
       </p>
+      {validationCount === 0 ? (
+        <p className="font-semibold">بدون اعتبارسنجی مستقل</p>
+      ) : trainingCount + validationCount < 10 ? (
+        <p className="font-semibold">شواهد محدود</p>
+      ) : null}
+      {validationCount > 0 && (
+        <p>
+          {version.validation.quality_passed
+            ? "اعتبارسنجی هشت فیلد اصلی موفق بود."
+            : "کیفیت فیلدهای اصلی محدودیت دارد."}
+        </p>
+      )}
       {version.validation.limitations_present && (
         <p>
           نمونه‌ها یا شواهد محدودیت دارند؛ تأیید نیازمند پذیرش محدودیت‌ها و ثبت
@@ -268,13 +281,19 @@ function ProfileEvidence({ version }: { version: Version }) {
                     {coreFields.includes(field) ? " (اصلی)" : " (اختیاری)"}
                   </th>
                   <td className="text-center">
-                    {Math.round(report.coverage * 100).toLocaleString("fa-IR")}٪
+                    {validationCount === 0 || report.coverage === null
+                      ? "—"
+                      : `${Math.round(report.coverage * 100).toLocaleString("fa-IR")}٪`}
                   </td>
                   <td className="text-center">
                     {report.conflicts.toLocaleString("fa-IR")}
                   </td>
                   <td className="text-center">
-                    {report.passed ? "موفق" : "نیازمند بررسی"}
+                    {validationCount === 0 || report.passed === null
+                      ? "ارزیابی نشده"
+                      : report.passed
+                        ? "موفق"
+                        : "نیازمند بررسی"}
                   </td>
                 </tr>
               ),

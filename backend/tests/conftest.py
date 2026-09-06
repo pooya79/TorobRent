@@ -15,7 +15,7 @@ def user(db) -> User:
 
 
 @pytest.fixture
-def discovered_case(api_client, monkeypatch, django_capture_on_commit_callbacks):
+def discovered_case(api_client, monkeypatch, django_capture_on_commit_callbacks, request):
     from tests.test_source_extraction_contract import FixtureFetcher, listing_html
     from tests.test_source_proposal_review import make_operator, make_user
 
@@ -42,7 +42,10 @@ def discovered_case(api_client, monkeypatch, django_capture_on_commit_callbacks)
     assert submitted.status_code == 200
     assert submitted.data["discovery_stage"] == "awaiting_url"
     proposal = SourceProposal.objects.get(pk=created.data["id"])
-    urls = [f"https://khaneh.example/listing/{number}" for number in range(10000, 10010)]
+    urls = [
+        f"https://khaneh.example/listing/{number}"
+        for number in range(10000, 10000 + getattr(request, "param", 10))
+    ]
     fetcher = FixtureFetcher({
         proposal.website_url: "<h1>رهن و اجاره خانه</h1>"
         + "".join(f'<a href="{url}">اجاره آپارتمان تهران</a>' for url in urls),

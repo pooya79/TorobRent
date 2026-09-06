@@ -2741,6 +2741,7 @@ export interface components {
       readonly id: string;
       state?: components["schemas"]["SourceProposalStateEnum"];
       readonly discovery_stage: components["schemas"]["DiscoveryStageEnum"];
+      readonly discovery_message: string;
       readonly assignment: components["schemas"]["SourceAssignment"] | null;
       readonly revision: number;
       current_step?: components["schemas"]["SourceProposalStepEnum"];
@@ -2993,8 +2994,8 @@ export interface components {
       resolved: number;
       conflicts: number;
       /** Format: double */
-      coverage: number;
-      passed: boolean;
+      coverage: number | null;
+      passed: boolean | null;
       missing_page_urls: string[];
       conflict_page_urls: string[];
     };
@@ -3422,6 +3423,7 @@ export interface components {
       readonly id: string;
       state?: components["schemas"]["SourceProposalStateEnum"];
       readonly discovery_stage: components["schemas"]["DiscoveryStageEnum"];
+      readonly discovery_message: string;
       readonly assignment: components["schemas"]["SourceAssignment"] | null;
       readonly revision: number;
       current_step?: components["schemas"]["SourceProposalStepEnum"];

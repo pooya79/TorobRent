@@ -5769,6 +5769,9 @@ components:
           allOf:
           - $ref: '#/components/schemas/DiscoveryStageEnum'
           readOnly: true
+        discovery_message:
+          type: string
+          readOnly: true
         assignment:
           oneOf:
           - $ref: '#/components/schemas/SourceAssignment'
@@ -5863,6 +5866,7 @@ components:
       - available_actions
       - created_at
       - discovery
+      - discovery_message
       - discovery_stage
       - history
       - id
@@ -6328,10 +6332,14 @@ components:
         conflicts:
           type: integer
         coverage:
-          type: number
+          type:
+          - number
+          - 'null'
           format: double
         passed:
-          type: boolean
+          type:
+          - boolean
+          - 'null'
         missing_page_urls:
           type: array
           items:
@@ -7399,6 +7407,9 @@ components:
           allOf:
           - $ref: '#/components/schemas/DiscoveryStageEnum'
           readOnly: true
+        discovery_message:
+          type: string
+          readOnly: true
         assignment:
           oneOf:
           - $ref: '#/components/schemas/SourceAssignment'
@@ -7474,6 +7485,7 @@ components:
       - assignment
       - available_actions
       - created_at
+      - discovery_message
       - discovery_stage
       - history
       - id

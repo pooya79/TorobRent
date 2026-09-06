@@ -123,12 +123,14 @@ test("saves website details and confirms the no-fetch summary", async () => {
   expect(submittedBody).toEqual({ preview_confirmed: true });
 });
 
-test("restores a pending Source Proposal after reload", async () => {
+test("restores a pending Source Proposal with actionable discovery feedback", async () => {
   server.use(
     http.post("*/api/v1/source-proposals/", () =>
       HttpResponse.json({
         id: proposalId,
         state: "pending",
+        discovery_message:
+          "صفحه آگهی قابل استفاده‌ای یافت نشد؛ نشانی نمونه دیگری به تیم بررسی بدهید یا ساختار وب‌سایت را اصلاح کنید.",
         current_step: "preview",
         website_name: "خانه‌یاب",
         website_url: "https://khaneh.example/rentals",
@@ -159,6 +161,9 @@ test("restores a pending Source Proposal after reload", async () => {
 
   expect(await screen.findByText("در انتظار بررسی اپراتور")).toBeVisible();
   expect(screen.getByText(/خانه‌یاب ثبت شده است/)).toBeVisible();
+  expect(
+    screen.getByText(/نشانی نمونه دیگری به تیم بررسی بدهید/),
+  ).toBeVisible();
 });
 
 test("resumes the Source Proposal selected from the dashboard", async () => {

@@ -1173,3 +1173,110 @@ test.each([
     );
   },
 );
+
+test.each([
+  [1, 0, "بدون اعتبارسنجی مستقل"],
+  [2, 1, "شواهد محدود"],
+  [5, 5, null],
+] as const)(
+  "shows actual sample evidence (%s training, %s validation)",
+  async (training, heldOut, label) => {
+    const user = userEvent.setup();
+    const version = {
+      id: "small-profile",
+      reservation: "small-discovery",
+      number: 1,
+      status: "proposed",
+      rules: {},
+      samples: [],
+      validation: {
+        rules_valid: true,
+        quality_passed: heldOut > 0,
+        limitations_present: training + heldOut < 10,
+        approval_enabled: true,
+        training_page_urls: Array.from(
+          { length: training },
+          (_, i) => `https://khaneh.example/train/${i}`,
+        ),
+        held_out_page_urls: Array.from(
+          { length: heldOut },
+          (_, i) => `https://khaneh.example/held/${i}`,
+        ),
+        fields: {
+          floor_area_sqm: {
+            coverage: heldOut ? 1 : null,
+            passed: heldOut ? true : null,
+            conflicts: 0,
+          },
+        },
+        pages: [],
+      },
+    };
+    server.use(
+      http.post("*/api/v1/operator/source-proposals/:proposalId/claim/", () =>
+        HttpResponse.json({}, { status: 201 }),
+      ),
+      http.get("*/api/v1/operator/source-proposals/", () =>
+        HttpResponse.json([
+          {
+            ...proposal,
+            discovery_stage: "complete",
+            discovery: {
+              id: "small-discovery",
+              evidence: { page_count: training + heldOut },
+            },
+            profile_versions: [version],
+          },
+        ]),
+      ),
+    );
+    render(
+      <QueryClientProvider
+        client={
+          new QueryClient({ defaultOptions: { queries: { retry: false } } })
+        }
+      >
+        <MemoryRouter>
+          <OperatorSourceProposalPage />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    expect(
+      await screen.findByText(
+        `آموزش: ${training.toLocaleString("fa-IR")} صفحه · اعتبارسنجی مستقل: ${heldOut.toLocaleString("fa-IR")} صفحه`,
+      ),
+    ).toBeVisible();
+    if (label) expect(screen.getByText(label, { exact: true })).toBeVisible();
+    else
+      expect(
+        screen.queryByText("شواهد محدود", { exact: true }),
+      ).not.toBeInTheDocument();
+    if (!heldOut) {
+      expect(screen.getByText("ارزیابی نشده")).toBeVisible();
+      expect(screen.queryByText(/^[۰-۹]+٪$/)).not.toBeInTheDocument();
+      expect(
+        screen.queryByText("اعتبارسنجی هشت فیلد اصلی موفق بود."),
+      ).not.toBeInTheDocument();
+    }
+    await user.click(screen.getByRole("button", { name: "شروع بررسی" }));
+    await user.click(
+      screen.getByLabelText("نمونه‌ها و اعتبارسنجی پروفایل را بررسی کردم."),
+    );
+    const approve = screen.getByRole("button", {
+      name: "تأیید پروفایل و تخصیص منبع",
+    });
+    if (label) {
+      expect(approve).toBeDisabled();
+      await user.click(screen.getByLabelText("محدودیت‌های کیفیت را می‌پذیرم."));
+      expect(approve).toBeDisabled();
+      await user.type(
+        screen.getByLabelText("دلیل تأیید با وجود محدودیت‌ها"),
+        "شواهد محدود بررسی شد.",
+      );
+    }
+    for (const mode of ["automatic", "approval_required"]) {
+      await user.selectOptions(screen.getByLabelText("روش بررسی نتایج"), mode);
+      expect(approve).toBeEnabled();
+    }
+  },
+);

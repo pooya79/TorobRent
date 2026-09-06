@@ -8,7 +8,6 @@ import pytest
 
 from apps.source_extraction.contract import (
     ExtractionContract,
-    ExtractionContractError,
     ExtractionPage,
     PageKind,
     SourceProfile,
@@ -239,22 +238,38 @@ def test_conflicting_attributable_values_remain_a_listing_exception() -> None:
     }
 
 
-def test_profile_creation_reports_low_dominant_structure_coverage() -> None:
+@pytest.mark.parametrize(
+    ("count", "training_count", "held_out_count"), [(1, 1, 0), (3, 2, 1), (10, 5, 5)]
+)
+def test_profile_creation_uses_actual_disjoint_samples(count, training_count, held_out_count):
     seed_url = "https://source.example/rent"
-    detail_urls = [f"https://source.example/listing/{number}" for number in range(40000, 40003)]
-    links = "".join(f'<a href="{url}">اجاره آپارتمان تهران</a>' for url in detail_urls)
+    urls = [f"https://source.example/listing/{40000 + i}" for i in range(count)]
+    pages = {url: listing_html(area=85 + i) for i, url in enumerate(urls)}
     contract = ExtractionContract(
         FixtureFetcher({
-            seed_url: f"<h1>رهن و اجاره خانه</h1>{links}",
-            **{url: listing_html() for url in detail_urls},
+            seed_url: "<h1>رهن و اجاره خانه</h1>"
+            + "".join(f'<a href="{url}">اجاره آپارتمان تهران</a>' for url in urls),
+            **pages,
         }),
-        max_pages=4,
+        max_pages=count + 1,
     )
-
-    discovery = contract.discover(seed_url)
-
-    with pytest.raises(ExtractionContractError, match="needs 4 pages.*found 3"):
-        contract.propose_profile(discovery, training_page_count=2, validation_page_count=2)
+    profile = contract.propose_profile(contract.discover(seed_url))
+    validation = profile.validation
+    assert len(validation.training_page_urls) == training_count
+    assert len(validation.held_out_page_urls) == held_out_count
+    assert set(validation.training_page_urls).isdisjoint(validation.held_out_page_urls)
+    assert set(validation.training_page_urls + validation.held_out_page_urls) == set(urls)
+    assert validation.rules_valid and validation.approval_enabled
+    if count == 1:
+        assert validation.quality_passed is False
+        assert validation.pages == ()
+        assert all(
+            field.coverage is None and field.passed is None for field in validation.fields.values()
+        )
+    updated = contract.revalidate_profile(
+        profile, [ExtractionPage(url, html) for url, html in pages.items()], profile.mapping
+    )
+    assert updated.validation == validation
 
 
 def test_profile_application_returns_structural_drift_without_guessing_fields() -> None:

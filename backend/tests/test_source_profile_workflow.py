@@ -645,3 +645,94 @@ def test_one_incomplete_sample_requires_acknowledgement_even_when_quality_thresh
         format="json",
     )
     assert result.status_code == 200, result.data
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("discovered_case", [1, 3, 10], indirect=True)
+@pytest.mark.parametrize("mode", ["approval_required", "automatic"])
+def test_small_profile_edit_and_approval_preserve_evidence(api_client, discovered_case, mode):
+    _, base, _, _, fetcher = discovered_case
+    initial = api_client.get("/api/v1/operator/source-proposals/").data[0]["profile_versions"][0]
+    count = len(fetcher.pages) - 1
+    expected = {1: (1, 0), 3: (2, 1), 10: (5, 5)}[count]
+    validation = initial["validation"]
+    assert (
+        len(validation["training_page_urls"]),
+        len(validation["held_out_page_urls"]),
+    ) == expected
+    assert set(validation["training_page_urls"]).isdisjoint(validation["held_out_page_urls"])
+    assert validation["limitations_present"] is (count < 10)
+    if count == 1:
+        assert validation["quality_passed"] is False
+        assert all(
+            field["coverage"] is None and field["passed"] is None
+            for field in validation["fields"].values()
+        )
+    edited = api_client.post(
+        f"{base}/profile/edit/",
+        {
+            "reviewed_revision": 1,
+            "reviewed_profile_version": initial["id"],
+            "rules": initial["rules"],
+        },
+        format="json",
+    )
+    assert edited.status_code == 200, edited.data
+    current, retained = edited.data["profile_versions"]
+    assert retained == initial
+    assert current["validation"] == validation
+    payload = {
+        "reviewed_revision": 1,
+        "reviewed_profile_version": current["id"],
+        "confirmed": True,
+        "review_mode": mode,
+    }
+    if count < 10:
+        assert (
+            api_client.post(f"{base}/profile/approve/", payload, format="json").status_code == 400
+        )
+        assert (
+            api_client.post(
+                f"{base}/profile/approve/",
+                {**payload, "limitations_acknowledged": True},
+                format="json",
+            ).status_code
+            == 400
+        )
+        payload.update(limitations_acknowledged=True, reason="نمونه‌های محدود بررسی شد.")
+    approved = api_client.post(f"{base}/profile/approve/", payload, format="json")
+    assert approved.status_code == 200, approved.data
+    assert approved.data["profile_versions"][0]["is_active"] is True
+    assert approved.data["profile_versions"][0]["validation"] == validation
+    assert approved.data["profile_versions"][0]["review_mode"] == mode
+    assert approved.data["profile_versions"][1] == initial
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("discovered_case", [0], indirect=True)
+def test_no_usable_page_requests_another_example_without_profile(api_client, discovered_case):
+    proposal, base, _, representative, _ = discovered_case
+    case = api_client.get("/api/v1/operator/source-proposals/").data[0]
+    assert case["profile_versions"] == []
+    message = case["discovery"]["evidence"]["profile_failure"]
+    assert "نشانی نمونه دیگری" in message
+    assert "وب‌سایت" in message
+    assert (
+        api_client.post(
+            f"{base}/profile/approve/",
+            {
+                "reviewed_revision": 1,
+                "reviewed_profile_version": str(proposal.pk),
+                "confirmed": True,
+                "review_mode": "automatic",
+            },
+            format="json",
+        ).status_code
+        == 409
+    )
+    api_client.force_authenticate(representative)
+    detail = api_client.get(f"/api/v1/source-proposals/{proposal.pk}/")
+    assert detail.status_code == 200
+    assert detail.data["discovery_message"] == message
+    assert detail.data["assignment"] is None
+    assert "profile_versions" not in detail.data

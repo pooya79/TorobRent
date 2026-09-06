@@ -227,7 +227,8 @@ def run_discovery(reservation_id: str) -> None:
             profile = contract.propose_profile(result)
         except ExtractionContractError:
             evidence["profile_failure"] = (
-                "ساختار پشتیبانی‌شده با حداقل ده صفحه برای آموزش و اعتبارسنجی یافت نشد."
+                "صفحه آگهی قابل استفاده‌ای یافت نشد؛ نشانی نمونه دیگری به تیم بررسی بدهید "
+                "یا ساختار و اطلاعات آگهی‌های وب‌سایت را اصلاح کنید."
             )
         stage = (
             DiscoveryStage.COMPLETE

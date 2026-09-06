@@ -175,6 +175,7 @@ class SourceAssignmentSerializer(serializers.ModelSerializer[SourceAssignment]):
 
 
 class SourceProposalSerializer(serializers.ModelSerializer[SourceProposal]):
+    discovery_message = serializers.SerializerMethodField()
     assignment = serializers.SerializerMethodField()
     available_actions = serializers.SerializerMethodField()
     preview = serializers.SerializerMethodField()
@@ -187,6 +188,7 @@ class SourceProposalSerializer(serializers.ModelSerializer[SourceProposal]):
             "id",
             "state",
             "discovery_stage",
+            "discovery_message",
             "assignment",
             "revision",
             "current_step",
@@ -205,6 +207,10 @@ class SourceProposalSerializer(serializers.ModelSerializer[SourceProposal]):
             "created_at",
             "updated_at",
         )
+
+    def get_discovery_message(self, proposal: SourceProposal) -> str:
+        reservation = proposal.reservations.filter(revision=proposal.revision).first()
+        return str(reservation.evidence.get("profile_failure", "")) if reservation else ""
 
     @extend_schema_field(SourceAssignmentSerializer(allow_null=True))
     def get_assignment(self, proposal: SourceProposal) -> dict[str, Any] | None:
@@ -353,8 +359,8 @@ class ProfileFieldEvidenceSerializer(serializers.Serializer[Any]):
 class ProfileFieldValidationSerializer(serializers.Serializer[Any]):
     resolved = serializers.IntegerField()
     conflicts = serializers.IntegerField()
-    coverage = serializers.FloatField()
-    passed = serializers.BooleanField()
+    coverage = serializers.FloatField(allow_null=True)
+    passed = serializers.BooleanField(allow_null=True)
     missing_page_urls = serializers.ListField(child=serializers.CharField())
     conflict_page_urls = serializers.ListField(child=serializers.CharField())
 
