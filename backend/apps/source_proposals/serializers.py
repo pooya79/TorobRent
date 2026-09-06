@@ -277,6 +277,18 @@ class SourceProposalApprovalSerializer(serializers.Serializer[Any]):
         return value
 
 
+class SourceURLApprovalSerializer(SourceProposalApprovalSerializer):
+    max_pages = serializers.IntegerField(min_value=1, max_value=2147483647)
+    target_detail_pages = serializers.IntegerField(min_value=1, max_value=2147483647)
+
+    def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
+        if attrs["target_detail_pages"] > attrs["max_pages"]:
+            raise serializers.ValidationError({
+                "target_detail_pages": "تعداد آگهی هدف نباید بیشتر از سقف صفحات باشد."
+            })
+        return attrs
+
+
 class DiscoverySampleSerializer(serializers.Serializer[Any]):
     url = serializers.CharField()
     classification = serializers.CharField()
@@ -318,6 +330,8 @@ class SourceDiscoverySerializer(serializers.ModelSerializer[SourceReservation]):
         fields = (
             "id",
             "expires_at",
+            "max_pages",
+            "target_detail_pages",
             "released_at",
             "release_reason",
             "started_at",

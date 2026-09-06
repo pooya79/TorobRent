@@ -22,6 +22,13 @@ export function DiscoveryEvidence({
           {new Date(discovery.expires_at).toLocaleString("fa-IR")}
         </p>
       )}
+      {discovery && (
+        <p>
+          حدود تأییدشده: سقف {discovery.max_pages?.toLocaleString("fa-IR")}{" "}
+          صفحه؛ هدف {discovery.target_detail_pages?.toLocaleString("fa-IR")}{" "}
+          آگهی اجاره
+        </p>
+      )}
       {evidence && (
         <>
           <p>

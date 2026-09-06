@@ -58,7 +58,14 @@ def discovered_case(api_client, monkeypatch, django_capture_on_commit_callbacks)
     with django_capture_on_commit_callbacks(execute=True):
         assert (
             api_client.post(
-                f"{base}/approve/", {"reviewed_revision": 1, "confirmed": True}, format="json"
+                f"{base}/approve/",
+                {
+                    "reviewed_revision": 1,
+                    "confirmed": True,
+                    "max_pages": 50,
+                    "target_detail_pages": 30,
+                },
+                format="json",
             ).status_code
             == 200
         )

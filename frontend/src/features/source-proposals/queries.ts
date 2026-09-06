@@ -119,13 +119,19 @@ export async function decideSourceProposal(
   revision: number,
   reason: string,
   profileVersion?: string,
+  discoveryLimits?: { max_pages: number; target_detail_pages: number },
 ) {
   if (decision === "approve") {
+    if (!discoveryLimits) throw new Error("حدود کشف را تعیین کنید.");
     const { data, error } = await api.POST(
       "/api/v1/operator/source-proposals/{proposal_id}/approve/",
       {
         params: { path: { proposal_id: proposalId } },
-        body: { reviewed_revision: revision, confirmed: true },
+        body: {
+          reviewed_revision: revision,
+          confirmed: true,
+          ...discoveryLimits,
+        },
       },
     );
     if (error || !data) throw apiError(error);
@@ -257,12 +263,17 @@ export async function repairSourceProfile(
 export async function startSourceProfileReview(
   proposalId: string,
   revision: number,
+  discoveryLimits: { max_pages: number; target_detail_pages: number },
 ) {
   const { data, error } = await api.POST(
     "/api/v1/operator/source-proposals/{proposal_id}/profile/review/",
     {
       params: { path: { proposal_id: proposalId } },
-      body: { reviewed_revision: revision, confirmed: true },
+      body: {
+        reviewed_revision: revision,
+        confirmed: true,
+        ...discoveryLimits,
+      },
     },
   );
   if (error || !data) throw apiError(error);

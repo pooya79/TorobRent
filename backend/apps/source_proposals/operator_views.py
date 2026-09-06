@@ -26,6 +26,7 @@ from .serializers import (
     SourceProposalApprovalSerializer,
     SourceProposalDecisionSerializer,
     SourceProposalReviewClaimSerializer,
+    SourceURLApprovalSerializer,
 )
 from .services import (
     claim_source_proposal_review,
@@ -160,14 +161,14 @@ class OperatorSourceProposalApproveView(APIView):
 
     @extend_schema(
         summary="Approve the URL and schedule Source Discovery",
-        request=SourceProposalApprovalSerializer,
+        request=SourceURLApprovalSerializer,
         responses=OperatorSourceProposalSerializer,
     )
     def post(self, request: Request, proposal_id: str) -> Response:
         return _decision_response(
             request=request,
             proposal_id=proposal_id,
-            serializer_class=SourceProposalApprovalSerializer,
+            serializer_class=SourceURLApprovalSerializer,
             transition=approve_url,
         )
 
@@ -251,7 +252,7 @@ class OperatorSourceProfileReviewView(APIView):
 
     @extend_schema(
         summary="Start explicit Discovery and review of a new Source Profile version",
-        request=SourceProposalApprovalSerializer,
+        request=SourceURLApprovalSerializer,
         responses=OperatorSourceProposalSerializer,
     )
     def post(self, request: Request, proposal_id: str) -> Response:
@@ -260,7 +261,7 @@ class OperatorSourceProfileReviewView(APIView):
         return _decision_response(
             request=request,
             proposal_id=proposal_id,
-            serializer_class=SourceProposalApprovalSerializer,
+            serializer_class=SourceURLApprovalSerializer,
             transition=start_profile_review,
         )
 

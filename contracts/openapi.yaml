@@ -1612,7 +1612,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/SourceProposalApproval'
+              $ref: '#/components/schemas/SourceURLApproval'
         required: true
       security:
       - cookieAuth: []
@@ -1802,7 +1802,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/SourceProposalApproval'
+              $ref: '#/components/schemas/SourceURLApproval'
         required: true
       security:
       - cookieAuth: []
@@ -7044,6 +7044,16 @@ components:
         expires_at:
           type: string
           format: date-time
+        max_pages:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 0
+          format: int64
+        target_detail_pages:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 0
+          format: int64
         released_at:
           type:
           - string
@@ -7590,6 +7600,27 @@ components:
       - id
       - name
       - outbound_policy
+    SourceURLApproval:
+      type: object
+      properties:
+        reviewed_revision:
+          type: integer
+          minimum: 1
+        confirmed:
+          type: boolean
+        max_pages:
+          type: integer
+          maximum: 2147483647
+          minimum: 1
+        target_detail_pages:
+          type: integer
+          maximum: 2147483647
+          minimum: 1
+      required:
+      - confirmed
+      - max_pages
+      - reviewed_revision
+      - target_detail_pages
     State299Enum:
       enum:
       - queued

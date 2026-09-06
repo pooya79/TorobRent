@@ -251,7 +251,13 @@ def approve_profile(
 
 @transaction.atomic
 def start_profile_review(
-    *, proposal: SourceProposal, actor: User, reviewed_revision: int, confirmed: bool
+    *,
+    proposal: SourceProposal,
+    actor: User,
+    reviewed_revision: int,
+    confirmed: bool,
+    max_pages: int,
+    target_detail_pages: int,
 ) -> SourceProposal:
     """Explicitly pause extraction authority and discover a new version for this case."""
     from apps.accounts.capabilities import OperatorCapability, has_capability
@@ -299,5 +305,10 @@ def start_profile_review(
     )
     claim_source_proposal_review(proposal=proposal, actor=actor)
     return approve_url(
-        proposal=proposal, actor=actor, reviewed_revision=proposal.revision, confirmed=True
+        proposal=proposal,
+        actor=actor,
+        reviewed_revision=proposal.revision,
+        confirmed=True,
+        max_pages=max_pages,
+        target_detail_pages=target_detail_pages,
     )

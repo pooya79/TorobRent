@@ -233,7 +233,7 @@ def test_approval_validates_source_without_publishing_a_listing(api_client: APIC
     )
     approved = api_client.post(
         approve_url,
-        {"reviewed_revision": 1, "confirmed": True},
+        {"reviewed_revision": 1, "confirmed": True, "max_pages": 50, "target_detail_pages": 30},
         format="json",
     )
 

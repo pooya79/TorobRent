@@ -128,7 +128,12 @@ def test_operator_starts_explicit_profile_review_separately_from_candidates(
     with django_capture_on_commit_callbacks(execute=True):
         response = api_client.post(
             f"{base}/profile/review/",
-            {"reviewed_revision": before["revision"], "confirmed": True},
+            {
+                "reviewed_revision": before["revision"],
+                "confirmed": True,
+                "max_pages": 100,
+                "target_detail_pages": 70,
+            },
             format="json",
         )
     assert response.status_code == 200, response.data
@@ -225,6 +230,8 @@ def test_starting_profile_review_requires_current_explicit_operator_authority(
         {
             "reviewed_revision": 99 if change == "revision" else before["revision"],
             "confirmed": change != "confirmation",
+            "max_pages": 100,
+            "target_detail_pages": 70,
         },
         format="json",
     )

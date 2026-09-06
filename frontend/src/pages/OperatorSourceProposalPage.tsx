@@ -56,6 +56,14 @@ function ProposalReviewCard({
   const mayForceRelease = currentUser.data?.operator_capabilities.includes(
     "manage_operator_queues",
   );
+  const [maxPages, setMaxPages] = useState("");
+  const [targetDetailPages, setTargetDetailPages] = useState("");
+  const validLimits =
+    Number.isInteger(Number(maxPages)) &&
+    Number.isInteger(Number(targetDetailPages)) &&
+    Number(targetDetailPages) > 0 &&
+    Number(maxPages) >= Number(targetDetailPages) &&
+    Number(maxPages) <= 2147483647;
   const [confirmed, setConfirmed] = useState(false);
   const [reason, setReason] = useState("");
   const claim = useMutation({
@@ -76,6 +84,10 @@ function ProposalReviewCard({
         proposal.revision,
         reason,
         proposal.profile_versions?.[0]?.id,
+        {
+          max_pages: Number(maxPages),
+          target_detail_pages: Number(targetDetailPages),
+        },
       ),
     onSuccess: (updated) => {
       if (updated.state !== "pending") setClaimed(false);
@@ -90,7 +102,11 @@ function ProposalReviewCard({
   });
 
   const profileReview = useMutation({
-    mutationFn: () => startSourceProfileReview(proposal.id, proposal.revision),
+    mutationFn: () =>
+      startSourceProfileReview(proposal.id, proposal.revision, {
+        max_pages: Number(maxPages),
+        target_detail_pages: Number(targetDetailPages),
+      }),
     onSuccess: (updated) => {
       setClaimed(true);
       setConfirmed(false);
@@ -230,6 +246,50 @@ function ProposalReviewCard({
             </Button>
           </div>
         )}
+        {(claimed || proposal.state === "approved") && (
+          <fieldset className="grid gap-3 rounded-lg border p-4">
+            <legend className="px-1 font-medium">حدود کشف صفحات</legend>
+            <p className="text-muted-foreground text-sm">
+              موجودی تقریبی اعلام‌شده:{" "}
+              {inventoryLabels[proposal.inventory_range || "unknown"]}. با توجه
+              به این برآورد، حدود بررسی را تعیین کنید. کشف با رسیدن به هر کدام
+              از این حدود یا پایان لینک‌های قابل بررسی متوقف می‌شود.
+            </p>
+            <div className="grid gap-2">
+              <Label htmlFor={`max-pages-${proposal.id}`}>
+                سقف صفحات قابل بررسی
+              </Label>
+              <Input
+                id={`max-pages-${proposal.id}`}
+                type="number"
+                min={1}
+                max={2147483647}
+                step={1}
+                value={maxPages}
+                onChange={(event) => setMaxPages(event.target.value)}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor={`target-pages-${proposal.id}`}>
+                تعداد آگهی اجاره هدف
+              </Label>
+              <Input
+                id={`target-pages-${proposal.id}`}
+                type="number"
+                min={1}
+                max={Number(maxPages) || undefined}
+                step={1}
+                value={targetDetailPages}
+                onChange={(event) => setTargetDetailPages(event.target.value)}
+              />
+            </div>
+            <p className="text-muted-foreground text-sm">
+              تعداد آگهی هدف نباید از سقف صفحات بیشتر باشد. صفحات فهرست هم در
+              سقف صفحات حساب می‌شوند. محدودیت زمان پردازش ممکن است بررسی را
+              زودتر متوقف کند.
+            </p>
+          </fieldset>
+        )}
         {proposal.state === "approved" ? (
           <div className="grid gap-3">
             <p className="text-muted-foreground text-sm">
@@ -237,6 +297,7 @@ function ProposalReviewCard({
               صفحات منبع را دوباره دریافت می‌کند و انتشار را تا تأیید نسخه تازه
               متوقف می‌کند.
             </p>
+
             <label className="flex items-start gap-2 text-sm">
               <input
                 type="checkbox"
@@ -248,6 +309,7 @@ function ProposalReviewCard({
             <Button
               disabled={
                 !confirmed ||
+                !validLimits ||
                 profileReview.isPending ||
                 proposal.assignment?.review_operator !== currentUser.data?.id
               }
@@ -336,6 +398,7 @@ function ProposalReviewCard({
                 type="button"
                 disabled={
                   !confirmed ||
+                  !validLimits ||
                   decision.isPending ||
                   ["queued", "running", "complete"].includes(
                     proposal.discovery_stage ?? "awaiting_url",

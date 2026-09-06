@@ -196,8 +196,8 @@ class ExtractionContract:
         max_depth: int = 2,
         preferred_location_terms: tuple[str, ...] = ("تهران", "tehran"),
     ) -> None:
-        if not 1 <= max_pages <= 50:
-            raise ValueError("max_pages must be between 1 and 50")
+        if max_pages < 1:
+            raise ValueError("max_pages must be positive")
         resolved_target = min(30, max_pages) if target_detail_pages is None else target_detail_pages
         if not 1 <= resolved_target <= max_pages:
             raise ValueError("target_detail_pages must be between 1 and max_pages")

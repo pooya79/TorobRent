@@ -114,7 +114,7 @@ test("inspects, claims, and requests changes to a Source Proposal", async () => 
     screen.queryByRole("heading", { name: "خانه‌یاب" }),
   ).not.toBeInTheDocument();
   expect(
-    screen.getByText("Source Proposal در انتظار بررسی وجود ندارد."),
+    screen.getByText("درخواست ثبت منبع در انتظار بررسی وجود ندارد."),
   ).toBeVisible();
 });
 
@@ -280,7 +280,7 @@ test("reviews each External Listing candidate independently", async () => {
     }),
   );
   expect(decisions[1]).toEqual({ id: candidates[1]!.id, kind: "approve" });
-  expect(await screen.findByText("تصمیم Listing ثبت شد.")).toBeVisible();
+  expect(await screen.findByText("تصمیم آگهی ثبت شد.")).toBeVisible();
 });
 
 test("URL approval keeps the case visible with Discovery evidence and renewable responsibility", async () => {
@@ -290,6 +290,8 @@ test("URL approval keeps the case visible with Discovery evidence and renewable 
     ...proposal,
     discovery_stage: "complete",
     discovery: {
+      max_pages: 250,
+      target_detail_pages: 200,
       expires_at: "2026-09-06T08:00:00Z",
       evidence: {
         page_count: 8,
@@ -335,8 +337,17 @@ test("URL approval keeps the case visible with Discovery evidence and renewable 
         { status: 201 },
       );
     }),
-    http.post("*/api/v1/operator/source-proposals/:proposalId/approve/", () =>
-      HttpResponse.json(completed),
+    http.post(
+      "*/api/v1/operator/source-proposals/:proposalId/approve/",
+      async ({ request }) => {
+        expect(await request.json()).toEqual({
+          reviewed_revision: 1,
+          confirmed: true,
+          max_pages: 250,
+          target_detail_pages: 200,
+        });
+        return HttpResponse.json(completed);
+      },
     ),
   );
   const queryClient = new QueryClient({
@@ -351,6 +362,18 @@ test("URL approval keeps the case visible with Discovery evidence and renewable 
   );
   await user.click(await screen.findByRole("button", { name: "شروع بررسی" }));
   await user.click(screen.getByLabelText(/نشانی و اختیار نماینده/));
+  const approve = screen.getByRole("button", {
+    name: "تأیید نشانی و شروع کشف",
+  });
+  expect(approve).toBeDisabled();
+  expect(screen.getByText(/موجودی تقریبی اعلام‌شده/)).toHaveTextContent(
+    "۵۱ تا ۲۰۰",
+  );
+  await user.type(screen.getByLabelText("سقف صفحات قابل بررسی"), "250");
+  await user.type(screen.getByLabelText("تعداد آگهی اجاره هدف"), "251");
+  expect(approve).toBeDisabled();
+  await user.clear(screen.getByLabelText("تعداد آگهی اجاره هدف"));
+  await user.type(screen.getByLabelText("تعداد آگهی اجاره هدف"), "200");
   await user.click(
     screen.getByRole("button", { name: "تأیید نشانی و شروع کشف" }),
   );
@@ -359,6 +382,9 @@ test("URL approval keeps the case visible with Discovery evidence and renewable 
   ).toBeVisible();
   expect(screen.getByRole("heading", { name: "خانه‌یاب" })).toBeVisible();
   expect(screen.getByText(/صفحات بررسی‌شده: ۸/)).toBeVisible();
+  expect(
+    screen.getByText(/حدود تأییدشده: سقف ۲۵۰ صفحه؛ هدف ۲۰۰/),
+  ).toBeVisible();
   expect(screen.getByText(/ساختار غالب؛ پوشش: ۷۵/)).toBeVisible();
   expect(screen.getByText("https://khaneh.example/unsupported")).toBeVisible();
   expect(screen.getByText("مبلغ اجاره شناسایی شد")).toBeVisible();
@@ -722,8 +748,15 @@ test("keeps approved Source cases available for run monitoring", async () => {
       name: "دریافت دوباره صفحات و بررسی نسخه تازه پروفایل را تأیید می‌کنم.",
     }),
   );
+  await user.type(screen.getByLabelText("سقف صفحات قابل بررسی"), "100");
+  await user.type(screen.getByLabelText("تعداد آگهی اجاره هدف"), "70");
   await user.click(begin);
-  expect(reviewBody).toEqual({ reviewed_revision: 1, confirmed: true });
+  expect(reviewBody).toEqual({
+    reviewed_revision: 1,
+    confirmed: true,
+    max_pages: 100,
+    target_detail_pages: 70,
+  });
   expect(
     await screen.findByRole("button", { name: "تأیید نشانی و شروع کشف" }),
   ).toBeDisabled();
@@ -934,7 +967,7 @@ test("corrects an exception and approves its new revision", async () => {
   await user.click(
     screen.getByRole("button", { name: "تأیید و انتشار آگهی نیازمند اصلاح" }),
   );
-  expect(await screen.findByText("تصمیم Listing ثبت شد.")).toBeVisible();
+  expect(await screen.findByText("تصمیم آگهی ثبت شد.")).toBeVisible();
   expect(approvals).toEqual([{ reviewed_revision: 2, confirmed: true }]);
 });
 

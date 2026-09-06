@@ -12,7 +12,9 @@ def test_url_approval_keeps_case_and_claim_open_without_publishing(api_client: A
     base = f"/api/v1/operator/source-proposals/{proposal.id}"
     assert api_client.post(f"{base}/claim/", {}).status_code == 201
     response = api_client.post(
-        f"{base}/approve/", {"reviewed_revision": 1, "confirmed": True}, format="json"
+        f"{base}/approve/",
+        {"reviewed_revision": 1, "confirmed": True, "max_pages": 50, "target_detail_pages": 30},
+        format="json",
     )
     assert response.status_code == 200
     assert response.data["state"] == "pending"
@@ -59,7 +61,9 @@ def test_discovery_delivery_is_idempotent_and_evidence_is_visible(
     api_client.post(f"{base}/claim/", {})
     with django_capture_on_commit_callbacks(execute=True):
         response = api_client.post(
-            f"{base}/approve/", {"reviewed_revision": 1, "confirmed": True}, format="json"
+            f"{base}/approve/",
+            {"reviewed_revision": 1, "confirmed": True, "max_pages": 50, "target_detail_pages": 30},
+            format="json",
         )
         assert response.status_code == 200
         assert fetched == []
@@ -88,7 +92,7 @@ def test_exact_host_reservation_blocks_competitors_until_abandoned(api_client):
     def approve(proposal):
         return api_client.post(
             f"/api/v1/operator/source-proposals/{proposal.pk}/approve/",
-            {"reviewed_revision": 1, "confirmed": True},
+            {"reviewed_revision": 1, "confirmed": True, "max_pages": 50, "target_detail_pages": 30},
             format="json",
         )
 
@@ -149,7 +153,11 @@ def test_decisions_cancel_discovery_and_keep_notifications(api_client, decision)
     api_client.force_authenticate(make_operator())
     base = f"/api/v1/operator/source-proposals/{proposal.pk}"
     api_client.post(f"{base}/claim/", {})
-    api_client.post(f"{base}/approve/", {"reviewed_revision": 1, "confirmed": True}, format="json")
+    api_client.post(
+        f"{base}/approve/",
+        {"reviewed_revision": 1, "confirmed": True, "max_pages": 50, "target_detail_pages": 30},
+        format="json",
+    )
     response = api_client.post(
         f"{base}/{decision}/", {"reviewed_revision": 1, "reason": "نیازمند اصلاح"}, format="json"
     )
@@ -175,7 +183,11 @@ def test_claim_renews_and_queue_manager_can_force_release(api_client):
     api_client.force_authenticate(operator)
     base = f"/api/v1/operator/source-proposals/{proposal.pk}"
     api_client.post(f"{base}/claim/", {})
-    api_client.post(f"{base}/approve/", {"reviewed_revision": 1, "confirmed": True}, format="json")
+    api_client.post(
+        f"{base}/approve/",
+        {"reviewed_revision": 1, "confirmed": True, "max_pages": 50, "target_detail_pages": 30},
+        format="json",
+    )
     old_expiry = timezone.now() + timedelta(seconds=30)
     proposal.review_claims.update(expires_at=old_expiry)
     assert api_client.post(f"{base}/claim/", {}).status_code == 201
@@ -207,7 +219,12 @@ def test_expiry_keeps_history_and_allows_new_approval(api_client):
     api_client.force_authenticate(make_operator())
     base = f"/api/v1/operator/source-proposals/{proposal.pk}"
     api_client.post(f"{base}/claim/", {})
-    payload = {"reviewed_revision": 1, "confirmed": True}
+    payload = {
+        "reviewed_revision": 1,
+        "confirmed": True,
+        "max_pages": 50,
+        "target_detail_pages": 30,
+    }
     api_client.post(f"{base}/approve/", payload, format="json")
     old = proposal.reservations.get()
     proposal.reservations.update(expires_at=timezone.now() - timedelta(seconds=1))
@@ -235,7 +252,9 @@ def test_active_assignment_prevents_url_approval(api_client):
     api_client.post(f"{base}/claim/", {})
     assert (
         api_client.post(
-            f"{base}/approve/", {"reviewed_revision": 1, "confirmed": True}, format="json"
+            f"{base}/approve/",
+            {"reviewed_revision": 1, "confirmed": True, "max_pages": 50, "target_detail_pages": 30},
+            format="json",
         ).status_code
         == 409
     )
@@ -270,7 +289,14 @@ def test_concurrent_host_approvals_reserve_only_once(monkeypatch):
             assert client.post(f"{base}/claim/", {}).status_code == 201
             barrier.wait(timeout=10)
             return client.post(
-                f"{base}/approve/", {"reviewed_revision": 1, "confirmed": True}, format="json"
+                f"{base}/approve/",
+                {
+                    "reviewed_revision": 1,
+                    "confirmed": True,
+                    "max_pages": 50,
+                    "target_detail_pages": 30,
+                },
+                format="json",
             ).status_code
         finally:
             close_old_connections()
@@ -291,7 +317,11 @@ def test_running_discovery_stops_after_abandonment_and_cannot_overwrite_case(
     api_client.force_authenticate(make_operator())
     base = f"/api/v1/operator/source-proposals/{proposal.pk}"
     api_client.post(f"{base}/claim/", {})
-    api_client.post(f"{base}/approve/", {"reviewed_revision": 1, "confirmed": True}, format="json")
+    api_client.post(
+        f"{base}/approve/",
+        {"reviewed_revision": 1, "confirmed": True, "max_pages": 50, "target_detail_pages": 30},
+        format="json",
+    )
     fetched = []
 
     class InterruptedFetcher:
@@ -339,7 +369,11 @@ def test_resubmitted_revision_waits_for_its_own_url_approval(api_client):
     api_client.force_authenticate(make_operator())
     base = f"/api/v1/operator/source-proposals/{proposal.pk}"
     api_client.post(f"{base}/claim/", {})
-    api_client.post(f"{base}/approve/", {"reviewed_revision": 1, "confirmed": True}, format="json")
+    api_client.post(
+        f"{base}/approve/",
+        {"reviewed_revision": 1, "confirmed": True, "max_pages": 50, "target_detail_pages": 30},
+        format="json",
+    )
     api_client.post(
         f"{base}/request-changes/",
         {"reviewed_revision": 1, "reason": "نشانی را اصلاح کنید"},
@@ -379,7 +413,11 @@ def test_http_error_discovery_is_failed_and_releases_host(api_client, monkeypatc
     api_client.force_authenticate(make_operator())
     base = f"/api/v1/operator/source-proposals/{proposal.pk}"
     api_client.post(f"{base}/claim/", {})
-    api_client.post(f"{base}/approve/", {"reviewed_revision": 1, "confirmed": True}, format="json")
+    api_client.post(
+        f"{base}/approve/",
+        {"reviewed_revision": 1, "confirmed": True, "max_pages": 50, "target_detail_pages": 30},
+        format="json",
+    )
     discover_source(str(proposal.reservations.get().pk))
     case = api_client.get("/api/v1/operator/source-proposals/").data[0]
     assert case["discovery_stage"] == "failed"
@@ -400,7 +438,11 @@ def test_interrupted_worker_recovers_as_failed_without_duplicate_fetch(api_clien
     api_client.force_authenticate(make_operator())
     base = f"/api/v1/operator/source-proposals/{proposal.pk}"
     api_client.post(f"{base}/claim/", {})
-    api_client.post(f"{base}/approve/", {"reviewed_revision": 1, "confirmed": True}, format="json")
+    api_client.post(
+        f"{base}/approve/",
+        {"reviewed_revision": 1, "confirmed": True, "max_pages": 50, "target_detail_pages": 30},
+        format="json",
+    )
     proposal.reservations.update(started_at=timezone.now() - timedelta(minutes=13))
     if recover_by == "delivery":
         discover_source(str(proposal.reservations.get().pk))
@@ -411,3 +453,86 @@ def test_interrupted_worker_recovers_as_failed_without_duplicate_fetch(api_clien
     assert case["discovery"]["release_reason"] == "failed"
     assert case["discovery"]["evidence"]["failures"][0]["code"] == "worker_interrupted"
     assert case["discovery"]["completed_at"] is not None
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    ("max_pages", "target", "expected_pages", "expected_details"),
+    [
+        (80, 65, 66, 65),
+        (60, 60, 60, 59),
+    ],
+)
+def test_operator_limits_are_persisted_and_control_discovery(
+    api_client, monkeypatch, max_pages, target, expected_pages, expected_details
+):
+    from apps.source_proposals.tasks import discover_source
+    from tests.test_source_extraction_contract import FixtureFetcher, listing_html
+
+    proposal = make_pending_proposal(
+        submitter=make_user(email="limits@example.com", submitter=True)
+    )
+    urls = [f"https://{proposal.normalized_domain}/listing/{20000 + i}" for i in range(75)]
+    links = "".join(f'<a href="{url}">اجاره آپارتمان تهران</a>' for url in urls)
+    fetcher = FixtureFetcher({
+        proposal.website_url: f"<h1>اجاره خانه</h1>{links}",
+        **{url: listing_html() for url in urls},
+    })
+    monkeypatch.setattr(
+        "apps.source_proposals.discovery_workflow.SourcePageFetcher", lambda **kwargs: fetcher
+    )
+    api_client.force_authenticate(make_operator())
+    base = f"/api/v1/operator/source-proposals/{proposal.pk}"
+    assert api_client.post(f"{base}/claim/", {}).status_code == 201
+    response = api_client.post(
+        f"{base}/approve/",
+        {
+            "reviewed_revision": 1,
+            "confirmed": True,
+            "max_pages": max_pages,
+            "target_detail_pages": target,
+        },
+        format="json",
+    )
+    assert response.status_code == 200
+    assert response.data["discovery"]["max_pages"] == max_pages
+    assert response.data["discovery"]["target_detail_pages"] == target
+    reservation = proposal.reservations.get()
+    discover_source(str(reservation.pk))
+    reservation.refresh_from_db()
+    assert reservation.evidence["page_count"] == expected_pages
+    assert reservation.evidence["detail_page_count"] == expected_details
+    assert len(fetcher.calls) == expected_pages
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    "limits",
+    [
+        {},
+        {"max_pages": 80},
+        {"target_detail_pages": 65},
+        {"max_pages": 0, "target_detail_pages": 1},
+        {"max_pages": 80, "target_detail_pages": 0},
+        {"max_pages": 80, "target_detail_pages": 81},
+        {"max_pages": 80.5, "target_detail_pages": 65},
+    ],
+)
+def test_url_approval_requires_explicit_valid_limits(api_client, limits):
+    proposal = make_pending_proposal(
+        submitter=make_user(email="limits@example.com", submitter=True)
+    )
+    api_client.force_authenticate(make_operator())
+    base = f"/api/v1/operator/source-proposals/{proposal.pk}"
+    api_client.post(f"{base}/claim/", {})
+    response = api_client.post(
+        f"{base}/approve/",
+        {
+            "reviewed_revision": 1,
+            "confirmed": True,
+            **limits,
+        },
+        format="json",
+    )
+    assert response.status_code == 400
+    assert not proposal.reservations.exists()

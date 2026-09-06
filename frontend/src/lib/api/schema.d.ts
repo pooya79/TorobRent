@@ -3296,6 +3296,10 @@ export interface components {
       readonly id: string;
       /** Format: date-time */
       expires_at: string;
+      /** Format: int64 */
+      max_pages?: number;
+      /** Format: int64 */
+      target_detail_pages?: number;
       /** Format: date-time */
       released_at?: string | null;
       release_reason?: string;
@@ -3512,6 +3516,12 @@ export interface components {
       name: string;
       display_name: string;
       outbound_policy: components["schemas"]["OutboundPolicyEnum"];
+    };
+    SourceURLApproval: {
+      reviewed_revision: number;
+      confirmed: boolean;
+      max_pages: number;
+      target_detail_pages: number;
     };
     /**
      * @description * `queued` - در صف
@@ -5705,7 +5715,7 @@ export interface operations {
     };
     requestBody: {
       content: {
-        "application/json": components["schemas"]["SourceProposalApproval"];
+        "application/json": components["schemas"]["SourceURLApproval"];
       };
     };
     responses: {
@@ -5876,7 +5886,7 @@ export interface operations {
     };
     requestBody: {
       content: {
-        "application/json": components["schemas"]["SourceProposalApproval"];
+        "application/json": components["schemas"]["SourceURLApproval"];
       };
     };
     responses: {

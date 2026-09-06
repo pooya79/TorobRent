@@ -41,10 +41,18 @@ DISCOVERY_RECOVERY_DELAY = timedelta(minutes=12)
 
 @transaction.atomic
 def approve_url(
-    *, proposal: SourceProposal, actor: User, reviewed_revision: int, confirmed: bool
+    *,
+    proposal: SourceProposal,
+    actor: User,
+    reviewed_revision: int,
+    confirmed: bool,
+    max_pages: int,
+    target_detail_pages: int,
 ) -> SourceProposal:
     if not has_capability(actor, OperatorCapability.REVIEW_SOURCE_PROPOSALS):
         raise ValidationError("Source Proposal Review capability is required.")
+    if not 1 <= target_detail_pages <= max_pages <= 2147483647:
+        raise ValidationError("حدود کشف باید مثبت باشند و تعداد آگهی هدف از سقف صفحات بیشتر نباشد.")
     if not confirmed:
         raise ValidationError("URL approval requires confirmation.")
     proposal = SourceProposal.objects.select_for_update().get(pk=proposal.pk)
@@ -92,6 +100,8 @@ def approve_url(
         proposal=proposal,
         revision=proposal.revision,
         approved_url=proposal.website_url,
+        max_pages=max_pages,
+        target_detail_pages=target_detail_pages,
         expires_at=now + RESERVATION_DURATION,
     )
     proposal.source = source
@@ -206,7 +216,11 @@ def run_discovery(reservation_id: str) -> None:
         )
     profile = None
     try:
-        contract = ExtractionContract(ReservedSourceFetcher(reservation))
+        contract = ExtractionContract(
+            ReservedSourceFetcher(reservation),
+            max_pages=reservation.max_pages,
+            target_detail_pages=reservation.target_detail_pages,
+        )
         result = contract.discover(reservation.approved_url)
         evidence = discovery_evidence(result)
         try:

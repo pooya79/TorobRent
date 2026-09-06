@@ -377,6 +377,8 @@ class SourceReservation(models.Model):
     )
     revision = models.PositiveIntegerField()
     approved_url = models.URLField(max_length=1000)
+    max_pages = models.PositiveIntegerField(default=50)
+    target_detail_pages = models.PositiveIntegerField(default=30)
     expires_at = models.DateTimeField()
     released_at = models.DateTimeField(null=True)
     release_reason = models.CharField(max_length=32, blank=True)

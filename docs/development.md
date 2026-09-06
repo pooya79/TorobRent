@@ -115,6 +115,18 @@ metadata-free responsive WebP variants, while Celery beat removes temporary uplo
 more than 24 hours. Media is served only through authenticated application endpoints, never as a
 public media directory.
 
+## Source Discovery limits
+
+URL approval and explicit profile re-review require the Operator to choose `max_pages` and
+`target_detail_pages`, using the representative's displayed inventory estimate. Both are positive
+integers; the detail target cannot exceed the page budget. Each Source Reservation retains the
+chosen limits and exposes them with Discovery evidence. Existing reservations retain their previous
+50-page/30-detail limits through migration defaults; new API approvals require explicit values.
+Discovery stops when either limit is reached or its frontier is exhausted. It still follows links
+only two levels deep, and the Celery task's 600/660-second soft/hard limits still apply, so a large
+budget does not guarantee that many pages will be fetched. The fetcher's 50-URL per-batch limit is
+separate: Discovery fetches one URL per call and can visit more than 50 URLs in total.
+
 ## Explicit Source Profile repair
 
 Set `SOURCE_PROFILE_REPAIR_API_KEY` and `SOURCE_PROFILE_REPAIR_MODEL` to enable the Operator's
