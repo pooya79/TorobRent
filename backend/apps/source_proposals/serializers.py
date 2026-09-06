@@ -1,3 +1,5 @@
+import uuid
+from functools import cached_property
 from typing import Any
 
 from django.utils import timezone
@@ -7,6 +9,7 @@ from rest_framework import serializers
 from .candidate_serializers import (
     ExternalListingCandidateSerializer as ExternalListingCandidateSerializer,
 )
+from .current_website import current_website_cases
 from .extraction_serializers import ExtractionRequestSerializer
 from .models import (
     DiscoveryStage,
@@ -26,8 +29,16 @@ from .models import (
 REQUIRED_ERROR = "این مقدار الزامی است."
 
 
+class CurrentWebsiteConflictSerializer(serializers.Serializer[Any]):
+    detail = serializers.CharField()
+
+
 class SourceProposalCreateSerializer(serializers.Serializer[Any]):
-    start_new = serializers.BooleanField(required=False, default=False)
+    start_new = serializers.BooleanField(
+        required=False,
+        default=False,
+        help_text="Compatibility hint; the current website is always resumed.",
+    )
 
 
 class SourceProposalDraftSerializer(serializers.Serializer[Any]):
@@ -175,6 +186,8 @@ class SourceAssignmentSerializer(serializers.ModelSerializer[SourceAssignment]):
 
 
 class SourceProposalSerializer(serializers.ModelSerializer[SourceProposal]):
+    is_current = serializers.SerializerMethodField()
+    current_website_conflict = serializers.SerializerMethodField()
     discovery_message = serializers.SerializerMethodField()
     assignment = serializers.SerializerMethodField()
     available_actions = serializers.SerializerMethodField()
@@ -189,6 +202,9 @@ class SourceProposalSerializer(serializers.ModelSerializer[SourceProposal]):
             "state",
             "discovery_stage",
             "discovery_message",
+            "is_current",
+            "current_website_conflict",
+            "discarded_at",
             "assignment",
             "revision",
             "current_step",
@@ -207,6 +223,26 @@ class SourceProposalSerializer(serializers.ModelSerializer[SourceProposal]):
             "created_at",
             "updated_at",
         )
+
+    @cached_property
+    def _current_cases(self) -> dict[uuid.UUID, set[uuid.UUID]]:
+        return {}
+
+    def _current_case_ids(self, proposal: SourceProposal) -> set[uuid.UUID]:
+        if proposal.submitter_id is None:
+            return set()
+        cache = self._current_cases
+        if proposal.submitter_id not in cache:
+            cache[proposal.submitter_id] = set(
+                current_website_cases(proposal.submitter_id).values_list("pk", flat=True)
+            )
+        return cache[proposal.submitter_id]
+
+    def get_is_current(self, proposal: SourceProposal) -> bool:
+        return proposal.pk in self._current_case_ids(proposal)
+
+    def get_current_website_conflict(self, proposal: SourceProposal) -> bool:
+        return len(self._current_case_ids(proposal)) > 1
 
     def get_discovery_message(self, proposal: SourceProposal) -> str:
         reservation = proposal.reservations.filter(revision=proposal.revision).first()
@@ -236,13 +272,17 @@ class SourceProposalSerializer(serializers.ModelSerializer[SourceProposal]):
         return data
 
     def get_available_actions(self, proposal: SourceProposal) -> list[str]:
+        if proposal.discarded_at is not None:
+            return []
+        if self.get_current_website_conflict(proposal):
+            return ["delete"] if proposal.can_discard else []
         if proposal.state == SourceProposalState.DRAFT:
             actions = ["edit"]
             if proposal.can_discard:
                 actions.append("delete")
             return actions
         if proposal.state == SourceProposalState.CHANGES_REQUESTED:
-            return ["edit"]
+            return ["edit", "delete"] if proposal.can_discard else ["edit"]
         return []
 
     @extend_schema_field(SourceProposalPreviewSerializer(allow_null=True))

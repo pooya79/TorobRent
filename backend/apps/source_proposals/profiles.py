@@ -20,6 +20,7 @@ from apps.source_extraction.contract import (
 )
 from apps.source_extraction.contract import SourceProfile as ExtractorProfile
 
+from .current_website import lock_current_website
 from .models import (
     SourceProfile,
     SourceProfileSnapshots,
@@ -212,6 +213,7 @@ def approve_profile(
 
     if not confirmed or review_mode not in ProfileReviewMode.values:
         raise ValidationError("Confirm profile approval and choose a supported review mode.")
+    lock_current_website(proposal)
     proposal = SourceProposal.objects.select_for_update().get(pk=proposal.pk)
     version, claim = review_version(
         proposal=proposal,
@@ -300,6 +302,7 @@ def start_profile_review(
     ensure_independent_reviewer(proposal=proposal, actor=actor)
     if not confirmed:
         raise ValidationError("آغاز بررسی تازه و دریافت صفحات را تأیید کنید.")
+    lock_current_website(proposal)
     proposal = SourceProposal.objects.select_for_update().get(pk=proposal.pk)
     if proposal.revision != reviewed_revision or proposal.state != SourceProposalState.APPROVED:
         raise SourceProposalReviewConflict("review_revision_conflict", "پرونده تغییر کرده است.")

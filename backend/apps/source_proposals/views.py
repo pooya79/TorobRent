@@ -13,6 +13,7 @@ from apps.accounts.models import User
 
 from .models import SourceProposal
 from .serializers import (
+    CurrentWebsiteConflictSerializer,
     SourceProposalCreateSerializer,
     SourceProposalDetailsSerializer,
     SourceProposalDraftSerializer,
@@ -37,14 +38,18 @@ class SourceProposalListCreateView(APIView):
     )
     def get(self, request: Request) -> Response:
         proposals = SourceProposal.objects.filter(
-            submitter=cast(User, request.user), discarded_at__isnull=True
+            submitter=cast(User, request.user)
         ).prefetch_related("events__actor")
         return Response(SourceProposalSerializer(proposals, many=True).data)
 
     @extend_schema(
-        summary="Create or resume a Source Proposal draft",
+        summary="Resume the current website or create a Source Proposal when the slot is free",
         request=SourceProposalCreateSerializer,
-        responses={200: SourceProposalSerializer, 201: SourceProposalSerializer},
+        responses={
+            200: SourceProposalSerializer,
+            201: SourceProposalSerializer,
+            409: CurrentWebsiteConflictSerializer,
+        },
     )
     def post(self, request: Request) -> Response:
         serializer = SourceProposalCreateSerializer(data=request.data)
@@ -56,6 +61,8 @@ class SourceProposalListCreateView(APIView):
             )
         except SourceProposalAccessDenied as exc:
             raise PermissionDenied(str(exc)) from None
+        except DjangoValidationError as exc:
+            return Response({"detail": exc.messages[0]}, status=status.HTTP_409_CONFLICT)
         return Response(
             SourceProposalSerializer(proposal).data,
             status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
@@ -67,7 +74,6 @@ class SourceProposalDetailView(APIView):
         return get_object_or_404(
             SourceProposal,
             id=proposal_id,
-            discarded_at__isnull=True,
             submitter=request.user,
         )
 

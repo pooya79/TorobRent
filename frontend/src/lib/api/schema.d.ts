@@ -1378,7 +1378,7 @@ export interface paths {
     /** List the current Submitter's Source Proposals */
     get: operations["v1_source_proposals_list"];
     put?: never;
-    /** Create or resume a Source Proposal draft */
+    /** Resume the current website or create a Source Proposal when the slot is free */
     post: operations["v1_source_proposals_create"];
     delete?: never;
     options?: never;
@@ -2143,6 +2143,9 @@ export interface components {
       readonly is_submitter: boolean;
       readonly operator_capabilities: components["schemas"]["OperatorCapabilitiesEnum"][];
     };
+    CurrentWebsiteConflict: {
+      detail: string;
+    };
     DecisionCorrectionAudit: {
       internal_note?: string;
       normalized_corrections?: components["schemas"]["NormalizedCorrectionsAudit"];
@@ -2749,6 +2752,10 @@ export interface components {
       state?: components["schemas"]["SourceProposalStateEnum"];
       readonly discovery_stage: components["schemas"]["DiscoveryStageEnum"];
       readonly discovery_message: string;
+      readonly is_current: boolean;
+      readonly current_website_conflict: boolean;
+      /** Format: date-time */
+      readonly discarded_at: string | null;
       readonly assignment: components["schemas"]["SourceAssignment"] | null;
       readonly revision: number;
       current_step?: components["schemas"]["SourceProposalStepEnum"];
@@ -3459,6 +3466,10 @@ export interface components {
       state?: components["schemas"]["SourceProposalStateEnum"];
       readonly discovery_stage: components["schemas"]["DiscoveryStageEnum"];
       readonly discovery_message: string;
+      readonly is_current: boolean;
+      readonly current_website_conflict: boolean;
+      /** Format: date-time */
+      readonly discarded_at: string | null;
       readonly assignment: components["schemas"]["SourceAssignment"] | null;
       readonly revision: number;
       current_step?: components["schemas"]["SourceProposalStepEnum"];
@@ -3489,7 +3500,10 @@ export interface components {
       confirmed: boolean;
     };
     SourceProposalCreate: {
-      /** @default false */
+      /**
+       * @description Compatibility hint; the current website is always resumed.
+       * @default false
+       */
       start_new: boolean;
     };
     SourceProposalDecision: {
@@ -6746,6 +6760,14 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["SourceProposal"];
+        };
+      };
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["CurrentWebsiteConflict"];
         };
       };
     };

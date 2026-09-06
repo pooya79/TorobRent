@@ -2718,7 +2718,8 @@ paths:
           description: ''
     post:
       operationId: v1_source_proposals_create
-      summary: Create or resume a Source Proposal draft
+      summary: Resume the current website or create a Source Proposal when the slot
+        is free
       tags:
       - v1
       requestBody:
@@ -2740,6 +2741,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/SourceProposal'
+          description: ''
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CurrentWebsiteConflict'
           description: ''
   /api/v1/source-proposals/{proposal_id}/:
     get:
@@ -4322,6 +4329,13 @@ components:
       - operator_capabilities
       - phone
       - phone_verified
+    CurrentWebsiteConflict:
+      type: object
+      properties:
+        detail:
+          type: string
+      required:
+      - detail
     DecisionCorrectionAudit:
       type: object
       properties:
@@ -5782,6 +5796,18 @@ components:
         discovery_message:
           type: string
           readOnly: true
+        is_current:
+          type: boolean
+          readOnly: true
+        current_website_conflict:
+          type: boolean
+          readOnly: true
+        discarded_at:
+          type:
+          - string
+          - 'null'
+          format: date-time
+          readOnly: true
         assignment:
           oneOf:
           - $ref: '#/components/schemas/SourceAssignment'
@@ -5875,11 +5901,14 @@ components:
       - assignment
       - available_actions
       - created_at
+      - current_website_conflict
+      - discarded_at
       - discovery
       - discovery_message
       - discovery_stage
       - history
       - id
+      - is_current
       - needs_reconciliation
       - pending_since
       - preview
@@ -7503,6 +7532,18 @@ components:
         discovery_message:
           type: string
           readOnly: true
+        is_current:
+          type: boolean
+          readOnly: true
+        current_website_conflict:
+          type: boolean
+          readOnly: true
+        discarded_at:
+          type:
+          - string
+          - 'null'
+          format: date-time
+          readOnly: true
         assignment:
           oneOf:
           - $ref: '#/components/schemas/SourceAssignment'
@@ -7578,10 +7619,13 @@ components:
       - assignment
       - available_actions
       - created_at
+      - current_website_conflict
+      - discarded_at
       - discovery_message
       - discovery_stage
       - history
       - id
+      - is_current
       - pending_since
       - preview
       - revision
@@ -7603,6 +7647,7 @@ components:
         start_new:
           type: boolean
           default: false
+          description: Compatibility hint; the current website is always resumed.
     SourceProposalDecision:
       type: object
       properties:

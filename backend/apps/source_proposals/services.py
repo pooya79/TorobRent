@@ -9,12 +9,14 @@ from apps.accounts.models import User
 from apps.catalog.models import Source
 from apps.communications.services import create_source_proposal_review_notification
 
+from .current_website import CONFLICT_MESSAGE, current_website_cases, lock_current_website
 from .models import (
     DiscoveryStage,
     ExternalListingCandidate,
     ExternalListingCandidateEvent,
     ExternalListingCandidateReviewClaim,
     ExternalListingCandidateState,
+    SourceAssignment,
     SourceProposal,
     SourceProposalEvent,
     SourceProposalReviewClaim,
@@ -37,10 +39,16 @@ class SourceProposalAccessDenied(Exception):
 
 
 def _lock_editable_source_proposal(*, proposal: SourceProposal, actor: User) -> SourceProposal:
+    lock_current_website(proposal)
     locked = SourceProposal.objects.select_for_update().get(id=proposal.id)
-    if locked.submitter_id != actor.id or locked.state not in (
-        SourceProposalState.DRAFT,
-        SourceProposalState.CHANGES_REQUESTED,
+    if (
+        locked.discarded_at is not None
+        or locked.submitter_id != actor.id
+        or locked.state
+        not in (
+            SourceProposalState.DRAFT,
+            SourceProposalState.CHANGES_REQUESTED,
+        )
     ):
         raise SourceProposalAccessDenied("این Source Proposal قابل ویرایش نیست.")
     if locked.state == SourceProposalState.CHANGES_REQUESTED:
@@ -71,28 +79,13 @@ def resume_or_create_source_proposal(
         raise SourceProposalAccessDenied(
             "برای معرفی وب‌سایت ابتدا شماره تلفن حساب ارسال‌کننده را تأیید کنید."
         )
-    User.objects.select_for_update().get(pk=submitter.pk)
-    existing = (
-        SourceProposal.objects
-        .select_for_update()
-        .filter(
-            submitter=submitter,
-            discarded_at__isnull=True,
-            state__in=(SourceProposalState.DRAFT, SourceProposalState.CHANGES_REQUESTED),
-        )
-        .first()
-    )
-    if existing is not None:
-        return existing, False
-    if start_new:
-        return SourceProposal.objects.create(submitter=submitter), True
-    pending = SourceProposal.objects.filter(
-        submitter=submitter,
-        discarded_at__isnull=True,
-        state=SourceProposalState.PENDING,
-    ).first()
-    if pending is not None:
-        return pending, False
+    # start_new is retained for older clients but never bypasses the current website.
+    User.objects.select_for_update(no_key=True).get(pk=submitter.pk)
+    current = list(current_website_cases(submitter.pk))
+    if len(current) > 1:
+        raise ValidationError(CONFLICT_MESSAGE)
+    if current:
+        return current[0], False
     return SourceProposal.objects.create(submitter=submitter), True
 
 
@@ -100,7 +93,7 @@ def resume_or_create_source_proposal(
 def delete_source_proposal_draft(*, proposal: SourceProposal, actor: User) -> None:
     locked = SourceProposal.objects.select_for_update().get(id=proposal.id)
     if locked.submitter_id != actor.id or not locked.can_discard:
-        raise SourceProposalAccessDenied("فقط پیش‌نویس قابل حذف است.")
+        raise SourceProposalAccessDenied("فقط پیش‌نویس یا پیشنهاد نیازمند اصلاح قابل حذف است.")
     locked.discarded_at = timezone.now()
     locked.save(update_fields=("discarded_at", "updated_at"))
 
@@ -108,6 +101,15 @@ def delete_source_proposal_draft(*, proposal: SourceProposal, actor: User) -> No
 def _ensure_account_domain_available(
     *, proposal: SourceProposal, actor: User, normalized_domain: str
 ) -> None:
+    if (
+        SourceAssignment.objects
+        .filter(proposal=proposal, revoked_at__isnull=True)
+        .exclude(source__domain=normalized_domain)
+        .exists()
+    ):
+        raise ValidationError(
+            "برای جایگزینی وب‌سایت ابتدا از اپراتور بخواهید تخصیص فعلی را لغو کند."
+        )
     if (
         SourceProposal.objects
         .filter(
@@ -134,12 +136,11 @@ def save_source_proposal_draft(
     if "website_url" in validated_data:
         website_url = str(validated_data["website_url"])
         normalized_domain = normalize_public_domain(website_url) if website_url else ""
-        if normalized_domain:
-            _ensure_account_domain_available(
-                proposal=locked,
-                actor=actor,
-                normalized_domain=normalized_domain,
-            )
+        _ensure_account_domain_available(
+            proposal=locked,
+            actor=actor,
+            normalized_domain=normalized_domain,
+        )
         locked.normalized_domain = normalized_domain
     sitemap_url = str(validated_data.get("sitemap_url", locked.sitemap_url))
     website_url = str(validated_data.get("website_url", locked.website_url))

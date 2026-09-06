@@ -126,7 +126,11 @@ class SourceProposal(models.Model):
 
     @property
     def can_discard(self) -> bool:
-        return self.state == SourceProposalState.DRAFT and self.discarded_at is None
+        return (
+            self.state in (SourceProposalState.DRAFT, SourceProposalState.CHANGES_REQUESTED)
+            and self.discarded_at is None
+            and not self.sourceassignment_set.filter(revoked_at__isnull=True).exists()
+        )
 
 
 class ImmutableSourceProposalEventQuerySet(models.QuerySet["SourceProposalEvent"]):

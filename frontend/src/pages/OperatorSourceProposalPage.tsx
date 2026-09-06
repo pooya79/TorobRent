@@ -134,6 +134,15 @@ function ProposalReviewCard({
         </div>
       </CardHeader>
       <CardContent className="grid gap-6">
+        {proposal.current_website_conflict && (
+          <Alert variant="destructive">
+            <AlertTitle>تعارض وب‌سایت‌های جاری ارسال‌کننده</AlertTitle>
+            <AlertDescription>
+              پیش از تأیید، با نماینده برای بستن پیشنهادهای اضافی یا لغو صریح
+              تخصیص‌های اضافی هماهنگ کنید. سوابق حفظ می‌شوند.
+            </AlertDescription>
+          </Alert>
+        )}
         {proposal.needs_reconciliation && (
           <Alert>
             <AlertTitle>دامنه تکراری نیازمند تطبیق خصوصی است</AlertTitle>
@@ -198,8 +207,10 @@ function ProposalReviewCard({
           ) && (
             <div className="grid gap-3">
               <p className="text-muted-foreground text-sm">
-                لغو تخصیص، استخراج را متوقف و آگهی‌ها را ناموجود می‌کند. نماینده
-                بعدی باید پیشنهاد تازه ثبت کند و همه مراحل بررسی را بگذراند.
+                لغو تخصیص، پروفایل را غیرفعال، استخراج را متوقف و آگهی‌ها را
+                ناموجود می‌کند. جایگزینی وب‌سایت تنها پس از لغو تخصیص ممکن است.
+                نماینده بعدی باید پیشنهاد تازه ثبت کند و همه مراحل بررسی را
+                بگذراند.
               </p>
               <Label htmlFor={`revoke-${proposal.id}`}>دلیل لغو تخصیص</Label>
               <Input
@@ -290,7 +301,7 @@ function ProposalReviewCard({
             </p>
           </fieldset>
         )}
-        {proposal.state === "approved" ? (
+        {proposal.state !== "pending" ? (
           <div className="grid gap-3">
             <p className="text-muted-foreground text-sm">
               اصلاح یک نتیجه از بخش نتایج انجام می‌شود. بررسی تازه پروفایل،
@@ -308,8 +319,10 @@ function ProposalReviewCard({
             </label>
             <Button
               disabled={
+                proposal.state !== "approved" ||
                 !confirmed ||
                 !validLimits ||
+                proposal.current_website_conflict ||
                 profileReview.isPending ||
                 proposal.assignment?.review_operator !== currentUser.data?.id
               }
@@ -399,6 +412,7 @@ function ProposalReviewCard({
                 disabled={
                   !confirmed ||
                   !validLimits ||
+                  proposal.current_website_conflict ||
                   decision.isPending ||
                   ["queued", "running", "complete"].includes(
                     proposal.discovery_stage ?? "awaiting_url",

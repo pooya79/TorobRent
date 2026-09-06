@@ -67,6 +67,13 @@ def test_revocation_withdraws_publications_cancels_pending_work_and_retains_hist
     assert messages.status_code == 200
     assert "تخصیص منبع لغو شد" in str(messages.json())
     assert detail["history"][-1]["reason"] == record.revocation.reason
+    replacement = api_client.post("/api/v1/source-proposals/", {"start_new": True}, format="json")
+    assert replacement.status_code == 201
+    assert replacement.data["id"] != str(proposal.pk)
+    cases = {item["id"]: item for item in api_client.get("/api/v1/source-proposals/").json()}
+    assert cases[str(proposal.pk)]["is_current"] is False
+    assert cases[str(proposal.pk)]["history"] == detail["history"]
+    assert cases[replacement.data["id"]]["is_current"] is True
 
 
 @pytest.mark.django_db

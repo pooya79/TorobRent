@@ -20,6 +20,7 @@ from apps.source_extraction.discovery import PageKind
 from apps.source_extraction.fetching import FetchBatch, SourcePageFetcher
 from apps.source_extraction.observations import redact_phone_numbers
 
+from .current_website import lock_current_website
 from .models import (
     DiscoveryStage,
     SourceAssignment,
@@ -55,6 +56,7 @@ def approve_url(
         raise ValidationError("حدود کشف باید مثبت باشند و تعداد آگهی هدف از سقف صفحات بیشتر نباشد.")
     if not confirmed:
         raise ValidationError("URL approval requires confirmation.")
+    lock_current_website(proposal)
     proposal = SourceProposal.objects.select_for_update().get(pk=proposal.pk)
     ensure_independent_reviewer(proposal=proposal, actor=actor)
     require_review_claim(proposal=proposal, actor=actor, reviewed_revision=reviewed_revision)

@@ -148,7 +148,7 @@ def test_operator_claims_and_requests_changes_then_representative_resumes(
     )
 
     assert dashboard.data[0]["revision"] == 1
-    assert dashboard.data[0]["available_actions"] == ["edit"]
+    assert dashboard.data[0]["available_actions"] == ["edit", "delete"]
     assert dashboard.data[0]["history"][-1]["reason"] == (
         "مدرک اختیار مدیریت وب‌سایت را توضیح دهید."
     )

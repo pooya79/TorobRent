@@ -213,3 +213,18 @@ Deploy source-proposal migrations 0022 and 0023 before switching application wor
 retirement preserves history and leaves its unused physical column with a default for compatibility;
 a future release may drop that column after old workers are drained. Do not run old simulation
 producers after retirement.
+
+### One current website per Submitter (#122)
+
+No schema or data migration is needed: introduction, proposal editing, URL approval, and profile
+approval serialize on the existing Submitter account row before locking the proposal. An open
+proposal (draft, pending, or changes requested) or an active assignment occupies the slot; a
+profile review and its assignment count as the same case. The compatibility `start_new` hint
+cannot bypass this rule. Drain old application workers when deploying this behavior.
+
+Existing conflicting cases are preserved and flagged in the Submitter dashboard and Operator
+queue. Creation returns 409 and editing/approval is blocked until explicit resolution. The
+Submitter can discard a draft or changes-requested proposal without an active assignment; an
+Operator can reject a pending proposal or revoke an assignment using the existing reasoned workflow. Revocation deactivates the
+profile, cancels extraction work, and withdraws its published listings. Historical and discarded
+proposals remain readable by their Submitter, with review and assignment history intact.

@@ -2,6 +2,7 @@ from collections.abc import Callable
 from typing import Any, cast
 
 from django.core.exceptions import ValidationError as DjangoValidationError
+from django.db.models import Q
 from drf_spectacular.utils import extend_schema
 from rest_framework import status
 from rest_framework.exceptions import ValidationError
@@ -58,7 +59,11 @@ class OperatorSourceProposalListView(APIView):
     def get(self, request: Request) -> Response:
         proposals = (
             SourceProposal.objects
-            .filter(state__in=(SourceProposalState.PENDING, SourceProposalState.APPROVED))
+            .filter(
+                Q(state__in=(SourceProposalState.PENDING, SourceProposalState.APPROVED))
+                | Q(sourceassignment__revoked_at__isnull=True, sourceassignment__isnull=False)
+            )
+            .distinct()
             .exclude(submitter=cast(User, request.user))
             .prefetch_related("events__actor")
         )

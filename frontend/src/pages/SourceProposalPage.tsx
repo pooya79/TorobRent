@@ -1,3 +1,5 @@
+import { CurrentWebsiteStatus } from "@/features/source-proposals/CurrentWebsiteStatus";
+import { SourceAssignmentSummary } from "@/features/source-proposals/SourceAssignmentSummary";
 import { AccountWorkspace } from "@/features/account/AccountWorkspace";
 import { discoveryStageLabels } from "@/features/source-proposals/discovery-labels";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -124,6 +126,9 @@ export function SourceProposalPage() {
     return (
       <PageFrame>
         <ErrorAlert error={resume.error} />
+        <Link className="underline" to="/dashboard">
+          مشاهده وب‌سایت‌ها و رفع تعارض در داشبورد
+        </Link>
       </PageFrame>
     );
   }
@@ -131,6 +136,33 @@ export function SourceProposalPage() {
     return (
       <PageFrame>
         <p role="status">در حال بازیابی پیشنهاد وب‌سایت…</p>
+      </PageFrame>
+    );
+  }
+  if (
+    proposal.current_website_conflict ||
+    proposal.discarded_at ||
+    ["approved", "rejected", "revoked"].includes(proposal.state ?? "")
+  ) {
+    return (
+      <PageFrame>
+        <Card className="mx-auto max-w-2xl shadow-none">
+          <CardContent className="grid gap-5 pt-6">
+            <CurrentWebsiteStatus proposal={proposal} />
+            <p dir="ltr" className="break-all">
+              {proposal.website_url}
+            </p>
+            {proposal.assignment && (
+              <SourceAssignmentSummary
+                assignment={proposal.assignment}
+                proposalId={proposal.id}
+              />
+            )}
+            <Button asChild>
+              <Link to="/dashboard">مشاهده وضعیت و سوابق در داشبورد</Link>
+            </Button>
+          </CardContent>
+        </Card>
       </PageFrame>
     );
   }
@@ -144,6 +176,7 @@ export function SourceProposalPage() {
               aria-hidden="true"
             />
             <h1 className="text-2xl font-semibold">در انتظار بررسی اپراتور</h1>
+            <CurrentWebsiteStatus proposal={proposal} />
             <p role="status">
               {discoveryStageLabels[proposal.discovery_stage ?? "awaiting_url"]}
             </p>
@@ -178,6 +211,7 @@ export function SourceProposalPage() {
 
   return (
     <PageFrame>
+      <CurrentWebsiteStatus proposal={proposal} />
       <header className="mb-8 max-w-3xl">
         <p className="text-primary mb-2 text-sm font-semibold">
           معرفی منبع بیرونی

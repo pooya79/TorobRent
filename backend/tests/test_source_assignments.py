@@ -256,3 +256,178 @@ def test_expired_reservation_cannot_create_assignment_or_approval_history(
     assert result.data["code"] == "profile_reservation_expired"
     assert not SourceAssignment.objects.filter(proposal=proposal).exists()
     assert not proposal.events.filter(new_state="approved").exists()
+
+
+@pytest.mark.django_db
+def test_active_assignment_resumes_instead_of_introducing_another_website(
+    api_client, discovered_case
+):
+    proposal, base, _, representative, _ = discovered_case
+    version = api_client.get("/api/v1/operator/source-proposals/").data[0]["profile_versions"][0]
+    approved = api_client.post(
+        f"{base}/profile/approve/",
+        {
+            "reviewed_revision": 1,
+            "reviewed_profile_version": version["id"],
+            "confirmed": True,
+            "review_mode": "approval_required",
+        },
+        format="json",
+    )
+    assert approved.status_code == 200
+    api_client.force_authenticate(representative)
+    resumed = api_client.post("/api/v1/source-proposals/", {"start_new": True}, format="json")
+    assert resumed.status_code == 200
+    assert resumed.data["id"] == str(proposal.pk)
+    assert resumed.data["assignment"]["state"] == "active"
+
+
+@pytest.mark.django_db
+def test_legacy_conflict_blocks_approval_until_extra_draft_is_explicitly_discarded(
+    api_client, discovered_case
+):
+    from apps.source_proposals.models import SourceProposal
+
+    proposal, base, operator, representative, _ = discovered_case
+    extra = SourceProposal.objects.create(
+        submitter=representative, website_url="https://extra.example/"
+    )
+    version = api_client.get("/api/v1/operator/source-proposals/").data[0]["profile_versions"][0]
+    payload = {
+        "reviewed_revision": 1,
+        "reviewed_profile_version": version["id"],
+        "confirmed": True,
+        "review_mode": "approval_required",
+    }
+    blocked = api_client.post(f"{base}/profile/approve/", payload, format="json")
+    assert blocked.status_code == 400
+    api_client.force_authenticate(representative)
+    assert api_client.post("/api/v1/source-proposals/", {}, format="json").status_code == 409
+    assert api_client.delete(f"/api/v1/source-proposals/{extra.pk}/").status_code == 204
+    api_client.force_authenticate(operator)
+    assert api_client.post(f"{base}/profile/approve/", payload, format="json").status_code == 200
+
+
+@pytest.mark.django_db(transaction=True)
+def test_introduction_during_approval_resumes_the_same_case(api_client, discovered_case):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Barrier
+
+    from django.db import close_old_connections, connection
+    from rest_framework.test import APIClient
+
+    if connection.vendor != "postgresql":
+        pytest.skip("Requires PostgreSQL row locks")
+    proposal, base, operator, representative, _ = discovered_case
+    version = api_client.get("/api/v1/operator/source-proposals/").data[0]["profile_versions"][0]
+    barrier = Barrier(2)
+
+    def request(approval):
+        close_old_connections()
+        try:
+            client = APIClient()
+            client.force_authenticate(operator if approval else representative)
+            barrier.wait(timeout=10)
+            if approval:
+                response = client.post(
+                    f"{base}/profile/approve/",
+                    {
+                        "reviewed_revision": 1,
+                        "reviewed_profile_version": version["id"],
+                        "confirmed": True,
+                        "review_mode": "approval_required",
+                    },
+                    format="json",
+                )
+            else:
+                response = client.post(
+                    "/api/v1/source-proposals/", {"start_new": True}, format="json"
+                )
+            return response.status_code, response.json()["id"]
+        finally:
+            close_old_connections()
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        results = list(executor.map(request, [True, False]))
+    assert results == [(200, str(proposal.pk)), (200, str(proposal.pk))]
+    api_client.force_authenticate(representative)
+    cases = api_client.get("/api/v1/source-proposals/").json()
+    assert len(cases) == 1
+    assert cases[0]["assignment"]["state"] == "active"
+    assert cases[0]["current_website_conflict"] is False
+
+
+@pytest.mark.django_db
+def test_legacy_assignments_remain_active_until_explicit_operator_resolution(
+    api_client, assigned_case
+):
+    from apps.catalog.models import Source
+    from apps.source_proposals.models import SourceAssignment, SourceProposal
+    from tests.test_source_revocation import revoke
+
+    original, _, operator, representative, _ = assigned_case
+    source = Source.objects.create(name="legacy-extra", domain="legacy-extra.example")
+    extra = SourceProposal.objects.create(submitter=representative, source=source, state="approved")
+    SourceAssignment.objects.create(source=source, proposal=extra, representative=representative)
+    api_client.force_authenticate(representative)
+    cases = api_client.get("/api/v1/source-proposals/").json()
+    assert len(cases) == 2
+    assert all(item["current_website_conflict"] for item in cases)
+    assert all(item["assignment"]["state"] == "active" for item in cases)
+    assert api_client.post("/api/v1/source-proposals/", {}, format="json").status_code == 409
+    api_client.force_authenticate(operator)
+    assert (
+        revoke(
+            api_client, assigned_case, reason="نماینده وب‌سایت دیگر را انتخاب کرده است"
+        ).status_code
+        == 200
+    )
+    api_client.force_authenticate(representative)
+    resumed = api_client.post("/api/v1/source-proposals/", {}, format="json").json()
+    assert resumed["id"] == str(extra.pk)
+    assert resumed["assignment"]["state"] == "active"
+    assert resumed["current_website_conflict"] is False
+    history = api_client.get(f"/api/v1/source-proposals/{original.pk}/").json()
+    assert history["assignment"]["state"] == "revoked"
+    assert history["history"][-1]["reason"] == "نماینده وب‌سایت دیگر را انتخاب کرده است"
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("state", ["changes_requested", "rejected"])
+def test_active_assignment_remains_visible_and_cannot_be_discarded_after_profile_review(
+    api_client, assigned_case, state
+):
+    from apps.source_proposals.models import SourceProposal
+
+    proposal, _, operator, representative, _ = assigned_case
+    SourceProposal.objects.filter(pk=proposal.pk).update(state=state)
+    api_client.force_authenticate(operator)
+    queue = api_client.get("/api/v1/operator/source-proposals/").json()
+    assert str(proposal.pk) in {item["id"] for item in queue}
+    api_client.force_authenticate(representative)
+    detail = api_client.get(f"/api/v1/source-proposals/{proposal.pk}/").json()
+    assert "delete" not in detail["available_actions"]
+    assert api_client.delete(f"/api/v1/source-proposals/{proposal.pk}/").status_code == 403
+    assert api_client.post("/api/v1/source-proposals/", {}, format="json").json()["id"] == str(
+        proposal.pk
+    )
+
+
+@pytest.mark.django_db
+def test_active_assignment_cannot_be_replaced_by_editing_changes_requested_url(
+    api_client, assigned_case
+):
+    from apps.source_proposals.models import SourceProposal
+
+    proposal, _, _, representative, _ = assigned_case
+    SourceProposal.objects.filter(pk=proposal.pk).update(state="changes_requested")
+    api_client.force_authenticate(representative)
+    changed = api_client.patch(
+        f"/api/v1/source-proposals/{proposal.pk}/draft/",
+        {"website_url": "https://replacement.example/", "sitemap_url": ""},
+        format="json",
+    )
+    assert changed.status_code == 400
+    detail = api_client.get(f"/api/v1/source-proposals/{proposal.pk}/").json()
+    assert detail["website_url"] == proposal.website_url
+    assert detail["assignment"]["state"] == "active"

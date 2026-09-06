@@ -1,3 +1,4 @@
+import { CurrentWebsiteStatus } from "@/features/source-proposals/CurrentWebsiteStatus";
 import { submissionImagePreview } from "@/features/submissions/SubmissionImagesFields";
 import { propertyTypeLabels } from "@/features/catalog/property-taxonomy";
 import { SourceAssignmentSummary } from "@/features/source-proposals/SourceAssignmentSummary";
@@ -26,7 +27,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   removeSourceProposalDraft,
-  type SourceProposal,
   sourceProposalsQueryOptions,
 } from "@/features/source-proposals/queries";
 import {
@@ -77,10 +77,7 @@ export function SubmitterDashboardPage() {
         );
         return;
       }
-      queryClient.setQueryData<SourceProposal[]>(
-        ["source-proposals"],
-        (current) => current?.filter((proposal) => proposal.id !== target.id),
-      );
+      void queryClient.invalidateQueries({ queryKey: ["source-proposals"] });
     },
   });
   const availabilityAction = useMutation({
@@ -551,6 +548,12 @@ export function SubmitterDashboardPage() {
             وب‌سایت‌هایی که برای اعتبارسنجی اپراتور معرفی کرده‌اید.
           </p>
         </div>
+        {sourceProposals.data &&
+          !sourceProposals.data.some((proposal) => proposal.is_current) && (
+            <Button asChild variant="outline">
+              <Link to="/source-proposal">معرفی وب‌سایت تازه</Link>
+            </Button>
+          )}
         {sourceProposals.isError && (
           <Alert variant="destructive">
             <AlertDescription>
@@ -583,15 +586,17 @@ export function SubmitterDashboardPage() {
             return (
               <Card className="shadow-none" key={proposal.id}>
                 <CardContent className="flex flex-col gap-4 sm:flex-row sm:items-center">
-                  {state !== "approved" && state !== "rejected" && (
-                    <p role="status">
-                      {
-                        discoveryStageLabels[
-                          proposal.discovery_stage ?? "awaiting_url"
-                        ]
-                      }
-                    </p>
-                  )}
+                  {proposal.is_current &&
+                    state !== "approved" &&
+                    state !== "rejected" && (
+                      <p role="status">
+                        {
+                          discoveryStageLabels[
+                            proposal.discovery_stage ?? "awaiting_url"
+                          ]
+                        }
+                      </p>
+                    )}
                   <span className="bg-muted flex size-12 shrink-0 items-center justify-center rounded-full">
                     <Globe2 className="size-5" aria-hidden="true" />
                   </span>
@@ -603,17 +608,7 @@ export function SubmitterDashboardPage() {
                         نسخه {(proposal.revision ?? 1).toLocaleString("fa-IR")}
                       </span>
                     </div>
-                    <p className="text-muted-foreground mt-2 text-sm">
-                      {state === "pending"
-                        ? "اقدام بعدی: منتظر بررسی اپراتور بمانید."
-                        : state === "changes_requested"
-                          ? "اقدام بعدی: موارد خواسته‌شده را اصلاح و دوباره ارسال کنید."
-                          : state === "approved"
-                            ? "بررسی این پیشنهاد پایان یافته است."
-                            : state === "rejected"
-                              ? "این پیشنهاد بسته شده است."
-                              : "اقدام بعدی: اطلاعات و پیش‌نمایش را تکمیل و تأیید کنید."}
-                    </p>
+                    <CurrentWebsiteStatus proposal={proposal} />
                     {proposal.assignment && (
                       <SourceAssignmentSummary
                         assignment={proposal.assignment}
@@ -648,6 +643,22 @@ export function SubmitterDashboardPage() {
                     )}
                   </div>
                   <div className="flex flex-wrap gap-2">
+                    {proposal.is_current &&
+                      !proposal.current_website_conflict && (
+                        <Button asChild variant="outline">
+                          <Link to={`/source-proposal?proposal=${proposal.id}`}>
+                            مشاهده وب‌سایت جاری
+                          </Link>
+                        </Button>
+                      )}
+                    {!proposal.is_current && (
+                      <Link
+                        className="text-sm underline"
+                        to={`/source-proposal?proposal=${proposal.id}`}
+                      >
+                        مشاهده سابقه وب‌سایت
+                      </Link>
+                    )}
                     {canEdit && (
                       <Button asChild variant="outline">
                         <Link

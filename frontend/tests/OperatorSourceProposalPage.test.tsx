@@ -1471,3 +1471,76 @@ test("compares imperfect repair evidence and requires a fresh explicit approval"
     limitations_acknowledged: true,
   });
 });
+
+test("requires explicit legacy conflict resolution before URL approval", async () => {
+  const user = userEvent.setup();
+  server.use(
+    http.get("*/api/v1/operator/source-proposals/", () =>
+      HttpResponse.json([{ ...proposal, current_website_conflict: true }]),
+    ),
+    http.post("*/api/v1/operator/source-proposals/:id/claim/", () =>
+      HttpResponse.json({ id: "claim", revision: 1 }, { status: 201 }),
+    ),
+  );
+  render(
+    <QueryClientProvider
+      client={
+        new QueryClient({ defaultOptions: { queries: { retry: false } } })
+      }
+    >
+      <MemoryRouter>
+        <OperatorSourceProposalPage />
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+  expect(
+    await screen.findByText("تعارض وب‌سایت‌های جاری ارسال‌کننده"),
+  ).toBeVisible();
+  await user.click(screen.getByRole("button", { name: "شروع بررسی" }));
+  expect(
+    await screen.findByRole("button", { name: "تأیید نشانی و شروع کشف" }),
+  ).toBeDisabled();
+  expect(screen.getByRole("button", { name: "رد پیشنهاد" })).toBeEnabled();
+});
+
+test.each(["changes_requested", "rejected"])(
+  "keeps revocation available for an active assignment in %s",
+  async (state) => {
+    server.use(
+      http.get("*/api/v1/operator/source-proposals/", () =>
+        HttpResponse.json([
+          {
+            ...proposal,
+            state,
+            is_current: true,
+            current_website_conflict: false,
+            assignment: {
+              id: 1,
+              state: "active",
+              source: { display_name: "خانه‌یاب", domain: "khaneh.example" },
+              active_profile_version: null,
+              recent_requests: [],
+            },
+          },
+        ]),
+      ),
+    );
+    render(
+      <QueryClientProvider
+        client={
+          new QueryClient({ defaultOptions: { queries: { retry: false } } })
+        }
+      >
+        <MemoryRouter>
+          <OperatorSourceProposalPage />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    expect(
+      await screen.findByRole("button", { name: "لغو تخصیص منبع" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "شروع بررسی" }),
+    ).not.toBeInTheDocument();
+  },
+);

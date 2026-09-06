@@ -804,6 +804,7 @@ function ProfileEditor({
       <Button
         disabled={
           busy ||
+          proposal.current_website_conflict ||
           !mode ||
           !confirmed ||
           version.validation.rules_valid === false ||

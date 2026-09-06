@@ -63,7 +63,7 @@ def test_submitter_can_delete_only_a_source_proposal_draft(
 
     assert "delete" in listed.data[0]["available_actions"]
     assert removed.status_code == 204
-    assert api_client.get(f"/api/v1/source-proposals/{removable.data['id']}/").status_code == 404
+    assert api_client.get(f"/api/v1/source-proposals/{removable.data['id']}/").data["discarded_at"]
 
     protected = api_client.post("/api/v1/source-proposals/", {}, format="json")
     SourceProposal.objects.filter(id=protected.data["id"]).update(state=SourceProposalState.PENDING)
@@ -248,20 +248,19 @@ def submit_proposal(api_client: APIClient, proposal_id: str) -> None:
 
 
 @pytest.mark.django_db
-def test_account_cannot_hold_two_open_proposals_for_one_normalized_domain(
-    api_client: APIClient,
-):
-    authenticate_submitter(api_client)
-    first = api_client.post("/api/v1/source-proposals/", {}, format="json")
-    first_details = complete_details(api_client, first.data["id"], "https://www.example.com/a")
-    assert first_details.status_code == 200
-    submit_proposal(api_client, first.data["id"])
-    second = api_client.post("/api/v1/source-proposals/", {"start_new": True}, format="json")
+@pytest.mark.parametrize("state", ["draft", "pending", "changes_requested"])
+def test_new_introduction_resumes_current_case(api_client: APIClient, state: str):
+    submitter = authenticate_submitter(api_client)
+    proposal = SourceProposal.objects.create(
+        submitter=submitter, state=state, website_url="https://current.example/"
+    )
 
-    duplicate = complete_details(api_client, second.data["id"], "http://WWW.EXAMPLE.com/b")
+    resumed = api_client.post("/api/v1/source-proposals/", {"start_new": True}, format="json")
 
-    assert duplicate.status_code == 400
-    assert SourceProposal.objects.get(id=second.data["id"]).normalized_domain == ""
+    assert resumed.status_code == 200
+    assert resumed.data["id"] == str(proposal.pk)
+    assert resumed.data["website_url"] == "https://current.example/"
+    assert len(api_client.get("/api/v1/source-proposals/").data) == 1
 
 
 @pytest.mark.django_db
@@ -305,3 +304,87 @@ def test_cross_account_duplicate_is_accepted_and_privately_flagged(api_client: A
     assert "needs_reconciliation" not in accepted.data
     assert str(first_submitter.id) not in str(accepted.data)
     assert SourceProposal.objects.get(id=second.data["id"]).needs_reconciliation is True
+
+
+@pytest.mark.django_db
+def test_legacy_current_websites_are_flagged_without_changing_history(api_client):
+    submitter = authenticate_submitter(api_client)
+    first = SourceProposal.objects.create(submitter=submitter, website_url="https://one.example/")
+    second = SourceProposal.objects.create(
+        submitter=submitter, state="pending", website_url="https://two.example/"
+    )
+    listed = api_client.get("/api/v1/source-proposals/").json()
+    assert {item["id"] for item in listed} == {str(first.pk), str(second.pk)}
+    assert all(item["is_current"] and item["current_website_conflict"] for item in listed)
+    assert api_client.post("/api/v1/source-proposals/", {}, format="json").status_code == 409
+    assert (
+        api_client.patch(
+            f"/api/v1/source-proposals/{first.pk}/draft/",
+            {"website_name": "changed"},
+            format="json",
+        ).status_code
+        == 400
+    )
+    assert api_client.delete(f"/api/v1/source-proposals/{first.pk}/").status_code == 204
+    resumed = api_client.post("/api/v1/source-proposals/", {}, format="json").json()
+    assert resumed["id"] == str(second.pk)
+    assert resumed["current_website_conflict"] is False
+    historical = api_client.get(f"/api/v1/source-proposals/{first.pk}/").json()
+    assert historical["is_current"] is False
+    assert historical["discarded_at"] is not None
+    assert historical["available_actions"] == []
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("state", ["rejected", "revoked", "approved"])
+def test_closed_cases_without_active_assignment_release_the_slot(api_client, state):
+    submitter = authenticate_submitter(api_client)
+    old = SourceProposal.objects.create(submitter=submitter, state=state)
+    created = api_client.post("/api/v1/source-proposals/", {}, format="json")
+    assert created.status_code == 201
+    assert created.data["id"] != str(old.pk)
+    historical = api_client.get(f"/api/v1/source-proposals/{old.pk}/").json()
+    assert historical["is_current"] is False
+
+
+@pytest.mark.django_db(transaction=True)
+def test_simultaneous_introductions_resume_one_current_website(api_client):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Barrier
+
+    from django.db import close_old_connections, connection
+
+    if connection.vendor != "postgresql":
+        pytest.skip("Requires PostgreSQL row locks")
+    submitter = authenticate_submitter(api_client)
+    barrier = Barrier(2)
+
+    def introduce():
+        close_old_connections()
+        try:
+            client = APIClient()
+            client.force_authenticate(User.objects.get(pk=submitter.pk))
+            barrier.wait(timeout=10)
+            result = client.post("/api/v1/source-proposals/", {"start_new": True}, format="json")
+            return result.status_code, result.json()["id"]
+        finally:
+            close_old_connections()
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        results = list(executor.map(lambda _: introduce(), range(2)))
+    assert sorted(code for code, _ in results) == [200, 201]
+    assert len({identifier for _, identifier in results}) == 1
+    assert len(api_client.get("/api/v1/source-proposals/").json()) == 1
+
+
+@pytest.mark.django_db
+def test_submitter_can_discard_changes_requested_case_to_resolve_legacy_conflict(api_client):
+    submitter = authenticate_submitter(api_client)
+    extra = SourceProposal.objects.create(submitter=submitter, state="changes_requested")
+    current = SourceProposal.objects.create(submitter=submitter, state="pending")
+    assert api_client.delete(f"/api/v1/source-proposals/{extra.pk}/").status_code == 204
+    resumed = api_client.post("/api/v1/source-proposals/", {}, format="json")
+    assert resumed.data["id"] == str(current.pk)
+    history = api_client.get(f"/api/v1/source-proposals/{extra.pk}/").json()
+    assert history["state"] == "changes_requested"
+    assert history["discarded_at"] is not None
