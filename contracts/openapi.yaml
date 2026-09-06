@@ -1701,6 +1701,36 @@ paths:
               schema:
                 $ref: '#/components/schemas/OperatorSourceProposal'
           description: ''
+  /api/v1/operator/source-proposals/{proposal_id}/exceptions/retry/:
+    post:
+      operationId: v1_operator_source_proposals_exceptions_retry_create
+      summary: Request bounded re-extraction of up to twenty affected pages
+      parameters:
+      - in: path
+        name: proposal_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SourceExceptionRetry'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ExtractionRequest'
+          description: ''
   /api/v1/operator/source-proposals/{proposal_id}/exclusions/add/:
     post:
       operationId: v1_operator_source_proposals_exclusions_add_create
@@ -3007,6 +3037,36 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/SourceProposal'
+          description: ''
+  /api/v1/source-proposals/{proposal_id}/exceptions/retry/:
+    post:
+      operationId: v1_source_proposals_exceptions_retry_create
+      summary: Request bounded re-extraction of up to twenty affected pages
+      parameters:
+      - in: path
+        name: proposal_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SourceExceptionRetry'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ExtractionRequest'
           description: ''
   /api/v1/source-proposals/{proposal_id}/extraction-requests/:
     post:
@@ -7396,6 +7456,11 @@ components:
           items:
             $ref: '#/components/schemas/SourceExclusion'
           readOnly: true
+        exceptions:
+          type: array
+          items:
+            $ref: '#/components/schemas/SourceExtractionException'
+          readOnly: true
         review_operator:
           type:
           - string
@@ -7408,6 +7473,7 @@ components:
       required:
       - active_profile_version
       - created_at
+      - exceptions
       - exclusions
       - id
       - mode_revision
@@ -7481,6 +7547,52 @@ components:
       - evidence
       - expires_at
       - id
+    SourceExceptionAttempt:
+      type: object
+      properties:
+        run:
+          type: string
+          format: uuid
+          readOnly: true
+        attempt:
+          type: integer
+          readOnly: true
+        attempted_at:
+          type: string
+          format: date-time
+          readOnly: true
+        state:
+          type: string
+          readOnly: true
+        problem:
+          type: string
+          readOnly: true
+        detail:
+          type: string
+          readOnly: true
+        is_current:
+          type: boolean
+          readOnly: true
+      required:
+      - attempt
+      - attempted_at
+      - detail
+      - is_current
+      - problem
+      - run
+      - state
+    SourceExceptionRetry:
+      type: object
+      properties:
+        exception_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+          maxItems: 20
+          minItems: 1
+      required:
+      - exception_ids
     SourceExclusion:
       type: object
       properties:
@@ -7654,6 +7766,63 @@ components:
       - exclusion_id
       - listing_ids
       - reason
+    SourceExtractionException:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        canonical_url:
+          type: string
+          format: uri
+          readOnly: true
+        first_occurrence:
+          type:
+          - string
+          - 'null'
+          format: date-time
+          readOnly: true
+        state:
+          type: string
+          readOnly: true
+        problem:
+          type: string
+          readOnly: true
+        detail:
+          type: string
+          readOnly: true
+        last_run:
+          type: string
+          format: uuid
+          readOnly: true
+        last_attempt:
+          type: integer
+          readOnly: true
+        last_attempt_at:
+          type: string
+          format: date-time
+          readOnly: true
+        history:
+          type: array
+          items:
+            $ref: '#/components/schemas/SourceExceptionAttempt'
+          readOnly: true
+        exclusion_reason:
+          type: string
+          readOnly: true
+      required:
+      - canonical_url
+      - detail
+      - exclusion_reason
+      - first_occurrence
+      - history
+      - id
+      - last_attempt
+      - last_attempt_at
+      - last_run
+      - problem
+      - state
     SourceMetadata:
       type: object
       properties:

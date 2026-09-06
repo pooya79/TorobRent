@@ -585,6 +585,12 @@ class ExtractionState(models.TextChoices):
 
 
 class ExtractionRequest(models.Model):
+    initiated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="initiated_extractions",
+    )
     publication_revision = models.PositiveIntegerField(default=0, db_default=0)
     review_mode = models.CharField(
         max_length=24, choices=ProfileReviewMode, default="", db_default=""
@@ -860,3 +866,58 @@ class SourceExclusionAction(ImmutableProfileRecord):
 
     def __str__(self) -> str:
         return f"{self.action}: {self.exclusion_id}"
+
+
+class SourceExtractionException(models.Model):
+    """Latest page outcome also fences late failures after a first successful extraction."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    source = models.ForeignKey(
+        "catalog.Source", on_delete=models.PROTECT, related_name="exceptions"
+    )
+    canonical_url = models.URLField(max_length=1000)
+    first_occurrence = models.DateTimeField(null=True)
+    state = models.CharField(
+        max_length=16,
+        choices=[("open", "باز"), ("resolved", "رفع شده"), ("excluded", "کنار گذاشته شده")],
+    )
+    problem = models.CharField(max_length=64, blank=True)
+    detail = models.TextField(blank=True)
+    last_run = models.ForeignKey(ExtractionRun, on_delete=models.PROTECT)
+    last_attempt = models.PositiveIntegerField()
+    last_attempt_at = models.DateTimeField()
+
+    class Meta:
+        ordering = ("canonical_url",)
+        constraints = [
+            models.UniqueConstraint(
+                fields=("source", "canonical_url"), name="unique_source_exception_url"
+            )
+        ]
+
+    def __str__(self) -> str:
+        return self.canonical_url
+
+
+class SourceExceptionAttempt(models.Model):
+    exception = models.ForeignKey(
+        SourceExtractionException, on_delete=models.CASCADE, related_name="history"
+    )
+    run = models.ForeignKey(ExtractionRun, on_delete=models.PROTECT)
+    attempt = models.PositiveIntegerField()
+    attempted_at = models.DateTimeField()
+    state = models.CharField(max_length=16)
+    problem = models.CharField(max_length=64, blank=True)
+    detail = models.TextField(blank=True)
+    is_current = models.BooleanField()
+
+    class Meta:
+        ordering = ("-attempted_at", "-id")
+        constraints = [
+            models.UniqueConstraint(
+                fields=("exception", "run", "attempt"), name="unique_exception_run_attempt"
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"Exception attempt {self.run_id}/{self.attempt}"

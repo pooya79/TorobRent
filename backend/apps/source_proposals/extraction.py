@@ -39,7 +39,7 @@ from .url_validation import normalize_public_domain, normalize_public_url
 
 @transaction.atomic
 def submit_request(
-    *, assignment_id: int, proposal_id: str, actor: User, url: str
+    *, assignment_id: int, proposal_id: str, actor: User, url: str, initiated_by: User | None = None
 ) -> ExtractionRequest:
     assignment = SourceAssignment.objects.select_related("source").get(pk=assignment_id)
     Source.objects.select_for_update().get(pk=assignment.source_id)
@@ -53,15 +53,24 @@ def submit_request(
         or assignment.source.profile.active_version_id != assignment.approval.version_id
     ):
         raise ValidationError("تخصیص یا پروفایل فعال در دسترس نیست.")
-    canonical = normalize_public_url(url)
+    canonical = normalize_url(normalize_public_url(url))
     if normalize_public_domain(canonical) != assignment.source.domain:
         raise ValidationError("نشانی باید روی دامنه دقیق منبع باشد.")
     if not validate_public_destination(canonical, approved_host=assignment.source.domain):
         raise ValidationError("مقصد عمومی امن در دسترس نیست؛ نشانی را بررسی یا دوباره تلاش کنید.")
+    pending = ExtractionRequest.objects.filter(
+        assignment=assignment,
+        canonical_url=canonical,
+        profile_version=assignment.approval.version,
+        state__in=(ExtractionState.QUEUED, ExtractionState.RUNNING),
+    ).first()
+    if pending:
+        return pending
     mode, revision = publication_mode(assignment.approval)
     request = ExtractionRequest.objects.create(
         assignment=assignment,
         requester=actor,
+        initiated_by=initiated_by or actor,
         profile_version=assignment.approval.version,
         review_mode=mode,
         publication_revision=revision,
@@ -333,6 +342,9 @@ def run_extraction(request_id: str) -> bool:
                 from .candidate_publication import publish_automatic_candidates
 
                 publish_automatic_candidates(run)
+        from .exceptions import record_exceptions
+
+        record_exceptions(run)
         if run.withdrawals:
             from .extraction_availability import withdraw_listings
 

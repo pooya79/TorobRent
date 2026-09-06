@@ -303,3 +303,48 @@ by focused regression checks for the redirect cases found in review. The focused
 suite passed. The full frontend suite has 16 pre-existing assertion failures across
 `OperatorOverviewPage`, `OperatorReviewPage`, `OperatorSupportPage`, `OperatorWorkspace` and
 `ResultsPage`; the same failures reproduce on the starting commit `5e13694`.
+
+### Current Source extraction exceptions (#126)
+
+Apply source-proposal migrations 0031–0032 before starting the new application and workers.
+They add a unique Source/canonical-URL outcome, retained per-run attempt history, and a nullable
+request initiator audit reference. Drain old workers during rollout. Existing runs, candidates,
+corrections and exclusion history remain unchanged; current exception tracking starts with fresh
+worker attempts rather than guessing original validation from manually corrected historical facts.
+
+Worker completion records page outcomes under the Source lock. Request creation order and attempt
+number fence older completions, including when the newer page succeeded without any prior failure.
+Successful pages retain an internal ordering record but appear in the exception UI only after a
+problem or exclusion has occurred. Repeated task delivery does not append duplicate history.
+History labels attempts that were stale on arrival; current state is displayed separately.
+
+Fresh candidates passing mandatory checks resolve their page exception before publication approval.
+Manual correction changes only the candidate. Active exclusions override the visible current state;
+a skipped page remains Excluded after removal until another attempt supplies fresh evidence.
+Neither exceptions nor retry requests pause a Source or withdraw published Listings.
+
+Both source screens show grouped affected pages, current counts, first occurrence, latest attempt,
+and retained retry history. Representatives can inspect links and request extraction after fixing
+the website; extracted facts remain Operator-editable only. The responsible Operator can also
+request individual/group retries. Requests accept at most twenty exception IDs from the current
+Source Assignment, with the existing twenty-page/depth-two fetch budget per request. Existing
+queued/running work for the same assignment, profile and canonical entry URL is reused. Operator
+retries retain the representative as the authorization principal and record the Operator separately
+in `initiated_by`; loss of the assignment or active profile still cancels processing.
+
+Live exception data is withheld from revoked assignments; their recorded Extraction Requests and
+runs remain available as history. Removing an exclusion restores page/group retry controls while
+retaining the historical Excluded label until fresh processing. Late earlier evidence can move
+first occurrence backward without replacing the latest outcome.
+
+Deterministic local API fixtures were used to inspect and capture the shared exception panel:
+[Operator](screenshots/issue-126-exceptions-operator.png),
+[representative](screenshots/issue-126-exceptions-representative.png), and
+[mobile](screenshots/issue-126-exceptions-mobile.png). Mobile inspection found no horizontal overflow.
+
+Validation for #126: all 727 PostgreSQL backend tests passed with 92.75% coverage. The full frontend
+suite passed 299 tests and retained 16 pre-existing failures across OperatorOverviewPage,
+OperatorReviewPage, OperatorSupportPage, OperatorWorkspace and ResultsPage. The identical sixteen
+failing tests reproduce on starting commit `9d1942b`. All Source tests passed. Lint, formatting,
+backend/frontend types, generated API drift/validation, migration drift and production build passed.
+Both Standards and Spec reviews have no remaining findings after regression-tested fixes.

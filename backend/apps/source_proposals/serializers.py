@@ -10,6 +10,7 @@ from .candidate_serializers import (
     ExternalListingCandidateSerializer as ExternalListingCandidateSerializer,
 )
 from .current_website import current_website_cases
+from .exception_serializers import SourceExtractionExceptionSerializer
 from .exclusion_serializers import SourceExclusionSerializer
 from .extraction_serializers import ExtractionRequestSerializer
 from .models import (
@@ -138,6 +139,22 @@ class SourceAssignmentSerializer(serializers.ModelSerializer[SourceAssignment]):
         source="source.responsible_operator_id", read_only=True, allow_null=True, default=None
     )
     exclusions = SourceExclusionSerializer(source="source.exclusions", many=True, read_only=True)
+    exceptions = serializers.SerializerMethodField()
+
+    @extend_schema_field(SourceExtractionExceptionSerializer(many=True))
+    def get_exceptions(self, assignment: SourceAssignment) -> list[dict[str, Any]]:
+        if assignment.revoked_at:
+            return []
+        return list(
+            SourceExtractionExceptionSerializer(
+                assignment.source.exceptions
+                .filter(first_occurrence__isnull=False)
+                .select_related("source")
+                .prefetch_related("history"),
+                many=True,
+            ).data
+        )
+
     recent_requests = serializers.SerializerMethodField()
 
     @extend_schema_field(ExtractionRequestSerializer(many=True))
@@ -177,6 +194,7 @@ class SourceAssignmentSerializer(serializers.ModelSerializer[SourceAssignment]):
             "revoked_at",
             "recent_requests",
             "exclusions",
+            "exceptions",
             "review_operator",
             "mode_revision",
         )

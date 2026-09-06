@@ -1,5 +1,6 @@
 from django.urls import path
 
+from .exception_views import OperatorSourceExceptionRetryView
 from .exclusion_views import (
     OperatorExclusionAddView,
     OperatorExclusionPreviewView,
@@ -26,6 +27,11 @@ from .run_views import OperatorRunApproveView
 app_name = "operator-source-proposals"
 
 urlpatterns = [
+    path(
+        "<uuid:proposal_id>/exceptions/retry/",
+        OperatorSourceExceptionRetryView.as_view(),
+        name="exception-retry",
+    ),
     path(
         "<uuid:proposal_id>/exclusions/withdraw/",
         OperatorExclusionWithdrawView.as_view(),

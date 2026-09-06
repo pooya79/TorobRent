@@ -1,5 +1,6 @@
 from django.urls import path
 
+from .exception_views import SourceExceptionRetryView
 from .views import (
     ExtractionRequestCreateView,
     SourceProposalDetailView,
@@ -12,6 +13,11 @@ from .views import (
 app_name = "source_proposals"
 
 urlpatterns = [
+    path(
+        "<uuid:proposal_id>/exceptions/retry/",
+        SourceExceptionRetryView.as_view(),
+        name="exception-retry",
+    ),
     path(
         "<uuid:proposal_id>/extraction-requests/",
         ExtractionRequestCreateView.as_view(),

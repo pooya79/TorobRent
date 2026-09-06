@@ -839,6 +839,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/v1/operator/source-proposals/{proposal_id}/exceptions/retry/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Request bounded re-extraction of up to twenty affected pages */
+    post: operations["v1_operator_source_proposals_exceptions_retry_create"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/v1/operator/source-proposals/{proposal_id}/exclusions/add/": {
     parameters: {
       query?: never;
@@ -1522,6 +1539,23 @@ export interface paths {
     head?: never;
     /** Autosave Source Proposal draft fields */
     patch: operations["v1_source_proposals_draft_partial_update"];
+    trace?: never;
+  };
+  "/api/v1/source-proposals/{proposal_id}/exceptions/retry/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Request bounded re-extraction of up to twenty affected pages */
+    post: operations["v1_source_proposals_exceptions_retry_create"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
     trace?: never;
   };
   "/api/v1/source-proposals/{proposal_id}/extraction-requests/": {
@@ -3462,6 +3496,7 @@ export interface components {
       revoked_at?: string | null;
       readonly recent_requests: components["schemas"]["ExtractionRequest"][];
       readonly exclusions: components["schemas"]["SourceExclusion"][];
+      readonly exceptions: components["schemas"]["SourceExtractionException"][];
       /** Format: uuid */
       readonly review_operator: string | null;
       readonly mode_revision: number;
@@ -3494,6 +3529,20 @@ export interface components {
       /** Format: date-time */
       completed_at?: string | null;
       readonly evidence: components["schemas"]["DiscoveryEvidence"];
+    };
+    SourceExceptionAttempt: {
+      /** Format: uuid */
+      readonly run: string;
+      readonly attempt: number;
+      /** Format: date-time */
+      readonly attempted_at: string;
+      readonly state: string;
+      readonly problem: string;
+      readonly detail: string;
+      readonly is_current: boolean;
+    };
+    SourceExceptionRetry: {
+      exception_ids: string[];
     };
     SourceExclusion: {
       /** Format: uuid */
@@ -3557,6 +3606,24 @@ export interface components {
       reason: string;
       confirmed: boolean;
       listing_ids: string[];
+    };
+    SourceExtractionException: {
+      /** Format: uuid */
+      readonly id: string;
+      /** Format: uri */
+      readonly canonical_url: string;
+      /** Format: date-time */
+      readonly first_occurrence: string | null;
+      readonly state: string;
+      readonly problem: string;
+      readonly detail: string;
+      /** Format: uuid */
+      readonly last_run: string;
+      readonly last_attempt: number;
+      /** Format: date-time */
+      readonly last_attempt_at: string;
+      readonly history: components["schemas"]["SourceExceptionAttempt"][];
+      readonly exclusion_reason: string;
     };
     SourceMetadata: {
       source_reference?: string;
@@ -6101,6 +6168,31 @@ export interface operations {
       };
     };
   };
+  v1_operator_source_proposals_exceptions_retry_create: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        proposal_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["SourceExceptionRetry"];
+      };
+    };
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ExtractionRequest"][];
+        };
+      };
+    };
+  };
   v1_operator_source_proposals_exclusions_add_create: {
     parameters: {
       query?: never;
@@ -7232,6 +7324,31 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["SourceProposal"];
+        };
+      };
+    };
+  };
+  v1_source_proposals_exceptions_retry_create: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        proposal_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["SourceExceptionRetry"];
+      };
+    };
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ExtractionRequest"][];
         };
       };
     };

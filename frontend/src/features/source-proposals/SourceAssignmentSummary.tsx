@@ -1,3 +1,4 @@
+import { SourceExceptionsPanel } from "./SourceExceptionsPanel";
 import { SourceExclusionsSummary } from "./SourceExclusionsPanel";
 import { ExtractionHistory } from "./ExtractionHistory";
 import { ExtractionRequestForm } from "./ExtractionRequestForm";
@@ -48,6 +49,16 @@ export function SourceAssignmentSummary({
             assignmentId={assignment.id}
           />
         )}
+      <SourceExceptionsPanel
+        exceptions={assignment.exceptions ?? []}
+        proposalId={proposalId ?? review?.proposalId ?? ""}
+        operator={!!review}
+        canRetry={
+          assignment.state === "active" &&
+          !!assignment.active_profile_version &&
+          (!!proposalId || !!review?.canApprove)
+        }
+      />
       <SourceExclusionsSummary exclusions={assignment.exclusions ?? []} />
       <ExtractionHistory
         requests={assignment.recent_requests ?? []}
