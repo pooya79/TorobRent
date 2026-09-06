@@ -245,9 +245,14 @@ def test_active_assignment_prevents_url_approval(api_client):
 
     representative = make_user(email="rep@example.com", submitter=True)
     proposal = make_pending_proposal(submitter=representative)
-    source = Source.objects.create(name="assigned", domain=proposal.normalized_domain)
+    operator = make_operator()
+    source = Source.objects.create(
+        name="assigned", domain=proposal.normalized_domain, responsible_operator=operator
+    )
+    proposal.source = source
+    proposal.save(update_fields=("source",))
     SourceAssignment.objects.create(source=source, representative=representative, proposal=proposal)
-    api_client.force_authenticate(make_operator())
+    api_client.force_authenticate(operator)
     base = f"/api/v1/operator/source-proposals/{proposal.pk}"
     api_client.post(f"{base}/claim/", {})
     assert (

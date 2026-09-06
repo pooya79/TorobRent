@@ -888,6 +888,7 @@ test("corrects an exception and approves its new revision", async () => {
   const user = userEvent.setup();
   let candidate = {
     id: "exception",
+    source_proposal_id: proposal.id,
     title: "آگهی نیازمند اصلاح",
     source: { display_name: "خانه‌یاب", domain: "khaneh.example" },
     state: "pending",
@@ -911,8 +912,26 @@ test("corrects an exception and approves its new revision", async () => {
   const corrections: unknown[] = [];
   const approvals: unknown[] = [];
   server.use(
+    http.get("*/api/v1/users/me/", () =>
+      HttpResponse.json({
+        id: "operator",
+        operator_capabilities: ["review_source_proposals"],
+      }),
+    ),
     http.get("*/api/v1/operator/source-proposals/", () =>
-      HttpResponse.json([]),
+      HttpResponse.json([
+        {
+          ...proposal,
+          state: "approved",
+          assignment: {
+            id: 8,
+            state: "active",
+            review_operator: "operator",
+            source: { display_name: "خانه‌یاب", domain: "khaneh.example" },
+            recent_requests: [],
+          },
+        },
+      ]),
     ),
     http.get("*/api/v1/operator/external-listing-candidates/", () =>
       HttpResponse.json(candidate.state === "published" ? [] : [candidate]),
@@ -980,7 +999,7 @@ test("revokes an assignment with a reason and the reviewed revision", async () =
   const user = userEvent.setup();
   let body: unknown;
   server.use(
-    http.get("*/api/v1/auth/me/", () =>
+    http.get("*/api/v1/users/me/", () =>
       HttpResponse.json({
         id: "operator",
         operator_capabilities: ["review_source_proposals"],
@@ -1544,3 +1563,225 @@ test.each(["changes_requested", "rejected"])(
     ).not.toBeInTheDocument();
   },
 );
+
+test("queue manager reassigns Source responsibility with a reason and reviewed revision", async () => {
+  const user = userEvent.setup();
+  let body: unknown;
+  const caseData = {
+    ...proposal,
+    state: "approved",
+    responsibility: {
+      operator: "original",
+      operator_label: "original@example.com",
+      revision: 1,
+      history: [
+        {
+          operator: "original",
+          actor: "original",
+          revision: 1,
+          reason: "مسئول اولیه",
+          created_at: "2026-09-01T08:00:00Z",
+        },
+      ],
+    },
+    assignment: {
+      id: 8,
+      state: "active",
+      review_operator: "original",
+      source: { domain: "khaneh.example", display_name: "خانه‌یاب" },
+      active_profile_version: { id: "version", number: 1 },
+      review_mode: "approval_required",
+      recent_requests: [],
+    },
+  };
+  server.use(
+    http.get("*/api/v1/users/me/", () =>
+      HttpResponse.json({
+        id: "manager",
+        email: "manager@example.com",
+        operator_capabilities: ["manage_operator_queues"],
+      }),
+    ),
+    http.get("*/api/v1/operator/source-proposals/", () =>
+      HttpResponse.json([caseData]),
+    ),
+    http.get("*/api/v1/operator/external-listing-candidates/", () =>
+      HttpResponse.json([]),
+    ),
+    http.post(
+      "*/api/v1/operator/source-proposals/:proposalId/responsibility/",
+      async ({ request }) => {
+        body = await request.json();
+        return HttpResponse.json({
+          ...caseData,
+          responsibility: {
+            ...caseData.responsibility,
+            operator: "next",
+            operator_label: "next@example.com",
+            revision: 2,
+          },
+        });
+      },
+    ),
+  );
+  render(
+    <QueryClientProvider
+      client={
+        new QueryClient({ defaultOptions: { queries: { retry: false } } })
+      }
+    >
+      <MemoryRouter>
+        <OperatorSourceProposalPage />
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+  expect(await screen.findByText("original@example.com")).toBeVisible();
+  expect(
+    screen.queryByRole("button", { name: "لغو تخصیص منبع" }),
+  ).not.toBeInTheDocument();
+  const submit = screen.getByRole("button", { name: "واگذاری مسئولیت منبع" });
+  expect(submit).toBeDisabled();
+  await user.type(
+    screen.getByLabelText("ایمیل اپراتور مقصد"),
+    "next@example.com",
+  );
+  await user.type(screen.getByLabelText("دلیل تغییر مسئول"), "تغییر شیفت");
+  await user.click(submit);
+  expect(body).toEqual({
+    assignee_email: "next@example.com",
+    reviewed_responsibility_revision: 1,
+    reason: "تغییر شیفت",
+  });
+  expect(await screen.findByText("next@example.com")).toBeVisible();
+});
+
+test.each([
+  ["original", ["review_source_proposals"], false],
+  ["next", ["manage_operator_queues"], false],
+  ["next", ["review_source_proposals"], true],
+])(
+  "Source decisions require responsibility and capability (%s, %j)",
+  async (id, capabilities, allowed) => {
+    server.use(
+      http.get("*/api/v1/users/me/", () =>
+        HttpResponse.json({ id, operator_capabilities: capabilities }),
+      ),
+      http.get("*/api/v1/operator/source-proposals/", () =>
+        HttpResponse.json([
+          {
+            ...proposal,
+            state: "approved",
+            responsibility: {
+              operator: "next",
+              operator_label: "next@example.com",
+              revision: 2,
+              history: [],
+            },
+            assignment: {
+              id: 1,
+              state: "active",
+              review_operator: "next",
+              source: { domain: "khaneh.example", display_name: "خانه‌یاب" },
+              recent_requests: [],
+            },
+          },
+        ]),
+      ),
+      http.get("*/api/v1/operator/external-listing-candidates/", () =>
+        HttpResponse.json([]),
+      ),
+    );
+    render(
+      <QueryClientProvider
+        client={
+          new QueryClient({ defaultOptions: { queries: { retry: false } } })
+        }
+      >
+        <MemoryRouter>
+          <OperatorSourceProposalPage />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    expect(await screen.findByText("next@example.com")).toBeVisible();
+    expect(
+      Boolean(screen.queryByRole("button", { name: "لغو تخصیص منبع" })),
+    ).toBe(allowed);
+    if (!allowed)
+      expect(
+        screen.getByRole("button", { name: "آغاز بررسی نسخه تازه پروفایل" }),
+      ).toBeDisabled();
+  },
+);
+
+test("stale reassignment reports the conflict and refreshes current responsibility", async () => {
+  const user = userEvent.setup();
+  let revision = 1;
+  const makeCase = () => ({
+    ...proposal,
+    state: "approved",
+    responsibility: {
+      operator: revision === 1 ? "original" : "next",
+      operator_label:
+        revision === 1 ? "original@example.com" : "next@example.com",
+      revision,
+      history: [],
+    },
+    assignment: {
+      id: 1,
+      state: "active",
+      review_operator: "next",
+      source: { domain: "khaneh.example", display_name: "خانه‌یاب" },
+      recent_requests: [],
+    },
+  });
+  server.use(
+    http.get("*/api/v1/users/me/", () =>
+      HttpResponse.json({
+        id: "manager",
+        operator_capabilities: ["manage_operator_queues"],
+      }),
+    ),
+    http.get("*/api/v1/operator/source-proposals/", () =>
+      HttpResponse.json([makeCase()]),
+    ),
+    http.post(
+      "*/api/v1/operator/source-proposals/:proposalId/responsibility/",
+      () => {
+        revision = 2;
+        return HttpResponse.json(
+          {
+            code: "responsibility_conflict",
+            detail: "مسئول منبع تغییر کرده است",
+          },
+          { status: 409 },
+        );
+      },
+    ),
+  );
+  render(
+    <QueryClientProvider
+      client={
+        new QueryClient({ defaultOptions: { queries: { retry: false } } })
+      }
+    >
+      <MemoryRouter>
+        <OperatorSourceProposalPage />
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+  expect(await screen.findByText("original@example.com")).toBeVisible();
+  await user.type(
+    screen.getByLabelText("ایمیل اپراتور مقصد"),
+    "chosen@example.com",
+  );
+  await user.type(screen.getByLabelText("دلیل تغییر مسئول"), "تغییر شیفت");
+  await user.click(
+    screen.getByRole("button", { name: "واگذاری مسئولیت منبع" }),
+  );
+  expect(
+    await within(
+      screen.getByRole("region", { name: "مسئولیت منبع" }),
+    ).findByRole("alert"),
+  ).toHaveTextContent("مسئول منبع تغییر کرده است");
+  expect(await screen.findByText("next@example.com")).toBeVisible();
+});

@@ -27,6 +27,7 @@ from .serializers import (
     SourceProposalApprovalSerializer,
     SourceProposalDecisionSerializer,
     SourceProposalReviewClaimSerializer,
+    SourceResponsibilityRequestSerializer,
     SourceURLApprovalSerializer,
 )
 from .services import (
@@ -79,6 +80,7 @@ DecisionSerializer = type[
     | SourceProposalApprovalSerializer
     | SourceProfileEditSerializer
     | SourceProfileRepairRequestSerializer
+    | SourceResponsibilityRequestSerializer
 ]
 
 
@@ -287,4 +289,23 @@ class OperatorSourceAssignmentRevokeView(APIView):
             proposal_id=proposal_id,
             serializer_class=SourceProposalDecisionSerializer,
             transition=revoke_assignment,
+        )
+
+
+class OperatorSourceResponsibilityView(APIView):
+    permission_classes = (CanReleaseSourceProposal,)
+
+    @extend_schema(
+        summary="Reassign Source responsibility",
+        request=SourceResponsibilityRequestSerializer,
+        responses=OperatorSourceProposalSerializer,
+    )
+    def post(self, request: Request, proposal_id: str) -> Response:
+        from .responsibility import reassign_responsibility
+
+        return _decision_response(
+            request=request,
+            proposal_id=proposal_id,
+            serializer_class=SourceResponsibilityRequestSerializer,
+            transition=reassign_responsibility,
         )

@@ -16,6 +16,7 @@ from .models import (
     ExtractionState,
     ProfileReviewMode,
 )
+from .responsibility import require_source_responsibility
 from .review_claims import SourceProposalReviewConflict
 from .services import record_candidate_transition
 
@@ -33,7 +34,8 @@ def approve_run(
         or approval.review_mode != ProfileReviewMode.APPROVAL_REQUIRED
     ):
         raise ValidationError("تخصیص یا پروفایل فعال و نیازمند تأیید لازم است.")
-    if actor.pk != approval.event.actor_id or actor.pk == run.request.requester_id:
+    require_source_responsibility(proposal=run.request.assignment.proposal, actor=actor)
+    if actor.pk == run.request.requester_id:
         raise ValidationError("فقط اپراتور مسئول منبع می‌تواند نتایج را تأیید کند.")
     if not confirmed:
         raise ValidationError("تأیید انتشار لازم است.")

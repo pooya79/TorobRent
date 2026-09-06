@@ -1,3 +1,4 @@
+import { SourceResponsibilityPanel } from "@/features/source-proposals/SourceResponsibilityPanel";
 import { CandidateEvidence } from "@/features/source-proposals/CandidateEvidence";
 import { CandidateCorrectionForm } from "@/features/source-proposals/CandidateCorrectionForm";
 import { SourceAssignmentSummary } from "@/features/source-proposals/SourceAssignmentSummary";
@@ -55,6 +56,17 @@ function ProposalReviewCard({
   const currentUser = useQuery(currentUserQuery);
   const mayForceRelease = currentUser.data?.operator_capabilities.includes(
     "manage_operator_queues",
+  );
+  const canDecideSource = Boolean(
+    currentUser.data?.operator_capabilities.includes(
+      "review_source_proposals",
+    ) && currentUser.data?.id === proposal.assignment?.review_operator,
+  );
+  const canReview = Boolean(
+    currentUser.data?.operator_capabilities.includes(
+      "review_source_proposals",
+    ) &&
+    (proposal.assignment?.state !== "active" || canDecideSource),
   );
   const [maxPages, setMaxPages] = useState("");
   const [targetDetailPages, setTargetDetailPages] = useState("");
@@ -188,6 +200,14 @@ function ProposalReviewCard({
             value={proposal.operator_note || "ثبت نشده"}
           />
         </dl>
+        <SourceResponsibilityPanel
+          proposal={proposal}
+          canManage={Boolean(mayForceRelease)}
+          onUpdate={(updated) => {
+            setClaimed(false);
+            onDecisionSuccess(updated);
+          }}
+        />
         {proposal.assignment && (
           <SourceAssignmentSummary
             assignment={proposal.assignment}
@@ -197,48 +217,45 @@ function ProposalReviewCard({
                 proposal.state === "approved" &&
                 proposal.assignment.state === "active" &&
                 proposal.assignment.review_mode === "approval_required" &&
-                currentUser.data?.id === proposal.assignment.review_operator,
+                canDecideSource,
             }}
           />
         )}
-        {proposal.assignment?.state === "active" &&
-          currentUser.data?.operator_capabilities.includes(
-            "review_source_proposals",
-          ) && (
-            <div className="grid gap-3">
-              <p className="text-muted-foreground text-sm">
-                لغو تخصیص، پروفایل را غیرفعال، استخراج را متوقف و آگهی‌ها را
-                ناموجود می‌کند. جایگزینی وب‌سایت تنها پس از لغو تخصیص ممکن است.
-                نماینده بعدی باید پیشنهاد تازه ثبت کند و همه مراحل بررسی را
-                بگذراند.
+        {proposal.assignment?.state === "active" && canDecideSource && (
+          <div className="grid gap-3">
+            <p className="text-muted-foreground text-sm">
+              لغو تخصیص، پروفایل را غیرفعال، استخراج را متوقف و آگهی‌ها را
+              ناموجود می‌کند. جایگزینی وب‌سایت تنها پس از لغو تخصیص ممکن است.
+              نماینده بعدی باید پیشنهاد تازه ثبت کند و همه مراحل بررسی را
+              بگذراند.
+            </p>
+            <Label htmlFor={`revoke-${proposal.id}`}>دلیل لغو تخصیص</Label>
+            <Input
+              id={`revoke-${proposal.id}`}
+              value={reason}
+              onChange={(event) => setReason(event.target.value)}
+            />
+            <Button
+              variant="destructive"
+              disabled={!reason.trim() || revocation.isPending}
+              onClick={() => revocation.mutate()}
+            >
+              لغو تخصیص منبع
+            </Button>
+            {revocation.error && (
+              <p role="alert">
+                {errorMessage(revocation.error, "لغو تخصیص ممکن نشد.")}
               </p>
-              <Label htmlFor={`revoke-${proposal.id}`}>دلیل لغو تخصیص</Label>
-              <Input
-                id={`revoke-${proposal.id}`}
-                value={reason}
-                onChange={(event) => setReason(event.target.value)}
-              />
-              <Button
-                variant="destructive"
-                disabled={!reason.trim() || revocation.isPending}
-                onClick={() => revocation.mutate()}
-              >
-                لغو تخصیص منبع
-              </Button>
-              {revocation.error && (
-                <p role="alert">
-                  {errorMessage(revocation.error, "لغو تخصیص ممکن نشد.")}
-                </p>
-              )}
-            </div>
-          )}
+            )}
+          </div>
+        )}
         <DiscoveryEvidence proposal={proposal} />
         <SourceProfileReview
           proposal={proposal}
-          claimed={claimed}
+          claimed={claimed && canReview}
           onUpdate={onDecisionSuccess}
         />
-        {mayForceRelease && !claimed && (
+        {mayForceRelease && proposal.state === "pending" && !claimed && (
           <div className="grid gap-2">
             <Label htmlFor={`release-${proposal.id}`}>
               دلیل آزادسازی مسئولیت بررسی
@@ -324,7 +341,7 @@ function ProposalReviewCard({
                 !validLimits ||
                 proposal.current_website_conflict ||
                 profileReview.isPending ||
-                proposal.assignment?.review_operator !== currentUser.data?.id
+                !canDecideSource
               }
               onClick={() => profileReview.mutate()}
             >
@@ -336,10 +353,11 @@ function ProposalReviewCard({
               </p>
             )}
           </div>
-        ) : !claimed ? (
+        ) : !claimed || !canReview ? (
           <Button
             onClick={() => claim.mutate()}
             disabled={
+              !canReview ||
               claim.isPending ||
               (mayForceRelease &&
                 !currentUser.data?.operator_capabilities.includes(
@@ -451,9 +469,11 @@ function Detail({ label, value }: { label: string; value: string }) {
 
 function ExternalListingCandidateCard({
   candidate,
+  canDecide,
   onDecisionSuccess,
 }: {
   candidate: ExternalListingCandidate;
+  canDecide: boolean;
   onDecisionSuccess: (candidateId: string) => void;
 }) {
   const [claimed, setClaimed] = useState(false);
@@ -510,13 +530,13 @@ function ExternalListingCandidateCard({
         </dl>
         <p className="text-muted-foreground text-sm">{candidate.description}</p>
         <CandidateEvidence candidate={candidate} />
-        {claimed && candidate.extraction_run && (
+        {claimed && canDecide && candidate.extraction_run && (
           <CandidateCorrectionForm candidate={candidate} />
         )}
-        {!claimed ? (
+        {!claimed || !canDecide ? (
           <Button
             onClick={() => claim.mutate()}
-            disabled={claim.isPending}
+            disabled={claim.isPending || !canDecide}
             aria-label={`شروع بررسی ${candidate.title}`}
           >
             شروع بررسی آگهی
@@ -611,7 +631,9 @@ export function OperatorSourceProposalPage() {
         current?.flatMap((proposal) =>
           proposal.id !== updated.id
             ? [proposal]
-            : updated.state === "pending"
+            : updated.state === "pending" ||
+                updated.state === "approved" ||
+                updated.assignment?.state === "active"
               ? [updated]
               : [],
         ),
@@ -695,6 +717,18 @@ export function OperatorSourceProposalPage() {
               <ExternalListingCandidateCard
                 key={candidate.id}
                 candidate={candidate}
+                canDecide={
+                  !candidate.extraction_run ||
+                  Boolean(
+                    proposals.data?.some(
+                      (proposal) =>
+                        proposal.id === candidate.source_proposal_id &&
+                        proposal.assignment?.state === "active" &&
+                        proposal.assignment.review_operator ===
+                          currentUser.data?.id,
+                    ),
+                  )
+                }
                 onDecisionSuccess={removeCompletedCandidate}
               />
             ))}

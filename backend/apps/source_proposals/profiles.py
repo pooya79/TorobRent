@@ -92,16 +92,8 @@ def retain_discovered_profile(
 def review_version(
     *, proposal: SourceProposal, actor: User, reviewed_revision: int, reviewed_profile_version: UUID
 ) -> tuple[SourceProfileVersion, SourceProposalReviewClaim]:
-    from apps.accounts.capabilities import OperatorCapability, has_capability
+    from .review_claims import require_review_claim
 
-    from .review_claims import (
-        ensure_independent_reviewer,
-        require_review_claim,
-    )
-
-    if not has_capability(actor, OperatorCapability.REVIEW_SOURCE_PROPOSALS):
-        raise ValidationError("Source Proposal Review capability is required.")
-    ensure_independent_reviewer(proposal=proposal, actor=actor)
     claim = require_review_claim(
         proposal=proposal, actor=actor, reviewed_revision=reviewed_revision
     )
@@ -270,6 +262,12 @@ def approve_profile(
         assignment.approval = decision
         assignment.save(update_fields=("approval",))
     else:
+        from .responsibility import record_responsibility
+
+        source = Source.objects.select_for_update().get(pk=version.profile.source_id)
+        record_responsibility(
+            source=source, operator=actor, actor=actor, reason="مسئول اولیه: تأیید پروفایل منبع"
+        )
         SourceAssignment.objects.create(
             source=version.profile.source,
             representative=proposal.submitter,
@@ -308,7 +306,9 @@ def start_profile_review(
         raise SourceProposalReviewConflict("review_revision_conflict", "پرونده تغییر کرده است.")
     if proposal.source_id is None:
         raise ValidationError("منبع فعال لازم است.")
-    Source.objects.select_for_update().get(pk=proposal.source_id)
+    from .responsibility import require_source_responsibility
+
+    require_source_responsibility(proposal=proposal, actor=actor)
     assignment = (
         SourceAssignment.objects
         .filter(proposal=proposal, revoked_at__isnull=True, representative=proposal.submitter)
@@ -318,7 +318,6 @@ def start_profile_review(
     if (
         not assignment
         or not assignment.approval
-        or assignment.approval.event.actor_id != actor.pk
         or assignment.source.profile.active_version_id != assignment.approval.version_id
     ):
         raise ValidationError("اپراتور مسئول و تخصیص فعال منبع لازم است.")

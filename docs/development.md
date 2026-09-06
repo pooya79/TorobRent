@@ -228,3 +228,33 @@ Submitter can discard a draft or changes-requested proposal without an active as
 Operator can reject a pending proposal or revoke an assignment using the existing reasoned workflow. Revocation deactivates the
 profile, cancels extraction work, and withdraws its published listings. Historical and discarded
 proposals remain readable by their Submitter, with review and assignment history intact.
+
+### Source Operator responsibility (#123)
+
+Apply catalog migration 0015 and source-proposal migrations 0026–0027 before starting the new
+application and workers. The data migration copies the approver from retained profile approval
+(or legacy proposal approval) into current Source responsibility, retaining the original evidence.
+Sources without approval evidence remain unassigned; a queue manager can assign an eligible
+Operator on an active case. Drain older application processes during this rollout so they cannot
+continue using original-approver authorization.
+
+The Source's `responsible_operator` is the destination for future conversation and exception
+notifications. Its `responsibility_revision` protects explicit, reasoned queue-manager
+reassignment. Decision services reread responsibility and capability under the Source lock;
+profile repair also checks the revision after the external call. Reassignment ends existing
+review leases without deleting their history. A successor must claim pending reviews and
+candidate exceptions using the existing time-limited claim workflow. Initial profile approval
+assigns its approver; later profile approvals preserve current responsibility.
+
+Responsibility email labels and reassignment history are Operator-only. The representative's
+existing `assignment.review_operator` field now identifies the current responsible Operator;
+approval evidence continues to identify the historical approver.
+
+UI captures use deterministic local API fixtures:
+[reassignment form](screenshots/issue-123-responsibility-before.png),
+[retained history](screenshots/issue-123-responsibility-history.png), and
+[mobile layout](screenshots/issue-123-responsibility-mobile.png).
+
+Django Source administration displays responsibility read-only. Additional CDN-host approvals and
+revocations use the same Source responsibility checks; during initial onboarding they require a
+current Review Claim. Source responsibility changes go through the queue-manager action.

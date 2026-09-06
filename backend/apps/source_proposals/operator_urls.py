@@ -12,12 +12,18 @@ from .operator_views import (
     OperatorSourceProposalRejectView,
     OperatorSourceProposalReleaseView,
     OperatorSourceProposalRequestChangesView,
+    OperatorSourceResponsibilityView,
 )
 from .run_views import OperatorRunApproveView
 
 app_name = "operator-source-proposals"
 
 urlpatterns = [
+    path(
+        "<uuid:proposal_id>/responsibility/",
+        OperatorSourceResponsibilityView.as_view(),
+        name="responsibility",
+    ),
     path(
         "<uuid:proposal_id>/assignment/revoke/",
         OperatorSourceAssignmentRevokeView.as_view(),

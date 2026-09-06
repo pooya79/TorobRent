@@ -1,6 +1,8 @@
 from typing import Any, cast
 
 from django.contrib import admin
+from django.core.exceptions import PermissionDenied, ValidationError
+from django.db import transaction
 from django.http import HttpRequest
 from unfold.admin import ModelAdmin
 
@@ -59,9 +61,17 @@ class SourceImageHostAdmin(ModelAdmin):  # type: ignore[type-arg]
     ) -> tuple[str, ...]:
         return (*self.readonly_fields, "source", "host") if obj else self.readonly_fields
 
+    @transaction.atomic
     def save_model(
         self, request: HttpRequest, obj: SourceImageHost, form: Any, change: bool
     ) -> None:
+        from .responsibility import require_source_image_host_authority
+        from .review_claims import SourceProposalReviewConflict
+
+        try:
+            require_source_image_host_authority(source=obj.source, actor=cast(User, request.user))
+        except (ValidationError, SourceProposalReviewConflict) as exc:
+            raise PermissionDenied(str(exc)) from None
         if not change:
             obj.approved_by = cast(User, request.user)
         super().save_model(request, obj, form, change)

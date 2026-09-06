@@ -97,6 +97,9 @@ def repair_profile(
             reviewed_revision=reviewed_revision,
             reviewed_profile_version=reviewed_profile_version,
         )
+        responsibility_revision = Source.objects.get(
+            pk=version.profile.source_id
+        ).responsibility_revision
         validation_pages(version)
         if SourceProfileRepair.objects.filter(
             parent=version,
@@ -145,7 +148,11 @@ def repair_profile(
                 reviewed_revision=reviewed_revision,
                 reviewed_profile_version=reviewed_profile_version,
             )
-            Source.objects.select_for_update().get(pk=version.profile.source_id)
+            source = Source.objects.select_for_update().get(pk=version.profile.source_id)
+            if source.responsibility_revision != responsibility_revision:
+                raise SourceProposalReviewConflict(
+                    "responsibility_conflict", "مسئولیت منبع تغییر کرده است."
+                )
             pages = validation_pages(version)
             contract = ExtractionContract()
             checked = contract.revalidate_profile(

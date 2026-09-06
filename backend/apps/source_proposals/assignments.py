@@ -6,7 +6,7 @@ from django.utils import timezone
 
 from apps.accounts.capabilities import OperatorCapability, has_capability
 from apps.accounts.models import User
-from apps.catalog.models import Listing, ListingState, Source
+from apps.catalog.models import Listing, ListingState
 from apps.catalog.services import mark_listing_unavailable
 from apps.communications.services import create_source_proposal_review_notification
 
@@ -45,7 +45,9 @@ def revoke_assignment(
     assignment = SourceAssignment.objects.filter(proposal=proposal, revoked_at__isnull=True).first()
     if assignment is None:
         raise SourceProposalReviewConflict("assignment_revoked", "تخصیص فعال وجود ندارد.")
-    Source.objects.select_for_update().get(pk=assignment.source_id)
+    from .responsibility import require_source_responsibility
+
+    require_source_responsibility(proposal=proposal, actor=actor)
     now = timezone.now()
     event = SourceProposalEvent.objects.create(
         proposal=proposal,

@@ -24,6 +24,9 @@ def ensure_independent_reviewer(*, proposal: SourceProposal, actor: User) -> Non
 def require_review_claim(
     *, proposal: SourceProposal, actor: User, reviewed_revision: int
 ) -> SourceProposalReviewClaim:
+    from .responsibility import require_source_responsibility
+
+    require_source_responsibility(proposal=proposal, actor=actor)
     if proposal.revision != reviewed_revision:
         raise SourceProposalReviewConflict(
             "review_revision_conflict", "The Source Proposal revision changed. Refresh it."

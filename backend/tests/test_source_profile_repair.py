@@ -561,3 +561,54 @@ def test_rent_improvement_is_reviewable_while_area_still_fails(
     assert own.status_code == 200
     assert "profile_versions" not in own.data
     assert "profile_repairs" not in own.data
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("restore_responsibility", [False, True])
+def test_responsibility_change_during_model_call_discards_result(
+    api_client, assigned_case, llm_http, django_capture_on_commit_callbacks, restore_responsibility
+):
+    from rest_framework.test import APIClient
+
+    from tests.test_source_responsibility import queue_manager, reassign
+
+    proposal, _, operator, _, _ = assigned_case
+    api_client.force_authenticate(operator)
+    base = f"/api/v1/operator/source-proposals/{proposal.pk}"
+    with django_capture_on_commit_callbacks(execute=True):
+        started = api_client.post(
+            f"{base}/profile/review/",
+            {
+                "reviewed_revision": 1,
+                "confirmed": True,
+                "max_pages": 50,
+                "target_detail_pages": 30,
+            },
+            format="json",
+        )
+    assert started.status_code == 200
+    before = api_client.get("/api/v1/operator/source-proposals/").json()[0]
+    manager = queue_manager()
+    manager_client = APIClient()
+    manager_client.force_authenticate(manager)
+
+    def change_during_request(*args, **kwargs):
+        assert reassign(manager_client, proposal, manager).status_code == 200
+        if restore_responsibility:
+            assert reassign(manager_client, proposal, operator, revision=2).status_code == 200
+            assert api_client.post(f"{base}/claim/", {}).status_code == 201
+
+    llm_http.request.side_effect = change_during_request
+    response = api_client.post(
+        f"{base}/profile/repair/",
+        {
+            "request_id": str(uuid.uuid4()),
+            "reviewed_revision": before["revision"],
+            "reviewed_profile_version": before["profile_versions"][0]["id"],
+            "selected_fields": ["floor_area_sqm"],
+        },
+        format="json",
+    )
+    assert response.status_code == 200
+    assert response.json()["profile_repairs"][0]["outcome"] == "stale_review"
+    assert response.json()["profile_versions"] == before["profile_versions"]

@@ -744,3 +744,35 @@ class CandidateImageVariant(models.Model):
 
     def __str__(self) -> str:
         return f"{self.image_id}: {self.kind}"
+
+
+class SourceResponsibilityChange(ImmutableProfileRecord):
+    source = models.ForeignKey(
+        "catalog.Source", on_delete=models.PROTECT, related_name="responsibility_history"
+    )
+    operator = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=set_null_in_immutable_history,
+        null=True,
+        related_name="source_responsibilities",
+    )
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=set_null_in_immutable_history,
+        null=True,
+        related_name="source_responsibility_changes",
+    )
+    revision = models.PositiveIntegerField()
+    reason = models.TextField()
+    created_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        ordering = ("revision",)
+        constraints = [
+            models.UniqueConstraint(
+                fields=("source", "revision"), name="unique_source_responsibility_revision"
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.source_id}: responsibility {self.revision}"

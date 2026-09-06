@@ -129,6 +129,14 @@ class Source(models.Model):
     is_builtin = models.BooleanField(default=False)
     outbound_policy = models.CharField(max_length=24, choices=OutboundPolicy)
     allows_external_media = models.BooleanField(default=False)
+    responsible_operator = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="responsible_sources",
+    )
+    responsibility_revision = models.PositiveIntegerField(default=0, db_default=0)
 
     class Meta:
         constraints = [

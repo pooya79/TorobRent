@@ -941,6 +941,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/v1/operator/source-proposals/{proposal_id}/responsibility/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Reassign Source responsibility */
+    post: operations["v1_operator_source_proposals_responsibility_create"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/v1/operator/source-proposals/{proposal_id}/runs/{run_id}/approve/": {
     parameters: {
       query?: never;
@@ -2784,6 +2801,8 @@ export interface components {
       readonly discovery: components["schemas"]["SourceDiscovery"] | null;
       readonly profile_versions: components["schemas"]["SourceProfileVersion"][];
       readonly profile_repairs: components["schemas"]["SourceProfileRepair"][];
+      readonly responsibility:
+        components["schemas"]["SourceResponsibility"] | null;
     };
     OperatorSubmissionQueue: {
       /** Format: uuid */
@@ -3588,6 +3607,31 @@ export interface components {
       name: string;
       display_name: string;
       outbound_policy: components["schemas"]["OutboundPolicyEnum"];
+    };
+    SourceResponsibility: {
+      /** Format: uuid */
+      operator: string | null;
+      operator_label?: string | null;
+      revision: number;
+      history: components["schemas"]["SourceResponsibilityChange"][];
+    };
+    SourceResponsibilityChange: {
+      operator_label?: string | null;
+      actor_label?: string | null;
+      /** Format: uuid */
+      operator: string | null;
+      /** Format: uuid */
+      actor: string | null;
+      revision: number;
+      reason: string;
+      /** Format: date-time */
+      created_at: string;
+    };
+    SourceResponsibilityRequest: {
+      /** Format: email */
+      assignee_email: string;
+      reviewed_responsibility_revision: number;
+      reason: string;
     };
     SourceURLApproval: {
       reviewed_revision: number;
@@ -6015,6 +6059,31 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": components["schemas"]["SourceProfileDecision"];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["OperatorSourceProposal"];
+        };
+      };
+    };
+  };
+  v1_operator_source_proposals_responsibility_create: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        proposal_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["SourceResponsibilityRequest"];
       };
     };
     responses: {

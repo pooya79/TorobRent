@@ -134,7 +134,7 @@ class AssignmentProfileVersionSerializer(serializers.Serializer[Any]):
 
 class SourceAssignmentSerializer(serializers.ModelSerializer[SourceAssignment]):
     review_operator = serializers.UUIDField(
-        source="approval.event.actor_id", read_only=True, allow_null=True, default=None
+        source="source.responsible_operator_id", read_only=True, allow_null=True, default=None
     )
     recent_requests = serializers.SerializerMethodField()
 
@@ -585,7 +585,35 @@ class SourceProfileRepairSerializer(serializers.ModelSerializer[SourceProfileRep
         return "اصلاح در حال انجام است؛ پرونده را تازه کنید."
 
 
+class SourceResponsibilityRequestSerializer(serializers.Serializer[Any]):
+    assignee_email = serializers.EmailField()
+    reviewed_responsibility_revision = serializers.IntegerField(min_value=0)
+    reason = serializers.CharField(max_length=2000)
+
+
+class SourceResponsibilityChangeSerializer(serializers.Serializer[Any]):
+    operator_label = serializers.CharField(source="operator.email", allow_null=True, default=None)
+    actor_label = serializers.CharField(source="actor.email", allow_null=True, default=None)
+    operator = serializers.UUIDField(source="operator_id", allow_null=True)
+    actor = serializers.UUIDField(source="actor_id", allow_null=True)
+    revision = serializers.IntegerField()
+    reason = serializers.CharField()
+    created_at = serializers.DateTimeField()
+
+
+class SourceResponsibilitySerializer(serializers.Serializer[Any]):
+    operator = serializers.UUIDField(source="responsible_operator_id", allow_null=True)
+    operator_label = serializers.CharField(
+        source="responsible_operator.email", allow_null=True, default=None
+    )
+    revision = serializers.IntegerField(source="responsibility_revision")
+    history = SourceResponsibilityChangeSerializer(source="responsibility_history", many=True)
+
+
 class OperatorSourceProposalSerializer(SourceProposalSerializer):
+    responsibility = SourceResponsibilitySerializer(
+        source="source", read_only=True, allow_null=True
+    )
     needs_reconciliation = serializers.SerializerMethodField()
     discovery = serializers.SerializerMethodField()
     profile_versions = serializers.SerializerMethodField()
@@ -597,6 +625,7 @@ class OperatorSourceProposalSerializer(SourceProposalSerializer):
             "discovery",
             "profile_versions",
             "profile_repairs",
+            "responsibility",
         )
 
     @extend_schema_field(SourceProfileRepairSerializer(many=True))

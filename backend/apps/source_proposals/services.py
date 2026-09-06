@@ -234,7 +234,9 @@ def claim_source_proposal_review(
     *, proposal: SourceProposal, actor: User
 ) -> SourceProposalReviewClaim:
     proposal = SourceProposal.objects.select_for_update().get(id=proposal.id)
-    ensure_independent_reviewer(proposal=proposal, actor=actor)
+    from .responsibility import require_source_responsibility
+
+    require_source_responsibility(proposal=proposal, actor=actor)
     if proposal.state != SourceProposalState.PENDING:
         raise ValidationError("Only a pending Source Proposal can be claimed.")
     now = timezone.now()
@@ -371,11 +373,12 @@ def reject_source_proposal(
 EXTERNAL_CANDIDATE_CLAIM_DURATION = timedelta(minutes=15)
 
 
-def _ensure_candidate_not_representative(
+def _require_candidate_review_authority(
     *, candidate: ExternalListingCandidate, actor: User
 ) -> None:
-    if candidate.source_proposal.submitter_id == actor.id:
-        raise ValidationError("An Operator cannot decide their own External Listing candidate.")
+    from .responsibility import require_source_responsibility
+
+    require_source_responsibility(proposal=candidate.source_proposal, actor=actor)
 
 
 def _active_candidate_claim(
@@ -405,7 +408,7 @@ def claim_external_listing_candidate_review(
     *, candidate: ExternalListingCandidate, actor: User
 ) -> ExternalListingCandidateReviewClaim:
     candidate = _lock_candidate(candidate)
-    _ensure_candidate_not_representative(candidate=candidate, actor=actor)
+    _require_candidate_review_authority(candidate=candidate, actor=actor)
     if candidate.state not in (
         ExternalListingCandidateState.PENDING,
         ExternalListingCandidateState.CHANGES_REQUESTED,
@@ -524,7 +527,7 @@ def request_external_listing_candidate_changes(
     *, candidate: ExternalListingCandidate, actor: User, reviewed_revision: int, reason: str
 ) -> ExternalListingCandidate:
     candidate = _lock_candidate(candidate)
-    _ensure_candidate_not_representative(candidate=candidate, actor=actor)
+    _require_candidate_review_authority(candidate=candidate, actor=actor)
     claim = _current_candidate_claim(
         candidate=candidate, actor=actor, reviewed_revision=reviewed_revision
     )
@@ -542,7 +545,7 @@ def reject_external_listing_candidate(
     *, candidate: ExternalListingCandidate, actor: User, reviewed_revision: int, reason: str
 ) -> ExternalListingCandidate:
     candidate = _lock_candidate(candidate)
-    _ensure_candidate_not_representative(candidate=candidate, actor=actor)
+    _require_candidate_review_authority(candidate=candidate, actor=actor)
     claim = _current_candidate_claim(
         candidate=candidate, actor=actor, reviewed_revision=reviewed_revision
     )
@@ -562,7 +565,7 @@ def approve_external_listing_candidate(
     if not confirmed:
         raise ValidationError("External Listing approval requires confirmation.")
     candidate = _lock_candidate(candidate)
-    _ensure_candidate_not_representative(candidate=candidate, actor=actor)
+    _require_candidate_review_authority(candidate=candidate, actor=actor)
     claim = _current_candidate_claim(
         candidate=candidate, actor=actor, reviewed_revision=reviewed_revision
     )
@@ -590,7 +593,7 @@ def correct_external_listing_candidate(
     from .candidate_publication import validation_errors
 
     candidate = _lock_candidate(candidate)
-    _ensure_candidate_not_representative(candidate=candidate, actor=actor)
+    _require_candidate_review_authority(candidate=candidate, actor=actor)
     claim = _current_candidate_claim(
         candidate=candidate, actor=actor, reviewed_revision=reviewed_revision, allow_changes=True
     )

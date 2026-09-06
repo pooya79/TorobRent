@@ -295,3 +295,18 @@ export async function revokeSourceAssignment(
   if (error || !data) throw apiError(error);
   return data;
 }
+
+export async function reassignSourceResponsibility(
+  proposalId: string,
+  body: components["schemas"]["SourceResponsibilityRequest"],
+) {
+  const { data, error } = await api.POST(
+    "/api/v1/operator/source-proposals/{proposal_id}/responsibility/",
+    {
+      params: { path: { proposal_id: proposalId } },
+      body,
+    },
+  );
+  if (error || !data) throw apiError(error);
+  return data;
+}
