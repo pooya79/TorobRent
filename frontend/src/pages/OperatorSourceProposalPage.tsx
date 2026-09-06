@@ -1,3 +1,4 @@
+import { SourceExclusionsPanel } from "@/features/source-proposals/SourceExclusionsPanel";
 import { SourcePublicationModePanel } from "@/features/source-proposals/SourcePublicationModePanel";
 import { SourceResponsibilityPanel } from "@/features/source-proposals/SourceResponsibilityPanel";
 import { CandidateEvidence } from "@/features/source-proposals/CandidateEvidence";
@@ -217,6 +218,13 @@ function ProposalReviewCard({
               onUpdate={onDecisionSuccess}
             />
           )}
+        {proposal.assignment?.state === "active" && canDecideSource && (
+          <SourceExclusionsPanel
+            proposalId={proposal.id}
+            exclusions={proposal.assignment.exclusions ?? []}
+            onUpdate={onDecisionSuccess}
+          />
+        )}
         {proposal.assignment && (
           <SourceAssignmentSummary
             assignment={proposal.assignment}
@@ -593,6 +601,7 @@ function ExternalListingCandidateCard({
                   !confirmed ||
                   decision.isPending ||
                   candidate.state !== "pending" ||
+                  Boolean(candidate.exclusion_reason) ||
                   Object.keys(candidate.validation_errors ?? {}).length > 0
                 }
                 onClick={() => decision.mutate("approve")}

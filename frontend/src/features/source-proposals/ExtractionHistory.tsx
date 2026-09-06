@@ -55,6 +55,25 @@ export function ExtractionHistory({
                   </div>
                 ))}
               </dl>
+              {(request.run.skipped_pages ?? []).map((page) => (
+                <p key={page.url} className="break-all">
+                  کنار گذاشته شده: <bdi dir="ltr">{page.url}</bdi> ·{" "}
+                  {page.reason}
+                </p>
+              ))}
+              {(request.run.candidates ?? [])
+                .filter(
+                  (candidate) =>
+                    candidate.exclusion_hold && candidate.state !== "published",
+                )
+                .map((candidate) => (
+                  <p key={candidate.id} className="break-all">
+                    انتشار متوقف: <bdi dir="ltr">{candidate.external_url}</bdi>{" "}
+                    ·{" "}
+                    {candidate.exclusion_reason ||
+                      "محدودیت برداشته شده؛ انتشار این نتیجه نیازمند تأیید صریح است."}
+                  </p>
+                ))}
               {review && <ExtractionRunReview run={request.run} {...review} />}
               {request.run.errors.map((error, index) => (
                 <p key={index}>

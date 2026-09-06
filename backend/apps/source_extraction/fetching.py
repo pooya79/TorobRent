@@ -40,6 +40,7 @@ USER_AGENT = "TorobRentSourceFetcher"
 
 
 class FetchFailureCode(StrEnum):
+    SOURCE_EXCLUDED = "source_excluded"
     INVALID_SCHEME = "invalid_scheme"
     INVALID_URL = "invalid_url"
     CREDENTIALS = "credentials"

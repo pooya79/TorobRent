@@ -1701,6 +1701,118 @@ paths:
               schema:
                 $ref: '#/components/schemas/OperatorSourceProposal'
           description: ''
+  /api/v1/operator/source-proposals/{proposal_id}/exclusions/add/:
+    post:
+      operationId: v1_operator_source_proposals_exclusions_add_create
+      summary: Add a confirmed Source Exclusion
+      parameters:
+      - in: path
+        name: proposal_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SourceExclusionAdd'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatorSourceProposal'
+          description: ''
+  /api/v1/operator/source-proposals/{proposal_id}/exclusions/preview/:
+    post:
+      operationId: v1_operator_source_proposals_exclusions_preview_create
+      summary: Preview known pages and Listings matching a Source Exclusion
+      parameters:
+      - in: path
+        name: proposal_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SourceExclusionPreviewRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SourceExclusionPreview'
+          description: ''
+  /api/v1/operator/source-proposals/{proposal_id}/exclusions/remove/:
+    post:
+      operationId: v1_operator_source_proposals_exclusions_remove_create
+      summary: Remove a Source Exclusion without publishing held candidates
+      parameters:
+      - in: path
+        name: proposal_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SourceExclusionChange'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatorSourceProposal'
+          description: ''
+  /api/v1/operator/source-proposals/{proposal_id}/exclusions/withdraw/:
+    post:
+      operationId: v1_operator_source_proposals_exclusions_withdraw_create
+      summary: Explicitly withdraw reviewed Listings matching an active exclusion
+      parameters:
+      - in: path
+        name: proposal_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SourceExclusionWithdraw'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatorSourceProposal'
+          description: ''
   /api/v1/operator/source-proposals/{proposal_id}/profile/approve/:
     post:
       operationId: v1_operator_source_proposals_profile_approve_create
@@ -4567,6 +4679,31 @@ components:
       required:
       - latitude
       - longitude
+    ExcludedPage:
+      type: object
+      properties:
+        url:
+          type: string
+        exclusion_id:
+          type: string
+          format: uuid
+        reason:
+          type: string
+      required:
+      - exclusion_id
+      - reason
+      - url
+    ExclusionListing:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        url:
+          type: string
+      required:
+      - id
+      - url
     ExternalCandidateSource:
       type: object
       properties:
@@ -4620,6 +4757,14 @@ components:
           - string
           - 'null'
           format: uuid
+        exclusion_hold:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        exclusion_reason:
+          type: string
+          readOnly: true
         city:
           type:
           - string
@@ -4716,6 +4861,7 @@ components:
           readOnly: true
       required:
       - created_at
+      - exclusion_reason
       - external_url
       - history
       - id
@@ -4806,6 +4952,8 @@ components:
     ExtractionError:
       type: object
       properties:
+        url:
+          type: string
         code:
           type: string
         detail:
@@ -4941,6 +5089,11 @@ components:
           readOnly: true
         withdrawals:
           readOnly: true
+        skipped_pages:
+          type: array
+          items:
+            $ref: '#/components/schemas/ExcludedPage'
+          readOnly: true
       required:
       - attempts
       - candidates
@@ -4957,6 +5110,7 @@ components:
       - published
       - rejected
       - revision
+      - skipped_pages
       - started_at
       - state
       - withdrawals
@@ -5209,6 +5363,14 @@ components:
         * `general` - راهنمایی و پرسش
         * `account_deletion` - درخواست حذف حساب
         * `public_contact_removal` - حذف فوری اطلاعات تماس عمومی
+    Kind472Enum:
+      enum:
+      - exact
+      - path_prefix
+      type: string
+      description: |-
+        * `exact` - exact
+        * `path_prefix` - path_prefix
     ListingInquiryContext:
       type: object
       properties:
@@ -7229,6 +7391,11 @@ components:
           items:
             $ref: '#/components/schemas/ExtractionRequest'
           readOnly: true
+        exclusions:
+          type: array
+          items:
+            $ref: '#/components/schemas/SourceExclusion'
+          readOnly: true
         review_operator:
           type:
           - string
@@ -7241,6 +7408,7 @@ components:
       required:
       - active_profile_version
       - created_at
+      - exclusions
       - id
       - mode_revision
       - recent_requests
@@ -7313,6 +7481,179 @@ components:
       - evidence
       - expires_at
       - id
+    SourceExclusion:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        kind:
+          allOf:
+          - $ref: '#/components/schemas/SourceExclusionKindEnum'
+          readOnly: true
+        url:
+          type: string
+          format: uri
+          readOnly: true
+        reason:
+          type: string
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        active:
+          type: boolean
+          readOnly: true
+        actions:
+          type: array
+          items:
+            $ref: '#/components/schemas/SourceExclusionAction'
+          readOnly: true
+      required:
+      - actions
+      - active
+      - created_at
+      - id
+      - kind
+      - reason
+      - url
+    SourceExclusionAction:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        action:
+          allOf:
+          - $ref: '#/components/schemas/SourceExclusionActionActionEnum'
+          readOnly: true
+        reason:
+          type: string
+          readOnly: true
+        listing_ids:
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - action
+      - created_at
+      - id
+      - listing_ids
+      - reason
+    SourceExclusionActionActionEnum:
+      enum:
+      - remove
+      - withdraw
+      type: string
+      description: |-
+        * `remove` - Remove
+        * `withdraw` - Withdraw Listings
+    SourceExclusionAdd:
+      type: object
+      properties:
+        kind:
+          $ref: '#/components/schemas/Kind472Enum'
+        url:
+          type: string
+          maxLength: 1000
+        reason:
+          type: string
+          maxLength: 2000
+        confirmed:
+          type: boolean
+      required:
+      - confirmed
+      - kind
+      - reason
+      - url
+    SourceExclusionChange:
+      type: object
+      properties:
+        exclusion_id:
+          type: string
+          format: uuid
+        reason:
+          type: string
+          maxLength: 2000
+        confirmed:
+          type: boolean
+      required:
+      - confirmed
+      - exclusion_id
+      - reason
+    SourceExclusionKindEnum:
+      enum:
+      - exact
+      - path_prefix
+      type: string
+      description: |-
+        * `exact` - Exact URL
+        * `path_prefix` - Path section
+    SourceExclusionPreview:
+      type: object
+      properties:
+        kind:
+          $ref: '#/components/schemas/Kind472Enum'
+        url:
+          type: string
+          maxLength: 1000
+        known_pages:
+          type: array
+          items:
+            type: string
+        published_listings:
+          type: array
+          items:
+            $ref: '#/components/schemas/ExclusionListing'
+        known_page_count:
+          type: integer
+        published_listing_count:
+          type: integer
+      required:
+      - kind
+      - known_page_count
+      - known_pages
+      - published_listing_count
+      - published_listings
+      - url
+    SourceExclusionPreviewRequest:
+      type: object
+      properties:
+        kind:
+          $ref: '#/components/schemas/Kind472Enum'
+        url:
+          type: string
+          maxLength: 1000
+      required:
+      - kind
+      - url
+    SourceExclusionWithdraw:
+      type: object
+      properties:
+        exclusion_id:
+          type: string
+          format: uuid
+        reason:
+          type: string
+          maxLength: 2000
+        confirmed:
+          type: boolean
+        listing_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+          maxItems: 100
+          minItems: 1
+      required:
+      - confirmed
+      - exclusion_id
+      - listing_ids
+      - reason
     SourceMetadata:
       type: object
       properties:

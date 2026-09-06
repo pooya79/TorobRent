@@ -10,6 +10,7 @@ from .candidate_serializers import (
     ExternalListingCandidateSerializer as ExternalListingCandidateSerializer,
 )
 from .current_website import current_website_cases
+from .exclusion_serializers import SourceExclusionSerializer
 from .extraction_serializers import ExtractionRequestSerializer
 from .models import (
     DiscoveryStage,
@@ -136,6 +137,7 @@ class SourceAssignmentSerializer(serializers.ModelSerializer[SourceAssignment]):
     review_operator = serializers.UUIDField(
         source="source.responsible_operator_id", read_only=True, allow_null=True, default=None
     )
+    exclusions = SourceExclusionSerializer(source="source.exclusions", many=True, read_only=True)
     recent_requests = serializers.SerializerMethodField()
 
     @extend_schema_field(ExtractionRequestSerializer(many=True))
@@ -174,6 +176,7 @@ class SourceAssignmentSerializer(serializers.ModelSerializer[SourceAssignment]):
             "created_at",
             "revoked_at",
             "recent_requests",
+            "exclusions",
             "review_operator",
             "mode_revision",
         )

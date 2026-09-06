@@ -258,3 +258,48 @@ UI captures use deterministic local API fixtures:
 Django Source administration displays responsibility read-only. Additional CDN-host approvals and
 revocations use the same Source responsibility checks; during initial onboarding they require a
 current Review Claim. Source responsibility changes go through the queue-manager action.
+
+### Source Exclusions (#125)
+
+Apply source-proposal migrations 0029–0030 before starting the application and workers. They add
+separate immutable restriction/action records, nullable candidate holds, and a default empty list of
+skipped pages; historical Discovery exclusions and profile validation remain unchanged. Drain older
+workers during rollout so they cannot publish without the new exclusion checks.
+
+The responsible Operator previews a normalized exact URL or a path section on the assigned host,
+then supplies a reason and explicit confirmation. Exact URLs retain meaningful query parameters;
+path sections ignore queries and match complete segments (`/archive` does not match `/archive-old`).
+Preview uses retained known pages and published Listings, showing total counts and up to 100
+examples of each. It performs no network discovery and never claims exhaustive coverage. Newly
+recorded fetch failures retain their page URL so they can appear in subsequent previews.
+
+Adding a restriction holds matching unpublished candidates under the same Source lock used by
+worker completion and explicit approvals. Held candidates keep their original validation evidence;
+removal does not release them for automatic publication, including when a rule is added and removed
+while a run is in flight. Requested page URLs remain associated with redirected results, so those
+URLs participate in publication holds, previews and withdrawal checks as well as the final URL.
+A fresh request after removal can publish under the current publication
+mode. An Operator may explicitly approve valid old results after the restriction is removed.
+
+Excluded pages have separate recorded reasons in run history; actual fetch and validation failures
+remain failures. Representatives see restrictions, retained decisions, skipped pages and held
+results. Actor references remain in the audit records without exposing Operator account details in
+the representative's restriction history.
+
+Existing Listings remain published when an exclusion is added. The separate withdrawal action
+requires a fresh preview, its displayed Listing IDs, a reason and explicit confirmation. The server
+rechecks that every reviewed Listing is still published, belongs to this Source and matches the
+active rule. Only those IDs are withdrawn; for more than 100 matches, preview and repeat explicitly.
+
+Deterministic local API fixtures were used for UI inspection:
+[known matches](screenshots/issue-125-exclusion-preview.png),
+[no known matches](screenshots/issue-125-exclusion-empty.png),
+[mobile](screenshots/issue-125-exclusion-mobile.png),
+[separate withdrawal](screenshots/issue-125-exclusion-withdrawal.png), and
+[representative history](screenshots/issue-125-exclusion-representative.png).
+
+Validation for #125: the full PostgreSQL backend suite passed (710 tests, 92% coverage), followed
+by focused regression checks for the redirect cases found in review. The focused Source React
+suite passed. The full frontend suite has 16 pre-existing assertion failures across
+`OperatorOverviewPage`, `OperatorReviewPage`, `OperatorSupportPage`, `OperatorWorkspace` and
+`ResultsPage`; the same failures reproduce on the starting commit `5e13694`.

@@ -50,6 +50,7 @@ export function ExtractionRunReview({
     run.candidates?.filter(
       (candidate) =>
         candidate.state === "pending" &&
+        !candidate.exclusion_reason &&
         Object.keys(candidate.validation_errors ?? {}).length === 0,
     ) ?? [];
   return (

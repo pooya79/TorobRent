@@ -7,6 +7,7 @@ from .models import ExtractionRequest, ExtractionRun, ExtractionRunDecision
 
 
 class ExtractionErrorSerializer(serializers.Serializer[Any]):
+    url = serializers.CharField(required=False)
     code = serializers.CharField()
     detail = serializers.CharField()
     transient = serializers.BooleanField()
@@ -18,7 +19,14 @@ class ExtractionRunDecisionSerializer(serializers.ModelSerializer[ExtractionRunD
         fields = ("id", "actor", "revision", "candidate_ids", "created_at")
 
 
+class ExcludedPageSerializer(serializers.Serializer[Any]):
+    url = serializers.CharField()
+    exclusion_id = serializers.UUIDField()
+    reason = serializers.CharField()
+
+
 class ExtractionRunSerializer(serializers.ModelSerializer[ExtractionRun]):
+    skipped_pages = ExcludedPageSerializer(many=True, read_only=True)
     candidates = ExternalListingCandidateSerializer(many=True, read_only=True)
     decisions = ExtractionRunDecisionSerializer(many=True, read_only=True)
     errors = ExtractionErrorSerializer(many=True, read_only=True)  # type: ignore[assignment]
@@ -44,6 +52,7 @@ class ExtractionRunSerializer(serializers.ModelSerializer[ExtractionRun]):
             "failed",
             "errors",
             "withdrawals",
+            "skipped_pages",
         )
         read_only_fields = fields
 

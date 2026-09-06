@@ -3,6 +3,7 @@
 from collections.abc import Sequence
 from dataclasses import asdict
 from datetime import timedelta
+from typing import Any
 
 from django.core.exceptions import ValidationError
 from django.db import transaction
@@ -14,10 +15,15 @@ from apps.source_extraction.contract import ExtractionContract, ExtractionPage
 from apps.source_extraction.discovery import PageKind
 from apps.source_extraction.fetching import (
     FetchBatch,
+    FetchFailure,
+    FetchFailureCode,
+    FetchRecord,
     SourcePageFetcher,
     validate_public_destination,
 )
+from apps.source_extraction.normalization import normalize_url
 
+from .exclusions import matching_exclusion
 from .models import (
     ExtractionRequest,
     ExtractionRun,
@@ -104,12 +110,45 @@ def authorized(request: ExtractionRequest) -> bool:
 class AssignedSourceFetcher:
     def __init__(self, request: ExtractionRequest) -> None:
         self.request = request
+        self.skipped: dict[str, dict[str, Any]] = {}
+        self.requested_urls: dict[str, set[str]] = {}
         self.fetcher = SourcePageFetcher(approved_host=request.assignment.source.domain)
 
     def fetch(self, urls: Sequence[str], *, render: bool = False) -> FetchBatch:
         if not authorized(self.request):
             raise AuthorizationEnded
-        return self.fetcher.fetch(urls, render=render)
+        excluded = [self.excluded_record(url) for url in urls]
+        allowed = [url for url, skipped in zip(urls, excluded, strict=True) if skipped is None]
+        # Keep the hardened adapter's per-batch bounds and concurrency limits intact.
+        fetched = iter(self.fetcher.fetch(allowed, render=render).records if allowed else ())
+        records = []
+        for url, skipped in zip(urls, excluded, strict=True):
+            if skipped:
+                records.append(skipped)
+                continue
+            record = next(fetched)
+            if record.page:
+                final_url = normalize_url(record.page.url)
+                self.requested_urls.setdefault(final_url, set()).add(url)
+                # Both the requested and final URLs can be restricted while fetching.
+                # Preserve actual unsuccessful responses as failure evidence.
+                if record.page.status_code < 400:
+                    record = self.excluded_record(url) or self.excluded_record(final_url) or record
+            records.append(record)
+        return FetchBatch(tuple(records))
+
+    def excluded_record(self, url: str) -> FetchRecord | None:
+        exclusion = matching_exclusion(self.request.assignment.source, url)
+        if exclusion is None:
+            return None
+        self.skipped[url] = {
+            "url": url,
+            "exclusion_id": str(exclusion.pk),
+            "reason": exclusion.reason,
+        }
+        return FetchRecord(
+            url, failure=FetchFailure(FetchFailureCode.SOURCE_EXCLUDED, url, exclusion.reason)
+        )
 
 
 def run_extraction(request_id: str) -> bool:
@@ -166,7 +205,8 @@ def run_extraction(request_id: str) -> bool:
         request.save(update_fields=("state", "updated_at"))
         attempt = run.attempts
     results = []
-    withdrawals = []
+    skipped_pages: list[dict[str, Any]] = []
+    withdrawals: list[dict[str, Any]] = []
     errors = []
     discovered = failed = rejected = 0
     state = ExtractionState.COMPLETE
@@ -179,12 +219,19 @@ def run_extraction(request_id: str) -> bool:
         contract = ExtractionContract(fetcher, max_pages=20, max_depth=2)
         discovery = contract.discover(request.canonical_url)
         pages = []
+        skipped_pages = list(fetcher.skipped.values())
         for page in discovery.pages:
+            if page.fetch_failure and page.fetch_failure.code == FetchFailureCode.SOURCE_EXCLUDED:
+                continue
             if normalize_public_domain(page.url) != request.assignment.source.domain:
                 raise AuthorizationEnded
             reason = unavailable_reason(page, fetcher)
             if reason:
-                withdrawals.append({"url": page.url, "reason": reason})
+                withdrawals.append({
+                    "url": page.url,
+                    "reason": reason,
+                    "requested_urls": sorted(fetcher.requested_urls.get(page.url, {page.url})),
+                })
             if (
                 not reason
                 and page.classification.kind == PageKind.RENTAL_LISTING
@@ -195,6 +242,7 @@ def run_extraction(request_id: str) -> bool:
                 failed += 1
                 errors.append({
                     "code": page.fetch_failure.code,
+                    "url": page.url,
                     "detail": "دریافت صفحه ناموفق بود.",
                     "transient": page.fetch_failure.transient,
                 })
@@ -202,6 +250,7 @@ def run_extraction(request_id: str) -> bool:
                 failed += 1
                 errors.append({
                     "code": "unsupported_response",
+                    "url": page.url,
                     "detail": "پاسخ صفحه قابل پردازش نبود.",
                     "transient": page.http_status is None
                     or page.http_status == 429
@@ -213,8 +262,15 @@ def run_extraction(request_id: str) -> bool:
         if not authorized(request):
             raise AuthorizationEnded
         results = [
-            asdict(result)
-            for result in contract.apply_profile(extractor_profile(request.profile_version), pages)
+            {
+                **asdict(result),
+                "requested_urls": sorted(fetcher.requested_urls.get(page.url, {page.url})),
+            }
+            for page, result in zip(
+                pages,
+                contract.apply_profile(extractor_profile(request.profile_version), pages),
+                strict=True,
+            )
         ]
         results = list({result["canonical_url"]: result for result in results}.values())
         # Canonical identities must stay inside the same authorization boundary.
@@ -254,7 +310,19 @@ def run_extraction(request_id: str) -> bool:
         run.rejected = rejected
         run.failed = failed
         run.results = results
-        run.withdrawals = withdrawals if state != ExtractionState.CANCELLED else []
+        run.skipped_pages = skipped_pages
+        run.withdrawals = (
+            [
+                evidence
+                for evidence in withdrawals
+                if not any(
+                    matching_exclusion(request.assignment.source, url, since=request.created_at)
+                    for url in (evidence["url"], *evidence.get("requested_urls", []))
+                )
+            ]
+            if state != ExtractionState.CANCELLED
+            else []
+        )
         run.errors = errors[:20]
         run.save()
         if state == ExtractionState.COMPLETE:

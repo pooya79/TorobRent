@@ -42,6 +42,10 @@ def approve_run(
     for candidate in run.candidates.select_for_update().filter(
         state=ExternalListingCandidateState.PENDING
     ):
+        from .exclusions import blocking_exclusion
+
+        if blocking_exclusion(candidate):
+            continue
         errors = validation_errors(candidate)
         candidate.validation_errors = errors
         candidate.save(update_fields=("validation_errors",))

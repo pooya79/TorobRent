@@ -1,3 +1,4 @@
+import { SourceExclusionsSummary } from "./SourceExclusionsPanel";
 import { ExtractionHistory } from "./ExtractionHistory";
 import { ExtractionRequestForm } from "./ExtractionRequestForm";
 import type { components } from "@/lib/api/schema";
@@ -47,6 +48,7 @@ export function SourceAssignmentSummary({
             assignmentId={assignment.id}
           />
         )}
+      <SourceExclusionsSummary exclusions={assignment.exclusions ?? []} />
       <ExtractionHistory
         requests={assignment.recent_requests ?? []}
         review={review}

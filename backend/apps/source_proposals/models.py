@@ -238,6 +238,9 @@ class ExternalListingCandidateState(models.TextChoices):
 
 
 class ExternalListingCandidate(models.Model):
+    exclusion_hold = models.ForeignKey(
+        "SourceExclusion", on_delete=models.PROTECT, null=True, related_name="held_candidates"
+    )
     discovery_version = models.ForeignKey(
         "SourceProfileVersion", on_delete=models.PROTECT, null=True, related_name="media_candidates"
     )
@@ -606,6 +609,7 @@ class ExtractionRequest(models.Model):
 
 
 class ExtractionRun(models.Model):
+    skipped_pages = models.JSONField(default=list, db_default=[])
     withdrawals = models.JSONField(default=list, db_default=[])
     candidate_rejected = models.PositiveIntegerField(default=0, db_default=0)
     revision = models.PositiveIntegerField(default=1, db_default=1)
@@ -802,3 +806,57 @@ class SourcePublicationModeChange(ImmutableProfileRecord):
 
     def __str__(self) -> str:
         return f"Publication mode {self.approval_id}: revision {self.revision}"
+
+
+class SourceExclusion(ImmutableProfileRecord):
+    objects: ClassVar[models.Manager[SourceExclusion]] = models.Manager.from_queryset(
+        ImmutableProfileQuerySet
+    )()
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    source = models.ForeignKey(
+        "catalog.Source", on_delete=models.PROTECT, related_name="exclusions"
+    )
+    kind = models.CharField(
+        max_length=16, choices=(("exact", "Exact URL"), ("path_prefix", "Path section"))
+    )
+    url = models.URLField(max_length=1000)
+    reason = models.CharField(max_length=2000)
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=set_null_in_immutable_history, null=True
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ("created_at", "id")
+
+    def __str__(self) -> str:
+        return f"{self.kind}: {self.url}"
+
+
+class SourceExclusionAction(ImmutableProfileRecord):
+    objects: ClassVar[models.Manager[SourceExclusionAction]] = models.Manager.from_queryset(
+        ImmutableProfileQuerySet
+    )()
+    exclusion = models.ForeignKey(SourceExclusion, on_delete=models.PROTECT, related_name="actions")
+    action = models.CharField(
+        max_length=16, choices=(("remove", "Remove"), ("withdraw", "Withdraw Listings"))
+    )
+    reason = models.CharField(max_length=2000)
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=set_null_in_immutable_history, null=True
+    )
+    listing_ids = models.JSONField(default=list)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ("created_at", "id")
+        constraints = [
+            models.UniqueConstraint(
+                fields=("exclusion",),
+                condition=models.Q(action="remove"),
+                name="one_exclusion_removal",
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.action}: {self.exclusion_id}"

@@ -839,6 +839,74 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/v1/operator/source-proposals/{proposal_id}/exclusions/add/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Add a confirmed Source Exclusion */
+    post: operations["v1_operator_source_proposals_exclusions_add_create"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/operator/source-proposals/{proposal_id}/exclusions/preview/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Preview known pages and Listings matching a Source Exclusion */
+    post: operations["v1_operator_source_proposals_exclusions_preview_create"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/operator/source-proposals/{proposal_id}/exclusions/remove/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Remove a Source Exclusion without publishing held candidates */
+    post: operations["v1_operator_source_proposals_exclusions_remove_create"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/operator/source-proposals/{proposal_id}/exclusions/withdraw/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Explicitly withdraw reviewed Listings matching an active exclusion */
+    post: operations["v1_operator_source_proposals_exclusions_withdraw_create"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/v1/operator/source-proposals/{proposal_id}/profile/approve/": {
     parameters: {
       query?: never;
@@ -2263,6 +2331,17 @@ export interface components {
       /** Format: decimal */
       longitude: string;
     };
+    ExcludedPage: {
+      url: string;
+      /** Format: uuid */
+      exclusion_id: string;
+      reason: string;
+    };
+    ExclusionListing: {
+      /** Format: uuid */
+      id: string;
+      url: string;
+    };
     ExternalCandidateSource: {
       /** Format: uuid */
       id: string;
@@ -2289,6 +2368,9 @@ export interface components {
       readonly source_proposal_id: string;
       /** Format: uuid */
       extraction_run?: string | null;
+      /** Format: uuid */
+      exclusion_hold?: string | null;
+      readonly exclusion_reason: string;
       /** Format: uuid */
       city?: string | null;
       /** Format: uuid */
@@ -2364,6 +2446,7 @@ export interface components {
     ExternalListingCandidateStateEnum:
       "pending" | "changes_requested" | "rejected" | "published" | "cancelled";
     ExtractionError: {
+      url?: string;
       code: string;
       detail: string;
       transient: boolean;
@@ -2410,6 +2493,7 @@ export interface components {
       readonly failed: number;
       readonly errors: components["schemas"]["ExtractionError"][];
       readonly withdrawals: unknown;
+      readonly skipped_pages: components["schemas"]["ExcludedPage"][];
     };
     ExtractionRunDecision: {
       readonly id: number;
@@ -2519,6 +2603,12 @@ export interface components {
      * @enum {string}
      */
     IntakeKindEnum: "general" | "account_deletion" | "public_contact_removal";
+    /**
+     * @description * `exact` - exact
+     *     * `path_prefix` - path_prefix
+     * @enum {string}
+     */
+    Kind472Enum: "exact" | "path_prefix";
     ListingInquiryContext: {
       opening_snapshot: components["schemas"]["ListingInquiryOpeningSnapshot"];
       current_availability: components["schemas"]["ListingInquiryCurrentAvailability"];
@@ -3371,6 +3461,7 @@ export interface components {
       /** Format: date-time */
       revoked_at?: string | null;
       readonly recent_requests: components["schemas"]["ExtractionRequest"][];
+      readonly exclusions: components["schemas"]["SourceExclusion"][];
       /** Format: uuid */
       readonly review_operator: string | null;
       readonly mode_revision: number;
@@ -3403,6 +3494,69 @@ export interface components {
       /** Format: date-time */
       completed_at?: string | null;
       readonly evidence: components["schemas"]["DiscoveryEvidence"];
+    };
+    SourceExclusion: {
+      /** Format: uuid */
+      readonly id: string;
+      readonly kind: components["schemas"]["SourceExclusionKindEnum"];
+      /** Format: uri */
+      readonly url: string;
+      readonly reason: string;
+      /** Format: date-time */
+      readonly created_at: string;
+      readonly active: boolean;
+      readonly actions: components["schemas"]["SourceExclusionAction"][];
+    };
+    SourceExclusionAction: {
+      readonly id: number;
+      readonly action: components["schemas"]["SourceExclusionActionActionEnum"];
+      readonly reason: string;
+      readonly listing_ids: unknown;
+      /** Format: date-time */
+      readonly created_at: string;
+    };
+    /**
+     * @description * `remove` - Remove
+     *     * `withdraw` - Withdraw Listings
+     * @enum {string}
+     */
+    SourceExclusionActionActionEnum: "remove" | "withdraw";
+    SourceExclusionAdd: {
+      kind: components["schemas"]["Kind472Enum"];
+      url: string;
+      reason: string;
+      confirmed: boolean;
+    };
+    SourceExclusionChange: {
+      /** Format: uuid */
+      exclusion_id: string;
+      reason: string;
+      confirmed: boolean;
+    };
+    /**
+     * @description * `exact` - Exact URL
+     *     * `path_prefix` - Path section
+     * @enum {string}
+     */
+    SourceExclusionKindEnum: "exact" | "path_prefix";
+    SourceExclusionPreview: {
+      kind: components["schemas"]["Kind472Enum"];
+      url: string;
+      known_pages: string[];
+      published_listings: components["schemas"]["ExclusionListing"][];
+      known_page_count: number;
+      published_listing_count: number;
+    };
+    SourceExclusionPreviewRequest: {
+      kind: components["schemas"]["Kind472Enum"];
+      url: string;
+    };
+    SourceExclusionWithdraw: {
+      /** Format: uuid */
+      exclusion_id: string;
+      reason: string;
+      confirmed: boolean;
+      listing_ids: string[];
     };
     SourceMetadata: {
       source_reference?: string;
@@ -5934,6 +6088,106 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": components["schemas"]["SourceProposalDecision"];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["OperatorSourceProposal"];
+        };
+      };
+    };
+  };
+  v1_operator_source_proposals_exclusions_add_create: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        proposal_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["SourceExclusionAdd"];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["OperatorSourceProposal"];
+        };
+      };
+    };
+  };
+  v1_operator_source_proposals_exclusions_preview_create: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        proposal_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["SourceExclusionPreviewRequest"];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SourceExclusionPreview"];
+        };
+      };
+    };
+  };
+  v1_operator_source_proposals_exclusions_remove_create: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        proposal_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["SourceExclusionChange"];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["OperatorSourceProposal"];
+        };
+      };
+    };
+  };
+  v1_operator_source_proposals_exclusions_withdraw_create: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        proposal_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["SourceExclusionWithdraw"];
       };
     };
     responses: {

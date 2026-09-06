@@ -1,5 +1,11 @@
 from django.urls import path
 
+from .exclusion_views import (
+    OperatorExclusionAddView,
+    OperatorExclusionPreviewView,
+    OperatorExclusionRemoveView,
+    OperatorExclusionWithdrawView,
+)
 from .operator_views import (
     OperatorSourceAssignmentRevokeView,
     OperatorSourceProfileApproveView,
@@ -20,6 +26,26 @@ from .run_views import OperatorRunApproveView
 app_name = "operator-source-proposals"
 
 urlpatterns = [
+    path(
+        "<uuid:proposal_id>/exclusions/withdraw/",
+        OperatorExclusionWithdrawView.as_view(),
+        name="exclusion-withdraw",
+    ),
+    path(
+        "<uuid:proposal_id>/exclusions/add/",
+        OperatorExclusionAddView.as_view(),
+        name="exclusion-add",
+    ),
+    path(
+        "<uuid:proposal_id>/exclusions/remove/",
+        OperatorExclusionRemoveView.as_view(),
+        name="exclusion-remove",
+    ),
+    path(
+        "<uuid:proposal_id>/exclusions/preview/",
+        OperatorExclusionPreviewView.as_view(),
+        name="exclusion-preview",
+    ),
     path(
         "<uuid:proposal_id>/publication-mode/",
         OperatorSourcePublicationModeView.as_view(),

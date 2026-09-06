@@ -77,6 +77,14 @@ class CandidateImageSerializer(serializers.ModelSerializer[CandidateImage]):
 
 
 class ExternalListingCandidateSerializer(serializers.ModelSerializer[ExternalListingCandidate]):
+    exclusion_reason = serializers.SerializerMethodField()
+
+    def get_exclusion_reason(self, candidate: ExternalListingCandidate) -> str:
+        from .exclusions import blocking_exclusion
+
+        exclusion = blocking_exclusion(candidate)
+        return exclusion.reason if exclusion else ""
+
     source = ExternalCandidateSourceSerializer(read_only=True)  # type: ignore[assignment]
     source_proposal_id = serializers.UUIDField(read_only=True)
     listing_id = serializers.UUIDField(read_only=True, allow_null=True)
@@ -89,6 +97,8 @@ class ExternalListingCandidateSerializer(serializers.ModelSerializer[ExternalLis
             "id",
             "source_proposal_id",
             "extraction_run",
+            "exclusion_hold",
+            "exclusion_reason",
             "city",
             "district",
             "neighborhood",

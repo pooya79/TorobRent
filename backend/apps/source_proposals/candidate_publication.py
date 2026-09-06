@@ -130,6 +130,9 @@ def create_run_candidates(run: ExtractionRun) -> None:
             evidence=result["evidence"],
             conflicts=result["conflicts"],
         )
+        from .exclusions import candidate_exclusion
+
+        candidate.exclusion_hold = candidate_exclusion(candidate, since=run.request.created_at)
         candidate.validation_errors = validation_errors(candidate)
         candidate.save()
         urls = values.get("image_urls", [])
@@ -146,6 +149,10 @@ def create_run_candidates(run: ExtractionRun) -> None:
 
 
 def publish_candidate(candidate: ExternalListingCandidate) -> None:
+    from .exclusions import blocking_exclusion
+
+    if blocking_exclusion(candidate):
+        raise ValidationError("این صفحه با محدودیت فعال منبع کنار گذاشته شده است.")
     errors = validation_errors(candidate)
     if errors:
         raise ValidationError(errors)
@@ -196,7 +203,9 @@ def publish_automatic_candidates(run: ExtractionRun) -> None:
     ):
         return
     for candidate in run.candidates.filter(
-        state=ExternalListingCandidateState.PENDING, validation_errors={}
+        state=ExternalListingCandidateState.PENDING,
+        validation_errors={},
+        exclusion_hold__isnull=True,
     ):
         publish_candidate(candidate)
         record_candidate_transition(
