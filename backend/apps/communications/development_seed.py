@@ -114,10 +114,10 @@ def seed_development_communications(
     notifications = []
     for index, event in enumerate(decision_events, start=1):
         notification, _created = SystemNotification.objects.get_or_create(
-            id=development_fixture_id(DevelopmentFixtureKind.SYSTEM_NOTIFICATION, index),
+            recipient=submitter,
+            originating_event=event,
             defaults={
-                "recipient": submitter,
-                "originating_event": event,
+                "id": development_fixture_id(DevelopmentFixtureKind.SYSTEM_NOTIFICATION, index),
                 "target_submission": event.submission,
             },
         )
