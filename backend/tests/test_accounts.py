@@ -325,6 +325,55 @@ def test_phone_otp_requests_are_private_and_enforce_the_resend_delay(api_client:
 
 @override_settings(DEVELOPMENT_OTP_DISCLOSURE=True)
 @pytest.mark.django_db
+def test_submitter_onboarding_resend_cooldown_does_not_exhaust_request_throttle(
+    api_client: APIClient, user: User
+):
+    user.email_verified_at = timezone.now()
+    user.save(update_fields=["email_verified_at"])
+    client = csrf_client(api_client)
+    client.force_login(user)
+
+    responses = [
+        client.post(
+            "/api/v1/auth/phone-verification/request/",
+            {"identifier": "09351234567", "purpose": "submitter_onboarding"},
+            format="json",
+        )
+        for _ in range(6)
+    ]
+
+    assert [response.status_code for response in responses] == [202] * 6
+    assert len(sms_outbox) == 1
+    assert user.phone_challenges.count() == 1
+
+
+@override_settings(DEVELOPMENT_OTP_DISCLOSURE=True)
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    "identifier",
+    ["+989351234567", "+98 935 123 4567", "00989351234567", "۰۹۳۵۱۲۳۴۵۶۷"],
+)
+def test_submitter_onboarding_accepts_supported_iranian_mobile_formats(
+    api_client: APIClient, user: User, identifier: str
+):
+    user.email_verified_at = timezone.now()
+    user.save(update_fields=["email_verified_at"])
+    client = csrf_client(api_client)
+    client.force_login(user)
+
+    response = client.post(
+        "/api/v1/auth/phone-verification/request/",
+        {"identifier": identifier, "purpose": "submitter_onboarding"},
+        format="json",
+    )
+
+    assert response.status_code == 202
+    assert sms_outbox[-1].recipient == "09351234567"
+    assert user.phone_challenges.get().phone == "09351234567"
+
+
+@override_settings(DEVELOPMENT_OTP_DISCLOSURE=True)
+@pytest.mark.django_db
 def test_phone_otp_reports_expiry_and_attempt_exhaustion(api_client: APIClient):
     client = csrf_client(api_client)
     expired_registration = client.post(

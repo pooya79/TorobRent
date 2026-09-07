@@ -26,6 +26,8 @@ from .tokens import (
     read_password_reset_token,
 )
 
+PHONE_VERIFICATION_RESEND_COOLDOWN = timedelta(seconds=60)
+
 
 def _is_operator_permission(permission: Permission) -> bool:
     permission_name = f"{permission.content_type.app_label}.{permission.codename}"
@@ -156,7 +158,10 @@ def _issue_phone_otp(
         .order_by("-created_at")
         .first()
     )
-    if latest is not None and latest.created_at > timezone.now() - timedelta(seconds=60):
+    if (
+        latest is not None
+        and latest.created_at > timezone.now() - PHONE_VERIFICATION_RESEND_COOLDOWN
+    ):
         return None
     code = f"{secrets.randbelow(1_000_000):06d}"
     PhoneVerificationChallenge.objects.filter(

@@ -53,6 +53,7 @@ from .services import (
     verify_email,
     verify_phone,
 )
+from .throttles import PhoneVerificationRequestThrottle
 
 PROBLEM_MEDIA_TYPE = "application/problem+json"
 VALIDATION_ERROR = OpenApiResponse(
@@ -286,6 +287,7 @@ class VerifyPhoneView(APIView):
 @method_decorator(csrf_protect, name="dispatch")
 class PhoneVerificationRequestView(APIView):
     permission_classes = [AllowAny]
+    throttle_classes = [PhoneVerificationRequestThrottle]
     throttle_scope = "phone_verification_request"
 
     @extend_schema(
