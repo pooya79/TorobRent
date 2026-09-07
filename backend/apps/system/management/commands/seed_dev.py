@@ -14,6 +14,8 @@ class Command(BaseCommand):
         self.stdout.write(
             self.style.SUCCESS(
                 f"Development data ready: {result.properties} Properties, "
-                f"{result.listings} Listings"
+                f"{result.listings} Listings, {result.inquiries} Listing Inquiries, "
+                f"{result.messages} Messages, {result.notifications} Notifications, "
+                f"{result.support_requests} Support Requests"
             )
         )

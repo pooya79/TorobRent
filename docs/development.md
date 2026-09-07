@@ -7,6 +7,9 @@
   and their system libraries with
   `cd frontend && pnpm exec playwright install --with-deps chromium firefox webkit`.
 - `make dev`: run the complete development environment in Compose.
+- `make seed-dev`: create or refresh deterministic local personas and workflow data in the running
+  Compose backend. It is safe to rerun and does not overwrite records changed after their first
+  creation.
 - `make dev-down`: remove development containers and networks while keeping data and dependency
   volumes. The frontend persists both `node_modules` and its pnpm download store; startup still
   runs a frozen-lockfile install to synchronize dependencies. The store may need to download
@@ -49,6 +52,26 @@ differs; production builds leave it unset and do not show this guidance.
 migrations as a one-shot service, and uses the React Node runtime, Uvicorn, and nginx. Copy
 `.env.production.example` to `.env.production` and replace all placeholder credentials before
 starting it.
+
+## Development seed personas
+
+Run `make seed-dev` after migrations. All seed data is fictional, local-only, and guarded from
+production settings. The command prepares these login accounts:
+
+| Persona | Email | Password | Intended surface |
+| --- | --- | --- | --- |
+| Submitter/owner | `submitter@torobrent.local` | `dev-submitter` | Submission states, notifications, support, inquiries |
+| Renter | `renter@torobrent.local` | `dev-renter` | Active unread listing conversation |
+| Second renter | `renter-two@torobrent.local` | `dev-renter-two` | Read-only conversation for an expired listing |
+| Full operator | `operator@torobrent.local` | `dev-operator` | Every operator surface and admin |
+| Submission reviewer | `reviewer@torobrent.local` | `dev-reviewer` | Submission review without superuser access |
+| Support operator | `support@torobrent.local` | `dev-support` | General support queue without superuser access |
+
+The dataset includes all catalog listing states, all six submission states with review history,
+submission decision notifications with both read and unread examples, two listing inquiries with
+five alternating messages, and support requests in open, in-progress, escalated, and resolved
+states. Seeded workflow rows use stable UUIDs. Rerunning fills in missing fixtures but deliberately
+preserves passwords, message edits, and workflow changes made during manual testing.
 
 ## Configuration
 

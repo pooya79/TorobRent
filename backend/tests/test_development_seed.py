@@ -17,6 +17,17 @@ from apps.catalog.models import (
     RentalTerms,
 )
 from apps.common.development_seed import DevelopmentFixtureKind, development_fixture_id
+from apps.communications.models import (
+    ListingInquiry,
+    ListingInquiryMessage,
+    SystemNotification,
+    SystemNotificationReadState,
+)
+from apps.contact.models import (
+    SupportMessage,
+    SupportRequest,
+    SupportRequestStatus,
+)
 from apps.submissions.models import Submission, SubmissionEvent, SubmissionState
 
 
@@ -180,17 +191,92 @@ def test_seed_dev_includes_review_history_and_reasons():
 
 
 @pytest.mark.django_db
+def test_seed_dev_prepares_message_center_scenarios_and_role_specific_accounts():
+    call_command("seed_dev", verbosity=0)
+
+    renter = User.objects.get(email="renter@torobrent.local")
+    assert renter.check_password("dev-renter")
+    assert renter.display_name
+    reviewer = User.objects.get(email="reviewer@torobrent.local")
+    assert reviewer.check_password("dev-reviewer")
+    assert reviewer.groups.filter(name="Submission Reviewer").exists()
+    support_operator = User.objects.get(email="support@torobrent.local")
+    assert support_operator.check_password("dev-support")
+    assert support_operator.groups.filter(name="Support Operator").exists()
+
+    inquiries = ListingInquiry.objects.filter(
+        id__in=[
+            development_fixture_id(DevelopmentFixtureKind.LISTING_INQUIRY, index)
+            for index in (1, 2)
+        ]
+    )
+    assert inquiries.count() == 2
+    assert ListingInquiryMessage.objects.filter(inquiry__in=inquiries).count() == 5
+    assert inquiries.filter(listing__state=ListingState.EXPIRED).exists()
+    assert inquiries.filter(renter_read_at__isnull=True).exists()
+    assert inquiries.filter(submitter_read_at__isnull=True).exists()
+
+    notifications = SystemNotification.objects.filter(recipient__email="submitter@torobrent.local")
+    assert notifications.count() == 4
+    assert SystemNotificationReadState.objects.filter(notification__in=notifications).count() == 1
+
+    support_requests = SupportRequest.objects.filter(
+        id__in=[
+            development_fixture_id(DevelopmentFixtureKind.SUPPORT_REQUEST, index)
+            for index in range(1, 5)
+        ]
+    )
+    assert set(support_requests.values_list("status", flat=True)) == set(
+        SupportRequestStatus.values
+    )
+    assert SupportMessage.objects.filter(support_request__in=support_requests).count() == 6
+
+
+@pytest.mark.django_db
+def test_seed_dev_does_not_replace_edited_fixture_messages():
+    call_command("seed_dev", verbosity=0)
+    message = ListingInquiryMessage.objects.get(
+        id=development_fixture_id(DevelopmentFixtureKind.LISTING_INQUIRY_MESSAGE, 11)
+    )
+    message.body = "متن ویرایش شده توسعه دهنده"
+    message.save(update_fields=("body",))
+
+    call_command("seed_dev", verbosity=0)
+
+    message.refresh_from_db()
+    assert message.body == "متن ویرایش شده توسعه دهنده"
+    assert ListingInquiryMessage.objects.count() == 5
+
+
+@pytest.mark.django_db
 def test_seed_dev_personas_can_access_their_prepared_queues():
     call_command("seed_dev", verbosity=0)
 
     submitter = login("submitter@torobrent.local", "dev-submitter")
     assert submitter.get("/api/v1/submissions/").status_code == 200
+    message_center = submitter.get("/api/v1/messages/")
+    assert message_center.status_code == 200
+    assert message_center.data["count"] == 10
+    assert submitter.get("/api/v1/messages/unread-count/").data["count"] > 0
+
+    renter = login("renter@torobrent.local", "dev-renter")
+    renter_messages = renter.get("/api/v1/messages/")
+    assert renter_messages.status_code == 200
+    assert renter_messages.data["count"] == 1
 
     operator = login("operator@torobrent.local", "dev-operator")
     response = operator.get("/api/v1/operator/submissions/?state=pending")
     assert response.status_code == 200
     assert response.data["count"] == 1
     assert len(response.data["results"]) == 1
+
+    reviewer = login("reviewer@torobrent.local", "dev-reviewer")
+    assert reviewer.get("/api/v1/operator/submissions/?state=pending").status_code == 200
+
+    support_operator = login("support@torobrent.local", "dev-support")
+    support_queue = support_operator.get("/api/v1/operator/support-requests/")
+    assert support_queue.status_code == 200
+    assert support_queue.data["count"] == 3
 
 
 @pytest.mark.django_db

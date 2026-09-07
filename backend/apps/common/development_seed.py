@@ -11,6 +11,12 @@ class DevelopmentFixtureKind(StrEnum):
     LISTING = "listing"
     SUBMISSION = "submission"
     SUBMISSION_EVENT = "submission-event"
+    LISTING_INQUIRY = "listing-inquiry"
+    LISTING_INQUIRY_MESSAGE = "listing-inquiry-message"
+    SYSTEM_NOTIFICATION = "system-notification"
+    SUPPORT_REQUEST = "support-request"
+    SUPPORT_MESSAGE = "support-message"
+    SUPPORT_EVENT = "support-event"
 
 
 def development_fixture_id(kind: DevelopmentFixtureKind, index: int) -> uuid.UUID:
