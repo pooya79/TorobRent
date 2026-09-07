@@ -362,6 +362,8 @@ class RentalTermsComparisonSerializer(serializers.Serializer[Any]):
     calculation_version = serializers.CharField()
     annual_return_rate_percent = serializers.DecimalField(max_digits=5, decimal_places=2)
     monthly_opportunity_rate = serializers.DecimalField(max_digits=22, decimal_places=18)
+    is_negotiable = serializers.BooleanField()
+    is_convertible = serializers.BooleanField()
     deposit_rial = serializers.IntegerField(required=False)
     monthly_rent_rial = serializers.IntegerField(required=False)
     monthly_opportunity_cost_rial = serializers.IntegerField(required=False)
@@ -467,13 +469,11 @@ class PropertySummarySerializer(serializers.Serializer[Any]):
             "monthly_opportunity_rate": format(monthly_rate, ".18f"),
             "deposit_rial": int(deposit_rial),
             "monthly_rent_rial": int(monthly_rent_rial),
+            "is_negotiable": property_.selected_is_negotiable,  # type: ignore[attr-defined]
+            "is_convertible": property_.selected_is_convertible,  # type: ignore[attr-defined]
         }
         if property_.selected_currency != "IRR":  # type: ignore[attr-defined]
             return {**base, "eligibility": "unavailable", "explanation": "unsupported_currency"}
-        if property_.selected_is_negotiable:  # type: ignore[attr-defined]
-            return {**base, "eligibility": "unavailable", "explanation": "negotiable_terms"}
-        if property_.selected_is_convertible:  # type: ignore[attr-defined]
-            return {**base, "eligibility": "unavailable", "explanation": "convertible_terms"}
         opportunity_cost = deposit_rial * monthly_rate
         equivalent_cost = monthly_rent_rial + opportunity_cost
         return {

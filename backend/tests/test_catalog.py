@@ -836,7 +836,8 @@ def test_equivalent_monthly_cost_orders_properties_and_selects_one_complete_pair
                 source=source,
                 terms=RentalTerms.objects.create(
                     deposit_rial=1_000_000_000,
-                    monthly_rent_rial=360_000_000,
+                    monthly_rent_rial=200_000_000,
+                    is_convertible=True,
                 ),
                 state=ListingState.PUBLISHED,
                 direct_phone="۰۹۱۲۱۲۳۴۵۶۷",
@@ -859,12 +860,14 @@ def test_equivalent_monthly_cost_orders_properties_and_selects_one_complete_pair
         "calculation_version": "1",
         "annual_return_rate_percent": "12.00",
         "monthly_opportunity_rate": "0.009488792934582974",
-        "deposit_rial": 10_000_000_000,
-        "monthly_rent_rial": 250_000_000,
-        "monthly_opportunity_cost_rial": 94_887_929,
-        "equivalent_monthly_cost_rial": 344_887_929,
-        "monthly_opportunity_cost_toman": 9_488_793,
-        "equivalent_monthly_cost_toman": 34_488_793,
+        "deposit_rial": 1_000_000_000,
+        "monthly_rent_rial": 200_000_000,
+        "is_negotiable": False,
+        "is_convertible": True,
+        "monthly_opportunity_cost_rial": 9_488_793,
+        "equivalent_monthly_cost_rial": 209_488_793,
+        "monthly_opportunity_cost_toman": 948_879,
+        "equivalent_monthly_cost_toman": 20_948_879,
     }
 
 
@@ -921,6 +924,8 @@ def test_equivalent_monthly_cost_excludes_source_claims_and_preserves_hard_filte
         "monthly_opportunity_rate": "0.000000000000000000",
         "deposit_rial": 6_000_000_000,
         "monthly_rent_rial": 200_000_000,
+        "is_negotiable": False,
+        "is_convertible": False,
         "monthly_opportunity_cost_rial": 0,
         "equivalent_monthly_cost_rial": 200_000_000,
         "monthly_opportunity_cost_toman": 0,
@@ -930,14 +935,14 @@ def test_equivalent_monthly_cost_excludes_source_claims_and_preserves_hard_filte
 
 @pytest.mark.django_db
 @pytest.mark.parametrize(
-    ("term_flag", "explanation"),
+    "term_flag",
     [
-        ("is_negotiable", "negotiable_terms"),
-        ("is_convertible", "convertible_terms"),
+        "is_negotiable",
+        "is_convertible",
     ],
 )
-def test_equivalent_monthly_cost_keeps_source_claims_visible_but_ineligible(
-    api_client: APIClient, term_flag: str, explanation: str
+def test_equivalent_monthly_cost_calculates_flexible_source_claims(
+    api_client: APIClient, term_flag: str
 ):
     call_command("loaddata", "catalog_seed", verbosity=0)
     neighborhood = Neighborhood.objects.get(name_fa="سعادت‌آباد")
@@ -970,13 +975,19 @@ def test_equivalent_monthly_cost_keeps_source_claims_visible_but_ineligible(
     result = next(item for item in response.data["results"] if item["id"] == str(property_.id))
     assert result["rental_terms"]["deposit_rial"] == 5_000_000_000
     assert result["rental_terms_comparison"] == {
-        "eligibility": "unavailable",
-        "explanation": explanation,
+        "eligibility": "eligible",
+        "explanation": "calculated",
         "calculation_version": "1",
         "annual_return_rate_percent": "12.00",
         "monthly_opportunity_rate": "0.009488792934582974",
         "deposit_rial": 5_000_000_000,
         "monthly_rent_rial": 150_000_000,
+        "is_negotiable": term_flag == "is_negotiable",
+        "is_convertible": term_flag == "is_convertible",
+        "monthly_opportunity_cost_rial": 47_443_965,
+        "equivalent_monthly_cost_rial": 197_443_965,
+        "monthly_opportunity_cost_toman": 4_744_396,
+        "equivalent_monthly_cost_toman": 19_744_396,
     }
 
 

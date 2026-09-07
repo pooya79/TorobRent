@@ -21,9 +21,8 @@ export type PropertyCardData = {
   };
   rentalTermsComparison?: {
     eligibility: "eligible" | "unavailable";
-    explanation: string;
-    annualRateLabel: string;
-    monthlyOpportunityCostLabel?: string;
+    isNegotiable: boolean;
+    isConvertible: boolean;
     equivalentMonthlyCostLabel?: string;
   };
   navigation:
@@ -99,41 +98,31 @@ export function PropertyCard({
       </CardHeader>
       {property.rentalTerms ? (
         <CardContent className="space-y-1 px-0 pb-3 text-sm">
-          <p className="font-semibold">
-            ودیعه {property.rentalTerms.depositLabel}
-          </p>
+          <div className="flex items-center gap-2 font-semibold">
+            <p>ودیعه {property.rentalTerms.depositLabel}</p>
+            {property.rentalTermsComparison &&
+            (property.rentalTermsComparison.isNegotiable ||
+              property.rentalTermsComparison.isConvertible) ? (
+              <span className="text-muted-foreground text-xs font-normal">
+                {[
+                  property.rentalTermsComparison.isNegotiable && "قابل مذاکره",
+                  property.rentalTermsComparison.isConvertible && "قابل تبدیل",
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </span>
+            ) : null}
+          </div>
           <p>اجاره ماهانه {property.rentalTerms.monthlyRentLabel}</p>
           {property.rentalTermsComparison?.eligibility === "eligible" ? (
-            <div className="border-primary/20 mt-3 space-y-1 border-t pt-3">
-              <p className="text-primary font-semibold">
-                هزینه ماهانه برآوردی{" "}
+            <div className="mt-2 flex flex-wrap items-baseline justify-between gap-x-2 gap-y-1 border-t pt-2">
+              <span className="text-muted-foreground text-xs">
+                برآورد ماهانه
+              </span>
+              <span className="font-semibold tabular-nums">
                 {property.rentalTermsComparison.equivalentMonthlyCostLabel}
-              </p>
-              <p>
-                هزینه فرصت ودیعه{" "}
-                {property.rentalTermsComparison.monthlyOpportunityCostLabel}
-              </p>
-              <details className="text-muted-foreground relative z-10 text-xs">
-                <summary className="min-h-11 cursor-pointer py-3">
-                  فرمول و جزئیات محاسبه
-                </summary>
-                <p className="leading-6">
-                  اجاره ماهانه + هزینه فرصت ماهانه ودیعه، با فرض بازده موثر
-                  سالانه {property.rentalTermsComparison.annualRateLabel}. مبلغ
-                  ودیعه و اجاره از یک آگهی فعال انتخاب شده‌اند.
-                </p>
-                <p className="mt-1 leading-6">
-                  نرخ فرصت ماهانه = (۱ + نرخ موثر سالانه) به توان ۱/۱۲، منهای ۱.
-                  هزینه فرصت ودیعه = ودیعه × نرخ فرصت ماهانه.
-                </p>
-              </details>
+              </span>
             </div>
-          ) : property.rentalTermsComparison ? (
-            <p className="text-muted-foreground mt-3 border-t pt-3 text-xs leading-6">
-              {comparisonUnavailableMessage(
-                property.rentalTermsComparison.explanation,
-              )}
-            </p>
           ) : null}
           {property.otherOffersLabel ? (
             <p className="text-muted-foreground pt-1 text-xs">
@@ -144,14 +133,4 @@ export function PropertyCard({
       ) : null}
     </Card>
   );
-}
-
-function comparisonUnavailableMessage(explanation: string) {
-  if (explanation === "negotiable_terms") {
-    return "این شرایط به‌عنوان ادعای قابل مذاکره منبع، برای مقایسه عددی در دسترس نیست.";
-  }
-  if (explanation === "convertible_terms") {
-    return "این شرایط به‌عنوان ادعای قابل تبدیل منبع، برای مقایسه عددی در دسترس نیست.";
-  }
-  return "واحد پول این ادعای منبع برای مقایسه عددی پشتیبانی نمی‌شود.";
 }

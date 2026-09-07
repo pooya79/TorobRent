@@ -1189,6 +1189,8 @@ test("activates a zero-return comparison in the URL and renders server estimates
                 monthly_opportunity_rate: "0.000000000000000000",
                 deposit_rial: 10_000_000_000,
                 monthly_rent_rial: 250_000_000,
+                is_negotiable: false,
+                is_convertible: true,
                 monthly_opportunity_cost_rial: 0,
                 equivalent_monthly_cost_rial: 250_000_000,
                 monthly_opportunity_cost_toman: 0,
@@ -1201,9 +1203,10 @@ test("activates a zero-return comparison in the URL and renders server estimates
   );
   renderResults();
 
-  await user.click(
-    await screen.findByRole("button", { name: "سناریوی بازده صفر" }),
-  );
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "برآورد هزینه" }));
+  await user.type(screen.getByLabelText("بازده سالانه مورد انتظار"), "۰");
+  await user.click(screen.getByRole("button", { name: "محاسبه و مرتب‌سازی" }));
 
   await waitFor(() => {
     expect(requestedParams.get("annual_return_rate")).toBe("0");
@@ -1212,17 +1215,17 @@ test("activates a zero-return comparison in the URL and renders server estimates
   expect(screen.getByLabelText("وضعیت جست‌وجو")).toHaveTextContent(
     "annual_return_rate=0",
   );
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  const card = screen.getByRole("article", { name: "آپارتمان در سعادت‌آباد" });
+  expect(within(card).getByText("برآورد ماهانه")).toBeVisible();
+  expect(within(card).getByText("۲۵٬۰۰۰٬۰۰۰ تومان")).toBeVisible();
+  expect(within(card).getByText("قابل تبدیل")).toBeVisible();
   expect(
-    screen.getByText("هزینه ماهانه برآوردی ۲۵٬۰۰۰٬۰۰۰ تومان"),
-  ).toBeVisible();
-  expect(screen.getByText("هزینه فرصت ودیعه ۰ تومان")).toBeVisible();
-  expect(screen.getByText(/توصیه مالی یا سرمایه‌گذاری نیست/)).toBeVisible();
-  await user.click(screen.getByText("فرمول و جزئیات محاسبه"));
-  expect(
-    screen.getByText(/اجاره ماهانه \+ هزینه فرصت ماهانه ودیعه/),
-  ).toBeVisible();
-
-  await user.click(screen.getByRole("button", { name: "پاک کردن سناریو" }));
+    within(card).queryByText(/هزینه فرصت ودیعه|فرمول و جزئیات/),
+  ).toBeNull();
+  await user.click(screen.getByRole("button", { name: /برآورد هزینه.*۰/ }));
+  expect(screen.getByLabelText("بازده سالانه مورد انتظار")).toHaveValue("۰");
+  await user.click(screen.getByRole("button", { name: "حذف برآورد" }));
   await waitFor(() => {
     expect(screen.getByLabelText("وضعیت جست‌وجو")).not.toHaveTextContent(
       "annual_return_rate",
@@ -1231,7 +1234,7 @@ test("activates a zero-return comparison in the URL and renders server estimates
       "ordering",
     );
   });
-  expect(screen.queryByText(/هزینه ماهانه برآوردی/)).toBeNull();
+  expect(screen.queryByText("برآورد ماهانه")).toBeNull();
 });
 
 test("validates and applies a custom annual return assumption", async () => {
@@ -1247,7 +1250,8 @@ test("validates and applies a custom annual return assumption", async () => {
   );
   renderResults();
 
-  const rate = await screen.findByLabelText("فرض بازده موثر سالانه");
+  await user.click(screen.getByRole("button", { name: "برآورد هزینه" }));
+  const rate = await screen.findByLabelText("بازده سالانه مورد انتظار");
   await user.type(rate, "۵۰۰٫۰۱");
   await user.click(screen.getByRole("button", { name: "محاسبه و مرتب‌سازی" }));
   expect(rate).toBeInvalid();
@@ -1260,6 +1264,16 @@ test("validates and applies a custom annual return assumption", async () => {
   await user.type(rate, "۱۲٫۵");
   await user.click(screen.getByRole("button", { name: "محاسبه و مرتب‌سازی" }));
   await waitFor(() => expect(requestedRate).toBe("12.5"));
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: /برآورد هزینه.*۱۲/ }));
+  const reopenedRate = screen.getByLabelText("بازده سالانه مورد انتظار");
+  expect(reopenedRate).toHaveValue("۱۲.۵");
+  await user.clear(reopenedRate);
+  await user.type(reopenedRate, "۴۰");
+  await user.keyboard("{Escape}");
+  await user.click(screen.getByRole("button", { name: /برآورد هزینه.*۱۲/ }));
+  expect(screen.getByLabelText("بازده سالانه مورد انتظار")).toHaveValue("۱۲.۵");
+  await user.keyboard("{Escape}");
   expect(screen.getByLabelText("وضعیت جست‌وجو")).toHaveTextContent(
     "annual_return_rate=12.5",
   );

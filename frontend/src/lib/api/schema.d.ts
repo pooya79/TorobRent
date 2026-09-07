@@ -3531,6 +3531,8 @@ export interface components {
       annual_return_rate_percent: string;
       /** Format: decimal */
       monthly_opportunity_rate: string;
+      is_negotiable: boolean;
+      is_convertible: boolean;
       deposit_rial?: number;
       monthly_rent_rial?: number;
       monthly_opportunity_cost_rial?: number;

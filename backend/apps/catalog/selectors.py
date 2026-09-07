@@ -260,14 +260,6 @@ def _primary_property_image_variant() -> QuerySet[PropertyImageVariant]:
     )
 
 
-def _eligible_rental_terms_condition(prefix: str = "terms__") -> Q:
-    return Q(**{
-        f"{prefix}is_negotiable": False,
-        f"{prefix}is_convertible": False,
-        f"{prefix}currency": "IRR",
-    })
-
-
 def search_properties(
     filters: PropertySearchFilters | None = None,
     *,
@@ -299,24 +291,8 @@ def search_properties(
             output_field=DecimalField(max_digits=40, decimal_places=18),
         )
         selected_listing = active_listings.annotate(
-            comparison_ineligible=Case(
-                When(
-                    _eligible_rental_terms_condition(),
-                    then=Value(0),
-                ),
-                default=Value(1),
-                output_field=IntegerField(),
-            ),
-            equivalent_monthly_cost=Case(
-                When(
-                    _eligible_rental_terms_condition(),
-                    then=equivalent_cost,
-                ),
-                default=None,
-                output_field=DecimalField(max_digits=40, decimal_places=18),
-            ),
+            equivalent_monthly_cost=equivalent_cost,
         ).order_by(
-            "comparison_ineligible",
             "equivalent_monthly_cost",
             "-availability_confirmed_at",
             "id",
@@ -444,22 +420,9 @@ def search_properties(
             output_field=DecimalField(max_digits=40, decimal_places=18),
         )
         properties = properties.annotate(
-            selected_comparison_ineligible=Case(
-                When(
-                    _eligible_rental_terms_condition("selected_"),
-                    then=Value(0),
-                ),
-                default=Value(1),
-                output_field=IntegerField(),
-            ),
-            selected_equivalent_monthly_cost=Case(
-                When(selected_comparison_ineligible=0, then=selected_equivalent_cost),
-                default=None,
-                output_field=DecimalField(max_digits=40, decimal_places=18),
-            ),
+            selected_equivalent_monthly_cost=selected_equivalent_cost,
         )
         return properties.order_by(
-            "selected_comparison_ineligible",
             "selected_equivalent_monthly_cost",
             "-selected_availability_confirmed_at",
             "id",

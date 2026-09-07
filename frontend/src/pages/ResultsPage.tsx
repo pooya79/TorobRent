@@ -140,12 +140,8 @@ function toCardData(
     rentalTermsComparison: comparison
       ? {
           eligibility: comparison.eligibility,
-          explanation: comparison.explanation,
-          annualRateLabel: `${formatNumber(Number(comparison.annual_return_rate_percent))} درصد`,
-          monthlyOpportunityCostLabel:
-            comparison.monthly_opportunity_cost_toman === undefined
-              ? undefined
-              : `${formatNumber(comparison.monthly_opportunity_cost_toman)} تومان`,
+          isNegotiable: comparison.is_negotiable,
+          isConvertible: comparison.is_convertible,
           equivalentMonthlyCostLabel:
             comparison.equivalent_monthly_cost_toman === undefined
               ? undefined
@@ -298,7 +294,7 @@ function AdvancedFiltersSheet({
   return (
     <Sheet open={open} onOpenChange={changeOpen}>
       <SheetTrigger asChild>
-        <Button variant="outline">
+        <Button variant="outline" className="px-2 sm:px-4">
           <SlidersHorizontal aria-hidden="true" /> فیلترهای پیشرفته
         </Button>
       </SheetTrigger>
@@ -609,12 +605,6 @@ export function ResultsPage({ mapAdapter }: { mapAdapter?: MapAdapter }) {
         </div>
       )}
 
-      <RentalTermsComparison
-        key={searchParams.get("annual_return_rate") ?? "comparison-off"}
-        searchParams={searchParams}
-        setSearchParams={setSearchParams}
-      />
-
       <div className="flex min-h-0 flex-1 flex-col">
         <div className="mb-3 flex shrink-0 flex-wrap items-center justify-between gap-2">
           <p className="text-muted-foreground text-sm" aria-live="polite">
@@ -635,7 +625,7 @@ export function ResultsPage({ mapAdapter }: { mapAdapter?: MapAdapter }) {
               "جست‌وجوی ملک‌ها"
             )}
           </p>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {mapAvailable ? (
               search.data ? (
                 <Sheet open={mobileMapOpen} onOpenChange={setMobileMapOpen}>
@@ -665,12 +655,18 @@ export function ResultsPage({ mapAdapter }: { mapAdapter?: MapAdapter }) {
                 </Button>
               )
             ) : null}
-            <AdvancedFiltersSheet
-              open={filtersOpen}
-              onOpenChange={setFiltersOpen}
-              searchParams={searchParams}
-              setSearchParams={setSearchParams}
-            />
+            <div className="flex items-center gap-2">
+              <AdvancedFiltersSheet
+                open={filtersOpen}
+                onOpenChange={setFiltersOpen}
+                searchParams={searchParams}
+                setSearchParams={setSearchParams}
+              />
+              <RentalTermsComparison
+                searchParams={searchParams}
+                setSearchParams={setSearchParams}
+              />
+            </div>
           </div>
         </div>
         <div

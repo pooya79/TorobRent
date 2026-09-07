@@ -1,3 +1,11 @@
+import { Calculator } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { type FormEvent, useState } from "react";
 import type { SetURLSearchParams } from "react-router";
 
@@ -27,6 +35,7 @@ export function RentalTermsComparison({
   const selectedRate = searchParams.get("annual_return_rate");
   const [draftRate, setDraftRate] = useState(() => persianDigits(selectedRate));
   const [error, setError] = useState("");
+  const [open, setOpen] = useState(false);
 
   const applyRate = (rate: string) => {
     const next = new URLSearchParams(searchParams);
@@ -34,6 +43,7 @@ export function RentalTermsComparison({
     next.set("ordering", "equivalent_monthly_cost");
     next.delete("page");
     setSearchParams(next);
+    setOpen(false);
   };
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
@@ -55,38 +65,75 @@ export function RentalTermsComparison({
     }
     next.delete("page");
     setSearchParams(next);
+    setOpen(false);
   };
 
   return (
-    <section className="bg-muted/50 mb-3 shrink-0 rounded-xl border p-3">
-      <details open={selectedRate !== null}>
-        <summary className="min-h-11 cursor-pointer py-2 font-semibold">
-          مقایسه شرایط اجاره با هزینه فرصت ودیعه
-        </summary>
-        <form
-          className="mt-2 grid gap-3 sm:grid-cols-[1fr_auto_auto]"
-          onSubmit={submit}
+    <Dialog
+      open={open}
+      onOpenChange={(nextOpen) => {
+        setDraftRate(persianDigits(selectedRate));
+        setError("");
+        setOpen(nextOpen);
+      }}
+    >
+      <DialogTrigger asChild>
+        <Button
+          variant="outline"
+          className={`px-2 sm:px-4 ${selectedRate !== null ? "bg-muted" : ""}`}
         >
-          <div className="space-y-1">
-            <Label htmlFor="annual-return-rate">فرض بازده موثر سالانه</Label>
-            <div className="flex items-center gap-2">
+          <Calculator className="hidden sm:block" aria-hidden="true" />
+          برآورد هزینه
+          {selectedRate !== null ? (
+            <span className="bg-foreground/10 rounded px-1.5 py-0.5 text-xs tabular-nums">
+              {formatRate(selectedRate)}٪
+              <span className="sr-only"> بازده سالانه، فعال</span>
+            </span>
+          ) : null}
+        </Button>
+      </DialogTrigger>
+      <DialogContent
+        dir="rtl"
+        className="max-h-[calc(100dvh-2rem)] max-w-md overflow-y-auto"
+      >
+        <DialogTitle className="pe-8">برآورد هزینه ماهانه</DialogTitle>
+        <DialogDescription>
+          ودیعه بیشتر یا اجاره بیشتر؟ با وارد کردن بازده سالانه مورد انتظار،
+          هزینه ماهانه ملک‌ها را با هم مقایسه کنید.
+        </DialogDescription>
+        <form className="space-y-5" onSubmit={submit}>
+          <div className="space-y-2">
+            <Label htmlFor="annual-return-rate">بازده سالانه مورد انتظار</Label>
+            <div className="relative">
               <Input
                 id="annual-return-rate"
                 inputMode="decimal"
+                autoComplete="off"
+                placeholder="مثلا ۳۰"
+                className="pe-14 tabular-nums"
                 value={draftRate}
                 aria-invalid={Boolean(error)}
                 aria-describedby={
-                  error ? "annual-return-rate-error" : "annual-return-rate-help"
+                  error
+                    ? "annual-return-rate-help annual-return-rate-error"
+                    : "annual-return-rate-help"
                 }
                 onChange={(event) => {
                   setDraftRate(event.currentTarget.value);
                   setError("");
                 }}
               />
-              <span id="annual-return-rate-help" className="text-sm">
+              <span className="text-muted-foreground pointer-events-none absolute inset-y-0 end-3 flex items-center text-sm">
                 درصد
               </span>
             </div>
+            <p
+              id="annual-return-rate-help"
+              className="text-muted-foreground text-xs leading-6"
+            >
+              بازدهی که انتظار دارید در یک سال از مبلغ ودیعه به دست آورید. برای
+              مقایسه فقط بر اساس اجاره، صفر وارد کنید.
+            </p>
             {error ? (
               <p
                 id="annual-return-rate-error"
@@ -97,33 +144,35 @@ export function RentalTermsComparison({
               </p>
             ) : null}
           </div>
-          <Button type="submit" className="self-end">
-            محاسبه و مرتب‌سازی
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            className="self-end"
-            onClick={() => applyRate("0")}
-          >
-            سناریوی بازده صفر
-          </Button>
-        </form>
-        {selectedRate !== null ? (
-          <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-sm">
-            <p>فرض فعال: بازده موثر سالانه {formatRate(selectedRate)} درصد</p>
-            <Button type="button" size="sm" variant="ghost" onClick={clear}>
-              پاک کردن سناریو
-            </Button>
+          <div className="bg-muted/60 space-y-2 rounded-lg p-3 text-xs leading-6">
+            <p className="font-medium">
+              برآورد ماهانه = اجاره + بازده ماهانه مبلغ ودیعه
+            </p>
+            <p className="text-muted-foreground">
+              این مبلغ برای مقایسه است و اجاره پرداختی شما نیست. بازده ماهانه از
+              نرخ موثر سالانه محاسبه می‌شود و قطعی نیست. مبنا، ودیعه و اجاره یک
+              آگهی فعال از هر ملک است.
+            </p>
           </div>
-        ) : null}
-      </details>
-      <p className="text-muted-foreground mt-2 text-xs leading-6">
-        این برآورد، سناریوی هزینه فرصت برای ودیعه قابل بازگشت طبق شرایط آگهی
-        است؛ بازده واقعی نامطمئن است و این ابزار توصیه مالی یا سرمایه‌گذاری
-        نیست.
-      </p>
-    </section>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="submit"
+              className="bg-foreground text-background hover:bg-foreground/90 flex-1"
+            >
+              محاسبه و مرتب‌سازی
+            </Button>
+            {selectedRate !== null ? (
+              <Button type="button" variant="outline" onClick={clear}>
+                حذف برآورد
+              </Button>
+            ) : null}
+          </div>
+          <p className="text-muted-foreground text-xs">
+            نتایج از کمترین هزینه برآوردی مرتب می‌شوند.
+          </p>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }
 

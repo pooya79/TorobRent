@@ -7512,6 +7512,10 @@ components:
           type: string
           format: decimal
           pattern: ^-?\d{0,4}(?:\.\d{0,18})?$
+        is_negotiable:
+          type: boolean
+        is_convertible:
+          type: boolean
         deposit_rial:
           type: integer
         monthly_rent_rial:
@@ -7529,6 +7533,8 @@ components:
       - calculation_version
       - eligibility
       - explanation
+      - is_convertible
+      - is_negotiable
       - monthly_opportunity_rate
     RentalTermsInput:
       type: object
