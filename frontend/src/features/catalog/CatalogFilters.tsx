@@ -464,6 +464,8 @@ export function CatalogFilters({
             }
             onValueChange={(value) => {
               const next = new URLSearchParams(searchParams);
+              if (value !== "preference_fit")
+                next.set("preference_return_ordering", value);
               if (value === "newest") next.delete("ordering");
               else next.set("ordering", value);
               next.delete("page");
@@ -474,6 +476,11 @@ export function CatalogFilters({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
+              {searchParams.has("preferences") && (
+                <SelectItem value="preference_fit">
+                  تناسب با ترجیحات من
+                </SelectItem>
+              )}
               <SelectItem value="newest">جدیدترین</SelectItem>
               <SelectItem value="monthly_rent">کمترین اجاره ماهانه</SelectItem>
               <SelectItem value="deposit">کمترین ودیعه</SelectItem>

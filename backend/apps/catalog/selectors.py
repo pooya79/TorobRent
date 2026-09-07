@@ -22,6 +22,7 @@ from django.db.models import (
     When,
 )
 from django.db.models.functions import Replace
+from django.utils import timezone
 
 from .models import (
     PROPERTY_TYPES_BY_CATEGORY,
@@ -36,6 +37,7 @@ from .models import (
     PropertyImageVariant,
     PropertyType,
 )
+from .preferences import FEATURES, Preference, assess_preferences
 from .rental_terms_comparison import monthly_opportunity_rate
 
 PERSIAN_SEARCH_REPLACEMENTS = (
@@ -71,6 +73,7 @@ class CatalogStatistics:
 
 
 class SearchOrdering(StrEnum):
+    PREFERENCE_FIT = "preference_fit"
     NEWEST = "newest"
     MONTHLY_RENT = "monthly_rent"
     DEPOSIT = "deposit"
@@ -127,6 +130,7 @@ class MapViewportBounds:
 
 @dataclass(frozen=True)
 class PropertySearchFilters:
+    preferences: tuple[Preference, ...] = ()
     location: str = ""
     district_ids: tuple[uuid.UUID, ...] = ()
     neighborhood_ids: tuple[uuid.UUID, ...] = ()
@@ -277,7 +281,11 @@ def search_properties(
         lookup: value for lookup, value in listing_ranges.items() if value is not None
     })
 
-    ordering_spec = SEARCH_ORDERING_SPECS.get(filters.ordering)
+    ordering_spec = SEARCH_ORDERING_SPECS.get(
+        SearchOrdering.NEWEST
+        if filters.ordering == SearchOrdering.PREFERENCE_FIT
+        else filters.ordering
+    )
     comparison_rate = (
         monthly_opportunity_rate(filters.annual_return_rate)
         if filters.annual_return_rate is not None
@@ -561,3 +569,75 @@ def catalog_facets(filters: PropertySearchFilters) -> dict[str, Any]:
         "bedroom_counts": bedroom_counts,
         "features": features,
     }
+
+
+def rank_search_properties(
+    properties: QuerySet[Property],
+    filters: PropertySearchFilters,
+) -> list[Property]:
+    """Rank the full eligible set in two queries, keeping every terms pair intact."""
+    rows = list(properties)
+    if not rows:
+        return rows
+    listings = (
+        Listing.objects
+        .active()
+        .filter(property_id__in=[row.id for row in rows])
+        .select_related("terms")
+    )
+    ranges = {
+        "terms__deposit_rial__gte": filters.deposit_min_rial,
+        "terms__deposit_rial__lte": filters.deposit_max_rial,
+        "terms__monthly_rent_rial__gte": filters.monthly_rent_min_rial,
+        "terms__monthly_rent_rial__lte": filters.monthly_rent_max_rial,
+    }
+    listings = listings.filter(**{key: value for key, value in ranges.items() if value is not None})
+    by_property: dict[uuid.UUID, list[Listing]] = {}
+    for listing in listings.order_by(F("availability_confirmed_at").desc(nulls_last=True), "id"):
+        by_property.setdefault(listing.property_id, []).append(listing)
+    as_of = timezone.now()
+    ranked = []
+    for property_ in rows:
+        facts = {
+            "property_type": property_.property_type,
+            "district": property_.district_id,
+            "neighborhood": property_.neighborhood_id,
+            "area": property_.area_sqm,
+            "bedroom_count": property_.room_count,
+            "construction_year": property_.construction_year,
+            **{feature: getattr(property_, feature) for feature in FEATURES},
+        }
+        candidates = []
+        for listing in by_property.get(property_.id, []):
+            score, assessment = assess_preferences(
+                {
+                    **facts,
+                    "listing_id": listing.id,
+                    "monthly_rent": listing.terms.monthly_rent_rial // 10,
+                    "deposit": listing.terms.deposit_rial // 10,
+                    "freshness": listing.availability_confirmed_at,
+                },
+                filters.preferences,
+                as_of=as_of,
+            )
+            candidates.append((score, listing, assessment))
+        if not candidates:
+            # Availability may expire or be withdrawn between the two queries.
+            continue
+        score, selected, assessment = max(candidates, key=lambda candidate: candidate[0])
+        for name, value in {
+            "selected_listing_id": selected.id,
+            "selected_availability_confirmed_at": selected.availability_confirmed_at,
+            "selected_deposit_rial": selected.terms.deposit_rial,
+            "selected_monthly_rent_rial": selected.terms.monthly_rent_rial,
+            "selected_currency": selected.terms.currency,
+            "selected_is_negotiable": selected.terms.is_negotiable,
+            "selected_is_convertible": selected.terms.is_convertible,
+            "preference_assessment": assessment,
+        }.items():
+            setattr(property_, name, value)
+        ranked.append((score, selected.availability_confirmed_at, property_))
+    ranked.sort(
+        key=lambda row: (-row[0], -row[1].timestamp() if row[1] else float("inf"), row[2].id)
+    )
+    return [row[2] for row in ranked]

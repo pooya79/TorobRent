@@ -1,3 +1,4 @@
+import { fitAppearance } from "./fit-appearance";
 import Feature from "@neshan-maps-platform/ol/Feature";
 import CircleGeometry from "@neshan-maps-platform/ol/geom/Circle";
 import Point from "@neshan-maps-platform/ol/geom/Point";
@@ -93,13 +94,22 @@ function viewportFromMap(map: ProviderMap): MapViewport | null {
   };
 }
 
-function markerStyle(selected: boolean, label: string, showLabel: boolean) {
-  const color = selected ? "#222222" : "#e00b41";
+function markerStyle(
+  selected: boolean,
+  label: string,
+  showLabel: boolean,
+  fitBand?: "high" | "reasonable" | "weak" | null,
+) {
+  const appearance = fitAppearance(fitBand, selected);
+  const { color } = appearance;
   const marker = new Style({
     image: new CircleStyle({
-      radius: selected ? 6 : 5,
-      fill: new Fill({ color }),
-      stroke: new Stroke({ color: "#ffffff", width: 2 }),
+      radius: appearance.radius,
+      fill: new Fill({ color: appearance.fill }),
+      stroke: new Stroke({
+        color: appearance.outline,
+        width: appearance.outlineWidth,
+      }),
     }),
   });
   if (!showLabel) return marker;
@@ -108,7 +118,7 @@ function markerStyle(selected: boolean, label: string, showLabel: boolean) {
     marker,
     new Style({
       text: new Text({
-        text: `\u2066${deposit} | ${monthlyRent}\u2069`,
+        text: `\u2066${deposit} | ${monthlyRent}\u2069${appearance.label}`,
         offsetY: -23,
         textAlign: "center",
         font: "700 10px system-ui",
@@ -217,6 +227,7 @@ export function NeshanMapAdapter({
   useEffect(() => {
     if (!map) return;
     const target = map.getTargetElement();
+    if (!target) return;
     const markUserMovement = () => {
       userMovementRef.current = true;
     };
@@ -327,6 +338,7 @@ export function NeshanMapAdapter({
             ? `${marker.mapPrices.deposit}|${marker.mapPrices.monthlyRent}`
             : "",
           Boolean(marker) && markerLabelIsVisible(),
+          marker?.fitBand,
         );
       },
     });
@@ -410,7 +422,7 @@ export function NeshanMapAdapter({
                 type="button"
                 className="bg-card focus-visible:ring-ring rounded-md border px-3 py-2 text-start shadow-sm focus-visible:ring-2 focus-visible:outline-none"
                 aria-pressed={selectedPropertyId === marker.propertyId}
-                aria-label={`انتخاب ${marker.preview.title} با صفحه‌کلید`}
+                aria-label={`انتخاب ${marker.preview.title} با صفحه‌کلید${fitAppearance(marker.fitBand, false).label}`}
                 onClick={() => {
                   onSelectProperty(marker.propertyId);
                   onPreviewProperty(marker.propertyId);

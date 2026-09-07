@@ -1,3 +1,5 @@
+import { PreferenceFit } from "@/features/catalog/PreferenceFit";
+import type { PreferenceAssessment } from "@/features/catalog/preferences";
 import { Building2, MapPin } from "lucide-react";
 import { Link } from "react-router";
 
@@ -6,6 +8,7 @@ import { FavoriteButton } from "@/features/catalog/FavoriteButton";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 export type PropertyCardData = {
+  preferenceAssessment?: PreferenceAssessment;
   id: string;
   title: string;
   location: string;
@@ -75,6 +78,9 @@ export function PropertyCard({
           </Badge>
         ) : null}
       </div>
+      {property.preferenceAssessment && (
+        <PreferenceFit assessment={property.preferenceAssessment} />
+      )}
       <CardHeader className="gap-2 px-0 pt-3 pb-2">
         <div className="text-muted-foreground flex items-center gap-1 text-sm">
           <MapPin className="size-4" aria-hidden="true" />

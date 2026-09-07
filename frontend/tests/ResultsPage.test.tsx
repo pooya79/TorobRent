@@ -2403,3 +2403,102 @@ test("preserves exact toman amounts while editing units, applying, and reopening
   expect(within(panel).getByLabelText("حداکثر ودیعه")).toHaveValue("");
   expect(within(panel).getByLabelText("حداکثر ودیعه")).toBeValid();
 });
+
+test("applies explicit priorities in the URL and restores canonical order on reset", async () => {
+  const user = userEvent.setup();
+  const requests: URLSearchParams[] = [];
+  server.use(
+    http.get("*/api/v1/catalog/properties/", ({ request }) => {
+      requests.push(new URL(request.url).searchParams);
+      return HttpResponse.json(propertySearchPage);
+    }),
+  );
+  renderResults("/search?ordering=deposit&area_min=50");
+  await user.click(await screen.findByRole("button", { name: "ترجیحات من" }));
+  await user.selectOptions(
+    screen.getByLabelText("اهمیت آسانسور"),
+    "very_important",
+  );
+  await user.click(
+    screen.getByRole("button", { name: "اعمال و مرتب‌سازی ترجیحات" }),
+  );
+  await waitFor(() =>
+    expect(requests.at(-1)?.get("ordering")).toBe("preference_fit"),
+  );
+  expect(JSON.parse(requests.at(-1)!.get("preferences")!)).toMatchObject({
+    elevator: { priority: "very_important", target: "present" },
+  });
+  expect(requests.at(-1)?.get("area_min")).toBe("50");
+  await user.click(screen.getByRole("button", { name: "ترجیحات من" }));
+  await user.click(screen.getByRole("button", { name: "بازنشانی ترجیحات" }));
+  await waitFor(() =>
+    expect(screen.getByLabelText("وضعیت جست‌وجو")).toHaveTextContent(
+      "ordering=deposit",
+    ),
+  );
+  expect(screen.getByLabelText("وضعیت جست‌وجو").textContent).not.toContain(
+    "preferences=",
+  );
+});
+
+test("renders returned preference evidence outside the map and passes the same band to its adapter", async () => {
+  const user = userEvent.setup();
+  const assessment = {
+    version: "explicit-v1",
+    band: "high" as const,
+    satisfied: ["elevator" as const],
+    trade_offs: ["deposit" as const],
+    unknown: ["parking" as const],
+    selected_listing_id: "10000000-0000-4000-8000-000000000001",
+  };
+  const row = {
+    ...propertySearchPage.results[0]!,
+    preference_assessment: assessment,
+  };
+  let received: MapAdapterProps | undefined;
+  const Adapter: MapAdapter = (props) => {
+    received = props;
+    return null;
+  };
+  server.use(
+    http.get("*/api/v1/catalog/properties/", () =>
+      HttpResponse.json({
+        ...propertySearchPage,
+        results: [row],
+        map: { ...propertySearchPage.map, markers: [row] },
+      }),
+    ),
+  );
+  renderResults("/search?ordering=preference_fit", Adapter);
+  const summary = await screen.findByText("تناسب زیاد با ترجیحات شما");
+  await user.click(summary);
+  expect(screen.getByText("هم‌راستا با خواسته شما: آسانسور")).toBeVisible();
+  expect(screen.getByText("اطلاعات نامشخص: پارکینگ")).toBeVisible();
+  expect(
+    screen.getByText(/فاصله از خواسته شما، به ترتیب اهمیت: ودیعه کمتر/),
+  ).toBeVisible();
+  await waitFor(() => expect(received?.markers[0]?.fitBand).toBe("high"));
+  expect(received?.markers[0]?.label).toContain("تناسب زیاد");
+});
+
+test("restores focus after keyboard dismissal of preferences and retains malformed settings for correction", async () => {
+  const user = userEvent.setup();
+  server.use(
+    http.get("*/api/v1/catalog/properties/", () =>
+      HttpResponse.json({
+        ...propertySearchPage,
+        ignored_preferences: ["area"],
+      }),
+    ),
+  );
+  renderResults("/search?ordering=preference_fit&preferences=broken");
+  expect(await screen.findByText(/بعضی ترجیحات نامعتبر/)).toBeVisible();
+  const trigger = screen.getByRole("button", { name: "ترجیحات من" });
+  await user.click(trigger);
+  expect(screen.getByRole("dialog", { name: "ترجیحات من" })).toBeVisible();
+  await user.keyboard("{Escape}");
+  expect(trigger).toHaveFocus();
+  expect(screen.getByLabelText("وضعیت جست‌وجو")).toHaveTextContent(
+    "preferences=broken",
+  );
+});

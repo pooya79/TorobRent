@@ -32,11 +32,14 @@ from .models import (
     ProductEventType,
     Property,
 )
+from .preferences import parse_preferences
 from .selectors import (
+    SearchOrdering,
     autocomplete_locations,
     catalog_facets,
     catalog_statistics,
     favorite_properties,
+    rank_search_properties,
     search_properties,
     supported_cities,
 )
@@ -202,19 +205,38 @@ class PropertySearchView(ListAPIView[Property]):
         filters = query.validated_filters()
         account_id = request.user.pk if request.user.is_authenticated else None
         queryset = search_properties(filters, favorite_account_id=account_id)
-        page = self.paginate_queryset(queryset)
+        ranked = (
+            rank_search_properties(queryset, filters)
+            if filters.ordering == SearchOrdering.PREFERENCE_FIT
+            else None
+        )
+        page = self.paginate_queryset(ranked if ranked is not None else queryset)
         if page is None:
             raise RuntimeError("Catalog search pagination must be configured")
         response = self.get_paginated_response(self.get_serializer(page, many=True).data)
         response.data["facets"] = CatalogFacetsSerializer(catalog_facets(filters)).data
-        mappable_properties = list(
-            search_properties(filters, favorite_account_id=account_id)
-            .filter(
-                approximate_latitude__isnull=False,
-                approximate_longitude__isnull=False,
-                location_radius_meters__isnull=False,
+        response.data["ignored_preferences"] = parse_preferences(
+            query.validated_data.get("preferences", "")
+        )[1]
+        mappable_properties = (
+            [
+                row
+                for row in ranked
+                if row.approximate_latitude is not None
+                and row.approximate_longitude is not None
+                and row.location_radius_meters is not None
+                and row.location_precision
+            ]
+            if ranked is not None
+            else list(
+                search_properties(filters, favorite_account_id=account_id)
+                .filter(
+                    approximate_latitude__isnull=False,
+                    approximate_longitude__isnull=False,
+                    location_radius_meters__isnull=False,
+                )
+                .exclude(location_precision="")
             )
-            .exclude(location_precision="")
         )
         zoom = filters.viewport.zoom if filters.viewport is not None else 10
         response.data["map"] = CatalogMapSerializer(

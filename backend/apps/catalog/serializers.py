@@ -17,6 +17,7 @@ from .models import (
     property_category_for_type,
 )
 from .money import parse_localized_integer, rial_to_toman, toman_to_rial
+from .preferences import PREFERENCE_IDS, parse_preferences
 from .rental_terms_comparison import (
     CALCULATION_VERSION,
     monthly_opportunity_rate,
@@ -154,6 +155,17 @@ class SearchOrderingQueryField(serializers.ChoiceField):
 
 
 class PropertySearchQuerySerializer(serializers.Serializer[Any]):
+    preferences = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        trim_whitespace=False,
+        help_text=(
+            "Bounded JSON object keyed by preference identifier; each value has priority "
+            "(very_important, preferred, unimportant) and target. Rental Terms targets are in "
+            "toman; freshness is days; district/neighborhood targets are up to 22 UUIDs. "
+            "Invalid entries are ignored and reported."
+        ),
+    )
     location = serializers.CharField(required=False, allow_blank=True)
     district = serializers.ListField(required=False, child=serializers.UUIDField())
     neighborhood = serializers.ListField(required=False, child=serializers.UUIDField())
@@ -310,6 +322,7 @@ class PropertySearchQuerySerializer(serializers.Serializer[Any]):
                 zoom=data.get("viewport_zoom", 11),
             )
         return PropertySearchFilters(
+            preferences=parse_preferences(data.get("preferences", ""))[0],
             location=data.get("location", ""),
             district_ids=tuple(data.get("district", ())),
             neighborhood_ids=tuple(data.get("neighborhood", ())),
@@ -398,7 +411,17 @@ def property_location_data(property_: Property) -> dict[str, Any]:
     }
 
 
+class PreferenceAssessmentSerializer(serializers.Serializer[Any]):
+    version = serializers.CharField()
+    band = serializers.ChoiceField(choices=("high", "reasonable", "weak"), allow_null=True)
+    satisfied = serializers.ListField(child=serializers.ChoiceField(choices=PREFERENCE_IDS))
+    trade_offs = serializers.ListField(child=serializers.ChoiceField(choices=PREFERENCE_IDS))
+    unknown = serializers.ListField(child=serializers.ChoiceField(choices=PREFERENCE_IDS))
+    selected_listing_id = serializers.UUIDField()
+
+
 class PropertySummarySerializer(serializers.Serializer[Any]):
+    preference_assessment = PreferenceAssessmentSerializer(required=False)
     id = serializers.UUIDField()
     title = serializers.CharField()
     canonical_slug = serializers.CharField()
@@ -560,6 +583,7 @@ class CatalogMapSerializer(serializers.Serializer[Any]):
 
 @extend_schema_serializer(many=False)
 class PropertySearchPageSerializer(serializers.Serializer[Any]):
+    ignored_preferences = serializers.ListField(child=serializers.CharField(), required=False)
     count = serializers.IntegerField(min_value=0)
     next = serializers.URLField(allow_null=True)
     previous = serializers.URLField(allow_null=True)

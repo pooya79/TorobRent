@@ -320,3 +320,33 @@ test("the production adapter exposes keyboard-selectable Property markers", asyn
   expect(onSelectProperty).toHaveBeenCalledWith(marker.propertyId);
   expect(onPreviewProperty).toHaveBeenCalledWith(marker.propertyId);
 });
+
+test.each([NeshanMapAdapter, OpenStreetMapAdapter])(
+  "real map provider includes fit in the accessible marker name",
+  (Adapter) => {
+    render(
+      <Adapter
+        initialViewport={{
+          north: 35.82,
+          east: 51.52,
+          south: 35.65,
+          west: 51.25,
+          zoom: 14,
+        }}
+        markers={[{ ...marker, fitBand: "high" }]}
+        clusters={[]}
+        selectedPropertyId={null}
+        retryToken={0}
+        onReady={vi.fn()}
+        onError={vi.fn()}
+        onViewportChange={vi.fn()}
+        onSelectProperty={vi.fn()}
+        onPreviewProperty={vi.fn()}
+        onSelectCluster={vi.fn()}
+      />,
+    );
+    expect(
+      screen.getByRole("button", { name: /تناسب زیاد/ }),
+    ).toBeInTheDocument();
+  },
+);

@@ -34,6 +34,7 @@ export type MapPropertyPreview = {
 };
 
 export type MapMarker = {
+  fitBand?: "high" | "reasonable" | "weak" | null;
   propertyId: string;
   label: string;
   mapPrices: {

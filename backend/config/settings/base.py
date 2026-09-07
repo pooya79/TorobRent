@@ -192,6 +192,7 @@ SPECTACULAR_SETTINGS = {
     "OAS_VERSION": "3.1.0",
     "SERVE_INCLUDE_SCHEMA": False,
     "ENUM_NAME_OVERRIDES": {
+        "PreferenceIdentifierEnum": "apps.catalog.preferences.PREFERENCE_IDS",
         "ConversationReportDecisionEnum": (
             "apps.communications.models.ConversationReportDecision.choices"
         ),

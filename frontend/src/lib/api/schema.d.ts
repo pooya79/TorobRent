@@ -2014,6 +2014,7 @@ export interface components {
       blocked: boolean;
     };
     ActiveFavoriteSummary: {
+      preference_assessment?: components["schemas"]["PreferenceAssessment"];
       /** Format: uuid */
       id: string;
       title: string;
@@ -2104,6 +2105,13 @@ export interface components {
       available_until: string | null;
       expiring_soon: boolean;
     };
+    /**
+     * @description * `high` - high
+     *     * `reasonable` - reasonable
+     *     * `weak` - weak
+     * @enum {string}
+     */
+    BandEnum: "high" | "reasonable" | "weak";
     /** @enum {unknown} */
     BlankEnum: "";
     CandidateCorrection: {
@@ -3250,6 +3258,48 @@ export interface components {
      * @enum {string}
      */
     PrecisionEnum: "approximate" | "neighborhood";
+    PreferenceAssessment: {
+      version: string;
+      band:
+        components["schemas"]["BandEnum"] | components["schemas"]["NullEnum"];
+      satisfied: components["schemas"]["PreferenceIdentifierEnum"][];
+      trade_offs: components["schemas"]["PreferenceIdentifierEnum"][];
+      unknown: components["schemas"]["PreferenceIdentifierEnum"][];
+      /** Format: uuid */
+      selected_listing_id: string;
+    };
+    /**
+     * @description * `property_type` - property_type
+     *     * `district` - district
+     *     * `neighborhood` - neighborhood
+     *     * `area` - area
+     *     * `bedroom_count` - bedroom_count
+     *     * `monthly_rent` - monthly_rent
+     *     * `deposit` - deposit
+     *     * `construction_year` - construction_year
+     *     * `freshness` - freshness
+     *     * `parking` - parking
+     *     * `elevator` - elevator
+     *     * `storage` - storage
+     *     * `balcony` - balcony
+     *     * `furnished` - furnished
+     * @enum {string}
+     */
+    PreferenceIdentifierEnum:
+      | "property_type"
+      | "district"
+      | "neighborhood"
+      | "area"
+      | "bedroom_count"
+      | "monthly_rent"
+      | "deposit"
+      | "construction_year"
+      | "freshness"
+      | "parking"
+      | "elevator"
+      | "storage"
+      | "balcony"
+      | "furnished";
     /**
      * @description * `defensive_contact_removal` - حذف دفاعی اطلاعات تماس عمومی
      *     * `permanent_account_action` - اقدام دائمی حساب
@@ -3420,6 +3470,7 @@ export interface components {
       height: number;
     };
     PropertySearchPage: {
+      ignored_preferences?: string[];
       count: number;
       /** Format: uri */
       next: string | null;
@@ -3430,6 +3481,7 @@ export interface components {
       map: components["schemas"]["CatalogMap"];
     };
     PropertySummary: {
+      preference_assessment?: components["schemas"]["PreferenceAssessment"];
       /** Format: uuid */
       id: string;
       title: string;
@@ -5523,6 +5575,7 @@ export interface operations {
         /**
          * @description Use the six canonical sort modes. `freshness` and `area` remain supported as deprecated aliases for `newest` and `area_asc`.
          *
+         *     * `preference_fit` - preference_fit
          *     * `newest` - newest
          *     * `monthly_rent` - monthly_rent
          *     * `deposit` - deposit
@@ -5533,6 +5586,7 @@ export interface operations {
          *     * `area` - area
          */
         ordering?:
+          | "preference_fit"
           | "newest"
           | "monthly_rent"
           | "deposit"
@@ -5547,6 +5601,8 @@ export interface operations {
          *     * `absent` - absent
          */
         parking?: "present" | "absent";
+        /** @description Bounded JSON object keyed by preference identifier; each value has priority (very_important, preferred, unimportant) and target. Rental Terms targets are in toman; freshness is days; district/neighborhood targets are up to 22 UUIDs. Invalid entries are ignored and reported. */
+        preferences?: string;
         /**
          * @description * `residential` - مسکونی
          *     * `commercial` - تجاری

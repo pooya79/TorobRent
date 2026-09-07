@@ -1,3 +1,5 @@
+import { PreferenceControls } from "@/features/catalog/PreferenceControls";
+import { fitBandLabels } from "@/features/catalog/preferences";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { Map as MapIcon, SlidersHorizontal, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -136,6 +138,7 @@ function toCardData(
       property.listing_count > 1
         ? `${formatNumber(property.listing_count - 1)} پیشنهاد دیگر`
         : undefined,
+    preferenceAssessment: property.preference_assessment,
     rentalTerms: rentalTermsCardData(property.rental_terms),
     rentalTermsComparison: comparison
       ? {
@@ -166,8 +169,9 @@ function toMapMarker(
   const card = toCardData(property, searchParams);
   if (!card.rentalTerms) return null;
   return {
+    fitBand: property.preference_assessment?.band,
     propertyId: property.id,
-    label: `ودیعه ${card.rentalTerms.depositLabel}\nاجاره ماهانه ${card.rentalTerms.monthlyRentLabel}`,
+    label: `${property.preference_assessment ? (property.preference_assessment.band ? fitBandLabels[property.preference_assessment.band] : "تناسب نامشخص") + " با ترجیحات شما\n" : ""}ودیعه ${card.rentalTerms.depositLabel}\nاجاره ماهانه ${card.rentalTerms.monthlyRentLabel}`,
     mapPrices: {
       deposit: formatMapPrice(property.rental_terms.deposit_toman),
       monthlyRent: formatMapPrice(property.rental_terms.monthly_rent_toman),
@@ -551,6 +555,7 @@ export function ResultsPage({ mapAdapter }: { mapAdapter?: MapAdapter }) {
     setSearchParams(next);
   };
   const mapPanelProps = {
+    preferenceRanking: resultSearchParams.get("ordering") === "preference_fit",
     adapter: MapAdapterComponent,
     markers: mapMarkers,
     clusters: mapClusters,
@@ -605,6 +610,12 @@ export function ResultsPage({ mapAdapter }: { mapAdapter?: MapAdapter }) {
         </div>
       )}
 
+      {!!searchData?.ignored_preferences?.length && (
+        <p role="status" className="mb-2 text-sm">
+          بعضی ترجیحات نامعتبر یا ناقص نادیده گرفته شدند. ترجیحات من را برای
+          اصلاح باز کنید.
+        </p>
+      )}
       <div className="flex min-h-0 flex-1 flex-col">
         <div className="mb-3 flex shrink-0 flex-wrap items-center justify-between gap-2">
           <p className="text-muted-foreground text-sm" aria-live="polite">
@@ -655,10 +666,14 @@ export function ResultsPage({ mapAdapter }: { mapAdapter?: MapAdapter }) {
                 </Button>
               )
             ) : null}
-            <div className="flex items-center gap-2">
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
               <AdvancedFiltersSheet
                 open={filtersOpen}
                 onOpenChange={setFiltersOpen}
+                searchParams={searchParams}
+                setSearchParams={setSearchParams}
+              />
+              <PreferenceControls
                 searchParams={searchParams}
                 setSearchParams={setSearchParams}
               />

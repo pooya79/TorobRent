@@ -22,6 +22,7 @@ import {
 import { tehranInitialViewport } from "./view-constraints";
 
 type SearchMapPanelProps = {
+  preferenceRanking?: boolean;
   adapter: MapAdapter;
   markers: readonly MapMarker[];
   clusters: readonly MapCluster[];
@@ -35,6 +36,7 @@ type SearchMapPanelProps = {
 };
 
 export function SearchMapPanel({
+  preferenceRanking = false,
   adapter: Adapter,
   markers,
   clusters,
@@ -145,6 +147,17 @@ export function SearchMapPanel({
 
   return (
     <section aria-label="نقشه ملک‌ها" className="relative h-full">
+      {(preferenceRanking ||
+        markers.some((marker) => marker.fitBand !== undefined)) && (
+        <p
+          className="bg-background absolute start-2 bottom-10 z-10 max-w-[calc(100%-1rem)] rounded border p-2 text-xs"
+          aria-label="راهنمای تناسب با ترجیحات"
+        >
+          دایره بزرگ و پر: تناسب زیاد؛ دایره متوسط: تناسب قابل قبول؛ دایره کوچک
+          و توخالی: تناسب کم. برای دیدن نشانگرهای ملک‌ها بزرگنمایی کنید. توضیحات
+          در فهرست ملک‌ها هم موجود است.
+        </p>
+      )}
       <h2 className="sr-only">نقشه ملک‌های پیدا شده</h2>
       {status === "error" ? (
         <Alert className="py-3" aria-live="polite">

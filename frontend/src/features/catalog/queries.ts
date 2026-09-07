@@ -180,6 +180,7 @@ function propertySearchRequest(searchParams: URLSearchParams) {
     ordering:
       (searchParams.get("ordering") as PropertySearchQuery["ordering"]) ??
       undefined,
+    preferences: searchParams.get("preferences") ?? undefined,
     annual_return_rate: searchParams.get("annual_return_rate") ?? undefined,
     viewport_north: searchParams.get("viewport_north") ?? undefined,
     viewport_east: searchParams.get("viewport_east") ?? undefined,

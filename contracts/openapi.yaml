@@ -716,6 +716,7 @@ paths:
         name: ordering
         schema:
           enum:
+          - preference_fit
           - newest
           - monthly_rent
           - deposit
@@ -729,6 +730,7 @@ paths:
         description: |-
           Use the six canonical sort modes. `freshness` and `area` remain supported as deprecated aliases for `newest` and `area_asc`.
 
+          * `preference_fit` - preference_fit
           * `newest` - newest
           * `monthly_rent` - monthly_rent
           * `deposit` - deposit
@@ -753,6 +755,14 @@ paths:
         description: |-
           * `present` - present
           * `absent` - absent
+      - in: query
+        name: preferences
+        schema:
+          type: string
+        description: Bounded JSON object keyed by preference identifier; each value
+          has priority (very_important, preferred, unimportant) and target. Rental
+          Terms targets are in toman; freshness is days; district/neighborhood targets
+          are up to 22 UUIDs. Invalid entries are ignored and reported.
       - in: query
         name: property_category
         schema:
@@ -3905,6 +3915,8 @@ components:
     ActiveFavoriteSummary:
       type: object
       properties:
+        preference_assessment:
+          $ref: '#/components/schemas/PreferenceAssessment'
         id:
           type: string
           format: uuid
@@ -4122,6 +4134,16 @@ components:
       - confirmed_at
       - expiring_soon
       - state
+    BandEnum:
+      enum:
+      - high
+      - reasonable
+      - weak
+      type: string
+      description: |-
+        * `high` - high
+        * `reasonable` - reasonable
+        * `weak` - weak
     BlankEnum:
       enum:
       - ''
@@ -6811,6 +6833,69 @@ components:
       description: |-
         * `approximate` - Approximate
         * `neighborhood` - Neighborhood
+    PreferenceAssessment:
+      type: object
+      properties:
+        version:
+          type: string
+        band:
+          oneOf:
+          - $ref: '#/components/schemas/BandEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        satisfied:
+          type: array
+          items:
+            $ref: '#/components/schemas/PreferenceIdentifierEnum'
+        trade_offs:
+          type: array
+          items:
+            $ref: '#/components/schemas/PreferenceIdentifierEnum'
+        unknown:
+          type: array
+          items:
+            $ref: '#/components/schemas/PreferenceIdentifierEnum'
+        selected_listing_id:
+          type: string
+          format: uuid
+      required:
+      - band
+      - satisfied
+      - selected_listing_id
+      - trade_offs
+      - unknown
+      - version
+    PreferenceIdentifierEnum:
+      enum:
+      - property_type
+      - district
+      - neighborhood
+      - area
+      - bedroom_count
+      - monthly_rent
+      - deposit
+      - construction_year
+      - freshness
+      - parking
+      - elevator
+      - storage
+      - balcony
+      - furnished
+      type: string
+      description: |-
+        * `property_type` - property_type
+        * `district` - district
+        * `neighborhood` - neighborhood
+        * `area` - area
+        * `bedroom_count` - bedroom_count
+        * `monthly_rent` - monthly_rent
+        * `deposit` - deposit
+        * `construction_year` - construction_year
+        * `freshness` - freshness
+        * `parking` - parking
+        * `elevator` - elevator
+        * `storage` - storage
+        * `balcony` - balcony
+        * `furnished` - furnished
     PrivacyActionTypeEnum:
       enum:
       - defensive_contact_removal
@@ -7295,6 +7380,10 @@ components:
     PropertySearchPage:
       type: object
       properties:
+        ignored_preferences:
+          type: array
+          items:
+            type: string
         count:
           type: integer
           minimum: 0
@@ -7326,6 +7415,8 @@ components:
     PropertySummary:
       type: object
       properties:
+        preference_assessment:
+          $ref: '#/components/schemas/PreferenceAssessment'
         id:
           type: string
           format: uuid
