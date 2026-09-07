@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { MemoryRouter } from "react-router";
@@ -89,7 +89,7 @@ test("loads an existing durable assignment with request and event details", asyn
   expect(
     await screen.findByRole("heading", { name: "صف درخواست‌های پشتیبانی" }),
   ).toBeVisible();
-  expect(screen.getAllByText("نگار محمدی")[0]).toBeVisible();
+  expect((await screen.findAllByText("نگار محمدی"))[0]).toBeVisible();
   expect(screen.getByText(/سن واگذاری:/)).toBeVisible();
   expect(
     await screen.findByText("برای ورود به حساب راهنمایی می‌خواهم."),
@@ -279,10 +279,8 @@ test("sends queue filters to the server", async () => {
   );
   renderPage();
 
-  await user.selectOptions(
-    await screen.findByLabelText("وضعیت"),
-    "in_progress",
-  );
+  await user.click(await screen.findByRole("radio", { name: "در حال رسیدگی" }));
+  await user.click(screen.getByRole("button", { name: "اعمال فیلترها" }));
 
   await waitFor(() => expect(requestedStatus).toBe("in_progress"));
 });
@@ -338,23 +336,19 @@ test("classifies and escalates privacy work without retaining its protected cont
   );
   renderPage();
 
-  await user.selectOptions(
-    await screen.findByLabelText("دسته‌بندی عملیاتی"),
-    "privacy",
+  const classification = await screen.findByRole("group", {
+    name: "دسته‌بندی عملیاتی",
+  });
+  await user.click(
+    within(classification).getByRole("radio", { name: "حریم خصوصی" }),
   );
-  await user.selectOptions(
-    screen.getByLabelText("مسیر‌دهی تخصصی"),
-    "escalated",
-  );
-  await user.selectOptions(
-    screen.getByLabelText("قابلیت مورد نیاز"),
-    "handle_privacy_requests",
-  );
+  await user.click(screen.getByRole("radio", { name: "ارجاع تخصصی" }));
+  await user.click(screen.getByRole("radio", { name: "پشتیبانی حریم خصوصی" }));
   await user.type(
-    screen.getByLabelText("دلیل تریاژ"),
+    screen.getByLabelText("دلیل تغییر"),
     "نیازمند رسیدگی حفاظت‌شده است.",
   );
-  await user.click(screen.getByRole("button", { name: "ثبت تریاژ" }));
+  await user.click(screen.getByRole("button", { name: "ثبت تغییرات رسیدگی" }));
 
   await waitFor(() =>
     expect(triageBody).toEqual({
@@ -413,19 +407,13 @@ test("escalates to an unavailable capability without retaining request content",
 
   await user.click(await screen.findByRole("button", { name: /نگار محمدی/ }));
   expect(await screen.findByText(content)).toBeVisible();
-  await user.selectOptions(
-    screen.getByLabelText("مسیر‌دهی تخصصی"),
-    "escalated",
-  );
-  await user.selectOptions(
-    screen.getByLabelText("قابلیت مورد نیاز"),
-    "handle_privacy_requests",
-  );
+  await user.click(screen.getByRole("radio", { name: "ارجاع تخصصی" }));
+  await user.click(screen.getByRole("radio", { name: "پشتیبانی حریم خصوصی" }));
   await user.type(
-    screen.getByLabelText("دلیل تریاژ"),
+    screen.getByLabelText("دلیل تغییر"),
     "این رسیدگی به قابلیت تخصصی نیاز دارد.",
   );
-  await user.click(screen.getByRole("button", { name: "ثبت تریاژ" }));
+  await user.click(screen.getByRole("button", { name: "ثبت تغییرات رسیدگی" }));
 
   expect(await screen.findByText("موردی در صف نیست.")).toBeVisible();
   expect(screen.queryByText(content)).not.toBeInTheDocument();
@@ -535,15 +523,17 @@ test("keeps privacy-reclassified content visible for an Operator with both capab
   );
   renderPage();
 
-  await user.selectOptions(
-    await screen.findByLabelText("دسته‌بندی عملیاتی"),
-    "privacy",
+  const classification = await screen.findByRole("group", {
+    name: "دسته‌بندی عملیاتی",
+  });
+  await user.click(
+    within(classification).getByRole("radio", { name: "حریم خصوصی" }),
   );
   await user.type(
-    screen.getByLabelText("دلیل تریاژ"),
+    screen.getByLabelText("دلیل تغییر"),
     "این اپراتور قابلیت حریم خصوصی را نیز دارد.",
   );
-  await user.click(screen.getByRole("button", { name: "ثبت تریاژ" }));
+  await user.click(screen.getByRole("button", { name: "ثبت تغییرات رسیدگی" }));
 
   expect(
     await screen.findByText("محتوای حفاظت‌شده برای اپراتور دو قابلیتی"),
@@ -613,9 +603,8 @@ test("records internal work and exposes a distinct requester-visible reply actio
     }),
   );
 
-  await user.selectOptions(
-    screen.getByLabelText("نتیجه نهایی"),
-    "answered_externally",
+  await user.click(
+    screen.getByRole("radio", { name: "پاسخ بیرون از ترب‌رنت" }),
   );
   await user.type(
     screen.getByLabelText("خلاصه داخلی نتیجه"),
@@ -774,5 +763,7 @@ test("hides privacy controls after a sensitive intake is authoritatively correct
   ).toBeVisible();
   expect(screen.queryByLabelText("زمان تأیید هویت")).not.toBeInTheDocument();
   expect(screen.queryByLabelText("نوع اقدام ثبت‌شده")).not.toBeInTheDocument();
-  expect(screen.getByLabelText("نتیجه نهایی")).toBeVisible();
+  expect(
+    screen.getByRole("radio", { name: "پاسخ بیرون از ترب‌رنت" }),
+  ).toBeVisible();
 });

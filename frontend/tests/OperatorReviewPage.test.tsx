@@ -149,7 +149,7 @@ test("loads the real Operator queue and requires a reason for changes", async ()
   expect(
     await screen.findByRole("heading", { name: "صف بررسی آگهی‌ها" }),
   ).toBeVisible();
-  expect(screen.getAllByText("سعادت‌آباد")[0]).toBeVisible();
+  expect((await screen.findAllByText("سعادت‌آباد"))[0]).toBeVisible();
   await user.click(
     await screen.findByRole("button", { name: "درخواست اصلاح" }),
   );
@@ -194,7 +194,9 @@ test("shows the permission state when the review API denies access", async () =>
   renderPage();
 
   expect(
-    await screen.findByRole("heading", { name: "دسترسی اپراتور لازم است" }),
+    await screen.findByText(
+      "دریافت درخواست‌ها ممکن نشد. اتصال و فیلترهای انتخابی را بررسی کنید.",
+    ),
   ).toBeVisible();
   expect(screen.queryByText("سعادت‌آباد")).not.toBeInTheDocument();
 });
@@ -236,9 +238,9 @@ test("approves and groups a Submission with an existing Property", async () => {
     expect(screen.getByRole("option", { name: label })).toBeInTheDocument();
   }
   expect(screen.getByLabelText("پارکینگ")).toBeVisible();
-  expect(screen.getByLabelText("ادعاهای Source (JSON)")).toBeVisible();
+  expect(screen.getByLabelText("ادعاهای منبع (داده ساخت‌یافته)")).toBeVisible();
   await user.type(
-    screen.getByLabelText("شناسه Property موجود (اختیاری)"),
+    screen.getByLabelText("شناسه ملک موجود (اختیاری)"),
     "60000000-0000-4000-8000-000000000006",
   );
   await user.click(
@@ -251,17 +253,19 @@ test("approves and groups a Submission with an existing Property", async () => {
 });
 
 test("shows historical queue entries without decision controls", async () => {
+  const user = userEvent.setup();
   serveSubmission({ ...pendingSubmission, state: "published" });
   renderPage();
 
-  expect((await screen.findAllByText("منتشرشده"))[1]).toBeVisible();
+  expect(await screen.findByText("منتشرشده")).toBeVisible();
   expect(
     screen.queryByRole("button", { name: "تأیید و انتشار" }),
   ).not.toBeInTheDocument();
-  expect(screen.getByRole("option", { name: "ردشده" })).toBeInTheDocument();
-  expect(screen.getByLabelText("شناسه شهر")).toBeInTheDocument();
-  expect(screen.getByLabelText("شناسه منطقه")).toBeInTheDocument();
-  expect(screen.getByLabelText("ورود به صف پیش از")).toBeInTheDocument();
+  expect(screen.getByRole("radio", { name: "ردشده" })).toBeInTheDocument();
+  await user.click(screen.getByText("محدوده، تاریخ و فیلترهای بیشتر"));
+  expect(screen.getByLabelText("شهر")).toBeInTheDocument();
+  expect(screen.getByText("منطقه")).toBeInTheDocument();
+  expect(screen.getByLabelText("ورود به صف از تاریخ")).toBeInTheDocument();
 });
 
 test("retries a failed decision notification without repeating the decision", async () => {
@@ -421,12 +425,12 @@ test("preserves decision drafts and requires refresh and reclaim after a stale c
 
   expect(
     await screen.findByText(
-      "نسخه Submission از زمان بررسی شما تغییر کرده است.",
+      "نسخه درخواست ثبت آگهی از زمان بررسی شما تغییر کرده است.",
     ),
   ).toBeVisible();
   expect(approvalAttempts).toBe(1);
   await user.click(
-    screen.getByRole("button", { name: "به‌روزرسانی Submission" }),
+    screen.getByRole("button", { name: "به‌روزرسانی درخواست ثبت آگهی" }),
   );
   expect(await screen.findAllByText("اکباتان")).toHaveLength(1);
   expect(await screen.findByText("بلوار دریا")).toBeVisible();

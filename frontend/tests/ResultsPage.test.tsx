@@ -1158,7 +1158,7 @@ test("presents each Property with normalized facts and freshest complete Rental 
     }),
   ).toBeVisible();
   expect(screen.getByRole("region", { name: "ملک‌های پیدا شده" })).toHaveClass(
-    "sm:grid-cols-[repeat(auto-fit,minmax(min(100%,15rem),1fr))]",
+    "sm:grid-cols-[repeat(auto-fill,minmax(min(100%,15rem),1fr))]",
   );
   const image = document.querySelector("img");
   const heading = screen.getByRole("heading", {

@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
 import { MemoryRouter } from "react-router";
 import { expect, test, vi } from "vitest";
@@ -74,14 +74,21 @@ test("shows parallel workload summaries only for modules the Operator may access
 
   renderOverview(["handle_support"]);
 
-  expect(await screen.findByText("۴ کار بدون مسئول")).toBeVisible();
-  expect(screen.getByText("۱ کار واگذارشده به من")).toBeVisible();
-  expect(screen.getByText("۲ درخواست فوری")).toBeVisible();
-  expect(screen.getByText("۳ هشدار بیش از ۴۸ ساعت")).toBeVisible();
-  expect(screen.queryByRole("link", { name: "بررسی Submissionها" })).toBeNull();
-  expect(screen.getByText("بررسی پیوندها")).toBeVisible();
+  const summary = await screen.findByRole("list", { name: "خلاصه حجم کار" });
+  expect(within(summary).getByText("۴")).toBeVisible();
+  expect(within(summary).getByText("در انتظار مسئول")).toBeVisible();
+  expect(within(summary).getByText("۱")).toBeVisible();
+  expect(within(summary).getByText("واگذارشده به من")).toBeVisible();
+  expect(within(summary).getByText("۲ درخواست فوری")).toBeVisible();
   expect(
-    screen.getByText(/Link Verification.*هنوز گردش‌کار عملیاتی ندارد/),
+    within(summary).getByText("۳ مورد با زمان انتظار بیش از ۴۸ ساعت"),
+  ).toBeVisible();
+  expect(
+    screen.queryByRole("link", { name: "بررسی درخواست‌های ثبت آگهی" }),
+  ).toBeNull();
+  expect(screen.getByText("بررسی پیوندها · به‌زودی")).toBeVisible();
+  expect(
+    screen.getByText(/بررسی پیوندها.*هنوز گردش‌کار عملیاتی ندارد/),
   ).toBeVisible();
   expect(supportSummary).toHaveBeenCalledOnce();
   expect(submissionSummary).not.toHaveBeenCalled();
@@ -129,12 +136,14 @@ test("keeps one domain summary failure local to its module", async () => {
 
   renderOverview(["review_submissions", "handle_support"]);
 
-  expect(await screen.findByText("۱ کار بدون مسئول")).toBeVisible();
+  const summary = await screen.findByRole("list", { name: "خلاصه حجم کار" });
+  expect(within(summary).getByText("۱")).toBeVisible();
+  expect(within(summary).getByText("در انتظار مسئول")).toBeVisible();
   expect(
     await screen.findByText("خلاصه این بخش فعلاً در دسترس نیست."),
   ).toBeVisible();
   expect(
-    screen.getByRole("link", { name: "بررسی Submissionها" }),
+    screen.getByRole("link", { name: "بررسی درخواست‌های ثبت آگهی" }),
   ).toBeVisible();
   expect(screen.getByRole("link", { name: "پشتیبانی" })).toBeVisible();
 });
