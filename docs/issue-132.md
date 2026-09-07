@@ -48,3 +48,14 @@ Final checks: full suite passed (819 backend tests, 93.02% coverage; 339 fronten
 22 focused ranking regressions passed separately, Chromium contract passed all 9 tests,
 and lint, formatting, typechecking, API drift, and production build passed. The map providers'
 accessible marker names include fit bands. Mobile results controls wrap instead of clipping.
+
+## Visual refinement
+
+Preferences now use four visually distinct sections (budget, location, space, amenities), native
+segmented priority radios, and sticky actions with visible validation errors. Cards show a
+three/two/one-star fit indicator and retain expandable evidence. Stars indicate fit to the stated
+preferences, not Property quality; unknown fit uses a question icon. High-fit map pins are gold
+stars, reasonable-fit pins blue, and weak-fit pins gray and hollow. Zoomed-out clusters expose
+`high_fit_count` so their badges show how many high-fit Properties they contain. Accessible cluster
+buttons announce the same count. This refinement passed all 339 frontend tests, 23 focused ranking
+contracts on PostgreSQL, lint, typechecking, and the production build; both review axes are clear.

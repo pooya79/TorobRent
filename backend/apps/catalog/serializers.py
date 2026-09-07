@@ -563,6 +563,7 @@ class CatalogFacetsSerializer(serializers.Serializer[Any]):
 
 
 class MapClusterSerializer(serializers.Serializer[Any]):
+    high_fit_count = serializers.IntegerField(min_value=0, required=False)
     id = serializers.CharField()
     latitude = serializers.DecimalField(max_digits=9, decimal_places=6)
     longitude = serializers.DecimalField(max_digits=9, decimal_places=6)

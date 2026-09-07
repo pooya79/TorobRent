@@ -256,3 +256,25 @@ def test_missing_availability_confirmation_is_unknown_evidence(api_client, catal
     )
     assert response.status_code == 200
     assert response.data["results"][0]["preference_assessment"]["unknown"] == ["freshness"]
+
+
+@pytest.mark.django_db
+def test_zoomed_out_map_exposes_high_fit_counts_for_cluster_badges(api_client, catalog):
+    for state in ("present", "present", "absent"):
+        property_, _ = catalog(elevator=state)
+        property_.approximate_latitude = "35.750000"
+        property_.approximate_longitude = "51.400000"
+        property_.location_radius_meters = 50
+        property_.location_precision = "approximate"
+        property_.save()
+    response = api_client.get(
+        "/api/v1/catalog/properties/",
+        {
+            "ordering": "preference_fit",
+            "preferences": json.dumps({"elevator": {"priority": "preferred", "target": "present"}}),
+        },
+    )
+    assert response.status_code == 200
+    cluster = response.data["map"]["clusters"][0]
+    assert cluster["property_count"] == 3
+    assert cluster["high_fit_count"] == 2

@@ -2415,9 +2415,11 @@ test("applies explicit priorities in the URL and restores canonical order on res
   );
   renderResults("/search?ordering=deposit&area_min=50");
   await user.click(await screen.findByRole("button", { name: "ترجیحات من" }));
-  await user.selectOptions(
-    screen.getByLabelText("اهمیت آسانسور"),
-    "very_important",
+  await user.click(
+    within(screen.getByRole("radiogroup", { name: "اهمیت آسانسور" })).getByRole(
+      "radio",
+      { name: "بسیار مهم" },
+    ),
   );
   await user.click(
     screen.getByRole("button", { name: "اعمال و مرتب‌سازی ترجیحات" }),
@@ -2470,7 +2472,7 @@ test("renders returned preference evidence outside the map and passes the same b
     ),
   );
   renderResults("/search?ordering=preference_fit", Adapter);
-  const summary = await screen.findByText("تناسب زیاد با ترجیحات شما");
+  const summary = await screen.findByLabelText("تناسب زیاد با ترجیحات شما");
   await user.click(summary);
   expect(screen.getByText("هم‌راستا با خواسته شما: آسانسور")).toBeVisible();
   expect(screen.getByText("اطلاعات نامشخص: پارکینگ")).toBeVisible();

@@ -2904,6 +2904,7 @@ export interface components {
       password: string;
     };
     MapCluster: {
+      high_fit_count?: number;
       id: string;
       /** Format: decimal */
       latitude: string;

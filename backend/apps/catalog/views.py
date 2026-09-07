@@ -118,6 +118,10 @@ def catalog_map_payload(
                 "south": min(latitudes),
                 "west": min(longitudes),
                 "property_count": len(cell_properties),
+                "high_fit_count": sum(
+                    getattr(property_, "preference_assessment", {}).get("band") == "high"
+                    for property_ in cell_properties
+                ),
                 "property_ids": property_ids,
             })
         markers = [

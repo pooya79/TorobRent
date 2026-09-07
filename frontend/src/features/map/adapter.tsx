@@ -46,6 +46,7 @@ export type MapMarker = {
 };
 
 export type MapCluster = {
+  highFitCount?: number;
   id: string;
   center: MapCoordinates;
   bounds: Omit<MapViewport, "zoom">;
@@ -217,6 +218,8 @@ export function createFakeMapAdapter({
             }}
           >
             خوشه {formatNumber(cluster.propertyCount)} ملک
+            {!!cluster.highFitCount &&
+              `، ${formatNumber(cluster.highFitCount)} ملک با تناسب زیاد`}
           </button>
         ))}
       </div>

@@ -6022,6 +6022,9 @@ components:
     MapCluster:
       type: object
       properties:
+        high_fit_count:
+          type: integer
+          minimum: 0
         id:
           type: string
         latitude:

@@ -1,4 +1,5 @@
-import { fitAppearance } from "./fit-appearance";
+import RegularShape from "@neshan-maps-platform/ol/style/RegularShape";
+import { clusterAppearance, fitAppearance } from "./fit-appearance";
 import Feature from "@neshan-maps-platform/ol/Feature";
 import CircleGeometry from "@neshan-maps-platform/ol/geom/Circle";
 import Point from "@neshan-maps-platform/ol/geom/Point";
@@ -103,14 +104,23 @@ function markerStyle(
   const appearance = fitAppearance(fitBand, selected);
   const { color } = appearance;
   const marker = new Style({
-    image: new CircleStyle({
-      radius: appearance.radius,
-      fill: new Fill({ color: appearance.fill }),
-      stroke: new Stroke({
-        color: appearance.outline,
-        width: appearance.outlineWidth,
-      }),
-    }),
+    image:
+      fitBand === "high"
+        ? new RegularShape({
+            points: 5,
+            radius: appearance.radius,
+            radius2: 6,
+            fill: new Fill({ color: appearance.fill }),
+            stroke: new Stroke({ color: appearance.outline, width: 2 }),
+          })
+        : new CircleStyle({
+            radius: appearance.radius,
+            fill: new Fill({ color: appearance.fill }),
+            stroke: new Stroke({
+              color: appearance.outline,
+              width: appearance.outlineWidth,
+            }),
+          }),
   });
   if (!showLabel) return marker;
   const [deposit = "", monthlyRent = ""] = label.split("|");
@@ -118,7 +128,7 @@ function markerStyle(
     marker,
     new Style({
       text: new Text({
-        text: `\u2066${deposit} | ${monthlyRent}\u2069${appearance.label}`,
+        text: `\u2066${deposit} | ${monthlyRent}\u2069${appearance.symbol ? "\n" + appearance.symbol : ""}`,
         offsetY: -23,
         textAlign: "center",
         font: "700 10px system-ui",
@@ -140,15 +150,16 @@ function markerStyle(
   ];
 }
 
-function clusterStyle(propertyCount: number) {
+function clusterStyle(propertyCount: number, highFitCount?: number) {
+  const appearance = clusterAppearance(propertyCount, highFitCount);
   return new Style({
     image: new CircleStyle({
-      radius: 18,
-      fill: new Fill({ color: "#e00b41" }),
+      radius: appearance.radius,
+      fill: new Fill({ color: appearance.color }),
       stroke: new Stroke({ color: "#ffffff", width: 3 }),
     }),
     text: new Text({
-      text: new Intl.NumberFormat("fa-IR").format(propertyCount),
+      text: appearance.text,
       fill: new Fill({ color: "#ffffff" }),
       font: "600 13px system-ui",
     }),
@@ -326,7 +337,11 @@ export function NeshanMapAdapter({
           });
         }
         if (metadata?.kind === "cluster") {
-          return clusterStyle(metadata.propertyCount);
+          return clusterStyle(
+            metadata.propertyCount,
+            clusters.find((cluster) => cluster.id === metadata.clusterId)
+              ?.highFitCount,
+          );
         }
         const propertyId =
           metadata?.kind === "marker" ? metadata.propertyId : null;

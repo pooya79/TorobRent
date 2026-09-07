@@ -153,9 +153,18 @@ export function SearchMapPanel({
           className="bg-background absolute start-2 bottom-10 z-10 max-w-[calc(100%-1rem)] rounded border p-2 text-xs"
           aria-label="راهنمای تناسب با ترجیحات"
         >
-          دایره بزرگ و پر: تناسب زیاد؛ دایره متوسط: تناسب قابل قبول؛ دایره کوچک
-          و توخالی: تناسب کم. برای دیدن نشانگرهای ملک‌ها بزرگنمایی کنید. توضیحات
-          در فهرست ملک‌ها هم موجود است.
+          <span className="font-semibold">تناسب با ترجیحات شما</span>
+          <br />
+          <span className="text-amber-700 dark:text-amber-400">
+            ★★★ زیاد
+          </span> ·{" "}
+          <span className="text-blue-600 dark:text-blue-400">
+            ★★☆ قابل قبول
+          </span>{" "}
+          · <span className="text-slate-600 dark:text-slate-300">★☆☆ کم</span>
+          <br />
+          نشانگر ستاره‌ای: تناسب زیاد. عدد کنار ★ در گروه‌ها، تعداد ملک‌های با
+          تناسب زیاد است.
         </p>
       )}
       <h2 className="sr-only">نقشه ملک‌های پیدا شده</h2>
@@ -298,6 +307,8 @@ export function SearchMapPanel({
                   نمایش خوشه{" "}
                   {new Intl.NumberFormat("fa-IR").format(cluster.propertyCount)}{" "}
                   ملک
+                  {!!cluster.highFitCount &&
+                    `، ${new Intl.NumberFormat("fa-IR").format(cluster.highFitCount)} ملک با تناسب زیاد`}
                 </Button>
               ))}
             </>

@@ -452,6 +452,7 @@ export function ResultsPage({ mapAdapter }: { mapAdapter?: MapAdapter }) {
         west: Number(cluster.west),
       },
       propertyCount: cluster.property_count,
+      highFitCount: cluster.high_fit_count,
       propertyIds: cluster.property_ids,
     })) ?? [];
   const requestedPageCount = Math.max(
