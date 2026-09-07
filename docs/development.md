@@ -153,11 +153,13 @@ separate: Discovery fetches one URL per call and can visit more than 50 URLs in 
 ## Explicit Source Profile repair
 
 Set `SOURCE_PROFILE_REPAIR_API_KEY` and `SOURCE_PROFILE_REPAIR_MODEL` to enable the Operator's
-**درخواست اصلاح هوشمند** action. Choose a model available to your account that supports Chat
-Completions and strict structured outputs. Empty settings leave manual editing available and
-return an audited `not_configured` outcome for explicit repair requests. Compose passes these
-settings to the backend; host-based development must export them in its shell. No test uses real
-credentials or calls the model service.
+**درخواست اصلاح هوشمند** action. `SOURCE_PROFILE_REPAIR_BASE_URL` defaults to
+`https://api.openai.com/v1`; set it to an OpenAI-compatible API root such as
+`https://openrouter.ai/api/v1` to use another provider. Choose a model available from that provider
+that supports Chat Completions and strict structured outputs. Empty credential or model settings
+leave manual editing available and return an audited `not_configured` outcome for explicit repair
+requests. Compose passes these settings to the backend; host-based development must export them in
+its shell. No test uses real credentials or calls the model service.
 
 The action accepts one to four explicitly selected fields and a client-generated request UUID.
 Repeating the same request returns the retained case state without another model call. Another
@@ -165,9 +167,11 @@ request for the same version is refused while an attempt is pending. Each new at
 new explicit Operator action. Discovery, retries, drift, extraction and scheduled tasks do not
 import the repair workflow or call the model.
 
-The adapter makes one HTTPS request to OpenAI Chat Completions with strict JSON output, tools
-disabled, storage disabled, a 20-second transport deadline, a 4,096-token output cap, and a 64 KiB
-response cap. Its schema accepts only bounded CSS or JSON-LD field rules; manual editing retains
+The adapter makes one request through LangChain's `ChatOpenAI` integration to the configured
+OpenAI-compatible Chat Completions API, with strict JSON output, tools disabled, storage disabled,
+no retries, a 20-second transport deadline, an 8,192-token completion cap, and a 64 KiB
+structured-result cap. Its schema accepts only bounded CSS or JSON-LD field rules; manual editing
+retains
 the broader existing declarative language. See the
 [official structured-output contract](https://developers.openai.com/api/docs/guides/structured-outputs).
 

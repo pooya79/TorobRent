@@ -305,3 +305,6 @@ LOGGING = {
 # Only the explicit Operator repair endpoint consumes these credentials.
 SOURCE_PROFILE_REPAIR_API_KEY = env("SOURCE_PROFILE_REPAIR_API_KEY", default="")
 SOURCE_PROFILE_REPAIR_MODEL = env("SOURCE_PROFILE_REPAIR_MODEL", default="")
+SOURCE_PROFILE_REPAIR_BASE_URL = env(
+    "SOURCE_PROFILE_REPAIR_BASE_URL", default="https://api.openai.com/v1"
+)

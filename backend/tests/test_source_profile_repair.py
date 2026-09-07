@@ -1,5 +1,6 @@
 import json
 import uuid
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
@@ -9,33 +10,42 @@ import pytest
 def llm_http(monkeypatch, settings):
     settings.SOURCE_PROFILE_REPAIR_API_KEY = "test-key"
     settings.SOURCE_PROFILE_REPAIR_MODEL = "test-model"
-    connection = MagicMock()
-    response = connection.getresponse.return_value
-    response.status = 200
-    response.read1.side_effect = [
-        json.dumps({
-            "choices": [
-                {
-                    "finish_reason": "stop",
-                    "message": {
-                        "content": json.dumps({
-                            "floor_area_sqm": {
-                                "kind": "css",
-                                "selector": ".area",
-                                "path": None,
-                                "transform": "integer",
-                                "attribute": None,
-                                "currency_hint": None,
-                            }
-                        })
-                    },
-                }
-            ]
-        }).encode(),
-        b"",
-    ]
-    monkeypatch.setattr("http.client.HTTPSConnection", lambda *a, **kw: connection)
-    return connection
+    settings.SOURCE_PROFILE_REPAIR_BASE_URL = "https://provider.example/v1"
+    invoke = MagicMock()
+    structured = MagicMock(invoke=invoke)
+    client = MagicMock()
+    client.with_structured_output.return_value = structured
+    constructor = MagicMock(return_value=client)
+
+    def respond(parsed=None, *, parsing_error=None, finish_reason="stop", refusal=None, tools=None):
+        raw = SimpleNamespace(
+            response_metadata={"finish_reason": finish_reason},
+            additional_kwargs={"refusal": refusal} if refusal else {},
+            tool_calls=tools or [],
+        )
+        result = {"raw": raw, "parsed": parsed, "parsing_error": parsing_error}
+        invoke.return_value = result
+        return result
+
+    default_rule = {
+        "floor_area_sqm": {
+            "kind": "css",
+            "selector": ".area",
+            "path": None,
+            "transform": "integer",
+            "attribute": None,
+            "currency_hint": None,
+        }
+    }
+    success_response = respond(default_rule)
+    monkeypatch.setattr("apps.source_proposals.repair_provider.ChatOpenAI", constructor)
+    return SimpleNamespace(
+        request=invoke,
+        constructor=constructor,
+        client=client,
+        respond=respond,
+        success_response=success_response,
+    )
 
 
 @pytest.mark.django_db
@@ -74,10 +84,16 @@ def test_explicit_repair_creates_validated_version_and_retains_audit(
     assert audit["duration_ms"] >= 0
     assert audit["structured_result"]["floor_area_sqm"]["selector"] == ".area"
     assert audit["result_version"] == repaired["id"]
-    sent = json.loads(llm_http.request.call_args.kwargs["body"])
-    assert sent["tool_choice"] == "none"
-    assert sent["response_format"]["json_schema"]["strict"] is True
-    evidence = json.loads(sent["messages"][1]["content"])
+    configured = llm_http.constructor.call_args.kwargs
+    assert configured["base_url"] == "https://provider.example/v1"
+    assert configured["model_kwargs"] == {"tool_choice": "none"}
+    assert configured["max_retries"] == 0
+    assert configured["max_completion_tokens"] == 8192
+    structured = llm_http.client.with_structured_output.call_args
+    assert structured.kwargs == {"method": "json_schema", "include_raw": True, "strict": True}
+    messages = llm_http.request.call_args.args[0]
+    assert messages[0][0] == "system"
+    evidence = json.loads(messages[1][1])
     assert list(evidence) == ["floor_area_sqm"]
     assert len(evidence["floor_area_sqm"]) <= 5
     assert "09121234567" not in str(evidence)
@@ -95,12 +111,7 @@ def test_explicit_repair_creates_validated_version_and_retains_audit(
 def test_nonstandard_json_is_an_audited_failure(api_client, discovered_case, llm_http, content):
     _, base, _, _, _ = discovered_case
     original = api_client.get("/api/v1/operator/source-proposals/").data[0]["profile_versions"][0]
-    llm_http.getresponse.return_value.read1.side_effect = [
-        json.dumps({
-            "choices": [{"finish_reason": "stop", "message": {"content": content}}]
-        }).encode(),
-        b"",
-    ]
+    llm_http.respond(parsing_error=ValueError(content))
     response = api_client.post(
         f"{base}/profile/repair/",
         {
@@ -144,7 +155,6 @@ def test_repair_failure_preserves_parent_and_active_version(
     lineage.active_version = lineage.versions.first()
     lineage.save()
     original = api_client.get("/api/v1/operator/source-proposals/").data[0]["profile_versions"][0]
-    response = llm_http.getresponse.return_value
     rule = {
         "kind": "css",
         "selector": ".area",
@@ -154,32 +164,28 @@ def test_repair_failure_preserves_parent_and_active_version(
         "currency_hint": None,
     }
     content = {"floor_area_sqm": rule}
-    envelope = {"choices": [{"finish_reason": "stop", "message": {}}]}
     if failure == "timeout":
         llm_http.request.side_effect = TimeoutError
-    elif failure == "network":
+    elif failure in ("network", "status"):
         llm_http.request.side_effect = OSError("SECRET provider detail")
-    elif failure == "status":
-        response.status = 500
+    elif failure == "json":
+        llm_http.respond(parsing_error=ValueError("invalid provider output"))
+    elif failure == "oversize":
+        content["padding"] = "x" * 65536
     elif failure == "extra_field":
         content["city"] = rule
     elif failure == "script":
         rule["selector"] = "script:contains(eval())"
     elif failure == "refusal":
-        envelope["choices"][0]["message"]["refusal"] = "Refused"
+        llm_http.respond(content, refusal="Refused")
     elif failure == "tools":
-        envelope["choices"][0]["message"]["tool_calls"] = [{"name": "shell"}]
+        llm_http.respond(content, tools=[{"name": "shell"}])
     elif failure == "incomplete":
-        envelope["choices"][0]["finish_reason"] = "length"
+        llm_http.respond(content, finish_reason="length")
     elif failure == "unconfigured":
         settings.SOURCE_PROFILE_REPAIR_API_KEY = ""
-    envelope["choices"][0]["message"]["content"] = json.dumps(content)
-    raw = json.dumps(envelope).encode()
-    if failure == "json":
-        raw = b"not json"
-    if failure == "oversize":
-        raw = b"x" * 65537
-    response.read1.side_effect = [raw, b""]
+    if failure not in ("json", "refusal", "tools", "incomplete"):
+        llm_http.respond(content)
     response = api_client.post(
         f"{base}/profile/repair/",
         {
@@ -298,7 +304,11 @@ def test_model_response_cannot_overwrite_concurrent_manual_edit(
             == 200
         )
 
-    llm_http.request.side_effect = edit_during_request
+    def edit_and_respond(*args, **kwargs):
+        edit_during_request(*args, **kwargs)
+        return llm_http.success_response
+
+    llm_http.request.side_effect = edit_and_respond
     response = api_client.post(
         f"{base}/profile/repair/",
         {
@@ -321,7 +331,12 @@ def test_revoked_capability_during_model_call_discards_result(
 ):
     _, base, operator, _, _ = discovered_case
     original = api_client.get("/api/v1/operator/source-proposals/").data[0]["profile_versions"][0]
-    llm_http.request.side_effect = lambda *args, **kwargs: operator.user_permissions.clear()
+
+    def revoke_and_respond(*args, **kwargs):
+        operator.user_permissions.clear()
+        return llm_http.success_response
+
+    llm_http.request.side_effect = revoke_and_respond
     response = api_client.post(
         f"{base}/profile/repair/",
         {
@@ -386,10 +401,7 @@ def test_malformed_provider_message_is_recorded_without_changing_profile(
 ):
     _, base, _, _, _ = discovered_case
     original = api_client.get("/api/v1/operator/source-proposals/").data[0]["profile_versions"][0]
-    llm_http.getresponse.return_value.read1.side_effect = [
-        json.dumps({"choices": [{"finish_reason": "stop", "message": message}]}).encode(),
-        b"",
-    ]
+    llm_http.respond(message)
     response = api_client.post(
         f"{base}/profile/repair/",
         {
@@ -414,28 +426,16 @@ def test_safe_repair_retains_regression_as_draft(api_client, discovered_case, ll
     lineage.active_version = lineage.versions.first()
     lineage.save()
     original = api_client.get("/api/v1/operator/source-proposals/").data[0]["profile_versions"][0]
-    llm_http.getresponse.return_value.read1.side_effect = [
-        json.dumps({
-            "choices": [
-                {
-                    "finish_reason": "stop",
-                    "message": {
-                        "content": json.dumps({
-                            "floor_area_sqm": {
-                                "kind": "css",
-                                "selector": ".deposit",
-                                "path": None,
-                                "transform": "integer",
-                                "attribute": None,
-                                "currency_hint": None,
-                            }
-                        })
-                    },
-                }
-            ]
-        }).encode(),
-        b"",
-    ]
+    llm_http.respond({
+        "floor_area_sqm": {
+            "kind": "css",
+            "selector": ".deposit",
+            "path": None,
+            "transform": "integer",
+            "attribute": None,
+            "currency_hint": None,
+        }
+    })
     response = api_client.post(
         f"{base}/profile/repair/",
         {
@@ -492,28 +492,16 @@ def test_rent_improvement_is_reviewable_while_area_still_fails(
     assert edited.status_code == 200
     parent = edited.data["profile_versions"][0]
     assert parent["validation"]["fields"]["monthly_rent_rial"]["passed"] is False
-    llm_http.getresponse.return_value.read1.side_effect = [
-        json.dumps({
-            "choices": [
-                {
-                    "finish_reason": "stop",
-                    "message": {
-                        "content": json.dumps({
-                            "monthly_rent_rial": {
-                                "kind": "css",
-                                "selector": ".rent",
-                                "path": None,
-                                "transform": "money_rial",
-                                "attribute": None,
-                                "currency_hint": None,
-                            }
-                        })
-                    },
-                }
-            ]
-        }).encode(),
-        b"",
-    ]
+    llm_http.respond({
+        "monthly_rent_rial": {
+            "kind": "css",
+            "selector": ".rent",
+            "path": None,
+            "transform": "money_rial",
+            "attribute": None,
+            "currency_hint": None,
+        }
+    })
     payload = {
         "request_id": str(uuid.uuid4()),
         "reviewed_revision": 1,
@@ -598,7 +586,11 @@ def test_responsibility_change_during_model_call_discards_result(
             assert reassign(manager_client, proposal, operator, revision=2).status_code == 200
             assert api_client.post(f"{base}/claim/", {}).status_code == 201
 
-    llm_http.request.side_effect = change_during_request
+    def change_and_respond(*args, **kwargs):
+        change_during_request(*args, **kwargs)
+        return llm_http.success_response
+
+    llm_http.request.side_effect = change_and_respond
     response = api_client.post(
         f"{base}/profile/repair/",
         {

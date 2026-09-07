@@ -82,22 +82,20 @@ def forbid_implicit_llm_requests(monkeypatch):
     Explicit repair tests replace this transport with their controlled provider response.
     Teardown also detects a forbidden call swallowed by a background error handler.
     """
-    import http.client
-
     from django.conf import settings
+
+    from apps.source_proposals import repair_provider
 
     monkeypatch.setattr(settings, "SOURCE_PROFILE_REPAIR_API_KEY", "test-only-no-real-key")
     monkeypatch.setattr(settings, "SOURCE_PROFILE_REPAIR_MODEL", "test-only-no-real-model")
-    original = http.client.HTTPSConnection
+    monkeypatch.setattr(settings, "SOURCE_PROFILE_REPAIR_BASE_URL", "https://provider.invalid/v1")
     calls = []
 
-    def guarded_connection(host, *args, **kwargs):
-        if host == "api.openai.com":
-            calls.append(host)
-            raise AssertionError("LLM access requires an explicit repair test")
-        return original(host, *args, **kwargs)
+    def guarded_model(*args, **kwargs):
+        calls.append(kwargs.get("base_url"))
+        raise AssertionError("LLM access requires an explicit repair test")
 
-    monkeypatch.setattr(http.client, "HTTPSConnection", guarded_connection)
+    monkeypatch.setattr(repair_provider, "ChatOpenAI", guarded_model)
     yield
     assert calls == [], "An automatic workflow invoked the LLM"
 

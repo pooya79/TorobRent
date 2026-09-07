@@ -40,6 +40,7 @@ services:
     environment: &backend-environment
       SOURCE_PROFILE_REPAIR_API_KEY: ${SOURCE_PROFILE_REPAIR_API_KEY:-}
       SOURCE_PROFILE_REPAIR_MODEL: ${SOURCE_PROFILE_REPAIR_MODEL:-}
+      SOURCE_PROFILE_REPAIR_BASE_URL: ${SOURCE_PROFILE_REPAIR_BASE_URL:-https://api.openai.com/v1}
       DJANGO_SETTINGS_MODULE: config.settings.local
       DJANGO_SECRET_KEY: local-development-only
       DATABASE_URL: postgresql://app:app@postgres:5432/app

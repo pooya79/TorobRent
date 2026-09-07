@@ -128,6 +128,7 @@ def repair_profile(
         result = request_repair(
             model=attempt.model,
             api_key=settings.SOURCE_PROFILE_REPAIR_API_KEY,
+            base_url=settings.SOURCE_PROFILE_REPAIR_BASE_URL,
             evidence=evidence,
             fields=fields,
         )

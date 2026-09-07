@@ -1,11 +1,13 @@
 """One bounded, tool-free structured request. No retries or extraction entry points."""
 
-import http.client
 import json
 import math
 import re
-import time
 from typing import Any
+
+from langchain_openai import ChatOpenAI
+from openai import APIError, APITimeoutError
+from pydantic import SecretStr
 
 from apps.source_extraction.observations import ALLOWLISTED_TRANSFORMS, redact_phone_numbers
 from apps.source_extraction.rules import validate_field_rules
@@ -60,70 +62,50 @@ def output_schema(fields: list[str]) -> dict[str, Any]:
     }
 
 
-def request_repair(*, model: str, api_key: str, evidence: str, fields: list[str]) -> Any:
-    if not api_key or not model:
+def request_repair(
+    *, model: str, api_key: str, base_url: str, evidence: str, fields: list[str]
+) -> Any:
+    if not api_key or not model or not base_url:
         raise RepairFailure(
             "not_configured", "اصلاح هوشمند پیکربندی نشده است؛ از اصلاح دستی استفاده کنید."
         )
-    payload = {
-        "model": model,
-        "messages": [{"role": "system", "content": PROMPT}, {"role": "user", "content": evidence}],
-        "response_format": {
-            "type": "json_schema",
-            "json_schema": {
-                "name": "source_profile_repair",
-                "strict": True,
-                "schema": output_schema(fields),
-            },
-        },
-        "tool_choice": "none",
-        "store": False,
-        "max_completion_tokens": 4096,
-    }
-    deadline = time.monotonic() + TIMEOUT_SECONDS
-    connection = http.client.HTTPSConnection("api.openai.com", timeout=TIMEOUT_SECONDS)
     try:
-        connection.request(
-            "POST",
-            "/v1/chat/completions",
-            body=json.dumps(payload).encode(),
-            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+        chat = ChatOpenAI(
+            model=model,
+            api_key=SecretStr(api_key),
+            base_url=base_url,
+            timeout=TIMEOUT_SECONDS,
+            max_retries=0,
+            max_completion_tokens=8192,
+            store=False,
+            model_kwargs={"tool_choice": "none"},
         )
-        sock = connection.sock
-        if sock is not None:
-            sock.settimeout(max(0.001, deadline - time.monotonic()))
-        response = connection.getresponse()
-        if response.status != 200:
-            raise RepairFailure(
-                "provider_error",
-                "سرویس مدل پاسخ موفق نداد؛ دوباره درخواست دهید یا دستی اصلاح کنید.",
-            )
-        chunks = bytearray()
-        while True:
-            remaining = deadline - time.monotonic()
-            if remaining <= 0:
-                raise TimeoutError
-            if sock is not None:
-                sock.settimeout(remaining)
-            chunk = response.read1(min(8192, MAX_RESPONSE_BYTES + 1 - len(chunks)))
-            chunks.extend(chunk)
-            if len(chunks) > MAX_RESPONSE_BYTES:
-                raise ValueError("Oversized output")
-            if not chunk:
-                break
-        envelope = _strict_json(chunks)
-        choice = envelope["choices"][0]
-        message = choice["message"]
-        if not isinstance(message, dict):
-            raise ValueError("Invalid message structure")
-        if choice["finish_reason"] != "stop" or message.get("tool_calls") or message.get("refusal"):
+        structured = chat.with_structured_output(
+            output_schema(fields), method="json_schema", include_raw=True, strict=True
+        )
+        response = structured.invoke([("system", PROMPT), ("human", evidence)])
+        if not isinstance(response, dict) or response.get("parsing_error") is not None:
             raise ValueError("Incomplete or non-data output")
-        return _strict_json(message["content"])
-    except TimeoutError:
+        raw = response.get("raw")
+        metadata = getattr(raw, "response_metadata", {})
+        additional = getattr(raw, "additional_kwargs", {})
+        finish_reason = metadata.get("finish_reason") if isinstance(metadata, dict) else None
+        if (
+            finish_reason != "stop"
+            or getattr(raw, "tool_calls", None)
+            or (isinstance(additional, dict) and additional.get("refusal"))
+        ):
+            raise ValueError("Incomplete or non-data output")
+        result = response.get("parsed")
+        encoded = json.dumps(result, ensure_ascii=False, allow_nan=False).encode()
+        if len(encoded) > MAX_RESPONSE_BYTES:
+            raise ValueError("Oversized output")
+        return _strict_json(encoded)
+    except APITimeoutError, TimeoutError:
         raise RepairFailure(
             "timeout", "مهلت پاسخ مدل تمام شد؛ دوباره درخواست دهید یا دستی اصلاح کنید."
         ) from None
-    except OSError, http.client.HTTPException:
+    except APIError, OSError:
         raise RepairFailure(
             "provider_error",
             "ارتباط با سرویس مدل ناموفق بود؛ دوباره درخواست دهید یا دستی اصلاح کنید.",
@@ -133,8 +115,6 @@ def request_repair(*, model: str, api_key: str, evidence: str, fields: list[str]
             "malformed_output",
             "پاسخ مدل قابل استفاده نبود؛ دوباره درخواست دهید یا دستی اصلاح کنید.",
         ) from None
-    finally:
-        connection.close()
 
 
 def checked_rules(result: Any, fields: list[str]) -> dict[str, Any]:
