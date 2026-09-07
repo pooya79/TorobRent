@@ -72,7 +72,7 @@ test("offers repeated entry into the resumable Submitter journey", () => {
   });
   expect(callsToAction).toHaveLength(2);
   for (const callToAction of callsToAction) {
-    expect(callToAction).toHaveAttribute("href", "/dashboard");
+    expect(callToAction).toHaveAttribute("href", "/submitter/get-started");
   }
 });
 
@@ -151,7 +151,7 @@ test("keeps the acquisition promise and action in prerendered HTML", () => {
 
   expect(initialDocument).toContain("ثبت آگهی در ترب‌رنت");
   expect(initialDocument).toContain("ثبت و انتشار رایگان");
-  expect(initialDocument).toContain('href="/dashboard"');
+  expect(initialDocument).toContain('href="/submitter/get-started"');
 });
 
 test("explains TorobRent genuinely without unsupported marketplace claims", () => {

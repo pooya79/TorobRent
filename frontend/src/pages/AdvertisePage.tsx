@@ -157,7 +157,7 @@ const faqs = [
 function StartButton() {
   return (
     <Button asChild className="min-h-12 rounded-full px-6" size="lg">
-      <Link to="/dashboard">
+      <Link to="/submitter/get-started">
         شروع ثبت رایگان
         <ArrowLeft aria-hidden="true" />
       </Link>
