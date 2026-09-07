@@ -237,7 +237,7 @@ retirement preserves history and leaves its unused physical column with a defaul
 a future release may drop that column after old workers are drained. Do not run old simulation
 producers after retirement.
 
-### One current website per Submitter (#122)
+### One current website per Submitter
 
 No schema or data migration is needed: introduction, proposal editing, URL approval, and profile
 approval serialize on the existing Submitter account row before locking the proposal. An open
@@ -252,7 +252,7 @@ Operator can reject a pending proposal or revoke an assignment using the existin
 profile, cancels extraction work, and withdraws its published listings. Historical and discarded
 proposals remain readable by their Submitter, with review and assignment history intact.
 
-### Source Operator responsibility (#123)
+### Source Operator responsibility
 
 Apply catalog migration 0015 and source-proposal migrations 0026–0027 before starting the new
 application and workers. The data migration copies the approver from retained profile approval
@@ -273,16 +273,11 @@ Responsibility email labels and reassignment history are Operator-only. The repr
 existing `assignment.review_operator` field now identifies the current responsible Operator;
 approval evidence continues to identify the historical approver.
 
-UI captures use deterministic local API fixtures:
-[reassignment form](screenshots/issue-123-responsibility-before.png),
-[retained history](screenshots/issue-123-responsibility-history.png), and
-[mobile layout](screenshots/issue-123-responsibility-mobile.png).
-
 Django Source administration displays responsibility read-only. Additional CDN-host approvals and
 revocations use the same Source responsibility checks; during initial onboarding they require a
 current Review Claim. Source responsibility changes go through the queue-manager action.
 
-### Source Exclusions (#125)
+### Source Exclusions
 
 Apply source-proposal migrations 0029–0030 before starting the application and workers. They add
 separate immutable restriction/action records, nullable candidate holds, and a default empty list of
@@ -314,20 +309,7 @@ requires a fresh preview, its displayed Listing IDs, a reason and explicit confi
 rechecks that every reviewed Listing is still published, belongs to this Source and matches the
 active rule. Only those IDs are withdrawn; for more than 100 matches, preview and repeat explicitly.
 
-Deterministic local API fixtures were used for UI inspection:
-[known matches](screenshots/issue-125-exclusion-preview.png),
-[no known matches](screenshots/issue-125-exclusion-empty.png),
-[mobile](screenshots/issue-125-exclusion-mobile.png),
-[separate withdrawal](screenshots/issue-125-exclusion-withdrawal.png), and
-[representative history](screenshots/issue-125-exclusion-representative.png).
-
-Validation for #125: the full PostgreSQL backend suite passed (710 tests, 92% coverage), followed
-by focused regression checks for the redirect cases found in review. The focused Source React
-suite passed. The full frontend suite has 16 pre-existing assertion failures across
-`OperatorOverviewPage`, `OperatorReviewPage`, `OperatorSupportPage`, `OperatorWorkspace` and
-`ResultsPage`; the same failures reproduce on the starting commit `5e13694`.
-
-### Current Source extraction exceptions (#126)
+### Current Source extraction exceptions
 
 Apply source-proposal migrations 0031–0032 before starting the new application and workers.
 They add a unique Source/canonical-URL outcome, retained per-run attempt history, and a nullable
@@ -360,19 +342,7 @@ runs remain available as history. Removing an exclusion restores page/group retr
 retaining the historical Excluded label until fresh processing. Late earlier evidence can move
 first occurrence backward without replacing the latest outcome.
 
-Deterministic local API fixtures were used to inspect and capture the shared exception panel:
-[Operator](screenshots/issue-126-exceptions-operator.png),
-[representative](screenshots/issue-126-exceptions-representative.png), and
-[mobile](screenshots/issue-126-exceptions-mobile.png). Mobile inspection found no horizontal overflow.
-
-Validation for #126: all 727 PostgreSQL backend tests passed with 92.75% coverage. The full frontend
-suite passed 299 tests and retained 16 pre-existing failures across OperatorOverviewPage,
-OperatorReviewPage, OperatorSupportPage, OperatorWorkspace and ResultsPage. The identical sixteen
-failing tests reproduce on starting commit `9d1942b`. All Source tests passed. Lint, formatting,
-backend/frontend types, generated API drift/validation, migration drift and production build passed.
-Both Standards and Spec reviews have no remaining findings after regression-tested fixes.
-
-### Source processing pause and fresh work (#128)
+### Source processing pause and fresh work
 
 Apply catalog migration 0016 and source-proposal migrations 0033–0034 before starting the new
 application and workers. Existing Sources default to processing enabled at revision zero; existing
@@ -400,21 +370,3 @@ out-of-order completions and retries: older candidates remain historical and can
 newer publication or withdrawal outcome. Superseded candidates disappear from the current review
 queue but remain visible in run history. Legacy candidates without an Extraction Request are
 retired from pending review when the processing revision changes.
-
-Deterministic local fixtures were used to inspect the actual Source components and capture
-[active processing](screenshots/issue-128-processing-active.png),
-[Operator resume](screenshots/issue-128-processing-operator.png),
-[representative status](screenshots/issue-128-processing-representative.png), and
-[mobile layout](screenshots/issue-128-processing-mobile.png). Desktop and mobile captures have no
-horizontal overflow.
-
-Validation for #128: the full PostgreSQL backend run passed 752 tests with 92.85% coverage and
-found one Django-admin regression caused by the new processing fields. Those fields are now
-read-only, with attempted bypasses covered; the subsequent PostgreSQL run passed all 31 pause and
-responsibility tests, including profile approval while paused. The full frontend run passed 309
-tests and reproduced exactly the same sixteen pre-existing failures on starting commit `8c1caf3`
-in OperatorOverviewPage, OperatorReviewPage, OperatorSupportPage, OperatorWorkspace and ResultsPage.
-The representative-screen suite passed all twelve tests, including live pause updates and returning
-after a revoked case was cached. Production build, lint, formatting, backend/frontend types,
-API validation/drift, and migration drift passed. Standards and Spec reviews have no remaining
-findings; the polling cache finding was fixed and regression-tested.

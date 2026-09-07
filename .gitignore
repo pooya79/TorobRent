@@ -21,3 +21,4 @@ frontend/playwright-report/
 frontend/test-results/
 frontend/.lighthouseci/
 .DS_Store
+.playwright-cli
