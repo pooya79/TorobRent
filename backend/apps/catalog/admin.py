@@ -168,7 +168,12 @@ class NeighborhoodAdmin(ModelAdmin):  # type: ignore[type-arg]
 
 @admin.register(Source)
 class SourceAdmin(ModelAdmin):  # type: ignore[type-arg]
-    readonly_fields = ("responsible_operator", "responsibility_revision")
+    readonly_fields = (
+        "responsible_operator",
+        "responsibility_revision",
+        "processing_paused",
+        "processing_revision",
+    )
     list_display = (
         "display_name",
         "domain",

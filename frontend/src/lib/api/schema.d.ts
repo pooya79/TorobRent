@@ -713,7 +713,7 @@ export interface paths {
     };
     get?: never;
     put?: never;
-    /** Claim an External Listing candidate review */
+    /** Claim an External Listing candidate review or explicit correction */
     post: operations["v1_operator_external_listing_candidates_claim_create"];
     delete?: never;
     options?: never;
@@ -874,6 +874,40 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/v1/operator/source-proposals/{proposal_id}/exceptions/bulk/apply/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Apply a confirmed, unchanged Source bulk preview once */
+    post: operations["v1_operator_source_proposals_exceptions_bulk_apply_create"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/operator/source-proposals/{proposal_id}/exceptions/bulk/preview/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Preview selected current Source results before a bulk action */
+    post: operations["v1_operator_source_proposals_exceptions_bulk_preview_create"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/v1/operator/source-proposals/{proposal_id}/exceptions/retry/": {
     parameters: {
       query?: never;
@@ -953,6 +987,23 @@ export interface paths {
     put?: never;
     /** Explicitly withdraw reviewed Listings matching an active exclusion */
     post: operations["v1_operator_source_proposals_exclusions_withdraw_create"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/operator/source-proposals/{proposal_id}/processing/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Pause or resume Source processing independently of its Assignment */
+    post: operations["v1_operator_source_proposals_processing_create"];
     delete?: never;
     options?: never;
     head?: never;
@@ -2001,6 +2052,8 @@ export interface components {
       number: number;
     };
     AssignmentSource: {
+      readonly processing_paused: boolean;
+      readonly processing_revision: number;
       /** Format: uuid */
       id: string;
       display_name: string;
@@ -2113,6 +2166,10 @@ export interface components {
       /** Format: int64 */
       byte_size: number;
       readonly url: string | null;
+    };
+    CandidateReviewClaimRequest: {
+      /** @default false */
+      for_correction: boolean;
     };
     CatalogFacets: {
       property_types: components["schemas"]["FacetCount"][];
@@ -2431,6 +2488,7 @@ export interface components {
       url: string;
     };
     ExternalListingCandidate: {
+      superseded?: boolean;
       /** Format: uuid */
       readonly id: string;
       /** Format: uuid */
@@ -2523,6 +2581,7 @@ export interface components {
     ExtractionRequest: {
       /** Format: uuid */
       readonly id: string;
+      readonly is_current: boolean;
       readonly assignment: number;
       /** Format: uuid */
       readonly requester: string | null;
@@ -2554,6 +2613,8 @@ export interface components {
       readonly started_at: string;
       /** Format: date-time */
       readonly completed_at: string | null;
+      readonly attempted_pages: number | null;
+      readonly usable_results: number | null;
       readonly discovered: number;
       readonly extracted: number;
       readonly published: number;
@@ -3536,6 +3597,7 @@ export interface components {
       readonly recent_requests: components["schemas"]["ExtractionRequest"][];
       readonly exclusions: components["schemas"]["SourceExclusion"][];
       readonly exceptions: components["schemas"]["SourceExtractionException"][];
+      readonly current_results: components["schemas"]["SourceExtractionException"][];
       /** Format: uuid */
       readonly review_operator: string | null;
       readonly mode_revision: number;
@@ -3546,6 +3608,55 @@ export interface components {
      * @enum {string}
      */
     SourceAssignmentStateEnum: "active" | "revoked";
+    SourceBulkApplyRequest: {
+      token: string;
+      confirmed: boolean;
+    };
+    SourceBulkItem: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uri */
+      url: string;
+      status: components["schemas"]["SourceBulkItemStatusEnum"];
+      detail: string;
+      /** Format: uuid */
+      candidate_id: string | null;
+      readonly candidate:
+        components["schemas"]["ExternalListingCandidate"] | null;
+      action_eligible: boolean;
+      published_listing_count: number;
+    };
+    /**
+     * @description * `eligible` - eligible
+     *     * `blocked` - blocked
+     *     * `excluded` - excluded
+     *     * `obsolete` - obsolete
+     * @enum {string}
+     */
+    SourceBulkItemStatusEnum: "eligible" | "blocked" | "excluded" | "obsolete";
+    SourceBulkPreview: {
+      token: string;
+      /** Format: uuid */
+      source_id: string;
+      items: components["schemas"]["SourceBulkItem"][];
+    };
+    SourceBulkPreviewRequest: {
+      exception_ids: string[];
+      action: components["schemas"]["SourceBulkPreviewRequestActionEnum"];
+      /** @default  */
+      reason: string;
+    };
+    /**
+     * @description * `publish` - publish
+     *     * `exclude` - exclude
+     *     * `request_action` - request_action
+     * @enum {string}
+     */
+    SourceBulkPreviewRequestActionEnum:
+      "publish" | "exclude" | "request_action";
+    SourceBulkResult: {
+      affected: number;
+    };
     SourceConversationMessage: {
       /** Format: uuid */
       id: string;
@@ -3691,6 +3802,17 @@ export interface components {
       source_claims?: unknown;
       provenance_note?: string;
     };
+    SourceProcessingRequest: {
+      action: components["schemas"]["SourceProcessingRequestActionEnum"];
+      reviewed_processing_revision: number;
+      review_mode?: components["schemas"]["ReviewModeEnum"];
+    };
+    /**
+     * @description * `pause` - pause
+     *     * `resume` - resume
+     * @enum {string}
+     */
+    SourceProcessingRequestActionEnum: "pause" | "resume";
     SourceProfileApproval: {
       reviewed_revision: number;
       confirmed: boolean;
@@ -6077,7 +6199,13 @@ export interface operations {
       };
       cookie?: never;
     };
-    requestBody?: never;
+    requestBody?: {
+      content: {
+        "application/json": components["schemas"]["CandidateReviewClaimRequest"];
+        "application/x-www-form-urlencoded": components["schemas"]["CandidateReviewClaimRequest"];
+        "multipart/form-data": components["schemas"]["CandidateReviewClaimRequest"];
+      };
+    };
     responses: {
       200: {
         headers: {
@@ -6303,6 +6431,56 @@ export interface operations {
       };
     };
   };
+  v1_operator_source_proposals_exceptions_bulk_apply_create: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        proposal_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["SourceBulkApplyRequest"];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SourceBulkResult"];
+        };
+      };
+    };
+  };
+  v1_operator_source_proposals_exceptions_bulk_preview_create: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        proposal_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["SourceBulkPreviewRequest"];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SourceBulkPreview"];
+        };
+      };
+    };
+  };
   v1_operator_source_proposals_exceptions_retry_create: {
     parameters: {
       query?: never;
@@ -6415,6 +6593,31 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": components["schemas"]["SourceExclusionWithdraw"];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["OperatorSourceProposal"];
+        };
+      };
+    };
+  };
+  v1_operator_source_proposals_processing_create: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        proposal_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["SourceProcessingRequest"];
       };
     };
     responses: {

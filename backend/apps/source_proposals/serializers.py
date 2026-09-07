@@ -124,6 +124,8 @@ class SourceProposalEventSerializer(serializers.ModelSerializer[SourceProposalEv
 
 
 class AssignmentSourceSerializer(serializers.Serializer[Any]):
+    processing_paused = serializers.BooleanField(read_only=True)
+    processing_revision = serializers.IntegerField(read_only=True)
     id = serializers.UUIDField()
     display_name = serializers.CharField()
     domain = serializers.CharField()
@@ -140,6 +142,18 @@ class SourceAssignmentSerializer(serializers.ModelSerializer[SourceAssignment]):
     )
     exclusions = SourceExclusionSerializer(source="source.exclusions", many=True, read_only=True)
     exceptions = serializers.SerializerMethodField()
+    current_results = serializers.SerializerMethodField()
+
+    @extend_schema_field(SourceExtractionExceptionSerializer(many=True))
+    def get_current_results(self, assignment: SourceAssignment) -> list[dict[str, Any]]:
+        if assignment.revoked_at:
+            return []
+        return list(
+            SourceExtractionExceptionSerializer(
+                assignment.source.exceptions.select_related("source").prefetch_related("history"),
+                many=True,
+            ).data
+        )
 
     @extend_schema_field(SourceExtractionExceptionSerializer(many=True))
     def get_exceptions(self, assignment: SourceAssignment) -> list[dict[str, Any]]:
@@ -195,6 +209,7 @@ class SourceAssignmentSerializer(serializers.ModelSerializer[SourceAssignment]):
             "recent_requests",
             "exclusions",
             "exceptions",
+            "current_results",
             "review_operator",
             "mode_revision",
         )
@@ -738,3 +753,11 @@ class SourcePublicationModeRequestSerializer(serializers.Serializer[Any]):
     reviewed_profile_version = serializers.UUIDField()
     reviewed_mode_revision = serializers.IntegerField(min_value=0)
     review_mode = serializers.ChoiceField(choices=("approval_required", "automatic"))
+
+
+class SourceProcessingRequestSerializer(serializers.Serializer[Any]):
+    action = serializers.ChoiceField(choices=("pause", "resume"))
+    reviewed_processing_revision = serializers.IntegerField(min_value=0)
+    review_mode = serializers.ChoiceField(
+        choices=("approval_required", "automatic"), required=False
+    )

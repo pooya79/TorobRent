@@ -151,6 +151,13 @@ def create_run_candidates(run: ExtractionRun) -> None:
 def publish_candidate(candidate: ExternalListingCandidate) -> None:
     from .exclusions import blocking_exclusion
 
+    if candidate.source.processing_paused or candidate.superseded:
+        raise ValidationError("پردازش متوقف است یا نتیجه قدیمی است.")
+    if candidate.extraction_run is not None:
+        from .extraction import authorized
+
+        if not authorized(candidate.extraction_run.request):
+            raise ValidationError("مجوز این نتیجه پایان یافته است.")
     if blocking_exclusion(candidate):
         raise ValidationError("این صفحه با محدودیت فعال منبع کنار گذاشته شده است.")
     errors = validation_errors(candidate)
@@ -204,6 +211,7 @@ def publish_automatic_candidates(run: ExtractionRun) -> None:
         return
     for candidate in run.candidates.filter(
         state=ExternalListingCandidateState.PENDING,
+        superseded=False,
         validation_errors={},
         exclusion_hold__isnull=True,
     ):

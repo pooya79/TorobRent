@@ -1,3 +1,4 @@
+import { SourceProcessingPanel } from "@/features/source-proposals/SourceProcessingPanel";
 import { SourceConversationButton } from "@/features/source-proposals/SourceConversationButton";
 import { SourceExclusionsPanel } from "@/features/source-proposals/SourceExclusionsPanel";
 import { SourcePublicationModePanel } from "@/features/source-proposals/SourcePublicationModePanel";
@@ -216,8 +217,15 @@ function ProposalReviewCard({
             onDecisionSuccess(updated);
           }}
         />
+        {proposal.assignment?.state === "active" && canDecideSource && (
+          <SourceProcessingPanel
+            proposal={proposal}
+            onUpdate={onDecisionSuccess}
+          />
+        )}
         {proposal.state === "approved" &&
           proposal.assignment?.state === "active" &&
+          !proposal.assignment.source.processing_paused &&
           canDecideSource && (
             <SourcePublicationModePanel
               proposal={proposal}
@@ -237,9 +245,7 @@ function ProposalReviewCard({
             review={{
               proposalId: proposal.id,
               canApprove:
-                proposal.state === "approved" &&
-                proposal.assignment.state === "active" &&
-                canDecideSource,
+                proposal.assignment.state === "active" && canDecideSource,
             }}
           />
         )}
@@ -272,6 +278,7 @@ function ProposalReviewCard({
           </div>
         )}
         <DiscoveryEvidence proposal={proposal} />
+        <div id={`source-profile-${proposal.id}`} />
         <SourceProfileReview
           proposal={proposal}
           claimed={claimed && canReview}
@@ -344,8 +351,8 @@ function ProposalReviewCard({
           <div className="grid gap-3">
             <p className="text-muted-foreground text-sm">
               اصلاح یک نتیجه از بخش نتایج انجام می‌شود. بررسی تازه پروفایل،
-              صفحات منبع را دوباره دریافت می‌کند و انتشار را تا تأیید نسخه تازه
-              متوقف می‌کند.
+              صفحات منبع را دوباره دریافت می‌کند. پروفایل فعال تا تأیید نسخه
+              تازه برقرار می‌ماند؛ توقف پردازش کنترل جداگانه دارد.
             </p>
 
             <label className="flex items-start gap-2 text-sm">

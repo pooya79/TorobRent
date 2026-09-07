@@ -151,6 +151,12 @@ class MessageSummarySerializer(serializers.Serializer[MessageItem]):
             return f"پرسش درباره {notification.listing.property.title}"
         if isinstance(notification, SupportRequest):
             return notification.subject or notification.get_intake_kind_display()
+        if notification.originating_source_exception_notice is not None:
+            return (
+                "خلاصه تغییرات مشکلات استخراج منبع"
+                if notification.originating_source_exception_notice.kind == "summary"
+                else "استخراج منبع نتیجه قابل استفاده نداشت"
+            )
         if notification.originating_run_decision_id:
             return "نتایج معتبر استخراج منتشر شد"
         if notification.originating_candidate_event is not None:
@@ -162,6 +168,8 @@ class MessageSummarySerializer(serializers.Serializer[MessageItem]):
             }[notification.originating_candidate_event.new_state]
         source_proposal_event = notification.originating_source_proposal_event
         if source_proposal_event is not None:
+            if source_proposal_event.processing_action:
+                return source_proposal_event.reason
             if hasattr(source_proposal_event, "publication_mode_change"):
                 return "روش انتشار منبع تغییر کرد"
             return {
@@ -192,6 +200,18 @@ class MessageSummarySerializer(serializers.Serializer[MessageItem]):
                 if latest_support_message is not None
                 else notification.message
             )
+        if notification.originating_source_exception_notice is not None:
+            notice = notification.originating_source_exception_notice
+            if notice.kind == "failure":
+                return (
+                    "صفحه‌های خارج از محدودیت پردازش شدند اما نتیجه قابل استفاده نداشتند. "
+                    "منبع را بررسی کنید."
+                )
+            return (
+                f"جدید: {notice.changes.get('new', 0)} · "
+                f"رفع شده: {notice.changes.get('resolved', 0)} · "
+                f"بازگشایی: {notice.changes.get('reopened', 0)}"
+            )
         if notification.originating_run_decision is not None:
             count = len(notification.originating_run_decision.candidate_ids)
             return f"{count} نتیجه معتبر بررسی و منتشر شد."
@@ -206,6 +226,8 @@ class MessageSummarySerializer(serializers.Serializer[MessageItem]):
         if source_proposal_event is not None and hasattr(
             source_proposal_event, "publication_mode_change"
         ):
+            return event.reason
+        if source_proposal_event is not None and source_proposal_event.processing_action:
             return event.reason
         if source_proposal_event is not None and event.new_state == "approved":
             return "منبع پیشنهادی شما بررسی و تایید شد."
@@ -273,7 +295,11 @@ class MessageSummarySerializer(serializers.Serializer[MessageItem]):
                 "id": str(notification.id),
                 "label": "پشتیبانی",
             }
-        if notification.originating_run_decision_id or notification.originating_candidate_event_id:
+        if (
+            notification.originating_run_decision_id
+            or notification.originating_candidate_event_id
+            or notification.originating_source_exception_notice_id
+        ):
             proposal = notification.target_source_proposal
             return {
                 "kind": "source_proposal",
@@ -338,6 +364,20 @@ class MessageDetailSerializer(MessageSummarySerializer):
             }
         if isinstance(notification, SupportRequest):
             return None
+        if notification.originating_source_exception_notice is not None:
+            from apps.source_proposals.exception_notifications import eligible_assignment
+
+            notice = notification.originating_source_exception_notice
+            assignment = eligible_assignment(notice.source)
+            if (
+                assignment is None
+                or notice.source.responsible_operator_id != notification.recipient_id
+            ):
+                return None
+            return {
+                "label": "مشاهده مشکلات منبع",
+                "href": f"/operator/source-proposals?proposal={assignment.proposal_id}",
+            }
         if (
             notification.originating_source_proposal_event_id
             or notification.originating_run_decision_id

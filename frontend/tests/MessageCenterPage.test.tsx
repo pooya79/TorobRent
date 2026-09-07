@@ -1215,3 +1215,46 @@ test("opens and replies to a source conversation separately from decisions", asy
   await user.click(screen.getByRole("button", { name: "ارسال پیام" }));
   await waitFor(() => expect(replyBody).toBe("نشانی تازه آماده است"));
 });
+
+test("opens a Source exception summary with an Operator destination and no reply composer", async () => {
+  const notice = {
+    ...message,
+    title: "خلاصه تغییرات مشکلات استخراج منبع",
+    preview: "جدید: 2 · رفع شده: 1 · بازگشایی: 0",
+    group: {
+      kind: "source_proposal",
+      id: "source-case",
+      label: "نتایج استخراج",
+    },
+  };
+  server.use(
+    http.get("*/api/v1/messages/", () =>
+      HttpResponse.json({
+        count: 1,
+        next: null,
+        previous: null,
+        results: [notice],
+      }),
+    ),
+    http.get("*/api/v1/messages/:messageId/", () =>
+      HttpResponse.json({
+        ...notice,
+        body: notice.preview,
+        read: true,
+        reply_allowed: false,
+        entries: [],
+        target: {
+          label: "مشاهده مشکلات منبع",
+          href: "/operator/source-proposals?proposal=source-case",
+        },
+      }),
+    ),
+  );
+  renderPage(`/messages/${notice.id}`);
+  const detail = await screen.findByRole("region", { name: "جزئیات پیام" });
+  expect(await within(detail).findByText(notice.preview)).toBeVisible();
+  expect(
+    within(detail).getByRole("link", { name: "مشاهده مشکلات منبع" }),
+  ).toHaveAttribute("href", "/operator/source-proposals?proposal=source-case");
+  expect(within(detail).queryByRole("textbox")).not.toBeInTheDocument();
+});

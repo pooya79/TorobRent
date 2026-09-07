@@ -1,5 +1,5 @@
 from collections.abc import Mapping
-from typing import Any, cast
+from typing import Any
 
 from django.utils import timezone
 from rest_framework.request import Request
@@ -32,7 +32,7 @@ class PhoneVerificationRequestThrottle(ScopedRateThrottle):
 
         user: User | None
         if request.user.is_authenticated:
-            user = cast(User, request.user)
+            user = request.user
         else:
             user = User.objects.filter(phone=phone, phone_verified_at__isnull=True).first()
         if user is None:

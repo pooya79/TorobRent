@@ -2,18 +2,22 @@ from collections.abc import Callable
 from typing import Any, cast
 
 from django.core.exceptions import ValidationError as DjangoValidationError
-from django.db.models import Q
+from django.db.models import F, Q
 from drf_spectacular.utils import extend_schema
 from rest_framework import status
 from rest_framework.exceptions import ValidationError
 from rest_framework.generics import get_object_or_404
+from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.accounts.models import User
 
-from .candidate_serializers import CandidateCorrectionSerializer
+from .candidate_serializers import (
+    CandidateCorrectionSerializer,
+    CandidateReviewClaimRequestSerializer,
+)
 from .models import ExternalListingCandidate, ExternalListingCandidateState
 from .operator_views import CanReviewSourceProposal
 from .review_claims import SourceProposalReviewConflict
@@ -42,7 +46,17 @@ class OperatorExternalListingCandidateListView(APIView):
     def get(self, request: Request) -> Response:
         candidates = (
             ExternalListingCandidate.objects
-            .filter(discovery_version__isnull=True)
+            .filter(
+                discovery_version__isnull=True, superseded=False, source__processing_paused=False
+            )
+            .filter(
+                Q(extraction_run__isnull=True)
+                | Q(
+                    extraction_run__request__processing_revision=F("source__processing_revision"),
+                    extraction_run__request__profile_version=F("source__profile__active_version"),
+                    extraction_run__request__assignment__revoked_at__isnull=True,
+                )
+            )
             .filter(
                 state__in=(
                     ExternalListingCandidateState.PENDING,
@@ -63,17 +77,22 @@ def _workflow_error(exc: SourceProposalReviewConflict) -> Response:
 
 class OperatorExternalListingCandidateClaimView(APIView):
     permission_classes = (CanReviewSourceProposal,)
+    parser_classes = (JSONParser, FormParser, MultiPartParser)
 
     @extend_schema(
-        summary="Claim an External Listing candidate review",
-        request=None,
+        summary="Claim an External Listing candidate review or explicit correction",
+        request=CandidateReviewClaimRequestSerializer,
         responses=ExternalListingCandidateReviewClaimSerializer,
     )
     def post(self, request: Request, candidate_id: str) -> Response:
+        serializer = CandidateReviewClaimRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
         candidate = get_object_or_404(ExternalListingCandidate, id=candidate_id)
         try:
             claim = claim_external_listing_candidate_review(
-                candidate=candidate, actor=cast(User, request.user)
+                candidate=candidate,
+                actor=cast(User, request.user),
+                for_correction=serializer.validated_data["for_correction"],
             )
         except SourceProposalReviewConflict as exc:
             return _workflow_error(exc)

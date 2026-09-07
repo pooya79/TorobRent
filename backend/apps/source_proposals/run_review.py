@@ -40,7 +40,7 @@ def approve_run(
         )
     published = []
     for candidate in run.candidates.select_for_update().filter(
-        state=ExternalListingCandidateState.PENDING
+        state=ExternalListingCandidateState.PENDING, superseded=False
     ):
         from .exclusions import blocking_exclusion
 
@@ -87,7 +87,7 @@ def refresh_run_counts(run: ExtractionRun) -> None:
     run.published = run.candidates.filter(state="published").count()
     run.needs_attention = (
         run.candidates
-        .filter(state__in=("pending", "changes_requested"))
+        .filter(state__in=("pending", "changes_requested"), superseded=False)
         .exclude(validation_errors={})
         .count()
     )

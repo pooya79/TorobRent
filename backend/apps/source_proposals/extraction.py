@@ -42,13 +42,13 @@ def submit_request(
     *, assignment_id: int, proposal_id: str, actor: User, url: str, initiated_by: User | None = None
 ) -> ExtractionRequest:
     assignment = SourceAssignment.objects.select_related("source").get(pk=assignment_id)
-    Source.objects.select_for_update().get(pk=assignment.source_id)
+    source = Source.objects.select_for_update().get(pk=assignment.source_id)
     assignment.refresh_from_db()
     if (
-        assignment.representative_id != actor.pk
+        source.processing_paused
+        or assignment.representative_id != actor.pk
         or str(assignment.proposal_id) != str(proposal_id)
         or assignment.revoked_at
-        or assignment.proposal.state != "approved"
         or assignment.approval is None
         or assignment.source.profile.active_version_id != assignment.approval.version_id
     ):
@@ -62,6 +62,7 @@ def submit_request(
         assignment=assignment,
         canonical_url=canonical,
         profile_version=assignment.approval.version,
+        processing_revision=source.processing_revision,
         state__in=(ExtractionState.QUEUED, ExtractionState.RUNNING),
     ).first()
     if pending:
@@ -74,6 +75,7 @@ def submit_request(
         profile_version=assignment.approval.version,
         review_mode=mode,
         publication_revision=revision,
+        processing_revision=source.processing_revision,
         submitted_url=url,
         canonical_url=canonical,
     )
@@ -106,9 +108,10 @@ def authorized(request: ExtractionRequest) -> bool:
         and SourceAssignment.objects.filter(
             pk=request.assignment_id,
             revoked_at__isnull=True,
+            source__processing_paused=False,
+            source__processing_revision=request.processing_revision,
             representative_id=request.requester_id,
             approval__version_id=request.profile_version_id,
-            proposal__state="approved",
         ).exists()
         and SourceProfile.objects.filter(
             source_id=request.assignment.source_id, active_version_id=request.profile_version_id
@@ -119,6 +122,7 @@ def authorized(request: ExtractionRequest) -> bool:
 class AssignedSourceFetcher:
     def __init__(self, request: ExtractionRequest) -> None:
         self.request = request
+        self.attempted_urls: set[str] = set()
         self.skipped: dict[str, dict[str, Any]] = {}
         self.requested_urls: dict[str, set[str]] = {}
         self.fetcher = SourcePageFetcher(approved_host=request.assignment.source.domain)
@@ -128,6 +132,7 @@ class AssignedSourceFetcher:
             raise AuthorizationEnded
         excluded = [self.excluded_record(url) for url in urls]
         allowed = [url for url, skipped in zip(urls, excluded, strict=True) if skipped is None]
+        self.attempted_urls.update(allowed)
         # Keep the hardened adapter's per-batch bounds and concurrency limits intact.
         fetched = iter(self.fetcher.fetch(allowed, render=render).records if allowed else ())
         records = []
@@ -142,7 +147,10 @@ class AssignedSourceFetcher:
                 # Both the requested and final URLs can be restricted while fetching.
                 # Preserve actual unsuccessful responses as failure evidence.
                 if record.page.status_code < 400:
-                    record = self.excluded_record(url) or self.excluded_record(final_url) or record
+                    skipped = self.excluded_record(url) or self.excluded_record(final_url)
+                    if skipped:
+                        self.attempted_urls.discard(url)
+                        record = skipped
             records.append(record)
         return FetchBatch(tuple(records))
 
@@ -213,6 +221,7 @@ def run_extraction(request_id: str) -> bool:
         request.state = ExtractionState.RUNNING
         request.save(update_fields=("state", "updated_at"))
         attempt = run.attempts
+    fetcher: AssignedSourceFetcher | None = None
     results = []
     skipped_pages: list[dict[str, Any]] = []
     withdrawals: list[dict[str, Any]] = []
@@ -310,6 +319,7 @@ def run_extraction(request_id: str) -> bool:
             errors = [authorization_error()]
         run.state = state
         run.completed_at = timezone.now()
+        run.attempted_pages = len(fetcher.attempted_urls - fetcher.skipped.keys()) if fetcher else 0
         run.discovered = discovered
         run.extracted = len(results)
         run.needs_attention = sum(
@@ -338,13 +348,20 @@ def run_extraction(request_id: str) -> bool:
             from .candidate_publication import create_run_candidates
 
             create_run_candidates(run)
-            if request.review_mode == ProfileReviewMode.AUTOMATIC:
-                from .candidate_publication import publish_automatic_candidates
-
-                publish_automatic_candidates(run)
         from .exceptions import record_exceptions
 
         record_exceptions(run)
+        from .exception_notifications import record_run_health
+
+        run.usable_results = run.candidates.filter(
+            validation_errors={}, exclusion_hold__isnull=True
+        ).count() + len(run.withdrawals)
+        run.save(update_fields=("usable_results",))
+        record_run_health(run)
+        if state == ExtractionState.COMPLETE and request.review_mode == ProfileReviewMode.AUTOMATIC:
+            from .candidate_publication import publish_automatic_candidates
+
+            publish_automatic_candidates(run)
         if run.withdrawals:
             from .extraction_availability import withdraw_listings
 

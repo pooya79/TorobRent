@@ -371,3 +371,50 @@ OperatorReviewPage, OperatorSupportPage, OperatorWorkspace and ResultsPage. The 
 failing tests reproduce on starting commit `9d1942b`. All Source tests passed. Lint, formatting,
 backend/frontend types, generated API drift/validation, migration drift and production build passed.
 Both Standards and Spec reviews have no remaining findings after regression-tested fixes.
+
+### Source processing pause and fresh work (#128)
+
+Apply catalog migration 0016 and source-proposal migrations 0033–0034 before starting the new
+application and workers. Existing Sources default to processing enabled at revision zero; existing
+requests retain that revision and historical candidates remain unchanged. Drain old application
+and Celery workers during rollout so they cannot publish without the new revision checks.
+
+The responsible Operator pauses processing independently of Source Assignment revocation and
+Listing withdrawal. Pause blocks new extraction and unfinished publication, including explicit
+candidate/run approval. Published Listings keep their ordinary availability and expiry. An
+immediate, private notification records each pause/resume, and both Source screens show status.
+Resume requires a fresh publication-mode choice and enqueues bounded extraction from the approved
+website URL (the existing twenty-page, depth-two limits). It reads current exclusions and pages;
+retained HTML and automatic publication permission are never replayed.
+
+An unapproved profile draft leaves the approved profile usable. Approving its replacement advances
+the processing revision and starts fresh extraction with the explicitly selected mode. Approval
+while paused preserves the pause; the Operator must resume separately. Processing transitions do
+not change the profile-review revision, so a pause during draft review cannot invalidate its
+reservation or evidence. Old workers and explicit approvals must match the current processing
+revision, active profile and Assignment under the Source lock.
+
+Fresh page outcomes supersede older pending candidates for the same Source URL without rewriting
+their evidence, corrections, decisions, or published Listings. Request creation order also fences
+out-of-order completions and retries: older candidates remain historical and cannot overwrite a
+newer publication or withdrawal outcome. Superseded candidates disappear from the current review
+queue but remain visible in run history. Legacy candidates without an Extraction Request are
+retired from pending review when the processing revision changes.
+
+Deterministic local fixtures were used to inspect the actual Source components and capture
+[active processing](screenshots/issue-128-processing-active.png),
+[Operator resume](screenshots/issue-128-processing-operator.png),
+[representative status](screenshots/issue-128-processing-representative.png), and
+[mobile layout](screenshots/issue-128-processing-mobile.png). Desktop and mobile captures have no
+horizontal overflow.
+
+Validation for #128: the full PostgreSQL backend run passed 752 tests with 92.85% coverage and
+found one Django-admin regression caused by the new processing fields. Those fields are now
+read-only, with attempted bypasses covered; the subsequent PostgreSQL run passed all 31 pause and
+responsibility tests, including profile approval while paused. The full frontend run passed 309
+tests and reproduced exactly the same sixteen pre-existing failures on starting commit `8c1caf3`
+in OperatorOverviewPage, OperatorReviewPage, OperatorSupportPage, OperatorWorkspace and ResultsPage.
+The representative-screen suite passed all twelve tests, including live pause updates and returning
+after a revoked case was cached. Production build, lint, formatting, backend/frontend types,
+API validation/drift, and migration drift passed. Standards and Spec reviews have no remaining
+findings; the polling cache finding was fixed and regression-tested.

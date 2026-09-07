@@ -9,6 +9,8 @@ const stateLabels: Record<string, string> = {
   cancelled: "لغوشده",
 };
 const counters = {
+  attempted_pages: "صفحه‌های پردازش‌شده خارج از محدودیت",
+  usable_results: "نتایج قابل استفاده",
   discovered: "کشف‌شده",
   extracted: "استخراج‌شده",
   published: "منتشرشده",
@@ -37,6 +39,9 @@ export function ExtractionHistory({
             {request.canonical_url}
           </p>
           <p>{stateLabels[request.state]}</p>
+          {request.is_current === false && (
+            <p>سابقه استخراج؛ مجوز انتشار این نتایج پایان یافته است.</p>
+          )}
           <time dateTime={request.created_at}>
             {new Date(request.created_at).toLocaleString("fa-IR")}
           </time>
@@ -50,7 +55,7 @@ export function ExtractionHistory({
                     <dd>
                       {request.run![
                         key as keyof typeof counters
-                      ].toLocaleString("fa-IR")}
+                      ]?.toLocaleString("fa-IR") ?? "ثبت نشده"}
                     </dd>
                   </div>
                 ))}
@@ -74,7 +79,13 @@ export function ExtractionHistory({
                       "محدودیت برداشته شده؛ انتشار این نتیجه نیازمند تأیید صریح است."}
                   </p>
                 ))}
-              {review && <ExtractionRunReview run={request.run} {...review} />}
+              {review && (
+                <ExtractionRunReview
+                  run={request.run}
+                  {...review}
+                  canApprove={review.canApprove && request.is_current !== false}
+                />
+              )}
               {request.run.errors.map((error, index) => (
                 <p key={index}>
                   {error.transient && <strong>خطای موقت</strong>} {error.detail}

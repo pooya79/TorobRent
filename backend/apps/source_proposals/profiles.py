@@ -241,6 +241,7 @@ def approve_profile(
         raise SourceProposalReviewConflict(
             "profile_reservation_expired", "The Source reservation is no longer live."
         )
+    replacing = version.profile.active_version_id is not None
     version.profile.active_version = version
     version.profile.save(update_fields=("active_version",))
     proposal = _record_review_decision(
@@ -274,6 +275,14 @@ def approve_profile(
             proposal=proposal,
             approval=decision,
         )
+    if replacing:
+        from .processing import advance_processing_revision, start_fresh_extraction
+
+        source = Source.objects.select_for_update().get(pk=version.profile.source_id)
+        advance_processing_revision(source)
+        if not source.processing_paused:
+            assert assignment is not None
+            start_fresh_extraction(assignment=assignment, actor=actor)
     return proposal
 
 
@@ -287,7 +296,7 @@ def start_profile_review(
     max_pages: int,
     target_detail_pages: int,
 ) -> SourceProposal:
-    """Explicitly pause extraction authority and discover a new version for this case."""
+    """Discover a draft while the approved version retains extraction authority."""
     from apps.accounts.capabilities import OperatorCapability, has_capability
 
     from .discovery_workflow import approve_url
@@ -331,7 +340,7 @@ def start_profile_review(
         revision=proposal.revision,
         prior_state=SourceProposalState.APPROVED,
         new_state=SourceProposalState.PENDING,
-        reason="بررسی نسخه تازه پروفایل آغاز شد؛ انتشار تا تأیید دوباره متوقف است.",
+        reason="بررسی نسخه تازه پروفایل آغاز شد؛ نسخه فعال تا تأیید جایگزین برقرار است.",
     )
     claim_source_proposal_review(proposal=proposal, actor=actor)
     return approve_url(

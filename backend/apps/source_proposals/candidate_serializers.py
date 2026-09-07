@@ -94,6 +94,7 @@ class ExternalListingCandidateSerializer(serializers.ModelSerializer[ExternalLis
     class Meta:
         model = ExternalListingCandidate
         fields = (
+            "superseded",
             "id",
             "source_proposal_id",
             "extraction_run",
@@ -163,3 +164,7 @@ class CandidateCorrectionSerializer(serializers.Serializer[Any]):
     reason = serializers.CharField(max_length=2000)
     values = CandidateCorrectionValuesSerializer()
     media = CandidateImageChoiceSerializer(many=True, required=False)
+
+
+class CandidateReviewClaimRequestSerializer(serializers.Serializer[dict[str, object]]):
+    for_correction = serializers.BooleanField(required=False, default=False)

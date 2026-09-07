@@ -50,6 +50,7 @@ export function ExtractionRunReview({
     run.candidates?.filter(
       (candidate) =>
         candidate.state === "pending" &&
+        !candidate.superseded &&
         !candidate.exclusion_reason &&
         Object.keys(candidate.validation_errors ?? {}).length === 0,
     ) ?? [];
@@ -59,6 +60,9 @@ export function ExtractionRunReview({
       {run.candidates?.slice(0, 5).map((candidate) => (
         <article key={candidate.id} className="rounded border p-3">
           <p>{candidate.title}</p>
+          {candidate.superseded && (
+            <p>با نتیجه استخراج تازه جایگزین شده است.</p>
+          )}
           <a
             href={candidate.external_url}
             target="_blank"

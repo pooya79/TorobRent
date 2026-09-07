@@ -262,9 +262,9 @@ def test_concurrent_delivery_rechecks_extraction_and_publication_authority(
                     active_version=None
                 )
             elif change == "suspended":
-                from apps.source_proposals.models import SourceProposal
+                from apps.catalog.models import Source
 
-                SourceProposal.objects.filter(pk=proposal.pk).update(state="pending")
+                Source.objects.filter(pk=assignment["source"]["id"]).update(processing_paused=True)
             else:
                 from tests.test_publication_modes import change_mode
 

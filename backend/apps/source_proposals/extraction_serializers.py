@@ -44,6 +44,8 @@ class ExtractionRunSerializer(serializers.ModelSerializer[ExtractionRun]):
             "attempts",
             "started_at",
             "completed_at",
+            "attempted_pages",
+            "usable_results",
             "discovered",
             "extracted",
             "published",
@@ -58,12 +60,20 @@ class ExtractionRunSerializer(serializers.ModelSerializer[ExtractionRun]):
 
 
 class ExtractionRequestSerializer(serializers.ModelSerializer[ExtractionRequest]):
+    is_current = serializers.SerializerMethodField()
+
+    def get_is_current(self, request: ExtractionRequest) -> bool:
+        from .extraction import authorized
+
+        return authorized(request)
+
     run = ExtractionRunSerializer(read_only=True, allow_null=True)
 
     class Meta:
         model = ExtractionRequest
         fields = (
             "id",
+            "is_current",
             "assignment",
             "requester",
             "profile_version",
