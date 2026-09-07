@@ -63,7 +63,11 @@ def test_public_catalog_query_count_is_bounded_for_representative_development_fi
     with CaptureQueriesContext(connection) as search_queries:
         search_response = api_client.get(
             "/api/v1/catalog/properties/",
-            {"property_type": "apartment", "ordering": "monthly_rent"},
+            {
+                "property_type": "apartment",
+                "annual_return_rate": "12",
+                "ordering": "equivalent_monthly_cost",
+            },
         )
 
     property_id = search_response.data["results"][0]["id"]
@@ -793,6 +797,268 @@ def test_rental_terms_ordering_selects_one_complete_active_listing_pair(
 
 
 @pytest.mark.django_db
+def test_equivalent_monthly_cost_orders_properties_and_selects_one_complete_pair(
+    api_client: APIClient,
+):
+    call_command("loaddata", "catalog_seed", verbosity=0)
+    neighborhood = Neighborhood.objects.get(name_fa="سعادت‌آباد")
+    source = Source.objects.get(is_builtin=True)
+    now = timezone.now()
+
+    scenarios = [
+        (80, 1_000_000_000, 25_000_000),
+        (90, 100_000_000, 34_000_000),
+    ]
+    for area, deposit_toman, monthly_rent_toman in scenarios:
+        property_ = Property.objects.create(
+            city=neighborhood.district.city,
+            district=neighborhood.district,
+            neighborhood=neighborhood,
+            property_type=PropertyType.APARTMENT,
+            area_sqm=area,
+            room_count=2,
+        )
+        Listing.objects.create(
+            property=property_,
+            source=source,
+            terms=RentalTerms.objects.create(
+                deposit_rial=deposit_toman * 10,
+                monthly_rent_rial=monthly_rent_toman * 10,
+            ),
+            state=ListingState.PUBLISHED,
+            direct_phone="۰۹۱۲۱۲۳۴۵۶۷",
+            availability_confirmed_at=now,
+            available_until=now + timedelta(days=1),
+        )
+        if area == 80:
+            Listing.objects.create(
+                property=property_,
+                source=source,
+                terms=RentalTerms.objects.create(
+                    deposit_rial=1_000_000_000,
+                    monthly_rent_rial=360_000_000,
+                ),
+                state=ListingState.PUBLISHED,
+                direct_phone="۰۹۱۲۱۲۳۴۵۶۷",
+                availability_confirmed_at=now + timedelta(minutes=1),
+                available_until=now + timedelta(days=1),
+            )
+
+    response = api_client.get(
+        "/api/v1/catalog/properties/",
+        {"annual_return_rate": "12.00", "ordering": "equivalent_monthly_cost"},
+    )
+
+    assert response.status_code == 200
+    assert [item["area_sqm"] for item in response.data["results"]] == [80, 90]
+    assert response.data["results"][0]["listing_count"] == 2
+    comparison = response.data["results"][0]["rental_terms_comparison"]
+    assert comparison == {
+        "eligibility": "eligible",
+        "explanation": "calculated",
+        "calculation_version": "1",
+        "annual_return_rate_percent": "12.00",
+        "monthly_opportunity_rate": "0.009488792934582974",
+        "deposit_rial": 10_000_000_000,
+        "monthly_rent_rial": 250_000_000,
+        "monthly_opportunity_cost_rial": 94_887_929,
+        "equivalent_monthly_cost_rial": 344_887_929,
+        "monthly_opportunity_cost_toman": 9_488_793,
+        "equivalent_monthly_cost_toman": 34_488_793,
+    }
+
+
+@pytest.mark.django_db
+def test_equivalent_monthly_cost_excludes_source_claims_and_preserves_hard_filters(
+    api_client: APIClient,
+):
+    call_command("loaddata", "catalog_seed", verbosity=0)
+    neighborhood = Neighborhood.objects.get(name_fa="سعادت‌آباد")
+    source = Source.objects.get(is_builtin=True)
+    now = timezone.now()
+    property_ = Property.objects.create(
+        city=neighborhood.district.city,
+        district=neighborhood.district,
+        neighborhood=neighborhood,
+        property_type=PropertyType.APARTMENT,
+        area_sqm=88,
+        room_count=2,
+    )
+    for deposit_toman, rent_toman, is_negotiable in (
+        (400_000_000, 10_000_000, True),
+        (600_000_000, 20_000_000, False),
+    ):
+        Listing.objects.create(
+            property=property_,
+            source=source,
+            terms=RentalTerms.objects.create(
+                deposit_rial=deposit_toman * 10,
+                monthly_rent_rial=rent_toman * 10,
+                is_negotiable=is_negotiable,
+            ),
+            state=ListingState.PUBLISHED,
+            direct_phone="۰۹۱۲۱۲۳۴۵۶۷",
+            availability_confirmed_at=now,
+            available_until=now + timedelta(days=1),
+        )
+
+    response = api_client.get(
+        "/api/v1/catalog/properties/",
+        {
+            "annual_return_rate": "0",
+            "ordering": "equivalent_monthly_cost",
+            "deposit_min_toman": "500000000",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.data["results"][0]["rental_terms"]["deposit_toman"] == 600_000_000
+    assert response.data["results"][0]["rental_terms_comparison"] == {
+        "eligibility": "eligible",
+        "explanation": "calculated",
+        "calculation_version": "1",
+        "annual_return_rate_percent": "0.00",
+        "monthly_opportunity_rate": "0.000000000000000000",
+        "deposit_rial": 6_000_000_000,
+        "monthly_rent_rial": 200_000_000,
+        "monthly_opportunity_cost_rial": 0,
+        "equivalent_monthly_cost_rial": 200_000_000,
+        "monthly_opportunity_cost_toman": 0,
+        "equivalent_monthly_cost_toman": 20_000_000,
+    }
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    ("term_flag", "explanation"),
+    [
+        ("is_negotiable", "negotiable_terms"),
+        ("is_convertible", "convertible_terms"),
+    ],
+)
+def test_equivalent_monthly_cost_keeps_source_claims_visible_but_ineligible(
+    api_client: APIClient, term_flag: str, explanation: str
+):
+    call_command("loaddata", "catalog_seed", verbosity=0)
+    neighborhood = Neighborhood.objects.get(name_fa="سعادت‌آباد")
+    property_ = Property.objects.create(
+        city=neighborhood.district.city,
+        district=neighborhood.district,
+        neighborhood=neighborhood,
+        property_type=PropertyType.APARTMENT,
+        area_sqm=72,
+        room_count=1,
+    )
+    terms = RentalTerms.objects.create(
+        deposit_rial=5_000_000_000,
+        monthly_rent_rial=150_000_000,
+        **{term_flag: True},
+    )
+    listing = Listing.objects.create(
+        property=property_,
+        source=Source.objects.get(is_builtin=True),
+        terms=terms,
+        direct_phone="۰۹۱۲۱۲۳۴۵۶۷",
+    )
+    publish_listing(listing)
+
+    response = api_client.get(
+        "/api/v1/catalog/properties/",
+        {"annual_return_rate": "12", "ordering": "equivalent_monthly_cost"},
+    )
+
+    result = next(item for item in response.data["results"] if item["id"] == str(property_.id))
+    assert result["rental_terms"]["deposit_rial"] == 5_000_000_000
+    assert result["rental_terms_comparison"] == {
+        "eligibility": "unavailable",
+        "explanation": explanation,
+        "calculation_version": "1",
+        "annual_return_rate_percent": "12.00",
+        "monthly_opportunity_rate": "0.009488792934582974",
+        "deposit_rial": 5_000_000_000,
+        "monthly_rent_rial": 150_000_000,
+    }
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    (
+        "annual_rate",
+        "deposit_rial",
+        "monthly_rent_rial",
+        "expected_opportunity_cost_rial",
+        "expected_equivalent_cost_rial",
+    ),
+    [
+        ("12.50", 0, 250_000_000, 0, 250_000_000),
+        ("12.50", 10_000_000_000, 0, 98_635_806, 98_635_806),
+        ("500.00", 10_000_000_000, 250_000_000, 1_610_366_724, 1_860_366_724),
+    ],
+)
+def test_equivalent_monthly_cost_accepts_boundary_scenarios(
+    api_client: APIClient,
+    annual_rate: str,
+    deposit_rial: int,
+    monthly_rent_rial: int,
+    expected_opportunity_cost_rial: int,
+    expected_equivalent_cost_rial: int,
+):
+    call_command("loaddata", "catalog_seed", verbosity=0)
+    neighborhood = Neighborhood.objects.get(name_fa="سعادت‌آباد")
+    property_ = Property.objects.create(
+        city=neighborhood.district.city,
+        district=neighborhood.district,
+        neighborhood=neighborhood,
+        property_type=PropertyType.APARTMENT,
+        area_sqm=64,
+        room_count=1,
+    )
+    listing = Listing.objects.create(
+        property=property_,
+        source=Source.objects.get(is_builtin=True),
+        terms=RentalTerms.objects.create(
+            deposit_rial=deposit_rial,
+            monthly_rent_rial=monthly_rent_rial,
+        ),
+        direct_phone="۰۹۱۲۱۲۳۴۵۶۷",
+    )
+    publish_listing(listing)
+
+    response = api_client.get(
+        "/api/v1/catalog/properties/",
+        {"annual_return_rate": annual_rate},
+    )
+
+    result = next(item for item in response.data["results"] if item["id"] == str(property_.id))
+    comparison = result["rental_terms_comparison"]
+    assert comparison["deposit_rial"] == deposit_rial
+    assert comparison["monthly_rent_rial"] == monthly_rent_rial
+    assert comparison["monthly_opportunity_cost_rial"] == expected_opportunity_cost_rial
+    assert comparison["equivalent_monthly_cost_rial"] == expected_equivalent_cost_rial
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("rate", ["-0.01", "500.01", "12.345", "not-a-rate"])
+def test_catalog_rejects_invalid_annual_return_rates(api_client: APIClient, rate: str):
+    response = api_client.get(
+        "/api/v1/catalog/properties/",
+        {"annual_return_rate": rate},
+    )
+
+    assert response.status_code == 400
+
+
+@pytest.mark.django_db
+def test_equivalent_cost_ordering_requires_an_explicit_scenario(api_client: APIClient):
+    response = api_client.get(
+        "/api/v1/catalog/properties/",
+        {"ordering": "equivalent_monthly_cost"},
+    )
+
+    assert response.status_code == 400
+
+
+@pytest.mark.django_db
 @pytest.mark.parametrize(
     ("property_type", "property_type_label", "description"),
     [
@@ -860,6 +1126,7 @@ def test_renter_can_find_and_open_each_published_commercial_type_without_a_room_
             "deposit_toman": 800_000_000,
             "monthly_rent_toman": 30_000_000,
         },
+        "rental_terms_comparison": None,
         "availability_confirmed_at": search.data["results"][0]["availability_confirmed_at"],
     }
     assert detail.status_code == 200
@@ -1038,6 +1305,7 @@ def test_property_search_groups_active_listings_and_uses_the_freshest_terms(
                 "deposit_toman": 1_000_000_000,
                 "monthly_rent_toman": 25_000_000,
             },
+            "rental_terms_comparison": None,
             "availability_confirmed_at": (
                 fresh_terms.listing.availability_confirmed_at.isoformat().replace("+00:00", "Z")
             ),

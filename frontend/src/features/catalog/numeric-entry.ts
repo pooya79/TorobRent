@@ -24,6 +24,7 @@ const digitTranslation: Record<string, string> = {
 export function normalizeNumericEntry(value: string) {
   return value
     .replace(/[۰-۹٠-٩]/g, (digit) => digitTranslation[digit] ?? digit)
+    .replaceAll("٫", ".")
     .replace(/[٬,\s]/g, "");
 }
 

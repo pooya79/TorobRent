@@ -17,6 +17,12 @@ from .models import (
     property_category_for_type,
 )
 from .money import parse_localized_integer, rial_to_toman, toman_to_rial
+from .rental_terms_comparison import (
+    CALCULATION_VERSION,
+    monthly_opportunity_rate,
+    rounded_rial,
+    rounded_toman,
+)
 from .selectors import (
     BedroomCountRange,
     MapViewportBounds,
@@ -137,7 +143,7 @@ class SearchOrderingQueryField(serializers.ChoiceField):
         super().__init__(
             choices=(*tuple(SearchOrdering), *self.legacy_aliases),
             help_text=(
-                "Use the five canonical sort modes. `freshness` and `area` remain supported "
+                "Use the six canonical sort modes. `freshness` and `area` remain supported "
                 "as deprecated aliases for `newest` and `area_asc`."
             ),
             **kwargs,
@@ -181,6 +187,15 @@ class PropertySearchQuerySerializer(serializers.Serializer[Any]):
     balcony = serializers.ChoiceField(required=False, choices=("present", "absent"))
     furnished = serializers.ChoiceField(required=False, choices=("present", "absent"))
     ordering = SearchOrderingQueryField(required=False)
+    annual_return_rate = serializers.DecimalField(
+        required=False,
+        max_digits=5,
+        decimal_places=2,
+        min_value=Decimal("0"),
+        max_value=Decimal("500"),
+        normalize_output=True,
+        help_text="Renter-supplied annual effective opportunity-return assumption, as a percent.",
+    )
     page = LocalizedIntegerField(required=False, min_value=1)
     viewport_north = serializers.DecimalField(
         required=False,
@@ -274,6 +289,13 @@ class PropertySearchQuerySerializer(serializers.Serializer[Any]):
                 raise serializers.ValidationError({
                     "property_type": "نوع ملک باید با دسته‌بندی ملک سازگار باشد."
                 })
+        if (
+            attrs.get("ordering") == SearchOrdering.EQUIVALENT_MONTHLY_COST
+            and "annual_return_rate" not in attrs
+        ):
+            raise serializers.ValidationError({
+                "annual_return_rate": "برای این مرتب‌سازی نرخ بازده سالانه را وارد کنید."
+            })
         return attrs
 
     def validated_filters(self) -> PropertySearchFilters:
@@ -312,6 +334,7 @@ class PropertySearchQuerySerializer(serializers.Serializer[Any]):
             balcony=data.get("balcony"),
             furnished=data.get("furnished"),
             ordering=SearchOrdering(data.get("ordering", SearchOrdering.NEWEST)),
+            annual_return_rate=data.get("annual_return_rate"),
             viewport=viewport,
         )
 
@@ -329,6 +352,22 @@ class RentalTermsPublicSerializer(serializers.Serializer[Any]):
     currency = serializers.ChoiceField(choices=("IRR",))
     deposit_toman = serializers.IntegerField()
     monthly_rent_toman = serializers.IntegerField()
+
+
+class RentalTermsComparisonSerializer(serializers.Serializer[Any]):
+    eligibility = serializers.ChoiceField(choices=("eligible", "unavailable"))
+    explanation = serializers.ChoiceField(
+        choices=("calculated", "negotiable_terms", "convertible_terms", "unsupported_currency")
+    )
+    calculation_version = serializers.CharField()
+    annual_return_rate_percent = serializers.DecimalField(max_digits=5, decimal_places=2)
+    monthly_opportunity_rate = serializers.DecimalField(max_digits=22, decimal_places=18)
+    deposit_rial = serializers.IntegerField(required=False)
+    monthly_rent_rial = serializers.IntegerField(required=False)
+    monthly_opportunity_cost_rial = serializers.IntegerField(required=False)
+    equivalent_monthly_cost_rial = serializers.IntegerField(required=False)
+    monthly_opportunity_cost_toman = serializers.IntegerField(required=False)
+    equivalent_monthly_cost_toman = serializers.IntegerField(required=False)
 
 
 class PropertyImageSummarySerializer(serializers.Serializer[Any]):
@@ -374,6 +413,7 @@ class PropertySummarySerializer(serializers.Serializer[Any]):
     listing_count = serializers.IntegerField()
     is_favorite = serializers.BooleanField(required=False)
     rental_terms = serializers.SerializerMethodField()
+    rental_terms_comparison = serializers.SerializerMethodField()
     availability_confirmed_at = serializers.DateTimeField(
         source="selected_availability_confirmed_at"
     )
@@ -411,6 +451,39 @@ class PropertySummarySerializer(serializers.Serializer[Any]):
             "currency": property_.selected_currency,  # type: ignore[attr-defined]
             "deposit_toman": rial_to_toman(deposit_rial),
             "monthly_rent_toman": rial_to_toman(monthly_rent_rial),
+        }
+
+    @extend_schema_field(RentalTermsComparisonSerializer(allow_null=True))
+    def get_rental_terms_comparison(self, property_: Property) -> dict[str, Any] | None:
+        annual_rate = getattr(property_, "comparison_annual_return_rate", None)
+        if annual_rate is None:
+            return None
+        monthly_rate = monthly_opportunity_rate(annual_rate)
+        deposit_rial = Decimal(property_.selected_deposit_rial)  # type: ignore[attr-defined]
+        monthly_rent_rial = Decimal(property_.selected_monthly_rent_rial)  # type: ignore[attr-defined]
+        base = {
+            "calculation_version": CALCULATION_VERSION,
+            "annual_return_rate_percent": format(annual_rate, ".2f"),
+            "monthly_opportunity_rate": format(monthly_rate, ".18f"),
+            "deposit_rial": int(deposit_rial),
+            "monthly_rent_rial": int(monthly_rent_rial),
+        }
+        if property_.selected_currency != "IRR":  # type: ignore[attr-defined]
+            return {**base, "eligibility": "unavailable", "explanation": "unsupported_currency"}
+        if property_.selected_is_negotiable:  # type: ignore[attr-defined]
+            return {**base, "eligibility": "unavailable", "explanation": "negotiable_terms"}
+        if property_.selected_is_convertible:  # type: ignore[attr-defined]
+            return {**base, "eligibility": "unavailable", "explanation": "convertible_terms"}
+        opportunity_cost = deposit_rial * monthly_rate
+        equivalent_cost = monthly_rent_rial + opportunity_cost
+        return {
+            **base,
+            "eligibility": "eligible",
+            "explanation": "calculated",
+            "monthly_opportunity_cost_rial": rounded_rial(opportunity_cost),
+            "equivalent_monthly_cost_rial": rounded_rial(equivalent_cost),
+            "monthly_opportunity_cost_toman": rounded_toman(opportunity_cost),
+            "equivalent_monthly_cost_toman": rounded_toman(equivalent_cost),
         }
 
 

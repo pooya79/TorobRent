@@ -1169,6 +1169,102 @@ test("presents each Property with normalized facts and freshest complete Rental 
   );
 });
 
+test("activates a zero-return comparison in the URL and renders server estimates", async () => {
+  const user = userEvent.setup();
+  let requestedParams = new URLSearchParams();
+  server.use(
+    http.get("*/api/v1/catalog/properties/", ({ request }) => {
+      requestedParams = new URL(request.url).searchParams;
+      const comparisonActive = requestedParams.has("annual_return_rate");
+      return HttpResponse.json({
+        ...propertySearchPage,
+        results: propertySearchPage.results.map((property) => ({
+          ...property,
+          rental_terms_comparison: comparisonActive
+            ? {
+                eligibility: "eligible" as const,
+                explanation: "calculated" as const,
+                calculation_version: "1",
+                annual_return_rate_percent: "0.00",
+                monthly_opportunity_rate: "0.000000000000000000",
+                deposit_rial: 10_000_000_000,
+                monthly_rent_rial: 250_000_000,
+                monthly_opportunity_cost_rial: 0,
+                equivalent_monthly_cost_rial: 250_000_000,
+                monthly_opportunity_cost_toman: 0,
+                equivalent_monthly_cost_toman: 25_000_000,
+              }
+            : null,
+        })),
+      });
+    }),
+  );
+  renderResults();
+
+  await user.click(
+    await screen.findByRole("button", { name: "سناریوی بازده صفر" }),
+  );
+
+  await waitFor(() => {
+    expect(requestedParams.get("annual_return_rate")).toBe("0");
+    expect(requestedParams.get("ordering")).toBe("equivalent_monthly_cost");
+  });
+  expect(screen.getByLabelText("وضعیت جست‌وجو")).toHaveTextContent(
+    "annual_return_rate=0",
+  );
+  expect(
+    screen.getByText("هزینه ماهانه برآوردی ۲۵٬۰۰۰٬۰۰۰ تومان"),
+  ).toBeVisible();
+  expect(screen.getByText("هزینه فرصت ودیعه ۰ تومان")).toBeVisible();
+  expect(screen.getByText(/توصیه مالی یا سرمایه‌گذاری نیست/)).toBeVisible();
+  await user.click(screen.getByText("فرمول و جزئیات محاسبه"));
+  expect(
+    screen.getByText(/اجاره ماهانه \+ هزینه فرصت ماهانه ودیعه/),
+  ).toBeVisible();
+
+  await user.click(screen.getByRole("button", { name: "پاک کردن سناریو" }));
+  await waitFor(() => {
+    expect(screen.getByLabelText("وضعیت جست‌وجو")).not.toHaveTextContent(
+      "annual_return_rate",
+    );
+    expect(screen.getByLabelText("وضعیت جست‌وجو")).not.toHaveTextContent(
+      "ordering",
+    );
+  });
+  expect(screen.queryByText(/هزینه ماهانه برآوردی/)).toBeNull();
+});
+
+test("validates and applies a custom annual return assumption", async () => {
+  const user = userEvent.setup();
+  let requestedRate: string | null = null;
+  server.use(
+    http.get("*/api/v1/catalog/properties/", ({ request }) => {
+      requestedRate = new URL(request.url).searchParams.get(
+        "annual_return_rate",
+      );
+      return HttpResponse.json(propertySearchPage);
+    }),
+  );
+  renderResults();
+
+  const rate = await screen.findByLabelText("فرض بازده موثر سالانه");
+  await user.type(rate, "۵۰۰٫۰۱");
+  await user.click(screen.getByRole("button", { name: "محاسبه و مرتب‌سازی" }));
+  expect(rate).toBeInvalid();
+  expect(screen.getByRole("alert")).toHaveTextContent(
+    "نرخ باید بین ۰ تا ۵۰۰ درصد و حداکثر دارای دو رقم اعشار باشد.",
+  );
+  expect(requestedRate).toBeNull();
+
+  await user.clear(rate);
+  await user.type(rate, "۱۲٫۵");
+  await user.click(screen.getByRole("button", { name: "محاسبه و مرتب‌سازی" }));
+  await waitFor(() => expect(requestedRate).toBe("12.5"));
+  expect(screen.getByLabelText("وضعیت جست‌وجو")).toHaveTextContent(
+    "annual_return_rate=12.5",
+  );
+});
+
 test("uses a Property Type placeholder and keeps a single Active Listing badge visible", async () => {
   server.use(
     http.get("*/api/v1/catalog/properties/", () =>

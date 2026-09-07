@@ -41,6 +41,7 @@ import {
   summarizePropertyTypes,
 } from "@/features/catalog/property-type-selection";
 import { SearchToolbar } from "@/features/catalog/SearchToolbar";
+import { RentalTermsComparison } from "@/features/catalog/RentalTermsComparison";
 import type {
   MapAdapter,
   MapCluster,
@@ -121,6 +122,7 @@ function toCardData(
     property.property_type_label,
     ...propertyAreaAndRoomFacts(property),
   ].filter((fact): fact is string => fact !== null);
+  const comparison = property.rental_terms_comparison;
   return {
     id: property.id,
     title: property.title,
@@ -135,6 +137,21 @@ function toCardData(
         ? `${formatNumber(property.listing_count - 1)} پیشنهاد دیگر`
         : undefined,
     rentalTerms: rentalTermsCardData(property.rental_terms),
+    rentalTermsComparison: comparison
+      ? {
+          eligibility: comparison.eligibility,
+          explanation: comparison.explanation,
+          annualRateLabel: `${formatNumber(Number(comparison.annual_return_rate_percent))} درصد`,
+          monthlyOpportunityCostLabel:
+            comparison.monthly_opportunity_cost_toman === undefined
+              ? undefined
+              : `${formatNumber(comparison.monthly_opportunity_cost_toman)} تومان`,
+          equivalentMonthlyCostLabel:
+            comparison.equivalent_monthly_cost_toman === undefined
+              ? undefined
+              : `${formatNumber(comparison.equivalent_monthly_cost_toman)} تومان`,
+        }
+      : undefined,
     navigation: {
       kind: "property-detail",
       href: `/properties/${property.id}?${new URLSearchParams({
@@ -591,6 +608,12 @@ export function ResultsPage({ mapAdapter }: { mapAdapter?: MapAdapter }) {
           </Button>
         </div>
       )}
+
+      <RentalTermsComparison
+        key={searchParams.get("annual_return_rate") ?? "comparison-off"}
+        searchParams={searchParams}
+        setSearchParams={setSearchParams}
+      />
 
       <div className="flex min-h-0 flex-1 flex-col">
         <div className="mb-3 flex shrink-0 flex-wrap items-center justify-between gap-2">

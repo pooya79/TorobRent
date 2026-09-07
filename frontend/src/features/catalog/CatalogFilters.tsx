@@ -477,6 +477,11 @@ export function CatalogFilters({
               <SelectItem value="newest">جدیدترین</SelectItem>
               <SelectItem value="monthly_rent">کمترین اجاره ماهانه</SelectItem>
               <SelectItem value="deposit">کمترین ودیعه</SelectItem>
+              {searchParams.has("annual_return_rate") ? (
+                <SelectItem value="equivalent_monthly_cost">
+                  کمترین هزینه ماهانه برآوردی
+                </SelectItem>
+              ) : null}
               <SelectItem value="area_desc">بیشترین متراژ</SelectItem>
               <SelectItem value="area_asc">کمترین متراژ</SelectItem>
             </SelectContent>

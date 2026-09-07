@@ -603,6 +603,14 @@ paths:
       summary: Search Properties with an Active Listing
       parameters:
       - in: query
+        name: annual_return_rate
+        schema:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,2})?$
+        description: Renter-supplied annual effective opportunity-return assumption,
+          as a percent.
+      - in: query
         name: area_max
         schema:
           type: integer
@@ -713,18 +721,20 @@ paths:
           - deposit
           - area_desc
           - area_asc
+          - equivalent_monthly_cost
           - freshness
           - area
           type: string
           minLength: 1
         description: |-
-          Use the five canonical sort modes. `freshness` and `area` remain supported as deprecated aliases for `newest` and `area_asc`.
+          Use the six canonical sort modes. `freshness` and `area` remain supported as deprecated aliases for `newest` and `area_asc`.
 
           * `newest` - newest
           * `monthly_rent` - monthly_rent
           * `deposit` - deposit
           * `area_desc` - area_desc
           * `area_asc` - area_asc
+          * `equivalent_monthly_cost` - equivalent_monthly_cost
           * `freshness` - freshness
           * `area` - area
       - in: query
@@ -3940,6 +3950,11 @@ components:
           allOf:
           - $ref: '#/components/schemas/RentalTermsPublic'
           readOnly: true
+        rental_terms_comparison:
+          oneOf:
+          - $ref: '#/components/schemas/RentalTermsComparison'
+          - type: 'null'
+          readOnly: true
         availability_confirmed_at:
           type: string
           format: date-time
@@ -3961,6 +3976,7 @@ components:
       - property_type
       - property_type_label
       - rental_terms
+      - rental_terms_comparison
       - saved_at
       - title
     ApproximateLocation:
@@ -4886,6 +4902,14 @@ components:
           maxLength: 120
       required:
       - display_name
+    EligibilityEnum:
+      enum:
+      - eligible
+      - unavailable
+      type: string
+      description: |-
+        * `eligible` - eligible
+        * `unavailable` - unavailable
     EmailVerificationRequest:
       type: object
       properties:
@@ -4946,6 +4970,18 @@ components:
       required:
       - id
       - url
+    ExplanationEnum:
+      enum:
+      - calculated
+      - negotiable_terms
+      - convertible_terms
+      - unsupported_currency
+      type: string
+      description: |-
+        * `calculated` - calculated
+        * `negotiable_terms` - negotiable_terms
+        * `convertible_terms` - convertible_terms
+        * `unsupported_currency` - unsupported_currency
     ExternalCandidateSource:
       type: object
       properties:
@@ -7335,6 +7371,11 @@ components:
           allOf:
           - $ref: '#/components/schemas/RentalTermsPublic'
           readOnly: true
+        rental_terms_comparison:
+          oneOf:
+          - $ref: '#/components/schemas/RentalTermsComparison'
+          - type: 'null'
+          readOnly: true
         availability_confirmed_at:
           type: string
           format: date-time
@@ -7353,6 +7394,7 @@ components:
       - property_type
       - property_type_label
       - rental_terms
+      - rental_terms_comparison
       - title
     PropertyTypeEnum:
       enum:
@@ -7453,6 +7495,41 @@ components:
       required:
       - detail
       - verification_method
+    RentalTermsComparison:
+      type: object
+      properties:
+        eligibility:
+          $ref: '#/components/schemas/EligibilityEnum'
+        explanation:
+          $ref: '#/components/schemas/ExplanationEnum'
+        calculation_version:
+          type: string
+        annual_return_rate_percent:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,2})?$
+        monthly_opportunity_rate:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,4}(?:\.\d{0,18})?$
+        deposit_rial:
+          type: integer
+        monthly_rent_rial:
+          type: integer
+        monthly_opportunity_cost_rial:
+          type: integer
+        equivalent_monthly_cost_rial:
+          type: integer
+        monthly_opportunity_cost_toman:
+          type: integer
+        equivalent_monthly_cost_toman:
+          type: integer
+      required:
+      - annual_return_rate_percent
+      - calculation_version
+      - eligibility
+      - explanation
+      - monthly_opportunity_rate
     RentalTermsInput:
       type: object
       properties:

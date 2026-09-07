@@ -19,6 +19,13 @@ export type PropertyCardData = {
     depositLabel: string;
     monthlyRentLabel: string;
   };
+  rentalTermsComparison?: {
+    eligibility: "eligible" | "unavailable";
+    explanation: string;
+    annualRateLabel: string;
+    monthlyOpportunityCostLabel?: string;
+    equivalentMonthlyCostLabel?: string;
+  };
   navigation:
     | { kind: "property-detail"; href: string }
     | { kind: "temporarily-unavailable" };
@@ -96,6 +103,38 @@ export function PropertyCard({
             ودیعه {property.rentalTerms.depositLabel}
           </p>
           <p>اجاره ماهانه {property.rentalTerms.monthlyRentLabel}</p>
+          {property.rentalTermsComparison?.eligibility === "eligible" ? (
+            <div className="border-primary/20 mt-3 space-y-1 border-t pt-3">
+              <p className="text-primary font-semibold">
+                هزینه ماهانه برآوردی{" "}
+                {property.rentalTermsComparison.equivalentMonthlyCostLabel}
+              </p>
+              <p>
+                هزینه فرصت ودیعه{" "}
+                {property.rentalTermsComparison.monthlyOpportunityCostLabel}
+              </p>
+              <details className="text-muted-foreground relative z-10 text-xs">
+                <summary className="min-h-11 cursor-pointer py-3">
+                  فرمول و جزئیات محاسبه
+                </summary>
+                <p className="leading-6">
+                  اجاره ماهانه + هزینه فرصت ماهانه ودیعه، با فرض بازده موثر
+                  سالانه {property.rentalTermsComparison.annualRateLabel}. مبلغ
+                  ودیعه و اجاره از یک آگهی فعال انتخاب شده‌اند.
+                </p>
+                <p className="mt-1 leading-6">
+                  نرخ فرصت ماهانه = (۱ + نرخ موثر سالانه) به توان ۱/۱۲، منهای ۱.
+                  هزینه فرصت ودیعه = ودیعه × نرخ فرصت ماهانه.
+                </p>
+              </details>
+            </div>
+          ) : property.rentalTermsComparison ? (
+            <p className="text-muted-foreground mt-3 border-t pt-3 text-xs leading-6">
+              {comparisonUnavailableMessage(
+                property.rentalTermsComparison.explanation,
+              )}
+            </p>
+          ) : null}
           {property.otherOffersLabel ? (
             <p className="text-muted-foreground pt-1 text-xs">
               {property.otherOffersLabel}
@@ -105,4 +144,14 @@ export function PropertyCard({
       ) : null}
     </Card>
   );
+}
+
+function comparisonUnavailableMessage(explanation: string) {
+  if (explanation === "negotiable_terms") {
+    return "این شرایط به‌عنوان ادعای قابل مذاکره منبع، برای مقایسه عددی در دسترس نیست.";
+  }
+  if (explanation === "convertible_terms") {
+    return "این شرایط به‌عنوان ادعای قابل تبدیل منبع، برای مقایسه عددی در دسترس نیست.";
+  }
+  return "واحد پول این ادعای منبع برای مقایسه عددی پشتیبانی نمی‌شود.";
 }

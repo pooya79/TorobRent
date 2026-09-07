@@ -9,7 +9,10 @@ from django.db.models import (
     Case,
     CharField,
     Count,
+    DecimalField,
     Exists,
+    ExpressionWrapper,
+    F,
     IntegerField,
     OuterRef,
     Q,
@@ -33,6 +36,7 @@ from .models import (
     PropertyImageVariant,
     PropertyType,
 )
+from .rental_terms_comparison import monthly_opportunity_rate
 
 PERSIAN_SEARCH_REPLACEMENTS = (
     ("ي", "ی"),
@@ -72,6 +76,7 @@ class SearchOrdering(StrEnum):
     DEPOSIT = "deposit"
     AREA_DESC = "area_desc"
     AREA_ASC = "area_asc"
+    EQUIVALENT_MONTHLY_COST = "equivalent_monthly_cost"
 
 
 @dataclass(frozen=True)
@@ -142,6 +147,7 @@ class PropertySearchFilters:
     balcony: str | None = None
     furnished: str | None = None
     ordering: SearchOrdering = SearchOrdering.NEWEST
+    annual_return_rate: Decimal | None = None
     viewport: MapViewportBounds | None = None
 
 
@@ -254,6 +260,14 @@ def _primary_property_image_variant() -> QuerySet[PropertyImageVariant]:
     )
 
 
+def _eligible_rental_terms_condition(prefix: str = "terms__") -> Q:
+    return Q(**{
+        f"{prefix}is_negotiable": False,
+        f"{prefix}is_convertible": False,
+        f"{prefix}currency": "IRR",
+    })
+
+
 def search_properties(
     filters: PropertySearchFilters | None = None,
     *,
@@ -271,8 +285,46 @@ def search_properties(
         lookup: value for lookup, value in listing_ranges.items() if value is not None
     })
 
-    ordering_spec = SEARCH_ORDERING_SPECS[filters.ordering]
-    selected_listing = active_listings.order_by(*ordering_spec.listing)
+    ordering_spec = SEARCH_ORDERING_SPECS.get(filters.ordering)
+    comparison_rate = (
+        monthly_opportunity_rate(filters.annual_return_rate)
+        if filters.annual_return_rate is not None
+        else None
+    )
+    if filters.ordering == SearchOrdering.EQUIVALENT_MONTHLY_COST:
+        if comparison_rate is None:
+            raise ValueError("Equivalent monthly cost ordering requires an annual return rate")
+        equivalent_cost = ExpressionWrapper(
+            F("terms__monthly_rent_rial") + F("terms__deposit_rial") * Value(comparison_rate),
+            output_field=DecimalField(max_digits=40, decimal_places=18),
+        )
+        selected_listing = active_listings.annotate(
+            comparison_ineligible=Case(
+                When(
+                    _eligible_rental_terms_condition(),
+                    then=Value(0),
+                ),
+                default=Value(1),
+                output_field=IntegerField(),
+            ),
+            equivalent_monthly_cost=Case(
+                When(
+                    _eligible_rental_terms_condition(),
+                    then=equivalent_cost,
+                ),
+                default=None,
+                output_field=DecimalField(max_digits=40, decimal_places=18),
+            ),
+        ).order_by(
+            "comparison_ineligible",
+            "equivalent_monthly_cost",
+            "-availability_confirmed_at",
+            "id",
+        )
+    else:
+        if ordering_spec is None:
+            raise ValueError(f"Unsupported search ordering: {filters.ordering}")
+        selected_listing = active_listings.order_by(*ordering_spec.listing)
     all_active_listings = Listing.objects.active().filter(property_id=OuterRef("pk"))
     active_listing_counts = (
         all_active_listings
@@ -297,12 +349,21 @@ def search_properties(
                 selected_listing.values("terms__monthly_rent_rial")[:1]
             ),
             selected_currency=Subquery(selected_listing.values("terms__currency")[:1]),
+            selected_is_negotiable=Subquery(selected_listing.values("terms__is_negotiable")[:1]),
+            selected_is_convertible=Subquery(selected_listing.values("terms__is_convertible")[:1]),
             primary_image_file=Subquery(primary_image_variant.values("asset__file")[:1]),
             primary_image_asset_id=Subquery(primary_image_variant.values("asset_id")[:1]),
             primary_image_width=Subquery(primary_image_variant.values("asset__width")[:1]),
             primary_image_height=Subquery(primary_image_variant.values("asset__height")[:1]),
         )
     )
+    if comparison_rate is not None:
+        properties = properties.annotate(
+            comparison_annual_return_rate=Value(
+                filters.annual_return_rate,
+                output_field=DecimalField(max_digits=5, decimal_places=2),
+            ),
+        )
     properties = properties.filter(selected_listing_id__isnull=False)
     if favorite_account_id is not None:
         properties = properties.annotate(
@@ -377,6 +438,34 @@ def search_properties(
                 Q(city_id=location_id) | Q(district_id=location_id) | Q(neighborhood_id=location_id)
             )
 
+    if filters.ordering == SearchOrdering.EQUIVALENT_MONTHLY_COST:
+        selected_equivalent_cost = ExpressionWrapper(
+            F("selected_monthly_rent_rial") + F("selected_deposit_rial") * Value(comparison_rate),
+            output_field=DecimalField(max_digits=40, decimal_places=18),
+        )
+        properties = properties.annotate(
+            selected_comparison_ineligible=Case(
+                When(
+                    _eligible_rental_terms_condition("selected_"),
+                    then=Value(0),
+                ),
+                default=Value(1),
+                output_field=IntegerField(),
+            ),
+            selected_equivalent_monthly_cost=Case(
+                When(selected_comparison_ineligible=0, then=selected_equivalent_cost),
+                default=None,
+                output_field=DecimalField(max_digits=40, decimal_places=18),
+            ),
+        )
+        return properties.order_by(
+            "selected_comparison_ineligible",
+            "selected_equivalent_monthly_cost",
+            "-selected_availability_confirmed_at",
+            "id",
+        )
+    if ordering_spec is None:
+        raise ValueError(f"Unsupported search ordering: {filters.ordering}")
     return properties.order_by(*ordering_spec.property)
 
 

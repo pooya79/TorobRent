@@ -2033,6 +2033,8 @@ export interface components {
       listing_count: number;
       is_favorite?: boolean;
       readonly rental_terms: components["schemas"]["RentalTermsPublic"];
+      readonly rental_terms_comparison:
+        components["schemas"]["RentalTermsComparison"] | null;
       /** Format: date-time */
       availability_confirmed_at: string;
       /** Format: date-time */
@@ -2439,6 +2441,12 @@ export interface components {
     DisplayNameUpdate: {
       display_name: string;
     };
+    /**
+     * @description * `eligible` - eligible
+     *     * `unavailable` - unavailable
+     * @enum {string}
+     */
+    EligibilityEnum: "eligible" | "unavailable";
     EmailVerificationRequest: {
       /** Format: email */
       email: string;
@@ -2468,6 +2476,18 @@ export interface components {
       id: string;
       url: string;
     };
+    /**
+     * @description * `calculated` - calculated
+     *     * `negotiable_terms` - negotiable_terms
+     *     * `convertible_terms` - convertible_terms
+     *     * `unsupported_currency` - unsupported_currency
+     * @enum {string}
+     */
+    ExplanationEnum:
+      | "calculated"
+      | "negotiable_terms"
+      | "convertible_terms"
+      | "unsupported_currency";
     ExternalCandidateSource: {
       /** Format: uuid */
       id: string;
@@ -3429,6 +3449,8 @@ export interface components {
       listing_count: number;
       is_favorite?: boolean;
       readonly rental_terms: components["schemas"]["RentalTermsPublic"];
+      readonly rental_terms_comparison:
+        components["schemas"]["RentalTermsComparison"] | null;
       /** Format: date-time */
       availability_confirmed_at: string;
     };
@@ -3500,6 +3522,21 @@ export interface components {
       detail: string;
       development_otp?: string;
       verification_method: components["schemas"]["VerificationMethodEnum"];
+    };
+    RentalTermsComparison: {
+      eligibility: components["schemas"]["EligibilityEnum"];
+      explanation: components["schemas"]["ExplanationEnum"];
+      calculation_version: string;
+      /** Format: decimal */
+      annual_return_rate_percent: string;
+      /** Format: decimal */
+      monthly_opportunity_rate: string;
+      deposit_rial?: number;
+      monthly_rent_rial?: number;
+      monthly_opportunity_cost_rial?: number;
+      equivalent_monthly_cost_rial?: number;
+      monthly_opportunity_cost_toman?: number;
+      equivalent_monthly_cost_toman?: number;
     };
     RentalTermsInput: {
       /** Format: int64 */
@@ -5452,6 +5489,8 @@ export interface operations {
   v1_catalog_properties_list: {
     parameters: {
       query?: {
+        /** @description Renter-supplied annual effective opportunity-return assumption, as a percent. */
+        annual_return_rate?: string;
         area_max?: number;
         area_min?: number;
         /**
@@ -5480,13 +5519,14 @@ export interface operations {
         monthly_rent_min_toman?: number;
         neighborhood?: string[];
         /**
-         * @description Use the five canonical sort modes. `freshness` and `area` remain supported as deprecated aliases for `newest` and `area_asc`.
+         * @description Use the six canonical sort modes. `freshness` and `area` remain supported as deprecated aliases for `newest` and `area_asc`.
          *
          *     * `newest` - newest
          *     * `monthly_rent` - monthly_rent
          *     * `deposit` - deposit
          *     * `area_desc` - area_desc
          *     * `area_asc` - area_asc
+         *     * `equivalent_monthly_cost` - equivalent_monthly_cost
          *     * `freshness` - freshness
          *     * `area` - area
          */
@@ -5496,6 +5536,7 @@ export interface operations {
           | "deposit"
           | "area_desc"
           | "area_asc"
+          | "equivalent_monthly_cost"
           | "freshness"
           | "area";
         page?: number;

@@ -184,6 +184,7 @@ function searchSummary(
     listing_count: 2,
     is_favorite: false,
     rental_terms: detail.listings[0]!.rental_terms,
+    rental_terms_comparison: null,
     availability_confirmed_at: detail.listings[0]!.availability_confirmed_at,
   };
 }
