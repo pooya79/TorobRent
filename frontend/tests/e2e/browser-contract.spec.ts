@@ -154,7 +154,7 @@ test("applies an explicit theme before hydration", async ({ page }) => {
     .poll(() =>
       page.evaluate(() => getComputedStyle(document.body).backgroundColor),
     )
-    .toBe("rgb(18, 18, 20)");
+    .toBe("rgb(26, 26, 29)");
 });
 
 test("persists an explicit theme across reloads and tabs", async ({
@@ -225,6 +225,6 @@ test.describe("without JavaScript", () => {
       .poll(() =>
         page.evaluate(() => getComputedStyle(document.body).backgroundColor),
       )
-      .toBe("rgb(18, 18, 20)");
+      .toBe("rgb(26, 26, 29)");
   });
 });
