@@ -1,0 +1,53 @@
+map $host $demo_site {
+  hostnames;
+  default "";
+  jsonld.${DEMO_BASE_DOMAIN} jsonld;
+  legacy.${DEMO_BASE_DOMAIN} legacy;
+  javascript.${DEMO_BASE_DOMAIN} javascript;
+  mixed.${DEMO_BASE_DOMAIN} mixed;
+  jsonld.localhost jsonld;
+  legacy.localhost legacy;
+  javascript.localhost javascript;
+  mixed.localhost mixed;
+  localhost jsonld;
+  127.0.0.1 jsonld;
+}
+
+server {
+  listen 80 default_server;
+  server_name _;
+
+  root /usr/share/nginx/html/$demo_site;
+  charset utf-8;
+  server_tokens off;
+
+  add_header X-Robots-Tag "noindex, nofollow, noarchive" always;
+  add_header X-Content-Type-Options "nosniff" always;
+  add_header Referrer-Policy "no-referrer" always;
+
+  if ($demo_site = "") {
+    return 404;
+  }
+
+  location ^~ /demo-status/gone/ {
+    return 410;
+  }
+
+  location ^~ /demo-status/temporary-error/ {
+    return 503;
+  }
+
+  location ^~ /demo-status/redirect/ {
+    return 302 /rentals/;
+  }
+
+  location / {
+    try_files $uri $uri/ $uri/index.html =404;
+  }
+
+  location ~* \.(?:css|webp)$ {
+    expires 7d;
+    add_header Cache-Control "public, max-age=604800, immutable";
+    add_header X-Robots-Tag "noindex, nofollow, noarchive" always;
+  }
+}

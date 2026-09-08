@@ -20,5 +20,6 @@ frontend/coverage/
 frontend/playwright-report/
 frontend/test-results/
 frontend/.lighthouseci/
+demo_sources/generated/
 .DS_Store
 .playwright-cli

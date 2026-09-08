@@ -1,4 +1,4 @@
-.PHONY: help bootstrap dev dev-down seed-dev prod prod-down test-milestone infra-up infra-down migrate makemigrations superuser api-schema api-client api-check test test-backend test-frontend lint format format-check typecheck build check docker-build
+.PHONY: help bootstrap dev dev-down seed-dev prod prod-down test-milestone infra-up infra-down migrate makemigrations superuser api-schema api-client api-check test test-backend test-frontend lint format format-check typecheck build check docker-build demo-sources-generate demo-sources-up demo-sources-down
 
 bootstrap: ## Install backend/frontend dependencies and Playwright Chromium.
 	cd backend && uv sync
@@ -87,6 +87,16 @@ docker-build: ## Build all three Docker images and verify backend volume write p
 		app-backend -c 'touch media/.write-check /var/lib/celery/.write-check'
 	docker build -f frontend/Dockerfile -t app-frontend .
 	docker build -f infra/nginx/Dockerfile -t app-gateway .
+
+demo-sources-generate: ## Generate the four fictional Source websites locally.
+	python3 demo_sources/generate.py --base-domain "$${DEMO_BASE_DOMAIN:-demo.example.com}"
+	python3 demo_sources/validate.py
+
+demo-sources-up: ## Build and serve demo Sources; requires DEMO_BASE_DOMAIN.
+	docker compose -f demo_sources/compose.yaml up --build -d
+
+demo-sources-down: ## Stop the standalone demo Source websites.
+	docker compose -f demo_sources/compose.yaml down
 
 # Add a trailing ## description to each target to include it in make help.
 help: ## Show available commands and their descriptions.

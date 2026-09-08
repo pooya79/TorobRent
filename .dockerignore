@@ -14,4 +14,5 @@ frontend/.react-router
 frontend/test-results
 frontend/playwright-report
 backend/staticfiles
+demo_sources/generated
 .env
