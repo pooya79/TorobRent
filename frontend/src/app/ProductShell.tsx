@@ -537,73 +537,75 @@ export function ProductShell({ children }: { children: ReactNode }) {
       <div className={isSearchPage ? "min-h-0 flex-1 overflow-hidden" : ""}>
         {children}
         {!isSearchPage && (
-          <footer className="border-border mx-auto mt-16 grid w-full max-w-432 gap-8 border-t px-4 py-10 text-sm sm:px-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)] lg:px-10">
-            <div>
-              <p className="font-semibold">ترب‌رنت</p>
-              <p className="text-muted-foreground mt-2 max-w-md leading-7">
-                جست‌وجو و مقایسه شفاف‌تر ملک‌های مسکونی و تجاری برای اجاره
-              </p>
-            </div>
-            <div className="grid gap-7 sm:grid-cols-2">
-              <nav aria-label="اطلاعات ترب‌رنت">
-                <p className="font-semibold">اطلاعات</p>
-                <div className="text-muted-foreground mt-2 grid grid-cols-2 gap-x-5">
-                  {footerLinks.map((link) => (
-                    <NavLink
-                      key={link.to}
-                      className="hover:text-foreground inline-flex min-h-11 items-center rounded-md focus-visible:ring-2 focus-visible:outline-none"
-                      to={link.to}
-                    >
-                      {link.label}
-                    </NavLink>
-                  ))}
-                </div>
-              </nav>
+          <footer className="border-info/20 bg-info-soft mt-16 w-full border-t">
+            <div className="mx-auto grid w-full max-w-432 gap-8 px-4 py-10 text-sm sm:px-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)] lg:px-10">
               <div>
-                <p className="font-semibold">دنبال کردن ترب‌رنت</p>
-                <div
-                  aria-label="شبکه‌های اجتماعی"
-                  className="mt-3 flex flex-wrap gap-2"
-                  role="group"
-                >
-                  {socialPlaceholders.map(({ label, icon: Icon }) => (
-                    <Button
-                      key={label}
-                      aria-disabled="true"
-                      aria-label={label}
-                      className="size-11"
-                      title={label}
-                      type="button"
-                      variant="outline"
-                    >
-                      {Icon ? (
-                        <Icon aria-hidden="true" />
-                      ) : (
-                        <span aria-hidden="true" className="font-semibold">
-                          X
-                        </span>
-                      )}
-                    </Button>
-                  ))}
+                <p className="font-semibold">ترب‌رنت</p>
+                <p className="text-muted-foreground mt-2 max-w-md leading-7">
+                  جست‌وجو و مقایسه شفاف‌تر ملک‌های مسکونی و تجاری برای اجاره
+                </p>
+              </div>
+              <div className="grid gap-7 sm:grid-cols-2">
+                <nav aria-label="اطلاعات ترب‌رنت">
+                  <p className="font-semibold">اطلاعات</p>
+                  <div className="text-muted-foreground mt-2 grid grid-cols-2 gap-x-5">
+                    {footerLinks.map((link) => (
+                      <NavLink
+                        key={link.to}
+                        className="hover:text-foreground inline-flex min-h-11 items-center rounded-md focus-visible:ring-2 focus-visible:outline-none"
+                        to={link.to}
+                      >
+                        {link.label}
+                      </NavLink>
+                    ))}
+                  </div>
+                </nav>
+                <div>
+                  <p className="font-semibold">دنبال کردن ترب‌رنت</p>
+                  <div
+                    aria-label="شبکه‌های اجتماعی"
+                    className="mt-3 flex flex-wrap gap-2"
+                    role="group"
+                  >
+                    {socialPlaceholders.map(({ label, icon: Icon }) => (
+                      <Button
+                        key={label}
+                        aria-disabled="true"
+                        aria-label={label}
+                        className="size-11"
+                        title={label}
+                        type="button"
+                        variant="outline"
+                      >
+                        {Icon ? (
+                          <Icon aria-hidden="true" />
+                        ) : (
+                          <span aria-hidden="true" className="font-semibold">
+                            X
+                          </span>
+                        )}
+                      </Button>
+                    ))}
+                  </div>
                 </div>
               </div>
-            </div>
-            <div
-              aria-label="وضعیت آمادگی سامانه"
-              className="text-muted-foreground flex items-center gap-2 text-xs lg:col-span-2"
-              role="status"
-              aria-live="polite"
-            >
-              {health.data?.status === "ok" ? (
-                <>
-                  <Check className="size-3" aria-hidden="true" /> سامانه در
-                  دسترس است
-                </>
-              ) : health.isPending ? (
-                "در حال بررسی سامانه…"
-              ) : (
-                "سامانه موقتاً در دسترس نیست"
-              )}
+              <div
+                aria-label="وضعیت آمادگی سامانه"
+                className="text-muted-foreground flex items-center gap-2 text-xs lg:col-span-2"
+                role="status"
+                aria-live="polite"
+              >
+                {health.data?.status === "ok" ? (
+                  <>
+                    <Check className="size-3" aria-hidden="true" /> سامانه در
+                    دسترس است
+                  </>
+                ) : health.isPending ? (
+                  "در حال بررسی سامانه…"
+                ) : (
+                  "سامانه موقتاً در دسترس نیست"
+                )}
+              </div>
             </div>
           </footer>
         )}

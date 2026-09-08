@@ -163,7 +163,7 @@ export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
       tabIndex={-1}
     >
       <section className="border-border mx-auto w-full max-w-xl rounded-xl border p-8 text-center">
-        <p className="text-primary mb-3 text-sm font-semibold">
+        <p className="text-info mb-3 text-sm font-semibold">
           {notFound ? "خطای ۴۰۴" : "خطای سامانه"}
         </p>
         <h1 className="text-3xl font-semibold tracking-tight">{title}</h1>

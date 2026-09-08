@@ -227,7 +227,7 @@ export function ProposalReviewCard({
               <div className="bg-muted/30 rounded-xl border p-4">
                 <div className="mb-3 flex items-center gap-2 font-medium">
                   <ShieldCheck
-                    className="text-primary size-4"
+                    className="text-info size-4"
                     aria-hidden="true"
                   />
                   اپراتور مسئول بررسی
@@ -278,7 +278,7 @@ export function ProposalReviewCard({
                 >
                   {step.done ? (
                     <CheckCircle2
-                      className="text-primary size-5"
+                      className="text-info size-5"
                       aria-hidden="true"
                     />
                   ) : (

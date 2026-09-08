@@ -301,7 +301,7 @@ function MessageCenterContent({
     <div dir="rtl">
       <header className="mb-6 flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="text-primary mb-2 text-sm font-semibold">حساب کاربری</p>
+          <p className="text-info mb-2 text-sm font-semibold">حساب کاربری</p>
           <h1 className="text-3xl font-semibold tracking-tight">مرکز پیام</h1>
           <p
             className={cn(
@@ -561,7 +561,7 @@ function MessageCenterContent({
               ) : detail.data ? (
                 <article>
                   <div className="mb-5 flex items-start gap-3">
-                    <div className="text-primary bg-primary/10 flex size-11 shrink-0 items-center justify-center rounded-xl">
+                    <div className="text-info bg-info-soft flex size-11 shrink-0 items-center justify-center rounded-xl">
                       {detail.data.kind === "support_request" ? (
                         <Headphones aria-hidden="true" />
                       ) : detail.data.kind === "source_conversation" ||
@@ -1007,7 +1007,7 @@ function MessageCenterContent({
           ) : (
             <Card className="hidden h-full place-items-center border-0 shadow-none xl:grid">
               <CardContent className="text-muted-foreground text-center">
-                <span className="bg-primary/10 text-primary mx-auto mb-5 flex size-20 items-center justify-center rounded-3xl">
+                <span className="bg-info-soft text-info mx-auto mb-5 flex size-20 items-center justify-center rounded-3xl">
                   <MessageCircle className="size-9" aria-hidden="true" />
                 </span>
                 <h2 className="text-foreground mb-3 text-xl font-semibold">

@@ -32,7 +32,7 @@ export function SubmitterProfilePage() {
   return (
     <AccountWorkspace>
       <header className="mb-8">
-        <p className="text-primary mb-2 text-sm font-medium">حساب کاربری</p>
+        <p className="text-info mb-2 text-sm font-medium">حساب کاربری</p>
         <h1 className="text-3xl font-semibold">پروفایل من</h1>
         <p className="text-muted-foreground mt-3">
           اطلاعات حساب و نامی که در گفت‌وگوها نمایش داده می‌شود.
@@ -136,10 +136,7 @@ export function SubmitterProfilePage() {
             </CardContent>
           </Card>
           <div className="bg-muted h-fit rounded-2xl p-6">
-            <ShieldCheck
-              className="text-primary mb-4 size-7"
-              aria-hidden="true"
-            />
+            <ShieldCheck className="text-info mb-4 size-7" aria-hidden="true" />
             <h2 className="font-semibold">حریم خصوصی شما</h2>
             <p className="text-muted-foreground mt-3 text-sm leading-7">
               ایمیل حساب شما در آگهی نمایش داده نمی‌شود. شماره تماس هر آگهی را

@@ -126,7 +126,7 @@ function PropertyTypePaths() {
     >
       <header className="mb-9 flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
         <div>
-          <p className="text-primary mb-2 text-sm font-semibold">
+          <p className="text-info mb-2 text-sm font-semibold">
             جست‌وجو بر اساس نوع ملک
           </p>
           <h2
@@ -196,7 +196,7 @@ export function PopularCities() {
         aria-labelledby="popular-cities-title"
       >
         <div
-          className="bg-primary/10 pointer-events-none absolute top-1/2 left-1/2 -z-10 size-96 -translate-x-1/2 -translate-y-1/2 rounded-full blur-3xl"
+          className="bg-sand pointer-events-none absolute top-1/2 left-1/2 -z-10 size-96 -translate-x-1/2 -translate-y-1/2 rounded-full blur-3xl"
           aria-hidden="true"
         />
         <div className="mx-auto w-full max-w-432 px-4 pt-14 sm:px-6 lg:px-10">

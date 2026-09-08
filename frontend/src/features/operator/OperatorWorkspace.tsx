@@ -145,7 +145,7 @@ function OperatorShell({
           className="flex min-h-11 items-center gap-2 font-bold"
           to="/operator"
         >
-          <ShieldCheck className="text-primary size-5" aria-hidden="true" />
+          <ShieldCheck className="text-info size-5" aria-hidden="true" />
           فضای اپراتور
         </NavLink>
         <div className="flex items-center gap-2">

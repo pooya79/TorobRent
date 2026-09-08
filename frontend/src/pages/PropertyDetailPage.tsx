@@ -518,7 +518,7 @@ export function PropertyDetailPage({
                 className="flex flex-col items-center gap-2 p-5 text-center"
               >
                 <Icon
-                  className="text-primary mb-1 size-6"
+                  className="text-info mb-1 size-6"
                   strokeWidth={1.5}
                   aria-hidden="true"
                 />
@@ -535,7 +535,7 @@ export function PropertyDetailPage({
               id="normalized-facts-title"
               className="flex items-center gap-2 text-xl font-bold"
             >
-              <BadgeCheck className="text-primary size-5" aria-hidden="true" />
+              <BadgeCheck className="text-info size-5" aria-hidden="true" />
               مشخصات تأییدشده ملک
             </h2>
             <p className="text-muted-foreground mt-2 text-sm leading-7">
@@ -602,7 +602,7 @@ export function PropertyDetailPage({
             <h2 id="active-listings-title" className="text-xl font-bold">
               آگهی‌های فعال
             </h2>
-            <span className="bg-primary/10 text-primary flex size-7 items-center justify-center rounded-full text-sm font-semibold">
+            <span className="bg-info-soft text-info flex size-7 items-center justify-center rounded-full text-sm font-semibold">
               {formatNumber(property.listings.length)}
             </span>
           </div>

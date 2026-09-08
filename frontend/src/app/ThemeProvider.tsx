@@ -13,8 +13,8 @@ export type ThemePreference = "system" | "light" | "dark";
 export const THEME_STORAGE_KEY = "torobrent-theme";
 
 export const THEME_COLORS = {
-  light: "#ffffff",
-  dark: "#121214",
+  light: "#faf8f5",
+  dark: "#191e1e",
 } as const;
 
 export const THEME_BOOTSTRAP_SCRIPT = `(()=>{try{const p=localStorage.getItem("${THEME_STORAGE_KEY}");const v=p==="light"||p==="dark"||p==="system"?p:"system";if(v==="system")document.documentElement.removeAttribute("data-theme");else document.documentElement.dataset.theme=v;const d=v==="dark"||(v==="system"&&matchMedia("(prefers-color-scheme: dark)").matches);document.querySelectorAll('meta[name="theme-color"]').forEach((m)=>m.content=d?"${THEME_COLORS.dark}":"${THEME_COLORS.light}")}catch{document.documentElement.removeAttribute("data-theme")}})();`;

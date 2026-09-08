@@ -190,7 +190,7 @@ export function SourceProposalPage() {
         <Card className="mx-auto max-w-2xl shadow-none">
           <CardContent className="space-y-5 pt-6 text-center">
             <CheckCircle2
-              className="text-primary mx-auto size-12"
+              className="text-info mx-auto size-12"
               aria-hidden="true"
             />
             <h1 className="text-2xl font-semibold">در انتظار بررسی اپراتور</h1>
@@ -235,7 +235,7 @@ export function SourceProposalPage() {
         <SourceConversationButton proposalId={proposal.id} />
       )}
       <header className="mb-8 max-w-3xl">
-        <p className="text-primary mb-2 text-sm font-semibold">
+        <p className="text-info mb-2 text-sm font-semibold">
           معرفی منبع بیرونی
         </p>
         <h1 className="text-3xl font-semibold tracking-tight">

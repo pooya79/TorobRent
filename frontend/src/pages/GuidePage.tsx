@@ -186,7 +186,7 @@ export function GuidePage() {
       className="mx-auto w-full max-w-7xl px-4 py-10 sm:px-6 sm:py-14 lg:px-10"
     >
       <header className="mb-10 max-w-3xl">
-        <p className="text-primary mb-3 flex items-center gap-2 text-sm font-semibold">
+        <p className="text-info mb-3 flex items-center gap-2 text-sm font-semibold">
           <BookOpen className="size-4" aria-hidden="true" />
           مرکز راهنما
         </p>

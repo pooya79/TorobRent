@@ -49,7 +49,7 @@ export function OperatorExternalListingsPage() {
   return (
     <PageMain>
       <header>
-        <p className="text-primary text-sm font-semibold">فضای اپراتور</p>
+        <p className="text-info text-sm font-semibold">فضای اپراتور</p>
         <h1
           id="external-candidate-heading"
           className="mt-2 text-3xl font-semibold"

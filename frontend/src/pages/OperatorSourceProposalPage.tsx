@@ -69,7 +69,7 @@ export function OperatorSourceProposalPage() {
     <PageMain>
       <header className="mb-8 flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p className="text-primary text-sm font-semibold">
+          <p className="text-info text-sm font-semibold">
             فضای اپراتور / منابع
           </p>
           <h1 className="mt-2 text-3xl font-semibold">صف بررسی منابع</h1>

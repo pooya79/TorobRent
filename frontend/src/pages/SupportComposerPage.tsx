@@ -61,7 +61,7 @@ export function SupportComposerPage() {
         <ArrowRight className="size-4" aria-hidden="true" />
         بازگشت به پیام‌ها
       </Link>
-      <p className="text-primary mb-2 text-sm font-semibold">مرکز پیام</p>
+      <p className="text-info mb-2 text-sm font-semibold">مرکز پیام</p>
       <h1 className="text-3xl font-semibold">درخواست پشتیبانی جدید</h1>
       <p className="text-muted-foreground mt-3 leading-7">
         هویت و راه تماس از حساب تأییدشده شما دریافت می‌شود.
@@ -145,10 +145,7 @@ export function SupportComposerPage() {
           </fieldset>
         </form>
         <aside className="bg-muted/60 rounded-2xl p-6">
-          <ShieldCheck
-            className="text-primary mb-4 size-7"
-            aria-hidden="true"
-          />
+          <ShieldCheck className="text-info mb-4 size-7" aria-hidden="true" />
           <h2 className="font-semibold">برای پیگیری بهتر</h2>
           <p className="text-muted-foreground mt-3 text-sm leading-7">
             {kind === "general"

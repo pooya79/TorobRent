@@ -34,7 +34,7 @@ export function SubmitterPathChoice({
   return (
     <>
       <header className="max-w-2xl">
-        <p className="text-primary text-sm font-semibold">مسیر ارسال‌کننده</p>
+        <p className="text-info text-sm font-semibold">مسیر ارسال‌کننده</p>
         <h1 className="mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">
           چه چیزی می‌خواهید معرفی کنید؟
         </h1>
@@ -67,7 +67,7 @@ export function SubmitterPathChoice({
                 )}
               >
                 <CardHeader className="flex-row items-center gap-3">
-                  <span className="bg-primary/10 text-primary flex size-11 items-center justify-center rounded-xl">
+                  <span className="bg-info-soft text-info flex size-11 items-center justify-center rounded-xl">
                     <Icon aria-hidden="true" />
                   </span>
                   <h2 className="text-xl font-semibold">{choice.title}</h2>
@@ -77,10 +77,7 @@ export function SubmitterPathChoice({
                     {choice.description}
                   </p>
                   {selected ? (
-                    <p
-                      className="text-primary mt-4 font-semibold"
-                      role="status"
-                    >
+                    <p className="text-info mt-4 font-semibold" role="status">
                       {pending
                         ? "در حال آماده‌سازی مسیر…"
                         : "این مسیر برای ادامه ذخیره شده است."}

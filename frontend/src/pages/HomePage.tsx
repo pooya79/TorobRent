@@ -27,13 +27,13 @@ export function HomePage() {
 
   return (
     <main id="main-content" tabIndex={-1}>
-      <section className="via-primary/5 relative isolate z-10 overflow-visible bg-gradient-to-b from-transparent to-transparent">
+      <section className="from-blush via-background to-background relative isolate z-10 overflow-visible bg-gradient-to-b">
         <div
-          className="pointer-events-none absolute inset-0 -z-20 [background-image:linear-gradient(to_right,var(--border)_1px,transparent_1px),linear-gradient(to_bottom,var(--border)_1px,transparent_1px)] [mask-image:linear-gradient(to_bottom,black,transparent)] [background-size:3rem_3rem] opacity-35"
+          className="pointer-events-none absolute inset-0 -z-20 [background-image:linear-gradient(to_right,var(--color-border)_1px,transparent_1px),linear-gradient(to_bottom,var(--color-border)_1px,transparent_1px)] [mask-image:linear-gradient(to_bottom,black,transparent)] [background-size:3rem_3rem] opacity-35"
           aria-hidden="true"
         />
         <div
-          className="bg-primary/10 pointer-events-none absolute start-1/4 -top-40 -z-10 size-96 rounded-full blur-3xl"
+          className="bg-info/15 pointer-events-none absolute start-1/4 -top-40 -z-10 size-96 rounded-full blur-3xl"
           aria-hidden="true"
         />
         <div className="mx-auto w-full max-w-432 px-4 pt-10 pb-16 sm:px-6 sm:pt-16 lg:px-10 lg:pt-24">
@@ -144,7 +144,7 @@ function TrustSection() {
       aria-labelledby="trust-title"
     >
       <div className="mx-auto max-w-2xl text-center">
-        <p className="text-primary mb-2 text-sm font-semibold">مرزهای اعتماد</p>
+        <p className="text-info mb-2 text-sm font-semibold">مرزهای اعتماد</p>
         <h2 id="trust-title" className="text-2xl font-semibold sm:text-3xl">
           چرا به اطلاعات اعتماد کنیم؟
         </h2>
@@ -153,9 +153,9 @@ function TrustSection() {
         {trustClaims.map(({ title, description, icon: Icon }) => (
           <article
             key={title}
-            className="border-border bg-card rounded-2xl border p-6"
+            className="border-info/20 bg-info-soft rounded-2xl border p-6"
           >
-            <Icon className="text-primary size-8" aria-hidden="true" />
+            <Icon className="text-info size-8" aria-hidden="true" />
             <h3 className="mt-5 text-lg font-semibold">{title}</h3>
             <p className="text-muted-foreground mt-3 text-sm leading-7">
               {description}
@@ -174,14 +174,12 @@ function CatalogStatisticsSection() {
 
   return (
     <section
-      className="bg-muted/70 border-border border-y"
+      className="bg-sand border-border border-y"
       aria-labelledby="statistics-title"
     >
       <div className="mx-auto w-full max-w-432 px-4 py-16 sm:px-6 lg:px-10">
         <div className="mx-auto max-w-2xl text-center">
-          <p className="text-primary mb-2 text-sm font-semibold">
-            نمای کلی بازار
-          </p>
+          <p className="text-info mb-2 text-sm font-semibold">نمای کلی بازار</p>
           <h2
             id="statistics-title"
             className="text-2xl font-semibold sm:text-3xl"
@@ -232,7 +230,7 @@ function CatalogStatisticsSection() {
                   <dt className="text-muted-foreground order-2 mt-2 text-sm">
                     {label}
                   </dt>
-                  <dd className="text-primary order-1 text-4xl font-semibold tabular-nums">
+                  <dd className="text-info order-1 text-4xl font-semibold tabular-nums">
                     {persianNumber.format(value as number)}
                   </dd>
                 </div>

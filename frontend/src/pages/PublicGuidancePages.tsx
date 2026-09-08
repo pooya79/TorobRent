@@ -21,7 +21,7 @@ function GuidanceLayout({
       tabIndex={-1}
     >
       <header className="mb-10">
-        <p className="text-primary mb-3 text-sm font-semibold">{eyebrow}</p>
+        <p className="text-info mb-3 text-sm font-semibold">{eyebrow}</p>
         <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
           {title}
         </h1>

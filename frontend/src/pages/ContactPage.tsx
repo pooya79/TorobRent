@@ -35,7 +35,7 @@ export function ContactPage() {
       className="mx-auto w-full max-w-3xl px-4 py-12 sm:px-6 lg:px-10"
       tabIndex={-1}
     >
-      <p className="text-primary mb-3 text-sm font-semibold">پشتیبانی انسانی</p>
+      <p className="text-info mb-3 text-sm font-semibold">پشتیبانی انسانی</p>
       <h1 className="text-3xl font-semibold tracking-tight">تماس با ما</h1>
       <p className="text-muted-foreground mt-4 leading-8">
         درخواست شما در مرکز پیام نگهداری می‌شود تا پاسخ اپراتور و وضعیت رسیدگی

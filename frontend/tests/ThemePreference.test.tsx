@@ -111,13 +111,13 @@ test("System preference follows operating-system theme changes", async () => {
   const themeColor = document.querySelector<HTMLMetaElement>(
     'meta[name="theme-color"]',
   );
-  await waitFor(() => expect(themeColor).toHaveAttribute("content", "#ffffff"));
+  await waitFor(() => expect(themeColor).toHaveAttribute("content", "#faf8f5"));
   expect(switcher).toBeVisible();
   expect(document.documentElement).not.toHaveAttribute("data-theme");
 
   setSystemDark(true);
 
-  await waitFor(() => expect(themeColor).toHaveAttribute("content", "#121214"));
+  await waitFor(() => expect(themeColor).toHaveAttribute("content", "#191e1e"));
   expect(switcher).toBeVisible();
   expect(document.documentElement).not.toHaveAttribute("data-theme");
 });

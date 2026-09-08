@@ -99,7 +99,7 @@ export function OperatorOverviewPage() {
   return (
     <PageMain className="max-w-7xl">
       <header className="mb-8 border-b pb-6">
-        <p className="text-primary mb-2 text-sm font-medium">میز کار اپراتور</p>
+        <p className="text-info mb-2 text-sm font-medium">میز کار اپراتور</p>
         <h1 className="text-3xl font-semibold tracking-tight">
           نمای کلی کارها
         </h1>
@@ -121,7 +121,7 @@ export function OperatorOverviewPage() {
           return (
             <Card key={to} className="gap-4 rounded-2xl shadow-none">
               <CardHeader className="flex-row items-center gap-3">
-                <span className="bg-primary/10 text-primary flex size-11 shrink-0 items-center justify-center rounded-xl">
+                <span className="bg-info-soft text-info flex size-11 shrink-0 items-center justify-center rounded-xl">
                   <Icon className="size-5" aria-hidden="true" />
                 </span>
                 <CardTitle className="text-lg">{label}</CardTitle>

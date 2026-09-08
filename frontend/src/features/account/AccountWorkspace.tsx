@@ -94,7 +94,7 @@ export function AccountWorkspace({ children }: { children: ReactNode }) {
             to="/dashboard/profile"
             className="mb-1 flex items-center gap-3 rounded-xl p-2 lg:mb-5"
           >
-            <span className="bg-primary/10 text-primary flex size-12 shrink-0 items-center justify-center rounded-2xl">
+            <span className="bg-info-soft text-info flex size-12 shrink-0 items-center justify-center rounded-2xl">
               <UserRound aria-hidden="true" />
             </span>
             <span className="min-w-0">

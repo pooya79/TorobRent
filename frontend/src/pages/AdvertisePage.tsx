@@ -171,11 +171,11 @@ export function AdvertisePage() {
       <section className="relative isolate overflow-hidden border-b">
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute inset-0 -z-20 [background-image:radial-gradient(circle_at_20%_20%,color-mix(in_oklab,var(--primary)_14%,transparent),transparent_34%),linear-gradient(to_right,var(--border)_1px,transparent_1px),linear-gradient(to_bottom,var(--border)_1px,transparent_1px)] [mask-image:linear-gradient(to_bottom,black,transparent)] [background-size:auto,3.5rem_3.5rem,3.5rem_3.5rem] opacity-70"
+          className="pointer-events-none absolute inset-0 -z-20 [background-image:radial-gradient(circle_at_20%_20%,color-mix(in_oklab,var(--color-info)_14%,transparent),transparent_34%),linear-gradient(to_right,var(--color-border)_1px,transparent_1px),linear-gradient(to_bottom,var(--color-border)_1px,transparent_1px)] [mask-image:linear-gradient(to_bottom,black,transparent)] [background-size:auto,3.5rem_3.5rem,3.5rem_3.5rem] opacity-70"
         />
         <div className="mx-auto grid w-full max-w-7xl items-center gap-12 px-4 py-14 sm:px-6 sm:py-20 lg:grid-cols-[1.05fr_.95fr] lg:px-10 lg:py-28">
           <div className="motion-safe:animate-[fade-in_.45s_ease-out]">
-            <p className="text-primary mb-4 flex items-center gap-2 text-sm font-semibold">
+            <p className="text-info mb-4 flex items-center gap-2 text-sm font-semibold">
               <Sparkles className="size-4" aria-hidden="true" />
               برای مالک، نماینده مجاز مالک و نماینده منبع
             </p>
@@ -241,9 +241,9 @@ export function AdvertisePage() {
                 </div>
               </div>
               <div className="mt-4 flex items-center gap-3 rounded-2xl border p-4">
-                <span className="bg-primary/10 flex size-10 shrink-0 items-center justify-center rounded-full">
+                <span className="bg-info-soft flex size-10 shrink-0 items-center justify-center rounded-full">
                   <ShieldCheck
-                    className="text-primary size-5"
+                    className="text-info size-5"
                     aria-hidden="true"
                   />
                 </span>
@@ -264,7 +264,7 @@ export function AdvertisePage() {
         className="mx-auto w-full max-w-7xl px-4 py-16 sm:px-6 lg:px-10 lg:py-24"
       >
         <div className="max-w-2xl">
-          <p className="text-primary text-sm font-semibold">شفاف از ابتدا</p>
+          <p className="text-info text-sm font-semibold">شفاف از ابتدا</p>
           <h2
             id="safeguards-title"
             className="mt-2 text-3xl font-semibold tracking-tight"
@@ -279,8 +279,8 @@ export function AdvertisePage() {
               key={title}
             >
               <CardHeader className="pb-3">
-                <span className="bg-primary/10 flex size-11 items-center justify-center rounded-xl">
-                  <Icon className="text-primary size-5" aria-hidden="true" />
+                <span className="bg-info-soft flex size-11 items-center justify-center rounded-xl">
+                  <Icon className="text-info size-5" aria-hidden="true" />
                 </span>
                 <h3 className="pt-3 font-semibold">{title}</h3>
               </CardHeader>
@@ -299,7 +299,7 @@ export function AdvertisePage() {
       >
         <div className="mx-auto w-full max-w-7xl px-4 py-16 sm:px-6 lg:px-10 lg:py-24">
           <div className="mx-auto max-w-3xl text-center">
-            <p className="text-primary text-sm font-semibold">
+            <p className="text-info text-sm font-semibold">
               دو نیاز، دو ادامه روشن
             </p>
             <h2
@@ -321,7 +321,7 @@ export function AdvertisePage() {
                   className="bg-card rounded-3xl border p-6 shadow-sm sm:p-8"
                   key={id}
                 >
-                  <Icon className="text-primary size-9" aria-hidden="true" />
+                  <Icon className="text-info size-9" aria-hidden="true" />
                   <h3 id={id} className="mt-5 text-2xl font-semibold">
                     {title}
                   </h3>
@@ -348,9 +348,7 @@ export function AdvertisePage() {
         className="mx-auto grid w-full max-w-7xl gap-12 px-4 py-16 sm:px-6 lg:grid-cols-[.8fr_1.2fr] lg:px-10 lg:py-24"
       >
         <div>
-          <p className="text-primary text-sm font-semibold">
-            مسیر دستی ثبت ملک
-          </p>
+          <p className="text-info text-sm font-semibold">مسیر دستی ثبت ملک</p>
           <h2
             id="steps-title"
             className="mt-2 text-3xl font-semibold tracking-tight"
@@ -400,7 +398,7 @@ export function AdvertisePage() {
       >
         <div className="mx-auto w-full max-w-7xl px-4 py-16 sm:px-6 lg:px-10 lg:py-24">
           <div className="max-w-3xl">
-            <p className="text-primary text-sm font-semibold">اختیار روشن</p>
+            <p className="text-info text-sm font-semibold">اختیار روشن</p>
             <h2
               id="eligibility-title"
               className="mt-2 text-3xl font-semibold tracking-tight"
@@ -411,7 +409,7 @@ export function AdvertisePage() {
           <div className="mt-8 grid gap-4 md:grid-cols-3">
             {eligibilityItems.map(({ title, description, icon: Icon }) => (
               <div className="bg-card rounded-2xl border p-6" key={title}>
-                <Icon className="text-primary size-7" aria-hidden="true" />
+                <Icon className="text-info size-7" aria-hidden="true" />
                 <h3 className="mt-4 font-semibold">{title}</h3>
                 <p className="text-muted-foreground mt-2 leading-7">
                   {description}
@@ -426,7 +424,7 @@ export function AdvertisePage() {
         aria-labelledby="alpha-title"
         className="mx-auto w-full max-w-7xl px-4 pt-16 sm:px-6 lg:px-10 lg:pt-24"
       >
-        <div className="border-primary/25 bg-primary/5 flex gap-4 rounded-2xl border p-5 sm:p-6">
+        <div className="border-info/25 bg-info-soft flex gap-4 rounded-2xl border p-5 sm:p-6">
           <EyeOff
             className="text-primary mt-1 size-6 shrink-0"
             aria-hidden="true"
@@ -451,7 +449,7 @@ export function AdvertisePage() {
         className="mx-auto w-full max-w-5xl px-4 py-16 sm:px-6 lg:px-10 lg:py-24"
       >
         <div className="text-center">
-          <p className="text-primary text-sm font-semibold">پرسش‌های پرتکرار</p>
+          <p className="text-info text-sm font-semibold">پرسش‌های پرتکرار</p>
           <h2
             id="faq-title"
             className="mt-2 text-3xl font-semibold tracking-tight"
