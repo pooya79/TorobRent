@@ -13,6 +13,7 @@ from apps.source_extraction.contract import (
     SourceProfile,
     serialize_contract_result,
 )
+from apps.source_extraction.discovery import classify_page
 from apps.source_extraction.fetching import FetchBatch, FetchedPage, FetchRecord
 
 FIXTURE_ROOT = Path(__file__).parent / "fixtures/source_extraction"
@@ -113,6 +114,86 @@ def test_contract_discovers_and_scores_same_host_rental_pages() -> None:
     assert all(page.discovered_from == seed_url for page in discovery.pages[1:])
     assert all(page.link_score > 0 for page in discovery.pages[1:])
     assert "other.example" not in " ".join(page.url for page in discovery.pages)
+
+
+def test_dense_rental_index_is_not_misclassified_from_aggregate_card_details() -> None:
+    seed_url = "https://source.example/rent"
+    detail_urls = [f"https://source.example/listing/{number}" for number in range(20000, 20024)]
+    links = "".join(
+        f'<a href="{url}">اجاره آپارتمان {index}</a>' for index, url in enumerate(detail_urls)
+    )
+    seed_html = (
+        f"<h1>اجاره خانه و آپارتمان</h1><p>ودیعه، اجاره ماهانه، متراژ، تعداد اتاق و تماس</p>{links}"
+    )
+    fetcher = FixtureFetcher({
+        seed_url: seed_html,
+        **{url: listing_html() for url in detail_urls},
+    })
+
+    discovery = ExtractionContract(
+        fetcher,
+        max_pages=3,
+        target_detail_pages=2,
+    ).discover(seed_url)
+
+    assert discovery.pages[0].classification.kind is PageKind.RENTAL_INDEX
+    assert [page.url for page in discovery.pages[1:]] == detail_urls[:2]
+    assert discovery.detail_page_count == 2
+
+
+def test_listing_ids_before_file_extensions_rank_details_ahead_of_facets() -> None:
+    seed_url = "https://source.example/s/tehran/house-apartment-for-rent"
+    facet_urls = [
+        "https://source.example/s/tehran/a/house-apartment-for-rent",
+        "https://source.example/s/tehran/b/house-apartment-for-rent",
+    ]
+    detail_urls = [
+        "https://source.example/v/listing-12345.html",
+        "https://source.example/v/listing-12346.html",
+    ]
+    seed_html = (
+        "<h1>Rental properties in Tehran</h1>"
+        + "".join(f'<a href="{url}">Apartment for rent in Tehran</a>' for url in facet_urls)
+        + "".join(f'<a href="{url}">Rent in Tehran</a>' for url in detail_urls)
+    )
+    fetcher = FixtureFetcher({
+        seed_url: seed_html,
+        **{url: "<h1>Rental properties in Tehran</h1>" for url in facet_urls},
+        **{url: listing_html() for url in detail_urls},
+    })
+
+    discovery = ExtractionContract(
+        fetcher,
+        max_pages=3,
+        target_detail_pages=2,
+    ).discover(seed_url)
+
+    assert [page.url for page in discovery.pages] == [seed_url, *detail_urls]
+    assert discovery.detail_page_count == 2
+
+
+def test_detail_url_identity_outweighs_dense_recommendation_links() -> None:
+    recommendations = "".join(
+        f'<a href="/v/recommended-{number}.html">اجاره آپارتمان</a>'
+        for number in range(20000, 20030)
+    )
+    detail_html = (
+        "<h1>اجاره آپارتمان در تهران</h1>"
+        "<p>ودیعه، اجاره ماهانه، متراژ، تعداد اتاق و تماس</p>"
+        f"{recommendations}"
+    )
+
+    detail = classify_page(
+        "https://source.example/v/apartment-for-rent-467115111.html",
+        detail_html,
+    )
+    category = classify_page(
+        "https://source.example/s/tehran/house-apartment-for-rent",
+        detail_html,
+    )
+
+    assert detail.kind is PageKind.RENTAL_LISTING
+    assert category.kind is PageKind.RENTAL_INDEX
 
 
 def test_structured_sale_link_is_not_forced_into_rental_classification() -> None:
@@ -299,9 +380,22 @@ def test_discovery_uses_guarded_browser_fallback_for_a_javascript_shell() -> Non
     seed_url = "https://source.example/rent"
     detail_urls = [f"https://source.example/listing/{number}" for number in range(50000, 50003)]
     links = "".join(f'<a href="{url}">اجاره آپارتمان تهران</a>' for url in detail_urls)
+    bootstrap_shell = """
+        <html>
+          <head>
+            <title>Rental listings</title>
+            <script type="application/ld+json">
+              {"@context":"https://schema.org","@type":"WebSite","name":"Example"}
+            </script>
+            <script>window.env = {"FORCE_SSR_FOR_KNOWN_BOTS": true};</script>
+            <script src="/static/app.js"></script>
+          </head>
+          <body></body>
+        </html>
+    """
     fetcher = BrowserFallbackFetcher(
         {
-            seed_url: (FIXTURE_ROOT / "torobtest_shell.html").read_text(encoding="utf-8"),
+            seed_url: bootstrap_shell,
             **{url: listing_html() for url in detail_urls},
         },
         {seed_url: f"<h1>رهن و اجاره خانه</h1>{links}"},
@@ -312,6 +406,102 @@ def test_discovery_uses_guarded_browser_fallback_for_a_javascript_shell() -> Non
     assert discovery.pages[0].rendering_method == "browser"
     assert ((seed_url,), True) in fetcher.calls
     assert discovery.detail_page_count == 3
+
+
+def test_discovery_rejects_a_browser_fallback_that_remains_a_javascript_shell() -> None:
+    seed_url = "https://source.example/rent"
+    bootstrap_shell = """
+        <html>
+          <head>
+            <title>Rental listings</title>
+            <script>window.bootstrap = {};</script>
+          </head>
+          <body></body>
+        </html>
+    """
+    fetcher = BrowserFallbackFetcher(
+        {seed_url: bootstrap_shell},
+        {seed_url: bootstrap_shell},
+    )
+
+    discovery = ExtractionContract(fetcher, max_pages=1).discover(seed_url)
+
+    page = discovery.pages[0]
+    assert page.classification.kind is PageKind.FETCH_ERROR
+    assert page.sanitized_html is None
+
+
+def test_discovery_preserves_an_empty_body_with_usable_listing_json_ld() -> None:
+    seed_url = "https://source.example/rent"
+    structured_listings = ",".join(
+        f'{{"@type":"Apartment","url":"{seed_url}/{number}"}}' for number in range(10000, 10003)
+    )
+    structured_index = f"""
+        <html>
+          <head>
+            <title>Rental listings</title>
+            <script type="application/ld+json">[{structured_listings}]</script>
+          </head>
+          <body></body>
+        </html>
+    """
+    fetcher = BrowserFallbackFetcher(
+        {seed_url: structured_index},
+        {seed_url: structured_index},
+    )
+
+    discovery = ExtractionContract(fetcher, max_pages=1).discover(seed_url)
+
+    page = discovery.pages[0]
+    assert page.classification.kind is PageKind.RENTAL_INDEX
+    assert page.sanitized_html is not None
+
+
+def test_discovery_retries_guarded_http_after_transient_shell_responses() -> None:
+    seed_url = "https://source.example/rent"
+    bootstrap_shell = """
+        <html><head><title>Rental listings</title><script src="/app.js"></script></head>
+        <body></body></html>
+    """
+    rich_page = """
+        <html><body>
+          <h1>Rental listings</h1>
+          <a href="/listing/12345">Apartment for rent in Tehran</a>
+        </body></html>
+    """
+
+    class TransientShellFetcher:
+        def __init__(self) -> None:
+            self.calls: list[tuple[tuple[str, ...], bool]] = []
+            self.http_attempts = 0
+
+        def fetch(self, urls: Sequence[str], *, render: bool = False) -> FetchBatch:
+            self.calls.append((tuple(urls), render))
+            if render:
+                body = bootstrap_shell
+            else:
+                self.http_attempts += 1
+                body = bootstrap_shell if self.http_attempts == 1 else rich_page
+            return FetchBatch((
+                FetchRecord(
+                    requested_url=urls[0],
+                    page=FetchedPage(
+                        url=urls[0],
+                        status_code=200,
+                        body=body.encode(),
+                        headers={"content-type": "text/html"},
+                    ),
+                ),
+            ))
+
+    fetcher = TransientShellFetcher()
+
+    discovery = ExtractionContract(fetcher, max_pages=1).discover(seed_url)
+
+    page = discovery.pages[0]
+    assert page.rendering_method == "http"
+    assert page.sanitized_html is not None
+    assert "Apartment for rent in Tehran" in page.sanitized_html
 
 
 @pytest.mark.parametrize(

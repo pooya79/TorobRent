@@ -29,6 +29,11 @@ from apps.source_extraction.fetching import (
 )
 
 
+@pytest.fixture(autouse=True)
+def disable_default_fetch_pacing(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(fetching_module, "MIN_FETCH_INTERVAL_SECONDS", 0.0)
+
+
 class FakeTransport:
     def __init__(self, responses: dict[str, RawResponse]) -> None:
         self.responses = responses
@@ -95,7 +100,58 @@ def test_http_transport_uses_the_authorized_ip_and_approved_host_header(
     method, target, headers = sent_requests[0]
     assert (method, target) == ("GET", "/listing?ref=42")
     assert headers["Host"] == "source.example"
+    assert headers["User-Agent"] == "TorobRentSourceFetcher/1.0 (crawler)"
     assert response.body == b"page"
+
+
+def test_http_transport_percent_encodes_unicode_request_target(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sent_targets: list[str] = []
+
+    class FakeResponse:
+        status = 200
+
+        def read(self, amount: int) -> bytes:
+            del amount
+            return b"page"
+
+        def getheaders(self) -> list[tuple[str, str]]:
+            return []
+
+    class FakeConnection:
+        def __init__(self, host: str, port: int, *, timeout: float) -> None:
+            del host, port, timeout
+            self.sock: Any = None
+
+        def request(self, method: str, target: str, *, headers: dict[str, str]) -> None:
+            del method, headers
+            sent_targets.append(target)
+
+        def getresponse(self) -> FakeResponse:
+            return FakeResponse()
+
+        def close(self) -> None:
+            pass
+
+    monkeypatch.setattr(socket, "create_connection", lambda *args, **kwargs: object())
+    monkeypatch.setattr(http.client, "HTTPConnection", FakeConnection)
+
+    PinnedHttpTransport().get(
+        NetworkRequest(
+            url="http://source.example/v/اجاره-خانه/token?محله=تهران",
+            connect_ip="93.184.216.34",
+            host="source.example",
+            port=80,
+            timeout_seconds=15.0,
+            max_response_bytes=100,
+        )
+    )
+
+    assert sent_targets == [
+        "/v/%D8%A7%D8%AC%D8%A7%D8%B1%D9%87-%D8%AE%D8%A7%D9%86%D9%87/token"
+        "?%D9%85%D8%AD%D9%84%D9%87=%D8%AA%D9%87%D8%B1%D8%A7%D9%86"
+    ]
 
 
 def test_http_transport_enforces_a_wall_clock_deadline(
@@ -421,6 +477,43 @@ def test_fetcher_returns_structured_robots_decisions_and_denials() -> None:
     assert result.records[1].robots.allowed is False
 
 
+def test_repeated_fetch_calls_cache_robots_and_pace_every_outbound_request(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    current_time = [100.0]
+    sleeps: list[float] = []
+
+    def sleep(seconds: float) -> None:
+        sleeps.append(seconds)
+        current_time[0] += seconds
+
+    monkeypatch.setattr(fetching_module, "MIN_FETCH_INTERVAL_SECONDS", 0.75)
+    monkeypatch.setattr(fetching_module.time, "monotonic", lambda: current_time[0])
+    monkeypatch.setattr(fetching_module.time, "sleep", sleep)
+    urls = ["https://source.example/listing/1", "https://source.example/listing/2"]
+    transport = FakeTransport({
+        "https://source.example/robots.txt": RawResponse(404, {}, b""),
+        urls[0]: RawResponse(200, {}, b"first"),
+        urls[1]: RawResponse(200, {}, b"second"),
+    })
+    fetcher = SourcePageFetcher(
+        approved_host="source.example",
+        transport=transport,
+        resolver=public_resolver,
+    )
+
+    first = fetcher.fetch([urls[0]])
+    second = fetcher.fetch([urls[1]])
+
+    assert first.records[0].page is not None
+    assert second.records[0].page is not None
+    assert sleeps == [0.75, 0.75]
+    assert [request.url for request in transport.requests] == [
+        "https://source.example/robots.txt",
+        *urls,
+    ]
+
+
 def test_fetcher_enforces_page_and_response_byte_limits() -> None:
     urls = [f"https://source.example/listing/{index}" for index in range(MAX_PAGES + 1)]
     oversized_body = b"x" * (MAX_RESPONSE_BYTES + 1)
@@ -540,6 +633,51 @@ def test_browser_fallback_routes_every_subresource_through_the_approved_boundary
         "https://source.example/listing",
         "https://source.example/app.js",
     ]
+
+
+def test_browser_fallback_does_not_replace_rich_http_page_with_javascript_shell() -> None:
+    rich_http_page = b"""
+        <html><body>
+          <h1>Apartment for rent</h1>
+          <dl><dt>Area</dt><dd>85</dd><dt>Bedrooms</dt><dd>2</dd></dl>
+        </body></html>
+    """
+    browser_shell = b"""
+        <html><head><title>Rental listing</title><script src="/app.js"></script></head>
+        <body></body></html>
+    """
+
+    class DegradingBrowser:
+        def render(
+            self,
+            document: BrowserDocument,
+            *,
+            load_resource: BrowserResourceLoader,
+            timeout_seconds: float,
+        ) -> bytes:
+            del load_resource, timeout_seconds
+            assert document.body == rich_http_page
+            return browser_shell
+
+    transport = FakeTransport({
+        "https://source.example/robots.txt": RawResponse(404, {}, b""),
+        "https://source.example/listing": RawResponse(
+            200, {"content-type": "text/html"}, rich_http_page
+        ),
+    })
+    fetcher = SourcePageFetcher(
+        approved_host="source.example",
+        transport=transport,
+        resolver=public_resolver,
+        browser=DegradingBrowser(),
+    )
+
+    result = fetcher.fetch(["https://source.example/listing"], render=True)
+
+    record = result.records[0]
+    assert record.page is not None
+    assert record.page.body == rich_http_page
+    assert record.browser is not None
 
 
 def test_playwright_renderer_disables_native_network_and_intercepts_every_channel(

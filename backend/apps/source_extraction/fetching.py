@@ -17,7 +17,7 @@ from dataclasses import dataclass, field, replace
 from enum import StrEnum
 from functools import partial
 from typing import Protocol, cast
-from urllib.parse import urljoin, urlsplit, urlunsplit
+from urllib.parse import quote, urljoin, urlsplit, urlunsplit
 
 from playwright.sync_api import (
     Route,
@@ -36,7 +36,8 @@ MAX_PAGES = 50
 MAX_CONCURRENCY = 4
 MAX_BROWSER_RESOURCES = 100
 REQUEST_TIMEOUT_SECONDS = 15.0
-USER_AGENT = "TorobRentSourceFetcher"
+MIN_FETCH_INTERVAL_SECONDS = 1.0
+USER_AGENT = "TorobRentSourceFetcher/1.0 (crawler)"
 
 
 class FetchFailureCode(StrEnum):
@@ -192,9 +193,10 @@ class PinnedHttpTransport:
     def get(self, request: NetworkRequest) -> RawResponse:
         deadline = time.monotonic() + request.timeout_seconds
         parsed = urlsplit(request.url)
-        target = parsed.path or "/"
+        target = quote(parsed.path or "/", safe="/%:@-._~!$&'()*+,;=")
         if parsed.query:
-            target = f"{target}?{parsed.query}"
+            encoded_query = quote(parsed.query, safe="/%?:@-._~!$&'()*+,;=")
+            target = f"{target}?{encoded_query}"
         connection = http.client.HTTPConnection(
             request.host, request.port, timeout=request.timeout_seconds
         )
@@ -399,6 +401,12 @@ class SourcePageFetcher:
         self._connection_slots = threading.BoundedSemaphore(MAX_CONCURRENCY)
         self._resolver_slots = threading.BoundedSemaphore(MAX_CONCURRENCY)
         self._browser_slots = threading.BoundedSemaphore(MAX_CONCURRENCY)
+        self._robots_by_origin: dict[
+            str, tuple[urllib.robotparser.RobotFileParser | None, FetchRecord]
+        ] = {}
+        self._robots_lock = threading.Lock()
+        self._fetch_pacing_lock = threading.Lock()
+        self._last_fetch_started_at: float | None = None
 
     def fetch(self, urls: Sequence[str], *, render: bool = False) -> FetchBatch:
         records: list[FetchRecord | None] = [None] * len(urls)
@@ -416,22 +424,18 @@ class SourcePageFetcher:
             else:
                 validations[index] = self._validate_url(url)
 
-        robots_by_origin: dict[
-            str, tuple[urllib.robotparser.RobotFileParser | None, FetchRecord]
-        ] = {}
-        robots_lock = threading.Lock()
-
         def robots_for(url: str) -> tuple[urllib.robotparser.RobotFileParser | None, FetchRecord]:
             origin = _origin(url)
-            with robots_lock:
-                cached_robots = robots_by_origin.get(origin)
-            if cached_robots is not None:
-                return cached_robots
-            robots_url = f"{origin}/robots.txt"
-            robots_record = self._fetch_url(robots_url)
-            fetched_robots = (_robots_parser(robots_url, robots_record), robots_record)
-            with robots_lock:
-                return robots_by_origin.setdefault(origin, fetched_robots)
+            with self._robots_lock:
+                cached_robots = self._robots_by_origin.get(origin)
+                if cached_robots is not None:
+                    return cached_robots
+                robots_url = f"{origin}/robots.txt"
+                robots_record = self._fetch_url(robots_url)
+                fetched_robots = (_robots_parser(robots_url, robots_record), robots_record)
+                if robots_record.failure is None:
+                    self._robots_by_origin[origin] = fetched_robots
+                return fetched_robots
 
         for index, failure in validations.items():
             url = urls[index]
@@ -504,6 +508,15 @@ class SourcePageFetcher:
                 records[index] = record
 
         return FetchBatch(records=tuple(record for record in records if record is not None))
+
+    def _pace_fetch(self) -> None:
+        with self._fetch_pacing_lock:
+            now = time.monotonic()
+            if self._last_fetch_started_at is not None:
+                remaining = MIN_FETCH_INTERVAL_SECONDS - (now - self._last_fetch_started_at)
+                if remaining > 0:
+                    time.sleep(remaining)
+            self._last_fetch_started_at = time.monotonic()
 
     def _render(self, record: FetchRecord) -> FetchRecord:
         if record.failure or record.page is None:
@@ -597,6 +610,14 @@ class SourcePageFetcher:
                 ),
                 browser=evidence,
             )
+        from .observations import looks_like_javascript_shell
+
+        original_html = page.body.decode("utf-8", errors="replace")
+        rendered_html = body.decode("utf-8", errors="replace")
+        if not looks_like_javascript_shell(original_html) and looks_like_javascript_shell(
+            rendered_html
+        ):
+            return replace(record, browser=evidence)
         return replace(
             record,
             page=replace(record.page, body=body),
@@ -675,6 +696,7 @@ class SourcePageFetcher:
                     ),
                 )
             try:
+                self._pace_fetch()
                 network_request = NetworkRequest(
                     url=current_url,
                     connect_ip=addresses[0],

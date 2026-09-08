@@ -18,7 +18,7 @@ from .discovery import (
     classify_page,
     extract_candidate_links,
 )
-from .fetching import FetchBatch, FetchFailure, FetchRecord
+from .fetching import FetchBatch, FetchFailure, FetchFailureCode, FetchRecord
 from .normalization import normalize_url
 from .observations import (
     ALL_FIELDS,
@@ -499,7 +499,34 @@ class ExtractionContract:
             if looks_like_javascript_shell(html):
                 rendered = self._fetcher.fetch([url], render=True)
                 if rendered.records:
-                    return rendered.records[0], "browser"
+                    rendered_record = rendered.records[0]
+                    if rendered_record.page is not None:
+                        rendered_html = rendered_record.page.body.decode("utf-8", errors="replace")
+                        if looks_like_javascript_shell(rendered_html):
+                            retried = self._fetcher.fetch([url])
+                            if retried.records:
+                                retried_record = retried.records[0]
+                                if retried_record.page is not None:
+                                    retried_html = retried_record.page.body.decode(
+                                        "utf-8", errors="replace"
+                                    )
+                                    if not looks_like_javascript_shell(retried_html):
+                                        return retried_record, "http"
+                            return (
+                                FetchRecord(
+                                    requested_url=rendered_record.requested_url,
+                                    failure=FetchFailure(
+                                        FetchFailureCode.BROWSER_ERROR,
+                                        rendered_record.page.url,
+                                        "Browser rendering returned a JavaScript shell.",
+                                        transient=True,
+                                    ),
+                                    robots=rendered_record.robots,
+                                    browser=rendered_record.browser,
+                                ),
+                                "browser",
+                            )
+                    return rendered_record, "browser"
         return record, "http"
 
     def _group_structures(

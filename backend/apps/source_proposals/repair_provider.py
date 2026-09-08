@@ -55,6 +55,7 @@ def output_schema(fields: list[str]) -> dict[str, Any]:
         "additionalProperties": False,
     }
     return {
+        "title": "source_profile_field_repairs",
         "type": "object",
         "properties": dict.fromkeys(fields, rule),
         "required": fields,

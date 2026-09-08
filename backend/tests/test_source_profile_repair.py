@@ -4,6 +4,28 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
+from langchain_openai import ChatOpenAI
+from pydantic import SecretStr
+
+from apps.source_proposals.repair_provider import output_schema
+
+
+def test_repair_schema_is_accepted_by_real_langchain_json_schema_conversion() -> None:
+    chat = ChatOpenAI(
+        model="test-model",
+        api_key=SecretStr("test-key"),
+        base_url="https://provider.invalid/v1",
+        max_retries=0,
+    )
+
+    structured = chat.with_structured_output(
+        output_schema(["floor_area_sqm"]),
+        method="json_schema",
+        include_raw=True,
+        strict=True,
+    )
+
+    assert structured is not None
 
 
 @pytest.fixture

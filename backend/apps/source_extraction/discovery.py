@@ -61,6 +61,7 @@ SKIPPED_SUFFIXES = {
     ".xml",
     ".zip",
 }
+LISTING_IDENTIFIER_RE = re.compile(r"(?:^|[-/])\d{4,}(?=$|[/?#.-])")
 
 
 class PageKind(StrEnum):
@@ -90,6 +91,10 @@ class CandidateLink:
 
 def _contains_any(text: str, terms: set[str]) -> bool:
     return any(term in text for term in terms)
+
+
+def _has_listing_identifier(value: str) -> bool:
+    return bool(LISTING_IDENTIFIER_RE.search(value))
 
 
 def _structured_listing_links(page_url: str, soup: BeautifulSoup) -> list[tuple[str, str]]:
@@ -147,7 +152,7 @@ def _listing_like_link_count(soup: BeautifulSoup) -> int:
     for anchor in soup.find_all("a", href=True):
         href = str(anchor.get("href", ""))
         text = normalize_text(anchor.get_text(" ", strip=True)).casefold()
-        if re.search(r"(?:^|[-/])\d{4,}(?:$|[/?#-])", href) or _contains_any(text, PROPERTY_TERMS):
+        if _has_listing_identifier(href) or _contains_any(text, PROPERTY_TERMS):
             matches += 1
     return matches
 
@@ -167,6 +172,7 @@ def classify_page(url: str, html: str) -> PageClassification:
     has_contact = _contains_any(visible_text, CONTACT_TERMS)
     h1_count = len(soup.find_all("h1"))
     listing_link_count = _listing_like_link_count(soup)
+    has_listing_identity = _has_listing_identifier(urlsplit(url).path)
 
     detail_score = 0
     index_score = 0
@@ -183,8 +189,11 @@ def classify_page(url: str, html: str) -> PageClassification:
     if h1_count == 1:
         detail_score += 1
         evidence.append("The page has one primary heading")
+    if has_listing_identity:
+        detail_score += 3
+        evidence.append("The page URL has an individual listing identifier")
     if listing_link_count >= 3:
-        index_score += 4
+        index_score += min(10, 3 + listing_link_count // 3)
         evidence.append(f"The page links to {listing_link_count} listing-like pages")
     elif listing_link_count:
         index_score += 1
@@ -246,8 +255,8 @@ def extract_candidate_links(
             score += 2
         if any(term.casefold() in signal_text for term in preferred_terms):
             score += 4
-        if re.search(r"(?:^|[-/])\d{4,}(?:$|[/?#-])", parts.path):
-            score += 2
+        if _has_listing_identifier(parts.path):
+            score += 4
         if _contains_any(signal_text, SALE_TERMS):
             score -= 4
         if _contains_any(signal_text, IRRELEVANT_TERMS):

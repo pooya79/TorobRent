@@ -1562,12 +1562,26 @@ def fingerprint_centroid(fingerprints: Iterable[str]) -> str:
     return f"{centroid:016x}"
 
 
+def _has_listing_structured_data(soup: BeautifulSoup) -> bool:
+    for script in soup.find_all("script", type="application/ld+json"):
+        try:
+            payload = json.loads(script.string or "")
+        except json.JSONDecodeError, TypeError:
+            continue
+        if any(_is_listing_structured_item(item) for _path, item in _walk_json(payload)):
+            return True
+    return False
+
+
 def looks_like_javascript_shell(html: str) -> bool:
     soup = BeautifulSoup(html, "html.parser")
     visible = normalize_text(soup.get_text(" ", strip=True))
+    body_visible = normalize_text(soup.body.get_text(" ", strip=True)) if soup.body else visible
     scripts = len(soup.find_all("script"))
+    known_mount_point = bool(soup.select_one("#app, #root, #__next, #app-root"))
+    has_listing_data = _has_listing_structured_data(soup)
     return (
-        len(visible) < 160
-        and scripts >= 1
-        and bool(soup.select_one("#app, #root, #__next, #app-root"))
+        scripts >= 1
+        and not has_listing_data
+        and (not body_visible or (len(visible) < 160 and known_mount_point))
     )
