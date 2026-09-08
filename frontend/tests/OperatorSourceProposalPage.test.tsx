@@ -236,7 +236,10 @@ test("reviews each External Listing candidate independently", async () => {
       name: "آپارتمان برای بررسی",
     }),
   ).toBeVisible();
-  expect(screen.getAllByText("نتیجه استخراج")).toHaveLength(2);
+  expect(screen.queryByText("نتیجه استخراج")).not.toBeInTheDocument();
+  await user.click(
+    screen.getByRole("button", { name: "مشاهده و بررسی آپارتمان برای بررسی" }),
+  );
   expect(screen.queryByText("بدون رسانه خارجی")).toBeNull();
   expect(screen.getByText(candidates[0]!.external_url)).toBeVisible();
 
@@ -260,11 +263,14 @@ test("reviews each External Listing candidate independently", async () => {
     reason: "جزئیات این مورد نیازمند اصلاح است.",
   });
   expect(
-    screen.getByRole("heading", {
+    await screen.findByRole("heading", {
       name: "دفتر برای بررسی",
     }),
   ).toBeVisible();
 
+  await user.click(
+    screen.getByRole("button", { name: "مشاهده و بررسی دفتر برای بررسی" }),
+  );
   await user.click(
     screen.getByRole("button", {
       name: "شروع بررسی دفتر برای بررسی",
@@ -977,6 +983,11 @@ test("corrects an exception and approves its new revision", async () => {
         <OperatorExternalListingsPage />
       </MemoryRouter>
     </QueryClientProvider>,
+  );
+  await user.click(
+    await screen.findByRole("button", {
+      name: "مشاهده و بررسی آگهی نیازمند اصلاح",
+    }),
   );
   await user.click(
     await screen.findByRole("button", {

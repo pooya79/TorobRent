@@ -8,6 +8,7 @@ import {
   PauseCircle,
   PlayCircle,
   Workflow,
+  ExternalLink,
 } from "lucide-react";
 import { SourceProcessingPanel } from "@/features/source-proposals/SourceProcessingPanel";
 import { SourceConversationButton } from "@/features/source-proposals/SourceConversationButton";
@@ -46,6 +47,7 @@ import { DiscoveryEvidence } from "@/features/source-proposals/DiscoveryEvidence
 import { currentUserQuery } from "@/features/session/queries";
 
 import { errorMessage } from "@/lib/api/errors";
+import { candidateStatus } from "./external-listing-workflow";
 
 import { proposalStateLabels } from "@/features/source-proposals/operator-workflow";
 const relationshipLabels = {
@@ -866,7 +868,7 @@ export function ExternalListingCandidateCard({
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h3 className="font-semibold">{candidate.title}</h3>
           <div className="flex gap-2">
-            <Badge variant="secondary">نتیجه استخراج</Badge>
+            <Badge variant="secondary">{candidateStatus(candidate)}</Badge>
           </div>
         </div>
       </CardHeader>
@@ -880,11 +882,37 @@ export function ExternalListingCandidateCard({
           </Link>
         )}
         <Alert>
-          <AlertTitle>این آگهی استخراج‌شده هنوز منتشر نشده است</AlertTitle>
+          <AlertTitle aria-level={4}>
+            این آگهی استخراج‌شده هنوز منتشر نشده است
+          </AlertTitle>
           <AlertDescription>
             این آگهی برای بررسی و تصمیم مستقل آماده است.
           </AlertDescription>
         </Alert>
+        {Object.keys(candidate.validation_errors ?? {}).length > 0 && (
+          <Alert variant="destructive">
+            <AlertTitle aria-level={4}>
+              پیش از انتشار، اطلاعات آگهی را اصلاح کنید
+            </AlertTitle>
+            <AlertDescription>
+              {Object.keys(
+                candidate.validation_errors ?? {},
+              ).length.toLocaleString("fa-IR")}{" "}
+              مورد نیازمند بررسی است. جزئیات در بخش شواهد و اعتبارسنجی آمده است.
+            </AlertDescription>
+          </Alert>
+        )}
+        {/^https?:\/\//i.test(candidate.external_url) && (
+          <Button asChild variant="outline">
+            <a
+              href={candidate.external_url}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              مشاهده آگهی در وب‌سایت منبع <ExternalLink aria-hidden="true" />
+            </a>
+          </Button>
+        )}
         <dl className="grid gap-4 sm:grid-cols-2">
           <Detail label="منبع" value={candidate.source.display_name} />
           <Detail label="دامنه منبع" value={candidate.source.domain} />
@@ -940,7 +968,7 @@ export function ExternalListingCandidateCard({
             <div className="flex flex-wrap gap-2">
               <Button
                 variant="outline"
-                disabled={decision.isPending}
+                disabled={decision.isPending || !reason.trim()}
                 onClick={() => decision.mutate("request-changes")}
                 aria-label={`درخواست اصلاح ${candidate.title}`}
               >
@@ -948,7 +976,7 @@ export function ExternalListingCandidateCard({
               </Button>
               <Button
                 variant="destructive"
-                disabled={decision.isPending}
+                disabled={decision.isPending || !reason.trim()}
                 onClick={() => decision.mutate("reject")}
                 aria-label={`رد ${candidate.title}`}
               >
