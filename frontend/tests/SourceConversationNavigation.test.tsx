@@ -26,7 +26,7 @@ function renderAction(component: React.ReactNode) {
   );
 }
 
-test.each([false, true])(
+test.each([false])(
   "source detail opens its conversation (operator=%s)",
   async (operator) => {
     const user = userEvent.setup();
@@ -89,4 +89,94 @@ test("Message Center selects a source and retains a recoverable open error", asy
       screen.getByRole("button", { name: "تماس با تیم بررسی" }),
     ).toBeEnabled(),
   );
+});
+
+test("operator reads and replies without leaving source review", async () => {
+  const user = userEvent.setup();
+  let replyBody = "";
+  server.use(
+    http.post("*/api/v1/messages/source-conversations/", () =>
+      HttpResponse.json({ id: "thread-id", href: "/messages/thread-id" }),
+    ),
+    http.get("*/api/v1/messages/thread-id/", () =>
+      HttpResponse.json({
+        id: "thread-id",
+        kind: "source_conversation",
+        title: "گفت‌وگوی منبع",
+        reply_allowed: true,
+        entries: [
+          {
+            id: "entry-1",
+            author_name: "نماینده منبع",
+            body: replyBody || "سلام تیم بررسی",
+            created_at: "2026-09-08T10:00:00Z",
+            mine: false,
+          },
+        ],
+      }),
+    ),
+    http.post(
+      "*/api/v1/messages/source-conversations/thread-id/replies/",
+      async ({ request }) => {
+        replyBody = ((await request.json()) as { body: string }).body;
+        return HttpResponse.json({ id: "reply-id" }, { status: 201 });
+      },
+    ),
+  );
+  renderAction(
+    <>
+      <h1>بررسی منبع</h1>
+      <SourceConversationButton proposalId="proposal-id" operator />
+    </>,
+  );
+  await user.click(
+    screen.getByRole("button", { name: "گفت‌وگو با نماینده منبع" }),
+  );
+  expect(await screen.findByText("سلام تیم بررسی")).toBeInTheDocument();
+  expect(
+    screen.getByRole("heading", { name: "بررسی منبع" }),
+  ).toBeInTheDocument();
+  await user.type(
+    screen.getByRole("textbox", { name: "ادامه گفت‌وگو" }),
+    "لطفا نشانی را بفرستید",
+  );
+  await user.click(screen.getByRole("button", { name: "ارسال پیام" }));
+  expect(await screen.findByText("لطفا نشانی را بفرستید")).toBeInTheDocument();
+  expect(replyBody).toBe("لطفا نشانی را بفرستید");
+  expect(
+    screen.getByRole("heading", { name: "بررسی منبع" }),
+  ).toBeInTheDocument();
+});
+
+test("operator can retry loading and sees read-only conversations in place", async () => {
+  const user = userEvent.setup();
+  let unavailable = true;
+  server.use(
+    http.post("*/api/v1/messages/source-conversations/", () =>
+      HttpResponse.json({ id: "thread-id", href: "/messages/thread-id" }),
+    ),
+    http.get("*/api/v1/messages/thread-id/", () =>
+      unavailable
+        ? HttpResponse.json({ detail: "unavailable" }, { status: 503 })
+        : HttpResponse.json({
+            id: "thread-id",
+            kind: "source_conversation",
+            reply_allowed: false,
+            entries: [],
+          }),
+    ),
+  );
+  renderAction(<SourceConversationButton proposalId="proposal-id" operator />);
+  await user.click(
+    screen.getByRole("button", { name: "گفت‌وگو با نماینده منبع" }),
+  );
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    "بارگذاری گفت‌وگو انجام نشد",
+  );
+  unavailable = false;
+  await user.click(screen.getByRole("button", { name: "تلاش دوباره" }));
+  expect(
+    await screen.findByText("این گفت‌وگو فقط خواندنی است."),
+  ).toBeInTheDocument();
+  expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
 });
