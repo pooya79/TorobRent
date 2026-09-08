@@ -43,32 +43,6 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
   );
 }
 
-export function GuidePage() {
-  return (
-    <GuidanceLayout
-      eyebrow="راهنمای محصول"
-      title="راهنمای ترب‌رنت"
-      intro="ترب‌رنت اطلاعات اجاره را یکدست می‌کند تا مقایسه ملک‌ها و آگهی‌های هر منبع روشن‌تر باشد."
-    >
-      <AlphaNotice />
-      <Section title="چطور جست‌وجو کنم؟">
-        <p>
-          شهر یا محله را انتخاب کنید، فیلترهای اجاره را تنظیم کنید و جزئیات هر
-          ملک را ببینید. اطلاعات هر آگهی را با منبع و زمان به‌روزرسانی آن بررسی
-          کنید.
-        </p>
-      </Section>
-      <Section title="اگر اطلاعات نادرست بود چه کنم؟">
-        <p>
-          از صفحه <Link to="/contact">تماس با ما</Link> پیام بفرستید. اپراتور
-          پیام را در سامانه بررسی می‌کند؛ ارسال فرم باعث فرستادن ایمیل یا ایجاد
-          تیکت در سرویس دیگری نمی‌شود.
-        </p>
-      </Section>
-    </GuidanceLayout>
-  );
-}
-
 export function AboutPage() {
   return (
     <GuidanceLayout

@@ -1,10 +1,11 @@
-import { GuidePage } from "@/pages/PublicGuidancePages";
+import { GuidePage } from "@/pages/GuidePage";
 
 export const meta = () => [
   { title: "راهنمای ترب‌رنت | نسخه آلفا" },
   {
     name: "description",
-    content: "راهنمای فارسی جست‌وجو و داده‌های نسخه آلفای ترب‌رنت.",
+    content:
+      "راهنمای فارسی جست‌وجو، ثبت یک ملک، معرفی وب‌سایت اجاره و آماده‌سازی داده‌های ساخت‌یافته در ترب‌رنت.",
   },
 ];
 

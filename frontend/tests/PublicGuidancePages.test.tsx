@@ -3,17 +3,13 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { renderToString } from "react-dom/server";
-import { MemoryRouter } from "react-router";
+import { MemoryRouter, useNavigate } from "react-router";
 import { expect, test } from "vitest";
 
 import { ContactPage } from "@/pages/ContactPage";
 import { AdvertisePage } from "@/pages/AdvertisePage";
-import {
-  AboutPage,
-  GuidePage,
-  PrivacyPage,
-  TermsPage,
-} from "@/pages/PublicGuidancePages";
+import { GuidePage } from "@/pages/GuidePage";
+import { AboutPage, PrivacyPage, TermsPage } from "@/pages/PublicGuidancePages";
 import routerConfig from "../react-router.config";
 import { meta as advertiseMeta } from "@/routes/advertise";
 import { meta as contactMeta } from "@/routes/contact";
@@ -74,6 +70,114 @@ test("offers repeated entry into the resumable Submitter journey", () => {
   for (const callToAction of callsToAction) {
     expect(callToAction).toHaveAttribute("href", "/submitter/get-started");
   }
+});
+
+test("each guide URL renders only its selected article before hydration", () => {
+  for (const topic of [
+    "start",
+    "website",
+    "structured-data",
+    "single-property",
+    "search",
+    "follow-up",
+    "unknown",
+  ]) {
+    const html = renderToString(
+      <MemoryRouter initialEntries={[`/guide?topic=${topic}`]}>
+        <GuidePage />
+      </MemoryRouter>,
+    );
+    const document = new DOMParser().parseFromString(html, "text/html");
+    const selected = topic === "unknown" ? "start" : topic;
+    expect(document.querySelectorAll("section")).toHaveLength(1);
+    expect(
+      document.getElementById(selected)?.querySelector("h2"),
+    ).not.toBeNull();
+    expect(
+      document
+        .querySelector(
+          'nav[aria-label="موضوعات راهنما"] a[aria-current="page"]',
+        )
+        ?.getAttribute("href"),
+    ).toBe(`/guide?topic=${selected}`);
+  }
+});
+
+function GuideHistory() {
+  const navigate = useNavigate();
+  return (
+    <>
+      <button onClick={() => void navigate(-1)}>بازگشت مرورگر</button>
+      <GuidePage />
+    </>
+  );
+}
+
+test("guide navigation switches topics, moves focus, and respects history", async () => {
+  const user = userEvent.setup();
+  render(
+    <MemoryRouter initialEntries={["/guide"]}>
+      <GuideHistory />
+    </MemoryRouter>,
+  );
+  await user.click(screen.getByRole("link", { name: "راهنمای معرفی سایت" }));
+  expect(
+    screen.getByRole("heading", { name: "معرفی وب‌سایت اجاره" }),
+  ).toBeVisible();
+  expect(
+    screen.queryByRole("heading", { name: "از کجا شروع کنم؟" }),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.getByRole("region", { name: "معرفی وب‌سایت اجاره" }),
+  ).toHaveFocus();
+  await user.selectOptions(
+    screen.getByLabelText("موضوع راهنما"),
+    "structured-data",
+  );
+  expect(
+    screen.getByRole("heading", {
+      name: "سایت را برای خواندن اطلاعات آماده کنید",
+    }),
+  ).toBeVisible();
+  await user.click(screen.getByRole("button", { name: "بازگشت مرورگر" }));
+  expect(
+    screen.getByRole("heading", { name: "معرفی وب‌سایت اجاره" }),
+  ).toBeVisible();
+  expect(screen.getByLabelText("موضوع راهنما")).toHaveValue("website");
+});
+
+test("website data guidance covers amenities and makes support limitations explicit", async () => {
+  const user = userEvent.setup();
+  render(
+    <MemoryRouter initialEntries={["/guide?topic=structured-data"]}>
+      <GuidePage />
+    </MemoryRouter>,
+  );
+  await user.click(screen.getByText("چک‌لیست برای مدیر فنی سایت"));
+  const table = screen.getByRole("table");
+  for (const field of [
+    "پارکینگ",
+    "آسانسور",
+    "انباری",
+    "بالکن",
+    "مبله",
+    "گرمایش",
+    "سرمایش",
+    "سال ساخت",
+    "طبقه",
+    "واحد در طبقه",
+    "محدوده ملک",
+    "موقعیت جغرافیایی",
+    "ودیعه",
+    "قابل مذاکره",
+    "موجود بودن",
+    "تصاویر",
+  ]) {
+    expect(table).toHaveTextContent(field);
+  }
+  expect(
+    screen.getByText(/پشتیبانی خودکار از amenityFeature/),
+  ).toHaveTextContent("هنوز کامل نیست");
 });
 
 test("compares the Property and Source Proposal journeys truthfully", () => {
