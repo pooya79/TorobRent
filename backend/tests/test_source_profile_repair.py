@@ -88,7 +88,8 @@ def test_explicit_repair_creates_validated_version_and_retains_audit(
     assert configured["base_url"] == "https://provider.example/v1"
     assert configured["model_kwargs"] == {"tool_choice": "none"}
     assert configured["max_retries"] == 0
-    assert configured["max_completion_tokens"] == 8192
+    assert configured["reasoning_effort"] == "high"
+    assert configured["max_completion_tokens"] == 16384
     structured = llm_http.client.with_structured_output.call_args
     assert structured.kwargs == {"method": "json_schema", "include_raw": True, "strict": True}
     messages = llm_http.request.call_args.args[0]

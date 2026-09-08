@@ -76,7 +76,8 @@ def request_repair(
             base_url=base_url,
             timeout=TIMEOUT_SECONDS,
             max_retries=0,
-            max_completion_tokens=8192,
+            reasoning_effort="high",
+            max_completion_tokens=16384,
             store=False,
             model_kwargs={"tool_choice": "none"},
         )
