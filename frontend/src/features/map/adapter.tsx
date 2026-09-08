@@ -34,6 +34,7 @@ export type MapPropertyPreview = {
 };
 
 export type MapMarker = {
+  pinLabel?: string;
   fitBand?: "high" | "reasonable" | "weak" | null;
   propertyId: string;
   label: string;
@@ -187,9 +188,13 @@ export function createFakeMapAdapter({
               }}
             >
               <span aria-hidden="true" dir="ltr">
-                {marker.mapPrices.deposit}
-                <span className="mx-1 opacity-60">|</span>
-                {marker.mapPrices.monthlyRent}
+                {marker.pinLabel ?? (
+                  <>
+                    {marker.mapPrices.deposit}
+                    <span className="mx-1 opacity-60">|</span>
+                    {marker.mapPrices.monthlyRent}
+                  </>
+                )}
               </span>
             </button>
             <p>

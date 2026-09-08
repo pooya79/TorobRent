@@ -564,3 +564,18 @@ class ListingGroupingEvent(models.Model):
 
     def __str__(self) -> str:
         return f"{self.get_action_display()}: {self.listing_id}"
+
+
+class ListingPriceObservation(models.Model):
+    """A paired price observed while a listing is published, never a backdated estimate."""
+
+    listing = models.ForeignKey(Listing, on_delete=models.CASCADE, related_name="price_history")
+    recorded_at = models.DateTimeField(default=timezone.now, editable=False)
+    deposit_rial = models.PositiveBigIntegerField()
+    monthly_rent_rial = models.PositiveBigIntegerField()
+
+    class Meta:
+        ordering = ("recorded_at", "id")
+
+    def __str__(self) -> str:
+        return f"{self.listing_id}: {self.recorded_at.isoformat()}"
