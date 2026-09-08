@@ -78,8 +78,8 @@ def test_public_catalog_query_count_is_bounded_for_representative_development_fi
     assert detail_response.status_code == 200
     # Page count, page data, Property Type/Bedroom facets, and five self-excluding features.
     assert len(search_queries) <= 9
-    # Listings and Property, plus two bounded image/variant prefetches.
-    assert len(detail_queries) <= 4
+    # Listings and Property, plus bounded image/variant and price history prefetches.
+    assert len(detail_queries) <= 5
 
 
 @pytest.mark.django_db

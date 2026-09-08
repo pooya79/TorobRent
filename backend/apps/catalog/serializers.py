@@ -637,10 +637,17 @@ def listing_media_url(listing: Listing) -> str | None:
     )
 
 
+class ListingPriceObservationSerializer(serializers.Serializer[Any]):
+    recorded_at = serializers.DateTimeField()
+    deposit_toman = serializers.IntegerField()
+    monthly_rent_toman = serializers.IntegerField()
+
+
 class ListingPublicSerializer(serializers.Serializer[Any]):
     id = serializers.UUIDField()
     source = SourcePublicSerializer()  # type: ignore[assignment]
     rental_terms = RentalTermsPublicSerializer()
+    price_history = ListingPriceObservationSerializer(many=True, required=False)
     description = serializers.CharField()
     source_reference = serializers.CharField()
     source_claims = serializers.JSONField()
@@ -817,6 +824,14 @@ def property_detail_data(
                     "deposit_toman": rial_to_toman(listing.terms.deposit_rial),
                     "monthly_rent_toman": rial_to_toman(listing.terms.monthly_rent_rial),
                 },
+                "price_history": [
+                    {
+                        "recorded_at": observation.recorded_at,
+                        "deposit_toman": rial_to_toman(observation.deposit_rial),
+                        "monthly_rent_toman": rial_to_toman(observation.monthly_rent_rial),
+                    }
+                    for observation in listing.price_history.all()
+                ],
                 "description": listing.description,
                 "source_reference": listing.source_reference,
                 "source_claims": listing.source_claims,

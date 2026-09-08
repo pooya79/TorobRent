@@ -100,6 +100,7 @@ function markerStyle(
   label: string,
   showLabel: boolean,
   fitBand?: "high" | "reasonable" | "weak" | null,
+  pinLabel?: string,
 ) {
   const appearance = fitAppearance(fitBand, selected);
   const { color } = appearance;
@@ -128,7 +129,9 @@ function markerStyle(
     marker,
     new Style({
       text: new Text({
-        text: `\u2066${deposit} | ${monthlyRent}\u2069${appearance.symbol ? "\n" + appearance.symbol : ""}`,
+        text:
+          pinLabel ??
+          `\u2066${deposit} | ${monthlyRent}\u2069${appearance.symbol ? "\n" + appearance.symbol : ""}`,
         offsetY: -23,
         textAlign: "center",
         font: "700 10px system-ui",
@@ -354,6 +357,7 @@ export function NeshanMapAdapter({
             : "",
           Boolean(marker) && markerLabelIsVisible(),
           marker?.fitBand,
+          marker?.pinLabel,
         );
       },
     });

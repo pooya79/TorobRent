@@ -5838,6 +5838,20 @@ components:
       - kind
       - url
       - width
+    ListingPriceObservation:
+      type: object
+      properties:
+        recorded_at:
+          type: string
+          format: date-time
+        deposit_toman:
+          type: integer
+        monthly_rent_toman:
+          type: integer
+      required:
+      - deposit_toman
+      - monthly_rent_toman
+      - recorded_at
     ListingPublic:
       type: object
       properties:
@@ -5848,6 +5862,10 @@ components:
           $ref: '#/components/schemas/SourcePublic'
         rental_terms:
           $ref: '#/components/schemas/RentalTermsPublic'
+        price_history:
+          type: array
+          items:
+            $ref: '#/components/schemas/ListingPriceObservation'
         description:
           type: string
         source_reference:

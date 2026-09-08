@@ -333,9 +333,10 @@ class PropertyDetailView(APIView):
             .filter(property_id=property_id)
             .select_related("source", "terms", "submission")
             .prefetch_related(
+                "price_history",
                 Prefetch(
                     "images__variants", queryset=ListingImageVariant.objects.select_related("asset")
-                )
+                ),
             )
         )
         if not listings:

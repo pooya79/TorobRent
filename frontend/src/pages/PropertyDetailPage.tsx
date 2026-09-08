@@ -1,5 +1,34 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
-import { ArrowRight, Building2, Clock3, MapPin } from "lucide-react";
+import {
+  ArrowRight,
+  Building2,
+  Clock3,
+  MapPin,
+  Ruler,
+  BedDouble,
+  Layers3,
+  CalendarDays,
+  CarFront,
+  ArrowUpDown,
+  Package,
+  Fence,
+  Armchair,
+  Flame,
+  Snowflake,
+  DoorOpen,
+  Check,
+  Minus,
+  CircleHelp,
+  Wallet,
+  Banknote,
+  MessageCircle,
+  Phone,
+  ExternalLink,
+  BadgeCheck,
+} from "lucide-react";
+import { PropertyLocationMap } from "@/features/map/PropertyLocationMap";
+import { PropertyGallery } from "@/features/catalog/PropertyGallery";
+import { PropertyPriceHistory } from "@/features/catalog/PropertyPriceHistory";
 
 import { PageMain } from "@/components/layout/PageMain";
 import { roomCountLabels } from "@/features/catalog/property-taxonomy";
@@ -52,6 +81,14 @@ const featureLabels = {
   furnished: "مبله",
 } as const;
 
+const featureIcons = {
+  parking: CarFront,
+  elevator: ArrowUpDown,
+  storage: Package,
+  balcony: Fence,
+  furnished: Armchair,
+} as const;
+
 const featureStateLabels: Record<FeatureState, string> = {
   present: "دارد",
   absent: "ندارد",
@@ -82,6 +119,7 @@ function formatNumber(value: number) {
 function formatFreshness(value: string) {
   return new Intl.DateTimeFormat("fa-IR-u-ca-persian", {
     dateStyle: "medium",
+    timeZone: "Asia/Tehran",
   }).format(new Date(value));
 }
 
@@ -137,7 +175,7 @@ function ListingContinuation({
   };
 
   return (
-    <div className="space-y-2">
+    <div className="grid gap-3 [&>button]:w-full">
       {listing.is_responsible_submitter ? (
         <p className="bg-muted rounded-md px-3 py-2 text-sm font-semibold">
           این آگهی شماست
@@ -163,7 +201,8 @@ function ListingContinuation({
           type="button"
           variant="outline"
         >
-          پیام به ثبت‌کننده
+          <MessageCircle aria-hidden="true" className="size-4" /> پیام به
+          ثبت‌کننده
         </Button>
       ) : null}
       {listing.source.outbound_policy === "direct_contact" &&
@@ -188,6 +227,7 @@ function ListingContinuation({
               void revealPhone();
             }}
           >
+            <Phone aria-hidden="true" className="size-4" />
             {pending ? "در حال دریافت شماره…" : "نمایش شماره تماس"}
           </Button>
         ))}
@@ -208,8 +248,9 @@ function ListingContinuation({
         <Button
           disabled={pending}
           onClick={() => void continueExternally()}
-          variant="link"
+          variant="outline"
         >
+          <ExternalLink aria-hidden="true" className="size-4" />
           {pending ? "در حال انتقال…" : "ادامه در منبع اصلی"}
         </Button>
       )}
@@ -372,143 +413,296 @@ export function PropertyDetailPage({
     property.location.neighborhood,
   ].join("، ");
   const facts = [
-    `${formatNumber(property.area_sqm)} متر`,
-    property.room_count === null || property.room_count === undefined
-      ? null
-      : `${formatNumber(property.room_count)} ${roomCountLabels[property.property_category].fact}`,
-    property.floor === null ? null : `طبقه ${formatNumber(property.floor)}`,
-    property.construction_year === null
-      ? null
-      : `سال ساخت ${formatNumber(property.construction_year)}`,
-    property.total_floors === null
-      ? null
-      : `${formatNumber(property.total_floors)} طبقه`,
-    property.units_per_floor === null
-      ? null
-      : `${formatNumber(property.units_per_floor)} واحد در هر طبقه`,
-    property.heating ? `گرمایش: ${property.heating}` : null,
-    property.cooling ? `سرمایش: ${property.cooling}` : null,
-  ].filter((fact): fact is string => fact !== null);
+    {
+      Icon: Ruler,
+      label: "مساحت",
+      value: `${formatNumber(property.area_sqm)} متر`,
+    },
+    {
+      Icon: BedDouble,
+      label: "تعداد اتاق",
+      value:
+        property.room_count == null
+          ? "ثبت نشده"
+          : `${formatNumber(property.room_count)} ${roomCountLabels[property.property_category].fact}`,
+    },
+    {
+      Icon: Layers3,
+      label: "طبقه",
+      value:
+        property.floor === null
+          ? "ثبت نشده"
+          : property.floor === 0
+            ? "همکف"
+            : `طبقه ${formatNumber(property.floor)}`,
+    },
+    {
+      Icon: CalendarDays,
+      label: "ساخت",
+      value:
+        property.construction_year === null
+          ? "ثبت نشده"
+          : `سال ساخت ${new Intl.NumberFormat("fa-IR", { useGrouping: false }).format(property.construction_year)}`,
+    },
+  ];
+  const buildingFacts = [
+    {
+      Icon: Building2,
+      value:
+        property.total_floors === null
+          ? "تعداد طبقات ثبت نشده"
+          : `${formatNumber(property.total_floors)} طبقه`,
+    },
+    {
+      Icon: DoorOpen,
+      value:
+        property.units_per_floor === null
+          ? "تعداد واحدها ثبت نشده"
+          : `${formatNumber(property.units_per_floor)} واحد در هر طبقه`,
+    },
+    { Icon: Flame, value: `گرمایش: ${property.heating || "ثبت نشده"}` },
+    { Icon: Snowflake, value: `سرمایش: ${property.cooling || "ثبت نشده"}` },
+  ];
 
   return (
-    <PageMain>
-      <Button asChild className="mb-6" variant="ghost">
-        <a href={safeReturnTo}>
-          <ArrowRight aria-hidden="true" /> بازگشت به نتایج
-        </a>
-      </Button>
-      <div className="grid gap-8 lg:grid-cols-[minmax(0,1.35fr)_minmax(20rem,.65fr)]">
-        <div>
-          <div className="bg-muted text-muted-foreground flex aspect-[16/9] items-center justify-center rounded-xl">
-            <div className="flex flex-col items-center gap-3 px-4 text-center text-sm">
-              <Building2 className="size-12" aria-hidden="true" />
-              تصویر مجازی برای این ملک منتشر نشده است
-            </div>
-          </div>
-          <header className="py-7">
-            <div className="text-muted-foreground mb-3 flex items-center gap-2 text-sm">
-              <MapPin className="size-4" aria-hidden="true" />
-              {location}
-            </div>
-            <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
-              {property.title}
-            </h1>
-            <ul className="text-muted-foreground mt-3 flex flex-wrap gap-x-4 gap-y-1">
-              {facts.map((fact) => (
-                <li key={fact}>{fact}</li>
-              ))}
-            </ul>
-          </header>
-
-          <section aria-labelledby="normalized-facts-title">
+    <PageMain className="max-w-360 pb-12">
+      <nav
+        aria-label="مسیر صفحه"
+        className="text-muted-foreground mb-6 flex items-center justify-between gap-3 text-sm"
+      >
+        <Button asChild variant="ghost" className="-ms-3">
+          <a href={safeReturnTo}>
+            <ArrowRight aria-hidden="true" />
+            بازگشت به نتایج
+          </a>
+        </Button>
+        <span>
+          {property.property_type_label} در {property.location.city}
+        </span>
+      </nav>
+      <header className="mb-7">
+        <div className="mb-3 flex flex-wrap items-center gap-2">
+          <Badge variant="secondary">{property.property_category_label}</Badge>
+          <Badge variant="outline">{property.property_type_label}</Badge>
+          <span className="text-muted-foreground ms-1 text-xs">
+            {formatNumber(property.listings.length)} آگهی فعال برای این ملک
+          </span>
+        </div>
+        <h1 className="text-2xl leading-relaxed font-bold tracking-tight sm:text-4xl">
+          {property.title}
+        </h1>
+        <p className="text-muted-foreground mt-3 flex items-center gap-2 text-sm">
+          <MapPin className="text-primary size-4 shrink-0" aria-hidden="true" />
+          {location}
+        </p>
+        <Button asChild className="mt-5 lg:hidden" variant="outline">
+          <a href="#active-listings-title">
+            <Wallet aria-hidden="true" className="size-4" />
+            مشاهده قیمت‌ها و راه‌های ارتباط
+          </a>
+        </Button>
+        <Button asChild variant="ghost" className="mt-3">
+          <a href="#property-location">
+            <MapPin aria-hidden="true" />
+            مشاهده روی نقشه
+          </a>
+        </Button>
+      </header>
+      <div className="grid items-start gap-7 lg:grid-cols-[minmax(0,1fr)_23rem] xl:grid-cols-[minmax(0,1fr)_26rem]">
+        <div className="min-w-0 space-y-6">
+          <PropertyGallery key={property.id} property={property} />
+          <dl className="bg-card grid grid-cols-2 gap-px overflow-hidden rounded-2xl border sm:grid-cols-4">
+            {facts.map(({ Icon, label, value }) => (
+              <div
+                key={label}
+                className="flex flex-col items-center gap-2 p-5 text-center"
+              >
+                <Icon
+                  className="text-primary mb-1 size-6"
+                  strokeWidth={1.5}
+                  aria-hidden="true"
+                />
+                <dt className="text-muted-foreground text-xs">{label}</dt>
+                <dd className="text-sm font-bold sm:text-base">{value}</dd>
+              </div>
+            ))}
+          </dl>
+          <section
+            aria-labelledby="normalized-facts-title"
+            className="bg-card rounded-2xl border p-5 sm:p-7"
+          >
             <h2
               id="normalized-facts-title"
-              className="text-2xl font-semibold tracking-tight"
+              className="flex items-center gap-2 text-xl font-bold"
             >
+              <BadgeCheck className="text-primary size-5" aria-hidden="true" />
               مشخصات تأییدشده ملک
             </h2>
-            <div className="mt-4 flex flex-wrap gap-2">
+            <p className="text-muted-foreground mt-2 text-sm leading-7">
+              امکانات و جزئیات ملک، یک‌جا برای بررسی و مقایسه
+            </p>
+            <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3">
               {Object.entries(featureLabels).map(([feature, label]) => {
-                const state =
-                  property.features[feature as keyof typeof featureLabels];
+                const key = feature as keyof typeof featureLabels;
+                const state = property.features[key];
+                const Icon = featureIcons[key];
+                const StateIcon =
+                  state === "present"
+                    ? Check
+                    : state === "absent"
+                      ? Minus
+                      : CircleHelp;
                 return (
-                  <Badge key={feature} variant="outline">
-                    {label}: {featureStateLabels[state]}
-                  </Badge>
+                  <div
+                    key={feature}
+                    className={`flex items-center gap-3 rounded-xl border p-3 sm:p-4 ${state === "present" ? "border-primary/20 bg-primary/5" : "bg-muted/20 text-muted-foreground"}`}
+                  >
+                    <Icon
+                      className={`size-5 shrink-0 ${state === "present" ? "text-primary" : ""}`}
+                      strokeWidth={1.5}
+                      aria-hidden="true"
+                    />
+                    <span className="text-sm">
+                      <span className="block font-medium">
+                        {label}
+                        <span className="sr-only">: </span>
+                      </span>
+                      <span className="mt-1 flex items-center gap-1 text-xs">
+                        <StateIcon className="size-3" aria-hidden="true" />
+                        {featureStateLabels[state]}
+                      </span>
+                    </span>
+                  </div>
                 );
               })}
             </div>
+            <ul className="mt-6 grid gap-4 border-t pt-6 sm:grid-cols-2">
+              {buildingFacts.map(({ Icon, value }) => (
+                <li key={value} className="flex items-center gap-3 text-sm">
+                  <Icon
+                    className="text-muted-foreground size-4 shrink-0"
+                    aria-hidden="true"
+                  />
+                  {value}
+                </li>
+              ))}
+            </ul>
           </section>
+          <PropertyLocationMap property={property} />
+          <PropertyPriceHistory
+            key={property.id + "-history"}
+            listings={property.listings}
+          />
         </div>
-
-        <section aria-labelledby="active-listings-title">
-          <h2
-            id="active-listings-title"
-            className="mb-4 text-2xl font-semibold tracking-tight"
-          >
-            آگهی‌های فعال
-          </h2>
-          <div className="space-y-4">
-            {property.listings.map((listing) => (
-              <Card className="shadow-none" key={listing.id}>
-                <article aria-label={`آگهی ${listing.source.display_name}`}>
-                  <CardHeader>
-                    <Badge variant="secondary" className="w-fit">
+        <section
+          aria-labelledby="active-listings-title"
+          className="min-w-0 space-y-4 lg:sticky lg:top-6"
+        >
+          <div className="flex items-center justify-between">
+            <h2 id="active-listings-title" className="text-xl font-bold">
+              آگهی‌های فعال
+            </h2>
+            <span className="bg-primary/10 text-primary flex size-7 items-center justify-center rounded-full text-sm font-semibold">
+              {formatNumber(property.listings.length)}
+            </span>
+          </div>
+          <p className="text-muted-foreground text-sm leading-7">
+            قیمت و شرایط هر منبع را بررسی کنید و مستقیم ادامه دهید.
+          </p>
+          {property.listings.length === 0 && (
+            <p className="bg-muted rounded-xl p-5 text-sm">
+              در حال حاضر آگهی فعالی برای این ملک وجود ندارد.
+            </p>
+          )}
+          {property.listings.map((listing, index) => (
+            <Card
+              className={`overflow-hidden rounded-2xl py-0 shadow-none ${index === 0 ? "border-primary/25" : ""}`}
+              key={listing.id}
+            >
+              <article aria-label={`آگهی ${listing.source.display_name}`}>
+                <CardHeader className="bg-muted/30 gap-4 border-b p-5">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="text-sm font-bold">
                       {listing.source.display_name}
+                    </span>
+                    <Badge
+                      variant="outline"
+                      className="bg-background gap-1.5 text-xs"
+                    >
+                      <span className="bg-primary size-1.5 rounded-full" />
+                      فعال
                     </Badge>
-                    <p className="text-lg font-semibold">
-                      ودیعه {formatNumber(listing.rental_terms.deposit_toman)}{" "}
-                      تومان
-                    </p>
-                    <p>
-                      اجاره ماهانه{" "}
-                      {formatNumber(listing.rental_terms.monthly_rent_toman)}{" "}
-                      تومان
-                    </p>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    {listing.images?.map((image) => {
-                      const medium = image.variants.find(
-                        (variant) => variant.kind === "medium",
-                      );
-                      return medium ? (
-                        <img
-                          key={image.id}
-                          className="aspect-video w-full rounded-lg object-cover"
-                          src={medium.url}
-                          srcSet={image.variants
-                            .map(
-                              (variant) => `${variant.url} ${variant.width}w`,
-                            )
-                            .join(", ")}
-                          sizes="(max-width: 640px) 100vw, 480px"
-                          alt={`تصویر آگهی ${listing.source.display_name}`}
-                          loading="lazy"
-                        />
-                      ) : null;
-                    })}
-                    {listing.description && <p>{listing.description}</p>}
-                    {listing.disagreements.length > 0 && (
-                      <section className="bg-muted rounded-lg p-3">
-                        <h3 className="text-sm font-semibold">
-                          اختلاف با مشخصات تأییدشده
-                        </h3>
-                        <ul className="mt-2 space-y-1 text-sm">
-                          {listing.disagreements.map((disagreement) => (
-                            <li key={disagreement.field}>
-                              {`${sourceClaimLabels[disagreement.field] ?? disagreement.field}: منبع ${formatClaimValue(disagreement.source_value)}، تأییدشده ${formatClaimValue(disagreement.normalized_value)}`}
-                            </li>
-                          ))}
-                        </ul>
-                      </section>
-                    )}
-                    <p className="text-muted-foreground flex items-center gap-2 text-sm">
-                      <Clock3 className="size-4" aria-hidden="true" />
-                      آخرین تأیید موجودی:{" "}
-                      <time dateTime={listing.availability_confirmed_at}>
-                        {formatFreshness(listing.availability_confirmed_at)}
-                      </time>
-                    </p>
+                  </div>
+                  <div className="bg-background grid gap-4 rounded-xl border p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-muted-foreground flex items-center gap-2 text-sm">
+                        <Wallet className="size-4" aria-hidden="true" />
+                        ودیعه
+                      </span>
+                      <p className="text-lg font-bold tabular-nums">
+                        {formatNumber(listing.rental_terms.deposit_toman)}{" "}
+                        <span className="text-muted-foreground text-xs font-normal">
+                          تومان
+                        </span>
+                      </p>
+                    </div>
+                    <div className="flex items-center justify-between gap-3 border-t pt-4">
+                      <span className="text-muted-foreground flex items-center gap-2 text-sm">
+                        <Banknote className="size-4" aria-hidden="true" />
+                        اجاره ماهانه
+                      </span>
+                      <p className="text-lg font-bold tabular-nums">
+                        {formatNumber(listing.rental_terms.monthly_rent_toman)}{" "}
+                        <span className="text-muted-foreground text-xs font-normal">
+                          تومان
+                        </span>
+                      </p>
+                    </div>
+                  </div>
+                  {(listing.is_convertible || listing.is_negotiable) && (
+                    <div className="flex flex-wrap gap-2">
+                      {listing.is_convertible && (
+                        <Badge variant="secondary">قابل تبدیل</Badge>
+                      )}
+                      {listing.is_negotiable && (
+                        <Badge variant="secondary">قابل مذاکره</Badge>
+                      )}
+                    </div>
+                  )}
+                </CardHeader>
+                <CardContent className="space-y-4 p-5">
+                  {listing.description && (
+                    <div>
+                      <h3 className="text-muted-foreground mb-2 text-xs">
+                        توضیحات آگهی
+                      </h3>
+                      <p className="text-sm leading-8 [overflow-wrap:anywhere] whitespace-pre-line">
+                        {listing.description}
+                      </p>
+                    </div>
+                  )}
+                  {listing.disagreements.length > 0 && (
+                    <section className="bg-muted/60 rounded-xl border p-3">
+                      <h3 className="text-sm font-semibold">
+                        اختلاف با مشخصات تأییدشده
+                      </h3>
+                      <ul className="text-muted-foreground mt-2 space-y-2 text-xs leading-6">
+                        {listing.disagreements.map((disagreement) => (
+                          <li
+                            key={disagreement.field}
+                          >{`${sourceClaimLabels[disagreement.field] ?? disagreement.field}: منبع ${formatClaimValue(disagreement.source_value)}، تأییدشده ${formatClaimValue(disagreement.normalized_value)}`}</li>
+                        ))}
+                      </ul>
+                    </section>
+                  )}
+                  <p className="text-muted-foreground flex items-center gap-2 text-xs leading-6">
+                    <Clock3 className="size-3.5 shrink-0" aria-hidden="true" />
+                    آخرین تأیید موجودی:{" "}
+                    <time dateTime={listing.availability_confirmed_at}>
+                      {formatFreshness(listing.availability_confirmed_at)}
+                    </time>
+                  </p>
+                  <div className="border-t pt-4">
                     <ListingContinuation
                       listing={listing}
                       onNavigateExternal={onNavigateExternal}
@@ -516,11 +710,11 @@ export function PropertyDetailPage({
                       onCompose={() => openComposer(listing)}
                       onRequestAccess={onRequestAccess}
                     />
-                  </CardContent>
-                </article>
-              </Card>
-            ))}
-          </div>
+                  </div>
+                </CardContent>
+              </article>
+            </Card>
+          ))}
         </section>
       </div>
       {composerListing ? (

@@ -2829,11 +2829,18 @@ export interface components {
       width: number;
       height: number;
     };
+    ListingPriceObservation: {
+      /** Format: date-time */
+      recorded_at: string;
+      deposit_toman: number;
+      monthly_rent_toman: number;
+    };
     ListingPublic: {
       /** Format: uuid */
       id: string;
       source: components["schemas"]["SourcePublic"];
       rental_terms: components["schemas"]["RentalTermsPublic"];
+      price_history?: components["schemas"]["ListingPriceObservation"][];
       description: string;
       source_reference: string;
       source_claims: unknown;

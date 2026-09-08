@@ -20,7 +20,7 @@ test("shows normalized facts, paired toman terms, and freshness", () => {
   expect(screen.getByText("تهران، منطقه ۲، سعادت‌آباد")).toBeVisible();
   expect(screen.getByText("۱۱۰ متر")).toBeVisible();
   expect(screen.getByText("۲ خواب")).toBeVisible();
-  expect(screen.getByText("سال ساخت ۱٬۴۰۰")).toBeVisible();
+  expect(screen.getByText("سال ساخت ۱۴۰۰")).toBeVisible();
   expect(screen.getByText("۶ طبقه")).toBeVisible();
   expect(screen.getByText("۲ واحد در هر طبقه")).toBeVisible();
   expect(screen.getByText("گرمایش: پکیج")).toBeVisible();
@@ -63,14 +63,22 @@ test.each([
 );
 
 test("keeps unknown features distinct and shows the neutral media placeholder", () => {
-  render(<PropertyDetailPage property={property} />);
+  render(
+    <PropertyDetailPage
+      property={{
+        ...property,
+        listings: property.listings.map((listing) => ({
+          ...listing,
+          images: [],
+        })),
+      }}
+    />,
+  );
 
-  expect(
-    screen.getByText("تصویر مجازی برای این ملک منتشر نشده است"),
-  ).toBeVisible();
-  expect(screen.getByText("آسانسور: نامشخص")).toBeVisible();
-  expect(screen.getByText("انباری: ندارد")).toBeVisible();
-  expect(screen.getByText("پارکینگ: دارد")).toBeVisible();
+  expect(screen.getByText("تصویری برای این ملک در دسترس نیست")).toBeVisible();
+  expect(screen.getByText("آسانسور").parentElement).toHaveTextContent("نامشخص");
+  expect(screen.getByText("انباری").parentElement).toHaveTextContent("ندارد");
+  expect(screen.getByText("پارکینگ").parentElement).toHaveTextContent("دارد");
 });
 
 test("compares every active Listing and makes source disagreements visible", () => {
@@ -85,12 +93,12 @@ test("compares every active Listing and makes source disagreements visible", () 
   expect(external).toHaveTextContent("اختلاف با مشخصات تأییدشده");
   expect(external).toHaveTextContent("متراژ: منبع ۱۰۸، تأییدشده ۱۱۰");
   expect(external).toHaveTextContent("پارکینگ: منبع ندارد، تأییدشده دارد");
-  expect(external.getElementsByTagName("img")).toHaveLength(1);
-  expect(external.getElementsByTagName("img")[0]).toHaveAttribute(
-    "src",
-    "/api/v1/catalog/media/image-42/",
+  expect(
+    screen.getByRole("img", { name: "تصویر ملک از منبع نمونه" }),
+  ).toHaveAttribute("src", "/api/v1/catalog/media/image-42/");
+  expect(document.body.innerHTML).not.toContain(
+    "third-party.example/hotlink.jpg",
   );
-  expect(external.innerHTML).not.toContain("third-party.example/hotlink.jpg");
   expect(
     screen.getByRole("button", { name: "ادامه در منبع اصلی" }),
   ).toBeVisible();
