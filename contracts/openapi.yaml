@@ -6438,6 +6438,11 @@ components:
           type: string
           format: date-time
           readOnly: true
+        submitter:
+          oneOf:
+          - $ref: '#/components/schemas/SourceProposalSubmitter'
+          - type: 'null'
+          readOnly: true
         needs_reconciliation:
           type: boolean
           readOnly: true
@@ -6480,6 +6485,7 @@ components:
       - profile_versions
       - responsibility
       - revision
+      - submitter
       - updated_at
     OperatorSubmissionQueue:
       type: object
@@ -8947,6 +8953,23 @@ components:
           type: boolean
       required:
       - preview_confirmed
+    SourceProposalSubmitter:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        display_name:
+          type: string
+          readOnly: true
+        account_label:
+          type: string
+          readOnly: true
+      required:
+      - account_label
+      - display_name
+      - id
     SourcePublic:
       type: object
       properties:

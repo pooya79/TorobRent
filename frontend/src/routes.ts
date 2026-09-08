@@ -28,6 +28,11 @@ export default [
     index("pages/OperatorOverviewPage.tsx"),
     route("submissions", "routes/operator-submissions.tsx"),
     route("source-proposals", "routes/operator-source-proposals.tsx"),
+    route(
+      "source-proposals/:proposalId",
+      "routes/operator-source-proposal-detail.tsx",
+    ),
+    route("external-listings", "routes/operator-external-listings.tsx"),
     route("support", "routes/operator-support.tsx"),
     route("conversation-reports", "routes/operator-conversation-reports.tsx"),
     route("links", "routes/operator-links.tsx"),

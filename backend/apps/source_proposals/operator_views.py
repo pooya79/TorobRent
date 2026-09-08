@@ -85,7 +85,9 @@ class OperatorSourceProposalListView(APIView):
                 .filter(pk=proposal_id)
                 .exclude(submitter=cast(User, request.user))
             )
-        return Response(OperatorSourceProposalSerializer(proposals, many=True).data)
+        return Response(
+            OperatorSourceProposalSerializer(proposals.select_related("submitter"), many=True).data
+        )
 
 
 def _workflow_error(exc: SourceProposalReviewConflict) -> Response:

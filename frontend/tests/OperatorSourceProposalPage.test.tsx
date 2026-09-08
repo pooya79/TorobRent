@@ -5,7 +5,8 @@ import { http, HttpResponse } from "msw";
 import { MemoryRouter } from "react-router";
 import { beforeEach, expect, test } from "vitest";
 
-import { OperatorSourceProposalPage } from "@/pages/OperatorSourceProposalPage";
+import { OperatorSourceProposalDetailPage } from "@/pages/OperatorSourceProposalDetailPage";
+import { OperatorExternalListingsPage } from "@/pages/OperatorExternalListingsPage";
 import { server } from "./server";
 
 beforeEach(() => {
@@ -85,8 +86,8 @@ test("inspects, claims, and requests changes to a Source Proposal", async () => 
   });
   render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter>
-        <OperatorSourceProposalPage />
+      <MemoryRouter initialEntries={["/#overview"]}>
+        <OperatorSourceProposalDetailPage proposalId={proposal.id} />
       </MemoryRouter>
     </QueryClientProvider>,
   );
@@ -98,6 +99,7 @@ test("inspects, claims, and requests changes to a Source Proposal", async () => 
   expect(screen.getAllByText("۵۱ تا ۲۰۰")).toHaveLength(1);
   expect(screen.getByText("دسته اجاره از فروش جداست.")).toBeVisible();
   expect(screen.getByText(/دامنه تکراری/)).toBeVisible();
+  await user.click(screen.getByRole("tab", { name: "نشانی و کشف" }));
   expect(screen.getByText("در انتظار تأیید نشانی")).toBeVisible();
 
   await user.click(screen.getByRole("button", { name: "شروع بررسی" }));
@@ -110,12 +112,7 @@ test("inspects, claims, and requests changes to a Source Proposal", async () => 
 
   expect(requestedReason).toBe("مدرک اختیار را تکمیل کنید.");
   expect(await screen.findByText("تصمیم ثبت شد.")).toBeVisible();
-  expect(
-    screen.queryByRole("heading", { name: "خانه‌یاب" }),
-  ).not.toBeInTheDocument();
-  expect(
-    screen.getByText("درخواست ثبت منبع در انتظار بررسی وجود ندارد."),
-  ).toBeVisible();
+  expect(screen.getByRole("heading", { name: "خانه‌یاب" })).toBeVisible();
 });
 
 test("reviews each External Listing candidate independently", async () => {
@@ -229,7 +226,7 @@ test("reviews each External Listing candidate independently", async () => {
   render(
     <QueryClientProvider client={queryClient}>
       <MemoryRouter>
-        <OperatorSourceProposalPage />
+        <OperatorExternalListingsPage />
       </MemoryRouter>
     </QueryClientProvider>,
   );
@@ -355,8 +352,8 @@ test("URL approval keeps the case visible with Discovery evidence and renewable 
   });
   render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter>
-        <OperatorSourceProposalPage />
+      <MemoryRouter initialEntries={["/#url"]}>
+        <OperatorSourceProposalDetailPage proposalId={proposal.id} />
       </MemoryRouter>
     </QueryClientProvider>,
   );
@@ -519,8 +516,8 @@ test("reviews profile evidence, edits a field, and approves only a validated ver
         new QueryClient({ defaultOptions: { queries: { retry: false } } })
       }
     >
-      <MemoryRouter>
-        <OperatorSourceProposalPage />
+      <MemoryRouter initialEntries={["/#profile"]}>
+        <OperatorSourceProposalDetailPage proposalId={proposal.id} />
       </MemoryRouter>
     </QueryClientProvider>,
   );
@@ -528,10 +525,11 @@ test("reviews profile evidence, edits a field, and approves only a validated ver
   expect(screen.getByText("۸۵ متر")).toBeVisible();
   expect(screen.getByText("۵۰۰٬۰۰۰٬۰۰۰ تومان")).toBeVisible();
   expect(screen.getByText("https://khaneh.example/unsupported")).toBeVisible();
-  await user.click(screen.getByRole("button", { name: "شروع بررسی" }));
+  await user.click(screen.getByRole("button", { name: "پذیرش بررسی پروفایل" }));
   expect(
     screen.getByRole("button", { name: "تأیید پروفایل و تخصیص منبع" }),
   ).toBeDisabled();
+  await user.click(screen.getByRole("button", { name: "اصلاح دستی" }));
   await user.selectOptions(
     screen.getByLabelText("فیلد مورد اصلاح"),
     "floor_area_sqm",
@@ -633,8 +631,8 @@ test("requires field selection for explicit repair and shows failure history", a
         new QueryClient({ defaultOptions: { queries: { retry: false } } })
       }
     >
-      <MemoryRouter>
-        <OperatorSourceProposalPage />
+      <MemoryRouter initialEntries={["/#profile"]}>
+        <OperatorSourceProposalDetailPage proposalId={proposal.id} />
       </MemoryRouter>
     </QueryClientProvider>,
   );
@@ -642,7 +640,8 @@ test("requires field selection for explicit repair and shows failure history", a
   expect(
     screen.queryByRole("button", { name: "درخواست اصلاح هوشمند" }),
   ).not.toBeInTheDocument();
-  await user.click(screen.getByRole("button", { name: "شروع بررسی" }));
+  await user.click(screen.getByRole("button", { name: "پذیرش بررسی پروفایل" }));
+  await user.click(screen.getByRole("button", { name: "اصلاح هوشمند" }));
   const repair = screen.getByRole("button", { name: "درخواست اصلاح هوشمند" });
   expect(repair).toBeDisabled();
   expect(calls).toEqual([]);
@@ -730,8 +729,8 @@ test("keeps approved Source cases available for run monitoring", async () => {
         new QueryClient({ defaultOptions: { queries: { retry: false } } })
       }
     >
-      <MemoryRouter>
-        <OperatorSourceProposalPage />
+      <MemoryRouter initialEntries={["/#exceptions"]}>
+        <OperatorSourceProposalDetailPage proposalId={proposal.id} />
       </MemoryRouter>
     </QueryClientProvider>,
   );
@@ -741,6 +740,7 @@ test("keeps approved Source cases available for run monitoring", async () => {
   expect(screen.getByText("در حال استخراج")).toBeVisible();
   expect(screen.queryByRole("button", { name: "شروع بررسی" })).toBeNull();
   expect(screen.queryByRole("button", { name: "درخواست استخراج" })).toBeNull();
+  await user.click(screen.getByRole("tab", { name: "نشانی و کشف" }));
   expect(
     screen.getByRole("button", { name: "آغاز بررسی نسخه تازه پروفایل" }),
   ).toBeVisible();
@@ -867,8 +867,8 @@ test.each(["approval_required", "automatic"])(
           new QueryClient({ defaultOptions: { queries: { retry: false } } })
         }
       >
-        <MemoryRouter>
-          <OperatorSourceProposalPage />
+        <MemoryRouter initialEntries={["/#exceptions"]}>
+          <OperatorSourceProposalDetailPage proposalId={proposal.id} />
         </MemoryRouter>
       </QueryClientProvider>,
     );
@@ -974,7 +974,7 @@ test("corrects an exception and approves its new revision", async () => {
       }
     >
       <MemoryRouter>
-        <OperatorSourceProposalPage />
+        <OperatorExternalListingsPage />
       </MemoryRouter>
     </QueryClientProvider>,
   );
@@ -1048,11 +1048,12 @@ test("revokes an assignment with a reason and the reviewed revision", async () =
         new QueryClient({ defaultOptions: { queries: { retry: false } } })
       }
     >
-      <MemoryRouter>
-        <OperatorSourceProposalPage />
+      <MemoryRouter initialEntries={["/#responsibility"]}>
+        <OperatorSourceProposalDetailPage proposalId={proposal.id} />
       </MemoryRouter>
     </QueryClientProvider>,
   );
+  await user.click(await screen.findByText("لغو تخصیص و توقف همکاری"));
   const button = await screen.findByRole("button", { name: "لغو تخصیص منبع" });
   expect(button).toBeDisabled();
   await user.type(
@@ -1146,8 +1147,8 @@ test.each([
           new QueryClient({ defaultOptions: { queries: { retry: false } } })
         }
       >
-        <MemoryRouter>
-          <OperatorSourceProposalPage />
+        <MemoryRouter initialEntries={["/#profile"]}>
+          <OperatorSourceProposalDetailPage proposalId={proposal.id} />
         </MemoryRouter>
       </QueryClientProvider>,
     );
@@ -1160,7 +1161,9 @@ test.each([
     expect(
       screen.getAllByText(/فیلدهای حل‌نشده: متراژ/).length,
     ).toBeGreaterThan(0);
-    await user.click(screen.getByRole("button", { name: "شروع بررسی" }));
+    await user.click(
+      screen.getByRole("button", { name: "پذیرش بررسی پروفایل" }),
+    );
     await user.selectOptions(screen.getByLabelText("روش بررسی نتایج"), mode);
     await user.click(
       screen.getByLabelText("نمونه‌ها و اعتبارسنجی پروفایل را بررسی کردم."),
@@ -1260,8 +1263,8 @@ test.each([
           new QueryClient({ defaultOptions: { queries: { retry: false } } })
         }
       >
-        <MemoryRouter>
-          <OperatorSourceProposalPage />
+        <MemoryRouter initialEntries={["/#profile"]}>
+          <OperatorSourceProposalDetailPage proposalId={proposal.id} />
         </MemoryRouter>
       </QueryClientProvider>,
     );
@@ -1275,6 +1278,7 @@ test.each([
       expect(
         screen.queryByText("شواهد محدود", { exact: true }),
       ).not.toBeInTheDocument();
+    await user.click(screen.getByText("گزارش پوشش و تعارض فیلدها"));
     if (!heldOut) {
       expect(screen.getByText("ارزیابی نشده")).toBeVisible();
       expect(screen.queryByText(/^[۰-۹]+٪$/)).not.toBeInTheDocument();
@@ -1282,7 +1286,9 @@ test.each([
         screen.queryByText("اعتبارسنجی هشت فیلد اصلی موفق بود."),
       ).not.toBeInTheDocument();
     }
-    await user.click(screen.getByRole("button", { name: "شروع بررسی" }));
+    await user.click(
+      screen.getByRole("button", { name: "پذیرش بررسی پروفایل" }),
+    );
     await user.click(
       screen.getByLabelText("نمونه‌ها و اعتبارسنجی پروفایل را بررسی کردم."),
     );
@@ -1434,13 +1440,13 @@ test("compares imperfect repair evidence and requires a fresh explicit approval"
         new QueryClient({ defaultOptions: { queries: { retry: false } } })
       }
     >
-      <MemoryRouter>
-        <OperatorSourceProposalPage />
+      <MemoryRouter initialEntries={["/#profile"]}>
+        <OperatorSourceProposalDetailPage proposalId={proposal.id} />
       </MemoryRouter>
     </QueryClientProvider>,
   );
   await screen.findByText("پروفایل منبع — نسخه ۱");
-  await user.click(screen.getByRole("button", { name: "شروع بررسی" }));
+  await user.click(screen.getByRole("button", { name: "پذیرش بررسی پروفایل" }));
   await user.selectOptions(
     screen.getByLabelText("روش بررسی نتایج"),
     "automatic",
@@ -1448,6 +1454,7 @@ test("compares imperfect repair evidence and requires a fresh explicit approval"
   await user.click(
     screen.getByLabelText("نمونه‌ها و اعتبارسنجی پروفایل را بررسی کردم."),
   );
+  await user.click(screen.getByRole("button", { name: "اصلاح هوشمند" }));
   await user.click(screen.getByLabelText("اصلاح هوشمند اجاره ماهانه"));
   await user.click(
     screen.getByRole("button", { name: "درخواست اصلاح هوشمند" }),
@@ -1512,14 +1519,15 @@ test("requires explicit legacy conflict resolution before URL approval", async (
         new QueryClient({ defaultOptions: { queries: { retry: false } } })
       }
     >
-      <MemoryRouter>
-        <OperatorSourceProposalPage />
+      <MemoryRouter initialEntries={["/#overview"]}>
+        <OperatorSourceProposalDetailPage proposalId={proposal.id} />
       </MemoryRouter>
     </QueryClientProvider>,
   );
   expect(
     await screen.findByText("تعارض وب‌سایت‌های جاری ارسال‌کننده"),
   ).toBeVisible();
+  await user.click(screen.getByRole("tab", { name: "نشانی و کشف" }));
   await user.click(screen.getByRole("button", { name: "شروع بررسی" }));
   expect(
     await screen.findByRole("button", { name: "تأیید نشانی و شروع کشف" }),
@@ -1555,11 +1563,12 @@ test.each(["changes_requested", "rejected"])(
           new QueryClient({ defaultOptions: { queries: { retry: false } } })
         }
       >
-        <MemoryRouter>
-          <OperatorSourceProposalPage />
+        <MemoryRouter initialEntries={["/#responsibility"]}>
+          <OperatorSourceProposalDetailPage proposalId={proposal.id} />
         </MemoryRouter>
       </QueryClientProvider>,
     );
+    await userEvent.click(await screen.findByText("لغو تخصیص و توقف همکاری"));
     expect(
       await screen.findByRole("button", { name: "لغو تخصیص منبع" }),
     ).toBeInTheDocument();
@@ -1635,12 +1644,16 @@ test("queue manager reassigns Source responsibility with a reason and reviewed r
         new QueryClient({ defaultOptions: { queries: { retry: false } } })
       }
     >
-      <MemoryRouter>
-        <OperatorSourceProposalPage />
+      <MemoryRouter initialEntries={["/#responsibility"]}>
+        <OperatorSourceProposalDetailPage proposalId={proposal.id} />
       </MemoryRouter>
     </QueryClientProvider>,
   );
-  expect(await screen.findByText("original@example.com")).toBeVisible();
+  expect(
+    await within(await screen.findByRole("tabpanel")).findByText(
+      "original@example.com",
+    ),
+  ).toBeVisible();
   expect(
     screen.queryByRole("button", { name: "لغو تخصیص منبع" }),
   ).not.toBeInTheDocument();
@@ -1657,7 +1670,11 @@ test("queue manager reassigns Source responsibility with a reason and reviewed r
     reviewed_responsibility_revision: 1,
     reason: "تغییر شیفت",
   });
-  expect(await screen.findByText("next@example.com")).toBeVisible();
+  expect(
+    await within(await screen.findByRole("tabpanel")).findByText(
+      "next@example.com",
+    ),
+  ).toBeVisible();
 });
 
 test.each([
@@ -1705,18 +1722,26 @@ test.each([
           new QueryClient({ defaultOptions: { queries: { retry: false } } })
         }
       >
-        <MemoryRouter>
-          <OperatorSourceProposalPage />
+        <MemoryRouter initialEntries={["/#responsibility"]}>
+          <OperatorSourceProposalDetailPage proposalId={proposal.id} />
         </MemoryRouter>
       </QueryClientProvider>,
     );
-    expect(await screen.findByText("next@example.com")).toBeVisible();
+    expect(
+      await within(await screen.findByRole("tabpanel")).findByText(
+        "next@example.com",
+      ),
+    ).toBeVisible();
+    if (allowed)
+      await userEvent.click(screen.getByText("لغو تخصیص و توقف همکاری"));
     expect(
       Boolean(screen.queryByRole("button", { name: "لغو تخصیص منبع" })),
     ).toBe(allowed);
+    await userEvent.click(screen.getByRole("tab", { name: "پردازش و انتشار" }));
     expect(
       Boolean(screen.queryByRole("button", { name: "ثبت روش انتشار" })),
     ).toBe(allowed);
+    await userEvent.click(screen.getByRole("tab", { name: "نشانی و کشف" }));
     if (!allowed)
       expect(
         screen.getByRole("button", { name: "آغاز بررسی نسخه تازه پروفایل" }),
@@ -1775,12 +1800,16 @@ test("stale reassignment reports the conflict and refreshes current responsibili
         new QueryClient({ defaultOptions: { queries: { retry: false } } })
       }
     >
-      <MemoryRouter>
-        <OperatorSourceProposalPage />
+      <MemoryRouter initialEntries={["/#responsibility"]}>
+        <OperatorSourceProposalDetailPage proposalId={proposal.id} />
       </MemoryRouter>
     </QueryClientProvider>,
   );
-  expect(await screen.findByText("original@example.com")).toBeVisible();
+  expect(
+    await within(await screen.findByRole("tabpanel")).findByText(
+      "original@example.com",
+    ),
+  ).toBeVisible();
   await user.type(
     screen.getByLabelText("ایمیل اپراتور مقصد"),
     "chosen@example.com",
@@ -1794,7 +1823,11 @@ test("stale reassignment reports the conflict and refreshes current responsibili
       screen.getByRole("region", { name: "مسئولیت منبع" }),
     ).findByRole("alert"),
   ).toHaveTextContent("مسئول منبع تغییر کرده است");
-  expect(await screen.findByText("next@example.com")).toBeVisible();
+  expect(
+    await within(await screen.findByRole("tabpanel")).findByText(
+      "next@example.com",
+    ),
+  ).toBeVisible();
 });
 
 test("responsible operator switches publication mode using the reviewed profile and revision", async () => {
@@ -1850,8 +1883,8 @@ test("responsible operator switches publication mode using the reviewed profile 
         new QueryClient({ defaultOptions: { queries: { retry: false } } })
       }
     >
-      <MemoryRouter>
-        <OperatorSourceProposalPage />
+      <MemoryRouter initialEntries={["/#processing"]}>
+        <OperatorSourceProposalDetailPage proposalId={proposal.id} />
       </MemoryRouter>
     </QueryClientProvider>,
   );
@@ -1870,11 +1903,7 @@ test("responsible operator switches publication mode using the reviewed profile 
       },
     ]),
   );
-  expect(
-    await screen.findByText(
-      "نتایج معتبر درخواست‌های تازه خودکار منتشر می‌شود.",
-    ),
-  ).toBeVisible();
+  expect(await screen.findByText("خودکار")).toBeVisible();
   await user.click(screen.getByRole("radio", { name: "نیازمند تأیید انتشار" }));
   await user.click(screen.getByRole("button", { name: "ثبت روش انتشار" }));
   await waitFor(() => expect(bodies).toHaveLength(2));
@@ -1951,16 +1980,18 @@ test("pauses a Source separately and resumes with explicit fresh publication mod
         new QueryClient({ defaultOptions: { queries: { retry: false } } })
       }
     >
-      <MemoryRouter>
-        <OperatorSourceProposalPage />
+      <MemoryRouter initialEntries={["/#processing"]}>
+        <OperatorSourceProposalDetailPage proposalId={proposal.id} />
       </MemoryRouter>
     </QueryClientProvider>,
   );
   await user.click(
     await screen.findByRole("button", { name: "توقف پردازش منبع" }),
   );
-  expect(await screen.findByText("پردازش منبع متوقف است.")).toBeVisible();
-  expect(screen.getByText("تخصیص منبع فعال است")).toBeVisible();
+  expect(
+    await within(await screen.findByRole("tabpanel")).findByText("متوقف"),
+  ).toBeVisible();
+
   const resume = screen.getByRole("button", {
     name: "ازسرگیری با استخراج تازه",
   });

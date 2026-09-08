@@ -81,7 +81,11 @@ def test_source_proposal_queue_requires_its_capability_and_excludes_own_work(
     assert queue.data[0]["needs_reconciliation"] is False
     assert queue.data[0]["website_url"] == "https://khaneh.example/rentals"
     assert queue.data[0]["operator_note"] == "دسته اجاره از فروش جداست."
-    assert "submitter" not in queue.data[0]
+    assert queue.data[0]["submitter"] == {
+        "id": str(representative.pk),
+        "display_name": representative.display_name,
+        "account_label": representative.email,
+    }
 
 
 @pytest.mark.django_db
@@ -255,3 +259,27 @@ def test_approval_validates_source_without_publishing_a_listing(api_client: APIC
     assert dashboard.data[0]["state"] == "pending"
     assert dashboard.data[0]["available_actions"] == []
     assert dashboard.data[0]["history"][-1]["new_state"] == "pending"
+
+
+@pytest.mark.django_db
+def test_operator_source_identity_handles_phone_accounts_and_deleted_submitters(api_client):
+    representative = make_user(email="phone-only@example.com", submitter=True)
+    representative.email = None
+    representative.display_name = "نماینده آزمایشی"
+    representative.save(update_fields=("email", "display_name"))
+    proposal = make_pending_proposal(submitter=representative)
+    api_client.force_authenticate(representative)
+    own = api_client.get("/api/v1/source-proposals/")
+    assert "submitter" not in own.data[0]
+
+    api_client.force_authenticate(make_operator())
+    queue = api_client.get("/api/v1/operator/source-proposals/")
+    assert queue.data[0]["submitter"] == {
+        "id": str(representative.pk),
+        "display_name": "نماینده آزمایشی",
+        "account_label": representative.phone,
+    }
+    proposal.submitter = None
+    proposal.save(update_fields=("submitter",))
+    queue = api_client.get("/api/v1/operator/source-proposals/")
+    assert queue.data[0]["submitter"] is None

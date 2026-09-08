@@ -92,57 +92,69 @@ export function SourceProfileReview({
     ) : null;
   return (
     <section className="grid min-w-0 gap-4" aria-label="بررسی پروفایل منبع">
-      <ProfileEvidence version={latest} />
-      {parent && (
-        <details>
-          <summary>تغییر قواعد نسبت به نسخه پیشین</summary>
-          {Object.keys({
-            ...(parent.rules as Record<string, unknown>),
-            ...(latest.rules as Record<string, unknown>),
-          })
-            .filter(
-              (field) =>
-                JSON.stringify(
-                  (parent.rules as Record<string, unknown>)[field],
-                ) !==
-                JSON.stringify(
-                  (latest.rules as Record<string, unknown>)[field],
-                ),
-            )
-            .map((field) => (
-              <div key={field}>
-                <h4>{fields[field] ?? field}</h4>
-                <p>پیش از اصلاح</p>
-                <pre dir="ltr" className="overflow-x-auto text-xs">
-                  {JSON.stringify(
-                    (parent.rules as Record<string, unknown>)[field],
-                    null,
-                    2,
-                  ) ?? "—"}
-                </pre>
-                <p>پس از اصلاح</p>
-                <pre dir="ltr" className="overflow-x-auto text-xs">
-                  {JSON.stringify(
-                    (latest.rules as Record<string, unknown>)[field],
-                    null,
-                    2,
-                  ) ?? "—"}
-                </pre>
-              </div>
-            ))}
-        </details>
-      )}
-      {claimed &&
-        proposal.discovery_stage === "complete" &&
-        latest.reservation === proposal.discovery?.id &&
-        latest.status === "proposed" && (
-          <ProfileEditor
-            key={latest.id}
-            proposal={proposal}
-            version={latest}
-            onUpdate={onUpdate}
-          />
-        )}
+      <div className="grid items-start gap-5 xl:grid-cols-2">
+        <div className="min-w-0 rounded-xl border p-4">
+          <ProfileEvidence version={latest} />
+          {parent && (
+            <details>
+              <summary>تغییر قواعد نسبت به نسخه پیشین</summary>
+              {Object.keys({
+                ...(parent.rules as Record<string, unknown>),
+                ...(latest.rules as Record<string, unknown>),
+              })
+                .filter(
+                  (field) =>
+                    JSON.stringify(
+                      (parent.rules as Record<string, unknown>)[field],
+                    ) !==
+                    JSON.stringify(
+                      (latest.rules as Record<string, unknown>)[field],
+                    ),
+                )
+                .map((field) => (
+                  <div key={field}>
+                    <h4>{fields[field] ?? field}</h4>
+                    <p>پیش از اصلاح</p>
+                    <pre dir="ltr" className="overflow-x-auto text-xs">
+                      {JSON.stringify(
+                        (parent.rules as Record<string, unknown>)[field],
+                        null,
+                        2,
+                      ) ?? "—"}
+                    </pre>
+                    <p>پس از اصلاح</p>
+                    <pre dir="ltr" className="overflow-x-auto text-xs">
+                      {JSON.stringify(
+                        (latest.rules as Record<string, unknown>)[field],
+                        null,
+                        2,
+                      ) ?? "—"}
+                    </pre>
+                  </div>
+                ))}
+            </details>
+          )}
+        </div>
+        <div className="min-w-0 rounded-xl border p-4">
+          {claimed &&
+            proposal.discovery_stage === "complete" &&
+            latest.reservation === proposal.discovery?.id &&
+            latest.status === "proposed" && (
+              <ProfileEditor
+                key={latest.id}
+                proposal={proposal}
+                version={latest}
+                onUpdate={onUpdate}
+              />
+            )}
+          {!claimed && (
+            <p className="text-muted-foreground text-sm">
+              برای ثبت تصمیم یا اصلاح فیلدها، ابتدا مسئولیت بررسی پروفایل را
+              بپذیرید.
+            </p>
+          )}
+        </div>
+      </div>
       {(proposal.profile_repairs ?? []).length > 0 && (
         <div className="grid gap-3" aria-label="تاریخچه اصلاح هوشمند">
           <h4 className="font-medium">تاریخچه اصلاح هوشمند</h4>
@@ -400,48 +412,53 @@ function ProfileEvidence({ version }: { version: Version }) {
           </div>
         ))}
       </details>
-      <div className="overflow-x-auto">
-        <table className="w-full text-start text-sm">
-          <caption className="text-start font-medium">
-            پوشش فیلدها در صفحات کنارگذاشته‌شده برای اعتبارسنجی
-          </caption>
-          <thead>
-            <tr>
-              <th className="text-start">فیلد</th>
-              <th>پوشش</th>
-              <th>تعارض</th>
-              <th>نتیجه</th>
-            </tr>
-          </thead>
-          <tbody>
-            {Object.entries(version.validation.fields).map(
-              ([field, report]) => (
-                <tr key={field}>
-                  <th className="py-1 text-start font-normal">
-                    {fields[field] ?? field}
-                    {coreFields.includes(field) ? " (اصلی)" : " (اختیاری)"}
-                  </th>
-                  <td className="text-center">
-                    {validationCount === 0 || report.coverage === null
-                      ? "—"
-                      : `${Math.round(report.coverage * 100).toLocaleString("fa-IR")}٪`}
-                  </td>
-                  <td className="text-center">
-                    {report.conflicts.toLocaleString("fa-IR")}
-                  </td>
-                  <td className="text-center">
-                    {validationCount === 0 || report.passed === null
-                      ? "ارزیابی نشده"
-                      : report.passed
-                        ? "موفق"
-                        : "نیازمند بررسی"}
-                  </td>
-                </tr>
-              ),
-            )}
-          </tbody>
-        </table>
-      </div>
+      <details className="rounded-lg border p-3">
+        <summary className="cursor-pointer text-sm font-medium">
+          گزارش پوشش و تعارض فیلدها
+        </summary>
+        <div className="mt-3 overflow-x-auto">
+          <table className="w-full text-start text-sm">
+            <caption className="text-start font-medium">
+              پوشش فیلدها در صفحات کنارگذاشته‌شده برای اعتبارسنجی
+            </caption>
+            <thead>
+              <tr>
+                <th className="text-start">فیلد</th>
+                <th>پوشش</th>
+                <th>تعارض</th>
+                <th>نتیجه</th>
+              </tr>
+            </thead>
+            <tbody>
+              {Object.entries(version.validation.fields).map(
+                ([field, report]) => (
+                  <tr key={field}>
+                    <th className="py-1 text-start font-normal">
+                      {fields[field] ?? field}
+                      {coreFields.includes(field) ? " (اصلی)" : " (اختیاری)"}
+                    </th>
+                    <td className="text-center">
+                      {validationCount === 0 || report.coverage === null
+                        ? "—"
+                        : `${Math.round(report.coverage * 100).toLocaleString("fa-IR")}٪`}
+                    </td>
+                    <td className="text-center">
+                      {report.conflicts.toLocaleString("fa-IR")}
+                    </td>
+                    <td className="text-center">
+                      {validationCount === 0 || report.passed === null
+                        ? "ارزیابی نشده"
+                        : report.passed
+                          ? "موفق"
+                          : "نیازمند بررسی"}
+                    </td>
+                  </tr>
+                ),
+              )}
+            </tbody>
+          </table>
+        </div>
+      </details>
       <details>
         <summary>صفحات آموزش و اعتبارسنجی</summary>
         <p>آموزش</p>
@@ -538,6 +555,7 @@ function ProfileEditor({
   version: Version;
   onUpdate: (proposal: OperatorSourceProposal) => void;
 }) {
+  const [editorAction, setEditorAction] = useState("approve");
   const [selectedFields, setSelectedFields] = useState<string[]>([]);
   const [requestId, setRequestId] = useState(() => crypto.randomUUID());
   const [field, setField] = useState("city");
@@ -622,198 +640,233 @@ function ProfileEditor({
   );
   return (
     <div className="grid gap-4">
-      <fieldset
-        disabled={busy || pendingRepair}
-        className="grid gap-3 rounded-md border p-3"
+      <h3 className="font-semibold">تصمیم درباره این نسخه</h3>
+      <div
+        className="bg-muted flex flex-wrap gap-1 rounded-lg p-1"
+        aria-label="اقدام روی پروفایل"
       >
-        <legend className="px-1 font-medium">
-          اصلاح هوشمند فیلدهای انتخاب‌شده
-        </legend>
-        <p className="text-sm">
-          یک تا چهار فیلد را انتخاب کنید. فقط شواهد محدود و بدون شماره تماس برای
-          مدل ارسال می‌شود. قواعد معتبر حتی با وجود خطای کیفیت، پیش‌نویس تازه‌ای
-          می‌سازند که پیش از تأیید باید بررسی کنید.
-        </p>
-        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-          {Object.entries(fields).map(([name, label]) => (
-            <label key={name} className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                aria-label={`اصلاح هوشمند ${label}`}
-                checked={selectedFields.includes(name)}
-                disabled={
-                  selectedFields.length >= 4 && !selectedFields.includes(name)
-                }
-                onChange={(event) => {
-                  setSelectedFields((current) =>
-                    event.target.checked
-                      ? [...current, name]
-                      : current.filter((field) => field !== name),
-                  );
-                  setRequestId(crypto.randomUUID());
-                }}
-              />
-              {label}
-            </label>
-          ))}
-        </div>
-        <Button
-          type="button"
-          disabled={!selectedFields.length || busy || pendingRepair}
-          onClick={() => repair.mutate()}
+        {[
+          ["approve", "تأیید نسخه"],
+          ["repair", "اصلاح هوشمند"],
+          ["edit", "اصلاح دستی"],
+        ].map(([value, label]) => (
+          <Button
+            key={value}
+            type="button"
+            variant={editorAction === value ? "secondary" : "ghost"}
+            size="sm"
+            aria-pressed={editorAction === value}
+            onClick={() => setEditorAction(value!)}
+          >
+            {label}
+          </Button>
+        ))}
+      </div>
+      <div className={editorAction === "repair" ? "grid gap-4" : "hidden"}>
+        <fieldset
+          disabled={busy || pendingRepair}
+          className="grid gap-3 rounded-md border p-3"
         >
-          {repair.isPending ? "در حال اصلاح…" : "درخواست اصلاح هوشمند"}
-        </Button>
-      </fieldset>
-      {repair.error && (
-        <Alert variant="destructive">
-          <AlertDescription>
-            {errorMessage(
-              repair.error,
-              "اصلاح انجام نشد؛ پرونده را تازه کنید.",
-            )}
-          </AlertDescription>
-        </Alert>
-      )}
-      <form
-        className="grid gap-3"
-        onSubmit={(event) => {
-          event.preventDefault();
-          edit.mutate();
-        }}
-      >
-        <p>
-          اصلاح یک فیلد، قواعد جایگزین همان فیلد را عوض می‌کند و نسخه تازه‌ای
-          برای اعتبارسنجی می‌سازد.
-        </p>
-        <Label htmlFor={`field-${version.id}`}>فیلد مورد اصلاح</Label>
-        <select
-          id={`field-${version.id}`}
-          className={selectClass}
-          value={field}
-          onChange={(event) => setField(event.target.value)}
-        >
-          {Object.entries(fields).map(([value, label]) => (
-            <option key={value} value={value}>
-              {label}
-            </option>
-          ))}
-        </select>
-        <Label htmlFor={`kind-${version.id}`}>منبع مقدار</Label>
-        <select
-          id={`kind-${version.id}`}
-          className={selectClass}
-          value={kind}
-          onChange={(event) => {
-            setKind(event.target.value);
-            setLocator("");
+          <legend className="px-1 font-medium">
+            اصلاح هوشمند فیلدهای انتخاب‌شده
+          </legend>
+          <p className="text-sm">
+            یک تا چهار فیلد را انتخاب کنید. فقط شواهد محدود و بدون شماره تماس
+            برای مدل ارسال می‌شود. قواعد معتبر حتی با وجود خطای کیفیت، پیش‌نویس
+            تازه‌ای می‌سازند که پیش از تأیید باید بررسی کنید.
+          </p>
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {Object.entries(fields).map(([name, label]) => (
+              <label key={name} className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  aria-label={`اصلاح هوشمند ${label}`}
+                  checked={selectedFields.includes(name)}
+                  disabled={
+                    selectedFields.length >= 4 && !selectedFields.includes(name)
+                  }
+                  onChange={(event) => {
+                    setSelectedFields((current) =>
+                      event.target.checked
+                        ? [...current, name]
+                        : current.filter((field) => field !== name),
+                    );
+                    setRequestId(crypto.randomUUID());
+                  }}
+                />
+                {label}
+              </label>
+            ))}
+          </div>
+          <Button
+            type="button"
+            disabled={!selectedFields.length || busy || pendingRepair}
+            onClick={() => repair.mutate()}
+          >
+            {repair.isPending ? "در حال اصلاح…" : "درخواست اصلاح هوشمند"}
+          </Button>
+        </fieldset>
+        {repair.error && (
+          <Alert variant="destructive">
+            <AlertDescription>
+              {errorMessage(
+                repair.error,
+                "اصلاح انجام نشد؛ پرونده را تازه کنید.",
+              )}
+            </AlertDescription>
+          </Alert>
+        )}
+      </div>
+      <div className={editorAction === "edit" ? "grid gap-4" : "hidden"}>
+        <form
+          className="grid gap-3"
+          onSubmit={(event) => {
+            event.preventDefault();
+            edit.mutate();
           }}
         >
-          <option value="css">عنصر صفحه</option>
-          <option value="json">داده ساخت‌یافته متصل</option>
-        </select>
-        <Label htmlFor={`locator-${version.id}`}>
-          {kind === "css" ? "مسیر عنصر" : "مسیر داده"}
-        </Label>
-        <Input
-          id={`locator-${version.id}`}
-          dir="ltr"
-          value={locator}
-          maxLength={300}
-          onChange={(event) => setLocator(event.target.value)}
-          placeholder={kind === "css" ? ".area" : "$.floorSize.value"}
-        />
-        {kind === "css" && (
-          <>
-            <Label htmlFor={`attribute-${version.id}`}>
-              ویژگی عنصر (اختیاری)
-            </Label>
-            <Input
-              id={`attribute-${version.id}`}
-              dir="ltr"
-              value={attribute}
-              onChange={(event) => setAttribute(event.target.value)}
-              placeholder="content"
-            />
-          </>
-        )}
-        {transform === "money_rial" && (
-          <>
-            <Label htmlFor={`currency-${version.id}`}>واحد مبلغ</Label>
-            <select
-              id={`currency-${version.id}`}
-              className={selectClass}
-              value={currency}
-              onChange={(event) => setCurrency(event.target.value)}
-            >
-              <option value="">از متن</option>
-              <option value="تومان">تومان</option>
-              <option value="ریال">ریال</option>
-            </select>
-          </>
-        )}
-        <Button disabled={busy || !locator.trim()} type="submit">
-          ثبت نسخه و اعتبارسنجی
-        </Button>
-      </form>
-      <Label htmlFor={`mode-${version.id}`}>روش بررسی نتایج</Label>
-      <select
-        id={`mode-${version.id}`}
-        className={selectClass}
-        value={mode}
-        onChange={(event) => setMode(event.target.value as typeof mode)}
-      >
-        <option value="" disabled>
-          روش بررسی را انتخاب کنید
-        </option>
-        <option value="approval_required">نیازمند تأیید اپراتور</option>
-        <option value="automatic">انتشار خودکار نتایج معتبر</option>
-      </select>
-      <label className="flex gap-2 text-sm">
-        <input
-          type="checkbox"
-          checked={confirmed}
-          onChange={(event) => setConfirmed(event.target.checked)}
-        />
-        نمونه‌ها و اعتبارسنجی پروفایل را بررسی کردم.
-      </label>
-      {hasLimitations && (
-        <fieldset className="grid gap-3 rounded-md border p-3" disabled={busy}>
-          <legend>تأیید با وجود محدودیت‌های کیفیت</legend>
-          <label className="flex gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={limitationsAcknowledged}
-              onChange={(event) =>
-                setLimitationsAcknowledged(event.target.checked)
-              }
-            />
-            محدودیت‌های کیفیت را می‌پذیرم.
-          </label>
-          <Label htmlFor={`limitations-reason-${version.id}`}>
-            دلیل تأیید با وجود محدودیت‌ها
+          <p>
+            اصلاح یک فیلد، قواعد جایگزین همان فیلد را عوض می‌کند و نسخه تازه‌ای
+            برای اعتبارسنجی می‌سازد.
+          </p>
+          <Label htmlFor={`field-${version.id}`}>فیلد مورد اصلاح</Label>
+          <select
+            id={`field-${version.id}`}
+            className={selectClass}
+            value={field}
+            onChange={(event) => setField(event.target.value)}
+          >
+            {Object.entries(fields).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+          <Label htmlFor={`kind-${version.id}`}>منبع مقدار</Label>
+          <select
+            id={`kind-${version.id}`}
+            className={selectClass}
+            value={kind}
+            onChange={(event) => {
+              setKind(event.target.value);
+              setLocator("");
+            }}
+          >
+            <option value="css">عنصر صفحه</option>
+            <option value="json">داده ساخت‌یافته متصل</option>
+          </select>
+          <Label htmlFor={`locator-${version.id}`}>
+            {kind === "css" ? "مسیر عنصر" : "مسیر داده"}
           </Label>
           <Input
-            id={`limitations-reason-${version.id}`}
-            value={reason}
-            maxLength={2000}
-            onChange={(event) => setReason(event.target.value)}
+            id={`locator-${version.id}`}
+            dir="ltr"
+            value={locator}
+            maxLength={300}
+            onChange={(event) => setLocator(event.target.value)}
+            placeholder={kind === "css" ? ".area" : "$.floorSize.value"}
           />
-        </fieldset>
-      )}
-      <Button
-        disabled={
-          busy ||
-          proposal.current_website_conflict ||
-          !mode ||
-          !confirmed ||
-          version.validation.rules_valid === false ||
-          (hasLimitations && (!limitationsAcknowledged || !reason.trim()))
-        }
-        onClick={() => approve.mutate()}
-      >
-        تأیید پروفایل و تخصیص منبع
-      </Button>
+          {kind === "css" && (
+            <>
+              <Label htmlFor={`attribute-${version.id}`}>
+                ویژگی عنصر (اختیاری)
+              </Label>
+              <Input
+                id={`attribute-${version.id}`}
+                dir="ltr"
+                value={attribute}
+                onChange={(event) => setAttribute(event.target.value)}
+                placeholder="content"
+              />
+            </>
+          )}
+          {transform === "money_rial" && (
+            <>
+              <Label htmlFor={`currency-${version.id}`}>واحد مبلغ</Label>
+              <select
+                id={`currency-${version.id}`}
+                className={selectClass}
+                value={currency}
+                onChange={(event) => setCurrency(event.target.value)}
+              >
+                <option value="">از متن</option>
+                <option value="تومان">تومان</option>
+                <option value="ریال">ریال</option>
+              </select>
+            </>
+          )}
+          <Button disabled={busy || !locator.trim()} type="submit">
+            ثبت نسخه و اعتبارسنجی
+          </Button>
+        </form>
+      </div>
+      <div className={editorAction === "approve" ? "grid gap-4" : "hidden"}>
+        <p className="text-muted-foreground text-sm">
+          با تأیید این نسخه، پروفایل منبع فعال می‌شود. روش بررسی آگهی‌های حاصل
+          از آن را انتخاب کنید.
+        </p>
+        <Label htmlFor={`mode-${version.id}`}>روش بررسی نتایج</Label>
+        <select
+          id={`mode-${version.id}`}
+          className={selectClass}
+          value={mode}
+          onChange={(event) => setMode(event.target.value as typeof mode)}
+        >
+          <option value="" disabled>
+            روش بررسی را انتخاب کنید
+          </option>
+          <option value="approval_required">نیازمند تأیید اپراتور</option>
+          <option value="automatic">انتشار خودکار نتایج معتبر</option>
+        </select>
+        <label className="flex gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={confirmed}
+            onChange={(event) => setConfirmed(event.target.checked)}
+          />
+          نمونه‌ها و اعتبارسنجی پروفایل را بررسی کردم.
+        </label>
+        {hasLimitations && (
+          <fieldset
+            className="grid gap-3 rounded-md border p-3"
+            disabled={busy}
+          >
+            <legend>تأیید با وجود محدودیت‌های کیفیت</legend>
+            <label className="flex gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={limitationsAcknowledged}
+                onChange={(event) =>
+                  setLimitationsAcknowledged(event.target.checked)
+                }
+              />
+              محدودیت‌های کیفیت را می‌پذیرم.
+            </label>
+            <Label htmlFor={`limitations-reason-${version.id}`}>
+              دلیل تأیید با وجود محدودیت‌ها
+            </Label>
+            <Input
+              id={`limitations-reason-${version.id}`}
+              value={reason}
+              maxLength={2000}
+              onChange={(event) => setReason(event.target.value)}
+            />
+          </fieldset>
+        )}
+        <Button
+          disabled={
+            busy ||
+            proposal.current_website_conflict ||
+            !mode ||
+            !confirmed ||
+            version.validation.rules_valid === false ||
+            (hasLimitations && (!limitationsAcknowledged || !reason.trim()))
+          }
+          onClick={() => approve.mutate()}
+        >
+          تأیید پروفایل و تخصیص منبع
+        </Button>
+      </div>
       {(edit.error || approve.error) && (
         <Alert variant="destructive">
           <AlertDescription>

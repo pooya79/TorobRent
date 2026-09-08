@@ -3074,6 +3074,8 @@ export interface components {
       readonly created_at: string;
       /** Format: date-time */
       readonly updated_at: string;
+      readonly submitter:
+        components["schemas"]["SourceProposalSubmitter"] | null;
       readonly needs_reconciliation: boolean;
       readonly discovery: components["schemas"]["SourceDiscovery"] | null;
       readonly profile_versions: components["schemas"]["SourceProfileVersion"][];
@@ -4122,6 +4124,12 @@ export interface components {
     SourceProposalStepEnum: "details" | "preview";
     SourceProposalSubmit: {
       preview_confirmed: boolean;
+    };
+    SourceProposalSubmitter: {
+      /** Format: uuid */
+      readonly id: string;
+      readonly display_name: string;
+      readonly account_label: string;
     };
     SourcePublic: {
       /** Format: uuid */

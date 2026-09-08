@@ -54,11 +54,21 @@ export function SourceProcessingPanel({
     >
       <h4 className="font-semibold">کنترل پردازش منبع</h4>
       <p className="text-muted-foreground text-sm">
-        توقف، دریافت صفحات و انتشار نتایج ناتمام را متوقف می‌کند. آگهی‌های
-        منتشرشده تا پایان اعتبار خود باقی می‌مانند. ازسرگیری، صفحات را با
-        پروفایل فعال و محدودیت‌های فعلی دوباره دریافت می‌کند؛ نتایج قدیمی فقط در
-        سابقه می‌مانند.
+        با توقف پردازش، دریافت صفحات و انتشار نتایج ناتمام متوقف می‌شود.
       </p>
+      <details className="text-muted-foreground text-sm">
+        <summary className="text-foreground cursor-pointer">
+          توقف و ازسرگیری چه اثری دارد؟
+        </summary>
+        <div className="mt-3">
+          <p className="text-muted-foreground text-sm">
+            توقف، دریافت صفحات و انتشار نتایج ناتمام را متوقف می‌کند. آگهی‌های
+            منتشرشده تا پایان اعتبار خود باقی می‌مانند. ازسرگیری، صفحات را با
+            پروفایل فعال و محدودیت‌های فعلی دوباره دریافت می‌کند؛ نتایج قدیمی
+            فقط در سابقه می‌مانند.
+          </p>
+        </div>
+      </details>
       <fieldset disabled={mutation.isPending} className="grid gap-3">
         {paused && (
           <>
@@ -71,10 +81,13 @@ export function SourceProcessingPanel({
                 ["automatic", "انتشار خودکار نتایج معتبر تازه"],
               ] as const
             ).map(([value, label]) => (
-              <label key={value} className="flex items-center gap-2">
+              <label
+                key={value}
+                className="has-[:checked]:border-primary has-[:checked]:bg-primary/5 hover:bg-muted flex cursor-pointer items-start gap-3 rounded-xl border p-4 text-sm leading-6"
+              >
                 <Input
                   type="radio"
-                  className="size-4"
+                  className="mt-1 size-4 shrink-0"
                   name={`resume-mode-${proposal.id}`}
                   checked={mode === value}
                   onChange={() => setMode(value)}

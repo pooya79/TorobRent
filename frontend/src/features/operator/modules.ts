@@ -35,6 +35,13 @@ export const operatorModules = [
     to: "/operator/source-proposals",
   },
   {
+    capabilities: ["review_source_proposals"],
+    description: "بررسی مستقل و انتشار آگهی‌های منابع بیرونی",
+    icon: ClipboardCheck,
+    label: "آگهی‌های استخراج‌شده",
+    to: "/operator/external-listings",
+  },
+  {
     capabilities: ["review_submissions"],
     description: "صف درخواست‌های آماده بررسی و انتشار",
     icon: ClipboardCheck,

@@ -6,6 +6,8 @@ from django.utils import timezone
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
+from apps.accounts.models import User
+
 from .candidate_serializers import (
     ExternalListingCandidateSerializer as ExternalListingCandidateSerializer,
 )
@@ -653,7 +655,17 @@ class SourceResponsibilitySerializer(serializers.Serializer[Any]):
     history = SourceResponsibilityChangeSerializer(source="responsibility_history", many=True)
 
 
+class SourceProposalSubmitterSerializer(serializers.ModelSerializer[User]):
+    account_label = serializers.CharField(source="__str__", read_only=True)
+
+    class Meta:
+        model = User
+        fields = ("id", "display_name", "account_label")
+        read_only_fields = fields
+
+
 class OperatorSourceProposalSerializer(SourceProposalSerializer):
+    submitter = SourceProposalSubmitterSerializer(read_only=True, allow_null=True)
     responsibility = SourceResponsibilitySerializer(
         source="source", read_only=True, allow_null=True
     )
@@ -664,6 +676,7 @@ class OperatorSourceProposalSerializer(SourceProposalSerializer):
 
     class Meta(SourceProposalSerializer.Meta):
         fields = SourceProposalSerializer.Meta.fields + (  # type: ignore[assignment]
+            "submitter",
             "needs_reconciliation",
             "discovery",
             "profile_versions",

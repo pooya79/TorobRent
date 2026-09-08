@@ -56,21 +56,35 @@ export function SourcePublicationModePanel({
       <fieldset className="grid gap-3" disabled={mutation.isPending}>
         <legend className="mb-3 font-semibold">روش انتشار منبع</legend>
         <p className="text-muted-foreground text-sm">
-          فعال‌سازی خودکار فقط برای درخواست‌های تازه است؛ نتایج قبلی با تأیید
-          صریح منتشر می‌شود. غیرفعال‌سازی، انتشار خودکار کارهای در صف و در حال
-          اجرا را هم متوقف می‌کند و نتایج برای بررسی باقی می‌ماند.
+          انتخاب کنید نتایج معتبر خودکار منتشر شوند یا منتظر تأیید اپراتور
+          بمانند.
         </p>
+        <details className="text-muted-foreground text-sm">
+          <summary className="text-foreground cursor-pointer">
+            اثر تغییر روش بر نتایج قبلی
+          </summary>
+          <div className="mt-3">
+            <p className="text-muted-foreground text-sm">
+              فعال‌سازی خودکار فقط برای درخواست‌های تازه است؛ نتایج قبلی با
+              تأیید صریح منتشر می‌شود. غیرفعال‌سازی، انتشار خودکار کارهای در صف
+              و در حال اجرا را هم متوقف می‌کند و نتایج برای بررسی باقی می‌ماند.
+            </p>
+          </div>
+        </details>
         {(
           [
             ["approval_required", "نیازمند تأیید انتشار"],
             ["automatic", "انتشار خودکار نتایج معتبر"],
           ] as const
         ).map(([value, label]) => (
-          <label key={value} className="flex items-center gap-2">
+          <label
+            key={value}
+            className="has-[:checked]:border-primary has-[:checked]:bg-primary/5 hover:bg-muted flex cursor-pointer items-start gap-3 rounded-xl border p-4 text-sm leading-6"
+          >
             <Input
               type="radio"
               name={`publication-mode-${proposal.id}`}
-              className="size-4"
+              className="mt-1 size-4 shrink-0"
               value={value}
               checked={mode === value}
               onChange={() => setSelection(value)}
