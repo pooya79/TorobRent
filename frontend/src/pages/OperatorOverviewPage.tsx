@@ -1,10 +1,14 @@
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Link2 } from "lucide-react";
+import { Activity, ArrowLeft, Layers3, Link2 } from "lucide-react";
 import { Link } from "react-router";
 
 import { PageMain } from "@/components/layout/PageMain";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import {
+  WorkloadDashboard,
+  type WorkloadQueue,
+} from "@/features/operator/WorkloadDashboard";
 import { operatorModules } from "@/features/operator/modules";
 import { currentUserQuery } from "@/features/session/queries";
 import {
@@ -96,21 +100,81 @@ export function OperatorOverviewPage() {
     supportWorkloadSummaryQueryOptions(mayHandleSupport),
   );
 
+  const queues: WorkloadQueue[] = [
+    ...(mayReviewSubmissions
+      ? [
+          {
+            label: "درخواست‌های ثبت آگهی",
+            to: "/operator/submissions",
+            data: submissionSummary.data,
+            isPending: submissionSummary.isPending,
+            isError: submissionSummary.isError,
+          },
+        ]
+      : []),
+    ...(mayHandleSupport
+      ? [
+          {
+            label: "پشتیبانی",
+            to: "/operator/support",
+            data: supportSummary.data,
+            isPending: supportSummary.isPending,
+            isError: supportSummary.isError,
+          },
+        ]
+      : []),
+  ];
+
   return (
     <PageMain className="max-w-7xl">
-      <header className="mb-8 border-b pb-6">
-        <p className="text-info mb-2 text-sm font-medium">میز کار اپراتور</p>
-        <h1 className="text-3xl font-semibold tracking-tight">
-          نمای کلی کارها
-        </h1>
-        <p className="text-muted-foreground mt-3 max-w-2xl leading-7">
-          کارهای در انتظار را ببینید و برای شروع رسیدگی، بخش مورد نظر را انتخاب
-          کنید.
-        </p>
+      <header className="relative mb-6 overflow-hidden rounded-3xl bg-[#163e35] p-6 text-white sm:p-8">
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute -top-24 -left-16 size-80 rounded-full border-[40px] border-white/5"
+        />
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute -bottom-40 left-24 size-80 rounded-full border border-white/10"
+        />
+        <div className="relative flex flex-wrap items-start justify-between gap-6">
+          <div>
+            <p className="mb-4 flex items-center gap-2 text-sm text-emerald-100">
+              <Layers3 className="size-4" aria-hidden="true" />
+              میز کار اپراتور
+            </p>
+            <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
+              نمای کلی کارها
+            </h1>
+            <p className="mt-4 max-w-xl text-sm leading-7 text-emerald-50/80">
+              تصویر روشن‌تری از کارها داشته باشید؛ اولویت‌ها را ببینید و رسیدگی
+              بعدی را شروع کنید.
+            </p>
+          </div>
+          {queues.length > 0 && (
+            <span className="flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-2 text-xs text-emerald-100">
+              <Activity className="size-3.5" aria-hidden="true" />
+              به‌روزرسانی خودکار هر ۳۰ ثانیه
+            </span>
+          )}
+        </div>
       </header>
 
+      <WorkloadDashboard queues={queues} />
+
+      <div className="mb-4 flex items-end justify-between gap-4">
+        <div>
+          <h2 className="text-lg font-semibold">بخش‌های کاری</h2>
+          <p className="text-muted-foreground mt-1 text-sm">
+            مسیر مستقیم به صف‌های در دسترس شما
+          </p>
+        </div>
+        <span className="text-muted-foreground shrink-0 text-xs">
+          {availableModules.length.toLocaleString("fa-IR")} بخش
+        </span>
+      </div>
+
       <section
-        className="grid gap-4 md:grid-cols-2"
+        className="grid gap-4 md:grid-cols-2 xl:grid-cols-3"
         aria-label="بخش‌های در دسترس"
       >
         {availableModules.map(({ description, icon: Icon, label, to }) => {
@@ -119,7 +183,10 @@ export function OperatorOverviewPage() {
           const hasSummary =
             to === "/operator/submissions" || to === "/operator/support";
           return (
-            <Card key={to} className="gap-4 rounded-2xl shadow-none">
+            <Card
+              key={to}
+              className="hover:border-info/40 gap-4 rounded-2xl shadow-none transition-colors"
+            >
               <CardHeader className="flex-row items-center gap-3">
                 <span className="bg-info-soft text-info flex size-11 shrink-0 items-center justify-center rounded-xl">
                   <Icon className="size-5" aria-hidden="true" />
@@ -155,7 +222,7 @@ export function OperatorOverviewPage() {
             </Card>
           );
         })}
-        <Card className="bg-muted/30 gap-3 border-dashed shadow-none md:col-span-2">
+        <Card className="bg-muted/30 gap-3 rounded-2xl border-dashed shadow-none">
           <CardHeader>
             <Link2
               className="text-muted-foreground size-7"
