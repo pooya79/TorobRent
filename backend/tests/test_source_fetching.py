@@ -7,6 +7,7 @@ from contextlib import contextmanager
 from typing import Any, cast
 
 import pytest
+from django.test import override_settings
 
 from apps.source_extraction import fetching as fetching_module
 from apps.source_extraction.fetching import (
@@ -26,6 +27,7 @@ from apps.source_extraction.fetching import (
     RawResponse,
     SourcePageFetcher,
     TransportTimeout,
+    validate_public_destination,
 )
 
 
@@ -287,6 +289,66 @@ def test_fetcher_rejects_every_non_public_address_class(address: str) -> None:
     )
 
     result = fetcher.fetch(["https://source.example/listing"])
+
+    failure = result.records[0].failure
+    assert failure is not None
+    assert failure.code is FetchFailureCode.NON_PUBLIC_ADDRESS
+
+
+@override_settings(DEBUG=True, SOURCE_FETCH_PRIVATE_HOSTS=["source.example"])
+def test_fetcher_allows_an_exact_private_host_in_local_development() -> None:
+    responses = {
+        "http://source.example/robots.txt": RawResponse(404, {}, b""),
+        "http://source.example/listing": RawResponse(200, {}, b"local demo"),
+    }
+    transport = FakeTransport(responses)
+    fetcher = SourcePageFetcher(
+        approved_host="source.example",
+        transport=transport,
+        resolver=lambda host, port: ["172.20.0.10"],
+    )
+
+    result = fetcher.fetch(["http://source.example/listing"])
+
+    assert result.records[0].page is not None
+    assert result.records[0].page.body == b"local demo"
+
+
+@override_settings(DEBUG=False, SOURCE_FETCH_PRIVATE_HOSTS=["source.example"])
+def test_fetcher_ignores_the_private_host_allowlist_outside_debug_mode() -> None:
+    fetcher = SourcePageFetcher(
+        approved_host="source.example",
+        transport=FakeTransport({}),
+        resolver=lambda host, port: ["172.20.0.10"],
+    )
+
+    result = fetcher.fetch(["http://source.example/listing"])
+
+    failure = result.records[0].failure
+    assert failure is not None
+    assert failure.code is FetchFailureCode.NON_PUBLIC_ADDRESS
+
+
+@override_settings(DEBUG=True, SOURCE_FETCH_PRIVATE_HOSTS=["source.example"])
+def test_public_destination_preflight_accepts_an_allowlisted_local_demo_host(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(fetching_module, "resolve_addresses", lambda host, port: ["172.20.0.10"])
+
+    assert validate_public_destination(
+        "http://source.example/listing", approved_host="source.example"
+    )
+
+
+@override_settings(DEBUG=True, SOURCE_FETCH_PRIVATE_HOSTS=["different.example"])
+def test_private_host_allowlist_requires_an_exact_host_match() -> None:
+    fetcher = SourcePageFetcher(
+        approved_host="source.example",
+        transport=FakeTransport({}),
+        resolver=lambda host, port: ["172.20.0.10"],
+    )
+
+    result = fetcher.fetch(["http://source.example/listing"])
 
     failure = result.records[0].failure
     assert failure is not None

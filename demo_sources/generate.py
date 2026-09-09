@@ -90,9 +90,7 @@ def make_listings(site: Site) -> list[Listing]:
     randomizer = random.Random(20260908 + site.first_id)
     listings: list[Listing] = []
     for offset in range(site.count):
-        neighborhood, district, latitude, longitude = NEIGHBORHOODS[
-            offset % len(NEIGHBORHOODS)
-        ]
+        neighborhood, district, latitude, longitude = NEIGHBORHOODS[offset % len(NEIGHBORHOODS)]
         property_type, schema_type = PROPERTY_TYPES[offset % len(PROPERTY_TYPES)]
         bedrooms = randomizer.choice((1, 2, 2, 3, 3, 4))
         area = randomizer.randrange(max(45, bedrooms * 28), min(220, bedrooms * 55) + 1)
@@ -150,12 +148,12 @@ def shell(site: Site, *, title: str, body: str, description: str) -> str:
 """
 
 
-def listing_json_ld(host: str, listing: Listing) -> str:
+def listing_json_ld(origin: str, listing: Listing) -> str:
     payload = {
         "@context": "https://schema.org",
         "@type": listing.schema_type,
-        "@id": f"https://{host}/property/{listing.identifier}/",
-        "url": f"https://{host}/property/{listing.identifier}/",
+        "@id": f"{origin}/property/{listing.identifier}/",
+        "url": f"{origin}/property/{listing.identifier}/",
         "name": listing.title,
         "description": f"ملک اجاره‌ای در تهران، منطقه {listing.district}، {listing.neighborhood}",
         "datePosted": listing.published_at,
@@ -177,7 +175,7 @@ def listing_json_ld(host: str, listing: Listing) -> str:
             "latitude": listing.latitude,
             "longitude": listing.longitude,
         },
-        "image": [f"https://{host}/images/{listing.image}"],
+        "image": [f"{origin}/images/{listing.image}"],
         "offers": {
             "@type": "Offer",
             "price": listing.rent_toman,
@@ -240,9 +238,8 @@ def facts_table(listing: Listing) -> str:
 </table>"""
 
 
-def visible_listing(
-    host: str, site: Site, listing: Listing, *, alternate: bool = False
-) -> str:
+def visible_listing(site: Site, listing: Listing, *, alternate: bool = False) -> str:
+    escaped_title = html.escape(listing.title)
     facts = (
         facts_table(listing)
         if site.presentation == "legacy"
@@ -266,7 +263,7 @@ def visible_listing(
       <strong>اجاره ماهانه {toman(listing.rent_toman)}</strong>
     </div>
   </div>
-  <img class="hero-image" src="/images/{listing.image}" alt="تصویر نمایشی {html.escape(listing.title)}">
+  <img class="hero-image" src="/images/{listing.image}" alt="تصویر نمایشی {escaped_title}">
   <div class="detail-grid">
     <section>
       <h2>اطلاعات آگهی</h2>
@@ -286,28 +283,29 @@ def visible_listing(
 </article>"""
 
 
-def listing_head(host: str, listing: Listing, *, include_jsonld: bool) -> str:
+def listing_head(origin: str, listing: Listing, *, include_jsonld: bool) -> str:
+    escaped_neighborhood = html.escape(listing.neighborhood)
     structured = (
-        f'<script type="application/ld+json">{listing_json_ld(host, listing)}</script>'
+        f'<script type="application/ld+json">{listing_json_ld(origin, listing)}</script>'
         if include_jsonld
         else ""
     )
     return f"""
 <meta property="og:title" content="{html.escape(listing.title)}">
-<meta property="og:description" content="آگهی اجاره ملک در تهران، {html.escape(listing.neighborhood)}">
-<meta property="og:image" content="https://{host}/images/{listing.image}">
+<meta property="og:description" content="آگهی اجاره ملک در تهران، {escaped_neighborhood}">
+<meta property="og:image" content="{origin}/images/{listing.image}">
 <meta property="article:published_time" content="{listing.published_at}">
 <meta property="place:location:latitude" content="{listing.latitude}">
 <meta property="place:location:longitude" content="{listing.longitude}">
 <meta itemprop="floorSize" content="{listing.area}">
 <meta itemprop="numberOfBedrooms" content="{listing.bedrooms}">
-<link rel="canonical" href="https://{host}/property/{listing.identifier}/">
+<link rel="canonical" href="{origin}/property/{listing.identifier}/">
 {structured}"""
 
 
-def listing_page(host: str, site: Site, listing: Listing) -> str:
+def listing_page(origin: str, site: Site, listing: Listing) -> str:
     alternate = site.presentation == "mixed" and listing.identifier % 5 == 0
-    body = visible_listing(host, site, listing, alternate=alternate)
+    body = visible_listing(site, listing, alternate=alternate)
     include_jsonld = site.presentation in {"jsonld", "mixed"} and not alternate
     page = shell(
         site,
@@ -316,7 +314,7 @@ def listing_page(host: str, site: Site, listing: Listing) -> str:
         body=body,
     ).replace(
         "</head>",
-        listing_head(host, listing, include_jsonld=include_jsonld) + "</head>",
+        listing_head(origin, listing, include_jsonld=include_jsonld) + "</head>",
     )
     if site.presentation != "javascript":
         return page
@@ -326,7 +324,9 @@ def listing_page(host: str, site: Site, listing: Listing) -> str:
     rendered += f'<header class="site-header"><a class="brand" href="/">{site.name}</a>'
     rendered += '<nav><a href="/rentals/">رهن و اجاره</a></nav></header><main>'
     rendered += body + "</main>"
-    script = f"document.getElementById('root').innerHTML={json.dumps(rendered, ensure_ascii=False)};"
+    script = (
+        f"document.getElementById('root').innerHTML={json.dumps(rendered, ensure_ascii=False)};"
+    )
     return f'{head}<body><div id="root"></div><script>{script}</script></body></html>\n'
 
 
@@ -346,7 +346,7 @@ def card(listing: Listing) -> str:
 </article>"""
 
 
-def index_json_ld(host: str, listings: list[Listing]) -> str:
+def index_json_ld(origin: str, listings: list[Listing]) -> str:
     payload = {
         "@context": "https://schema.org",
         "@type": "ItemList",
@@ -356,7 +356,7 @@ def index_json_ld(host: str, listings: list[Listing]) -> str:
                 "position": position,
                 "item": {
                     "@type": listing.schema_type,
-                    "url": f"https://{host}/property/{listing.identifier}/",
+                    "url": f"{origin}/property/{listing.identifier}/",
                     "name": listing.title,
                 },
             }
@@ -366,9 +366,7 @@ def index_json_ld(host: str, listings: list[Listing]) -> str:
     return json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
 
 
-def rentals_page(
-    host: str, site: Site, all_listings: list[Listing], page_number: int
-) -> str:
+def rentals_page(origin: str, site: Site, all_listings: list[Listing], page_number: int) -> str:
     page_count = math.ceil(len(all_listings) / PAGE_SIZE)
     start = (page_number - 1) * PAGE_SIZE
     listings = all_listings[start : start + PAGE_SIZE]
@@ -394,7 +392,7 @@ def rentals_page(
     if site.presentation == "jsonld":
         page = page.replace(
             "</head>",
-            f'<script type="application/ld+json">{index_json_ld(host, listings)}</script></head>',
+            f'<script type="application/ld+json">{index_json_ld(origin, listings)}</script></head>',
         )
     if site.presentation != "javascript":
         return page
@@ -402,7 +400,9 @@ def rentals_page(
     rendered = f'<header class="site-header"><a class="brand" href="/">{site.name}</a>'
     rendered += '<nav><a href="/rentals/">رهن و اجاره</a></nav></header><main>'
     rendered += body + "</main>"
-    script = f"document.getElementById('root').innerHTML={json.dumps(rendered, ensure_ascii=False)};"
+    script = (
+        f"document.getElementById('root').innerHTML={json.dumps(rendered, ensure_ascii=False)};"
+    )
     return f'{head}<body><div id="root"></div><script>{script}</script></body></html>\n'
 
 
@@ -448,11 +448,11 @@ def write_transport_scenarios(root: Path, site: Site) -> None:
 
 
 def write_extraction_scenarios(
-    root: Path, host: str, site: Site, listings: list[Listing]
+    root: Path, origin: str, site: Site, listings: list[Listing]
 ) -> None:
     clean_listing, missing_listing, conflict_listing, drift_listing = listings[:4]
-    clean = listing_page(host, site, clean_listing)
-    missing = listing_page(host, site, missing_listing)
+    clean = listing_page(origin, site, clean_listing)
+    missing = listing_page(origin, site, missing_listing)
     missing = missing.replace(
         f"<span>ودیعه {toman(missing_listing.deposit_toman)}</span>",
         "<span>ودیعه نامشخص</span>",
@@ -460,7 +460,7 @@ def write_extraction_scenarios(
         f'<tr><th>ودیعه</th><td class="deposit">{toman(missing_listing.deposit_toman)}</td></tr>',
         '<tr><th>ودیعه</th><td class="deposit">نامشخص</td></tr>',
     )
-    conflict = listing_page(host, site, conflict_listing).replace(
+    conflict = listing_page(origin, site, conflict_listing).replace(
         f'<td class="area">{conflict_listing.area} متر</td>',
         f'<td class="area">{conflict_listing.area + 37} متر</td>',
     )
@@ -528,8 +528,9 @@ def write_extraction_scenarios(
     )
 
 
-def generate_site(output: Path, base_domain: str, site: Site) -> dict[str, object]:
+def generate_site(output: Path, base_domain: str, scheme: str, site: Site) -> dict[str, object]:
     host = f"{site.key}.{base_domain}"
+    origin = f"{scheme}://{host}"
     root = output / site.key
     listings = make_listings(site)
     write_page(
@@ -553,11 +554,9 @@ def generate_site(output: Path, base_domain: str, site: Site) -> dict[str, objec
     )
     for page_number in range(1, math.ceil(site.count / PAGE_SIZE) + 1):
         path = "rentals" if page_number == 1 else f"rentals/page/{page_number}"
-        write_page(root, path, rentals_page(host, site, listings, page_number))
+        write_page(root, path, rentals_page(origin, site, listings, page_number))
     for listing in listings:
-        write_page(
-            root, f"property/{listing.identifier}", listing_page(host, site, listing)
-        )
+        write_page(root, f"property/{listing.identifier}", listing_page(origin, site, listing))
     write_page(
         root,
         "about",
@@ -584,20 +583,18 @@ def generate_site(output: Path, base_domain: str, site: Site) -> dict[str, objec
     )
     write_transport_scenarios(root, site)
     if site.presentation == "legacy":
-        write_extraction_scenarios(root, host, site, listings)
+        write_extraction_scenarios(root, origin, site, listings)
     (root / "robots.txt").write_text(
         "User-agent: TorobRentSourceFetcher\nDisallow: /private/\nAllow: /\n\n"
         "User-agent: *\nDisallow: /\n",
         encoding="utf-8",
     )
-    sitemap_urls = [f"https://{host}/rentals/"] + [
-        f"https://{host}/property/{listing.identifier}/" for listing in listings
+    sitemap_urls = [f"{origin}/rentals/"] + [
+        f"{origin}/property/{listing.identifier}/" for listing in listings
     ]
     sitemap = '<?xml version="1.0" encoding="UTF-8"?>\n'
     sitemap += '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
-    sitemap += "".join(
-        f"  <url><loc>{html.escape(url)}</loc></url>\n" for url in sitemap_urls
-    )
+    sitemap += "".join(f"  <url><loc>{html.escape(url)}</loc></url>\n" for url in sitemap_urls)
     sitemap += "</urlset>\n"
     (root / "sitemap.xml").write_text(sitemap, encoding="utf-8")
     return {
@@ -606,21 +603,21 @@ def generate_site(output: Path, base_domain: str, site: Site) -> dict[str, objec
         "name": site.name,
         "listing_count": site.count,
         "presentation": site.presentation,
-        "submitted_url": f"https://{host}/rentals/",
-        "sitemap_url": f"https://{host}/sitemap.xml",
-        "first_listing": f"https://{host}/property/{listings[0].identifier}/",
-        "last_listing": f"https://{host}/property/{listings[-1].identifier}/",
+        "submitted_url": f"{origin}/rentals/",
+        "sitemap_url": f"{origin}/sitemap.xml",
+        "first_listing": f"{origin}/property/{listings[0].identifier}/",
+        "last_listing": f"{origin}/property/{listings[-1].identifier}/",
     }
 
 
-def generate(output: Path, base_domain: str) -> None:
+def generate(output: Path, base_domain: str, scheme: str = "https") -> None:
     if output.exists():
         shutil.rmtree(output)
     output.mkdir(parents=True)
     shutil.copytree(ROOT / "static", output / "shared")
     manifests = []
     for site in SITES:
-        manifest = generate_site(output, base_domain, site)
+        manifest = generate_site(output, base_domain, scheme, site)
         root = output / site.key
         shutil.copytree(ROOT / "static", root / "assets")
         shutil.copytree(ROOT / "assets", root / "images")
@@ -644,16 +641,15 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
     parser.add_argument("--base-domain", default="demo.example.com")
+    parser.add_argument("--scheme", choices=("http", "https"), default="https")
     arguments = parser.parse_args()
     base_domain = arguments.base_domain.strip().strip(".").lower()
     if not base_domain or "/" in base_domain or ":" in base_domain:
         parser.error("--base-domain must be a DNS name without a scheme or port")
-    generate(arguments.output.resolve(), base_domain)
-    print(
-        f"Generated {sum(site.count for site in SITES):,} listings in {arguments.output}"
-    )
+    generate(arguments.output.resolve(), base_domain, arguments.scheme)
+    print(f"Generated {sum(site.count for site in SITES):,} listings in {arguments.output}")
     for site in SITES:
-        print(f"  https://{site.key}.{base_domain}/rentals/ ({site.count} listings)")
+        print(f"  {arguments.scheme}://{site.key}.{base_domain}/rentals/ ({site.count} listings)")
 
 
 if __name__ == "__main__":

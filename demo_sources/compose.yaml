@@ -1,12 +1,20 @@
 services:
   demo-sources:
     build:
-      context: ..
+      context: .
       dockerfile: demo_sources/Dockerfile
       args:
         DEMO_BASE_DOMAIN: ${DEMO_BASE_DOMAIN:?Set DEMO_BASE_DOMAIN}
+        DEMO_SCHEME: ${DEMO_SCHEME:-http}
     environment:
       DEMO_BASE_DOMAIN: ${DEMO_BASE_DOMAIN:?Set DEMO_BASE_DOMAIN}
     ports:
       - "${DEMO_HTTP_PORT:-80}:80"
+    networks:
+      default:
+        aliases:
+          - jsonld.${DEMO_BASE_DOMAIN:?Set DEMO_BASE_DOMAIN}
+          - legacy.${DEMO_BASE_DOMAIN:?Set DEMO_BASE_DOMAIN}
+          - javascript.${DEMO_BASE_DOMAIN:?Set DEMO_BASE_DOMAIN}
+          - mixed.${DEMO_BASE_DOMAIN:?Set DEMO_BASE_DOMAIN}
     restart: unless-stopped

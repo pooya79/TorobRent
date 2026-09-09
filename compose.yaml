@@ -41,6 +41,7 @@ services:
       SOURCE_PROFILE_REPAIR_API_KEY: ${SOURCE_PROFILE_REPAIR_API_KEY:-}
       SOURCE_PROFILE_REPAIR_MODEL: ${SOURCE_PROFILE_REPAIR_MODEL:-}
       SOURCE_PROFILE_REPAIR_BASE_URL: ${SOURCE_PROFILE_REPAIR_BASE_URL:-https://api.openai.com/v1}
+      SOURCE_FETCH_PRIVATE_HOSTS: jsonld.${DEMO_BASE_DOMAIN:-demo.example.com},legacy.${DEMO_BASE_DOMAIN:-demo.example.com},javascript.${DEMO_BASE_DOMAIN:-demo.example.com},mixed.${DEMO_BASE_DOMAIN:-demo.example.com}
       DJANGO_SETTINGS_MODULE: config.settings.local
       DJANGO_SECRET_KEY: local-development-only
       DATABASE_URL: postgresql://app:app@postgres:5432/app

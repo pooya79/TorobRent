@@ -93,10 +93,11 @@ demo-sources-generate: ## Generate the four fictional Source websites locally.
 	python3 demo_sources/validate.py
 
 demo-sources-up: ## Build and serve demo Sources; requires DEMO_BASE_DOMAIN.
-	docker compose --env-file .env -f demo_sources/compose.yaml up --build -d
+	docker compose --env-file .env -f compose.yaml -f demo_sources/compose.yaml up --build -d demo-sources backend worker
 
 demo-sources-down: ## Stop the standalone demo Source websites.
-	docker compose --env-file .env -f demo_sources/compose.yaml down
+	docker compose --env-file .env -f compose.yaml -f demo_sources/compose.yaml stop demo-sources
+	docker compose --env-file .env -f compose.yaml -f demo_sources/compose.yaml rm -f demo-sources
 
 # Add a trailing ## description to each target to include it in make help.
 help: ## Show available commands and their descriptions.

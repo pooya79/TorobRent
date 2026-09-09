@@ -308,3 +308,6 @@ SOURCE_PROFILE_REPAIR_MODEL = env("SOURCE_PROFILE_REPAIR_MODEL", default="")
 SOURCE_PROFILE_REPAIR_BASE_URL = env(
     "SOURCE_PROFILE_REPAIR_BASE_URL", default="https://api.openai.com/v1"
 )
+# Exact development-only hosts that may resolve to loopback/private addresses. The fetcher also
+# requires DEBUG=True, so this setting cannot relax the production SSRF boundary.
+SOURCE_FETCH_PRIVATE_HOSTS = env.list("SOURCE_FETCH_PRIVATE_HOSTS", default=[])

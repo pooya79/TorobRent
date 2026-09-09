@@ -19,6 +19,7 @@ from functools import partial
 from typing import Protocol, cast
 from urllib.parse import quote, urljoin, urlsplit, urlunsplit
 
+from django.conf import settings
 from playwright.sync_api import (
     Route,
     WebSocketRoute,
@@ -393,6 +394,12 @@ class SourcePageFetcher:
     ) -> None:
         self._approved_host = _normalize_host(approved_host)
         self._approved_hosts = {self._approved_host}
+        configured_private_hosts = getattr(settings, "SOURCE_FETCH_PRIVATE_HOSTS", ())
+        self._allows_private_destination = bool(
+            settings.DEBUG
+            and self._approved_host
+            in {_normalize_host(host.strip()) for host in configured_private_hosts if host.strip()}
+        )
         self._schemes = {"http", "https"}
         self._max_response_bytes = MAX_RESPONSE_BYTES
         self._transport = transport or PinnedHttpTransport()
@@ -686,7 +693,7 @@ class SourcePageFetcher:
             unsafe_address = next(
                 (address for address in addresses if not _is_public_address(address)), None
             )
-            if unsafe_address:
+            if unsafe_address and not self._allows_private_destination:
                 return FetchRecord(
                     requested_url=requested_url,
                     failure=FetchFailure(
@@ -987,6 +994,9 @@ def validate_public_destination(url: str, *, approved_host: str) -> bool:
             timeout_seconds=REQUEST_TIMEOUT_SECONDS,
             slots=_PREFLIGHT_SLOTS,
         )
-        return bool(addresses) and all(_is_public_address(address) for address in addresses)
+        return bool(addresses) and (
+            fetcher._allows_private_destination
+            or all(_is_public_address(address) for address in addresses)
+        )
     except Exception:
         return False

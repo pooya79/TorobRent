@@ -34,6 +34,7 @@ match the eventual public hosts. Configure the standalone demo in the repository
 
 ```dotenv
 DEMO_BASE_DOMAIN=sources.example.com
+DEMO_SCHEME=http
 DEMO_HTTP_PORT=8088
 ```
 
@@ -47,8 +48,17 @@ curl -H 'Host: jsonld.sources.example.com' http://127.0.0.1:8088/rentals/
 For browser previews, open `http://jsonld.localhost:8088/rentals/`. The equivalent `legacy`,
 `javascript`, and `mixed` subdomains are also routed locally.
 
-Local preview verifies presentation only. TorobRent will reject a private or loopback destination,
-so a genuine pipeline demonstration requires a public deployment.
+The local Compose stack explicitly allowlists the four generated demo hosts while Django is in
+debug mode. Start TorobRent first, then run `make demo-sources-up`; this joins the demo container to
+the same Compose network and recreates the backend and worker with the allowlist. Submit the
+container-facing URL without the host-published preview port, for example:
+
+```text
+http://jsonld.sources.example.com/rentals/
+```
+
+The browser preview remains `http://jsonld.localhost:8088/rentals/`. The exception is exact-host,
+development-only, and does not relax production Source fetching.
 
 ## Serve publicly
 
@@ -67,8 +77,9 @@ docker compose -f demo_sources/compose.yaml up --build -d
 ```
 
 For HTTPS, terminate TLS in the existing public reverse proxy and forward all four hostnames to
-this container's port 80. Do not rewrite the `Host` header. Keep images on the same hostname so the
-Source does not require a separately approved image host.
+this container's port 80 and set `DEMO_SCHEME=https` before building. Do not rewrite the `Host`
+header. Keep images on the same hostname so the Source does not require a separately approved image
+host.
 
 ## Suggested live demonstration
 
