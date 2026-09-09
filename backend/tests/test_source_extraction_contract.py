@@ -574,3 +574,163 @@ def test_commercial_extraction_does_not_require_bedrooms():
     assert result.normalized["property_type"] == "office"
     assert "bedroom_count" not in result.unresolved
     assert result.status == "accepted"
+
+
+@pytest.mark.parametrize("pagination", ["rel", "query", "numbered", "path"])
+def test_discovery_follows_pagination_until_detail_target(pagination):
+    def index_url(number):
+        if pagination == "path":
+            return f"https://source.example/rent/page/{number}"
+        return f"https://source.example/rent?page={number}"
+
+    pages = {}
+    for number in range(1, 7):
+        links = "".join(
+            f'<a href="/listing/{number * 10000 + offset}">اجاره آپارتمان تهران</a>'
+            for offset in range(3)
+        )
+        rel = ' rel="next"' if pagination == "rel" else ""
+        label = str(number + 1) if pagination == "numbered" else "Next"
+        pages[index_url(number)] = (
+            f'<h1>رهن و اجاره خانه</h1>{links}<a{rel} href="{index_url(number + 1)}">{label}</a>'
+            if number < 6
+            else f"<h1>رهن و اجاره خانه</h1>{links}"
+        )
+        for offset in range(3):
+            pages[f"https://source.example/listing/{number * 10000 + offset}"] = listing_html()
+    fetcher = FixtureFetcher(pages)
+    discovery = ExtractionContract(
+        fetcher, max_pages=30, target_detail_pages=12, max_depth=2
+    ).discover(index_url(1))
+    assert discovery.detail_page_count == 12
+    assert discovery.stop_reason == "target_reached"
+    assert not any(index_url(5) in urls for urls, _ in fetcher.calls)
+
+
+def test_discovery_pagination_keeps_total_budget_and_deduplicates_cycles():
+    root = "https://source.example/rent"
+    pages = {
+        root: '<a rel="next" href="?page=2">Next</a>',
+        root + "?page=2": '<a rel="next" href="?page=3">Next</a>',
+        root + "?page=3": '<a rel="next" href="/rent">Next</a>',
+    }
+    fetcher = FixtureFetcher(pages)
+    discovery = ExtractionContract(fetcher, max_pages=2).discover(root)
+    assert len(fetcher.calls) == 2
+    assert discovery.stop_reason == "page_limit"
+    fetcher = FixtureFetcher(pages)
+    discovery = ExtractionContract(fetcher, max_pages=10).discover(root)
+    assert len(fetcher.calls) == 3
+    assert discovery.stop_reason == "frontier_exhausted"
+
+
+def test_discovery_retains_navigation_depth_limit_for_non_pagination():
+    root = "https://source.example/rent"
+    pages = {
+        root: '<a href="/rent/tehran">Rent in Tehran</a>',
+        root + "/tehran": '<a href="/rent/tehran/apartment">Rent apartment</a>',
+        root + "/tehran/apartment": '<a href="/listing/12345">Rent apartment</a>',
+    }
+    discovery = ExtractionContract(FixtureFetcher(pages), max_pages=10).discover(root)
+    assert len(discovery.pages) == 3
+    assert discovery.stop_reason == "depth_limit"
+
+
+def test_discovery_checkpoint_resumes_without_refetching_and_redacts_pages(monkeypatch):
+    from itertools import count
+
+    seed = "https://source.example/rent"
+    pages = {seed: '<h1>Rent apartment</h1><a rel="next" href="?page=2">Next</a>'}
+    for number in range(2, 7):
+        pages[f"{seed}?page={number}"] = (
+            f'<h1>Rent apartment</h1><a rel="next" href="?page={number + 1}">Next</a>'
+            if number < 6
+            else '<h1>Rent apartment</h1><a href="/listing/12345">Rent</a>'
+        )
+    pages["https://source.example/listing/12345"] = listing_html()
+    fetcher = FixtureFetcher(pages)
+    clock = count()
+    monkeypatch.setattr("apps.source_extraction.contract.monotonic", lambda: next(clock))
+    checkpoint = None
+    for _ in range(10):
+        result = ExtractionContract(fetcher, max_pages=15, target_detail_pages=1).discover(
+            seed,
+            checkpoint=checkpoint,
+            time_slice_seconds=3,
+        )
+        if not result.checkpoint:
+            break
+        checkpoint = json.loads(json.dumps(result.checkpoint))
+        assert "09121234567" not in json.dumps(checkpoint)
+    assert result.detail_page_count == 1
+    assert result.stop_reason == "target_reached"
+    assert len(fetcher.calls) == len(pages)
+
+
+def test_discovery_merges_duplicate_continuation_links_and_rejects_other_hosts():
+    from apps.source_extraction.discovery import extract_candidate_links
+
+    links = extract_candidate_links(
+        "https://source.example/browse",
+        '<a href="/browse/older">Archive</a>'
+        '<a href="/browse/older" rel="next">Continue</a>'
+        '<link rel="next" href="https://other.example/page/2">'
+        '<a rel="next" href="javascript:next()">Next</a>'
+        '<a rel="next" href="/brochure.pdf">Next</a>',
+    )
+    assert len(links) == 1
+    assert links[0].is_pagination
+
+
+def test_discovery_redirect_aliases_do_not_satisfy_detail_target_twice():
+    from dataclasses import replace
+
+    seed = "https://source.example/rent"
+    detail = "https://source.example/listing/12345"
+    other = "https://source.example/listing/12346"
+    aliases = ["https://source.example/listing/12340", "https://source.example/listing/12341"]
+
+    class RedirectFetcher(FixtureFetcher):
+        def fetch(self, urls, *, render=False):
+            batch = super().fetch(urls, render=render)
+            return FetchBatch(
+                tuple(
+                    replace(record, page=replace(record.page, url=detail))
+                    if record.requested_url in aliases
+                    else record
+                    for record in batch.records
+                )
+            )
+
+    fetcher = RedirectFetcher({
+        seed: "<h1>Rent apartment</h1>"
+        + "".join(f'<a href="{url}">Rent apartment in Tehran</a>' for url in [*aliases, other]),
+        **{url: listing_html() for url in [*aliases, other]},
+    })
+    discovery = ExtractionContract(fetcher, max_pages=10, target_detail_pages=2).discover(seed)
+    assert discovery.detail_page_count == 2
+    assert {
+        page.url for page in discovery.pages if page.classification.kind == PageKind.RENTAL_LISTING
+    } == {detail, other}
+
+
+def test_discovery_does_not_count_a_sparse_last_catalog_page_as_a_listing():
+    seed = "https://source.example/rent"
+    last = seed + "?page=2"
+    urls = [f"https://source.example/listing/{10000 + i}" for i in range(5)]
+
+    def links(selected):
+        return "".join(f'<a href="{url}">Rent apartment</a>' for url in selected)
+
+    sparse = listing_html() + links(urls[3:])
+    assert classify_page(last, sparse).kind == PageKind.RENTAL_LISTING
+    fetcher = FixtureFetcher({
+        seed: "<h1>Rent apartment</h1>" + links(urls[:3]) + '<a rel="next" href="?page=2">Next</a>',
+        last: sparse,
+        **{url: listing_html() for url in urls},
+    })
+    discovery = ExtractionContract(fetcher, max_pages=10, target_detail_pages=5).discover(seed)
+    assert discovery.detail_page_count == 5
+    assert {
+        page.url for page in discovery.pages if page.classification.kind == PageKind.RENTAL_LISTING
+    } == set(urls)

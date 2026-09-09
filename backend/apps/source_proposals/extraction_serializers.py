@@ -45,6 +45,7 @@ class ExtractionRunSerializer(serializers.ModelSerializer[ExtractionRun]):
             "started_at",
             "completed_at",
             "attempted_pages",
+            "discovery_stop_reason",
             "usable_results",
             "discovered",
             "extracted",
@@ -60,6 +61,12 @@ class ExtractionRunSerializer(serializers.ModelSerializer[ExtractionRun]):
 
 
 class ExtractionRequestSerializer(serializers.ModelSerializer[ExtractionRequest]):
+    max_pages = serializers.IntegerField(
+        source="profile_version.reservation.max_pages", read_only=True
+    )
+    target_detail_pages = serializers.IntegerField(
+        source="profile_version.reservation.target_detail_pages", read_only=True
+    )
     is_current = serializers.SerializerMethodField()
 
     def get_is_current(self, request: ExtractionRequest) -> bool:
@@ -79,6 +86,8 @@ class ExtractionRequestSerializer(serializers.ModelSerializer[ExtractionRequest]
             "profile_version",
             "submitted_url",
             "canonical_url",
+            "max_pages",
+            "target_detail_pages",
             "state",
             "created_at",
             "updated_at",

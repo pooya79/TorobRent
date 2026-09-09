@@ -20,3 +20,11 @@ export const classificationLabels: Record<string, string> = {
   blocked: "دسترسی مسدود",
   fetch_error: "دریافت ناموفق",
 };
+
+export const discoveryStopLabels: Record<string, string> = {
+  target_reached: "تعداد آگهی هدف پیدا شد.",
+  page_limit: "سقف صفحات بررسی‌شده تکمیل شد.",
+  depth_limit: "صفحه تازه‌ای در محدوده پیمایش باقی نماند.",
+  frontier_exhausted: "پیوند تازه‌ای برای ادامه پیدا نشد.",
+  time_slice: "پیشرفت ذخیره شد؛ ادامه پردازش در صف است.",
+};

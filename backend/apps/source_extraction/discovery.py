@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import json
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import StrEnum
-from urllib.parse import urljoin, urlsplit
+from urllib.parse import parse_qsl, urljoin, urlsplit
 
 from bs4 import BeautifulSoup
 
@@ -86,6 +86,31 @@ class CandidateLink:
     anchor_text: str
     score: int
     is_structured_listing: bool = False
+    is_pagination: bool = False
+
+
+def _pagination_url(page_url: str, candidate_url: str) -> bool:
+    """Recognize continuation without treating changed search filters as pagination."""
+    current, candidate = urlsplit(page_url), urlsplit(candidate_url)
+    pagination_keys = {"page", "p", "paged", "offset", "start", "cursor"}
+    current_query, candidate_query = (
+        dict(parse_qsl(current.query)),
+        dict(parse_qsl(candidate.query)),
+    )
+    changed = {
+        key
+        for key in current_query.keys() | candidate_query.keys()
+        if current_query.get(key) != candidate_query.get(key)
+    }
+    if current.path == candidate.path:
+        return bool(changed) and changed <= pagination_keys
+    pattern = r"/(?:page|paged)/\d+/?$"
+    return (
+        bool(re.search(pattern, candidate.path))
+        and re.sub(pattern, "", current.path).rstrip("/")
+        == re.sub(pattern, "", candidate.path).rstrip("/")
+        and current_query == candidate_query
+    )
 
 
 def _contains_any(text: str, terms: set[str]) -> bool:
@@ -234,7 +259,7 @@ def extract_candidate_links(
     origin = urlsplit(page_url)
     candidates: dict[str, CandidateLink] = {}
 
-    for anchor in soup.find_all("a", href=True):
+    for anchor in soup.select("a[href], link[rel~=next][href]"):
         raw_href = str(anchor.get("href", "")).strip()
         if not raw_href or raw_href.startswith(("#", "mailto:", "tel:", "javascript:")):
             continue
@@ -246,6 +271,12 @@ def extract_candidate_links(
             continue
 
         anchor_text = normalize_text(anchor.get_text(" ", strip=True))
+        navigation_label = normalize_text(anchor.get("aria-label") or anchor_text).casefold()
+        pagination = (
+            "next" in (anchor.get("rel") or ())
+            or navigation_label in {"next", "next page", "بعدی", "صفحه بعد", "صفحه بعدی", "›", "»"}
+            or _pagination_url(page_url, absolute_url)
+        )
         signal_text = f"{parts.path} {parts.query} {anchor_text}".casefold()
         score = 0
         if _contains_any(signal_text, RENTAL_TERMS):
@@ -263,7 +294,15 @@ def extract_candidate_links(
 
         existing = candidates.get(absolute_url)
         if existing is None or score > existing.score:
-            candidates[absolute_url] = CandidateLink(absolute_url, anchor_text, score)
+            candidates[absolute_url] = CandidateLink(
+                absolute_url,
+                anchor_text,
+                score,
+                is_pagination=pagination or (existing.is_pagination if existing else False),
+            )
+
+        elif pagination and not existing.is_pagination:
+            candidates[absolute_url] = replace(existing, is_pagination=True)
 
     for structured_url, title in _structured_listing_links(page_url, soup):
         signal_text = f"{urlsplit(structured_url).path} {title}".casefold()

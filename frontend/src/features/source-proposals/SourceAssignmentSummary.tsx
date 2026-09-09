@@ -56,6 +56,13 @@ export function SourceAssignmentSummary({
                 : "روش بررسی برای این تخصیص ثبت نشده است."}
           </p>
         )}
+      {assignment.target_detail_pages != null && (
+        <p>
+          حدود تأییدشده هر استخراج: هدف{" "}
+          {assignment.target_detail_pages.toLocaleString("fa-IR")} آگهی اجاره؛
+          سقف {assignment.max_pages?.toLocaleString("fa-IR")} صفحه
+        </p>
+      )}
       {proposalId &&
         assignment.state === "active" &&
         !assignment.source.processing_paused &&

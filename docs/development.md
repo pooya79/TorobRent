@@ -145,10 +145,27 @@ URL approval and explicit profile re-review require the Operator to choose `max_
 integers; the detail target cannot exceed the page budget. Each Source Reservation retains the
 chosen limits and exposes them with Discovery evidence. Existing reservations retain their previous
 50-page/30-detail limits through migration defaults; new API approvals require explicit values.
-Discovery stops when either limit is reached or its frontier is exhausted. It still follows links
-only two levels deep, and the Celery task's 600/660-second soft/hard limits still apply, so a large
-budget does not guarantee that many pages will be fetched. The fetcher's 50-URL per-batch limit is
+Both initial Discovery and later Extraction Runs use the limits retained with the approved Source
+Profile version. The target counts unique rental-detail pages found, not publishable candidates.
+Discovery follows recognized pagination links without spending ordinary navigation depth, while
+other navigation remains limited to two levels. It stops at the detail target, total page budget,
+or exhaustion of reachable links, recording the reason.
+
+Fetching runs in 420-second slices within the existing 600/660-second worker limits. Each slice
+saves phone-redacted page evidence, visited URLs and the remaining queue before dispatching a
+continuation. Generation checks fence duplicate and stale deliveries; successful continuations do
+not spend retry attempts. Source authorization and exclusions are rechecked, and no profile or
+candidates are produced from an unfinished Discovery. Reservation expiry and revocation still stop
+work. The maintenance task requeues committed continuations if dispatch was interrupted and clears
+terminal or expired checkpoints. Final profile grouping/evaluation still runs within one worker's
+remaining time budget; exceptionally large targets are not a guarantee of completion. The fetcher's 50-URL per-batch limit is
 separate: Discovery fetches one URL per call and can visit more than 50 URLs in total.
+
+Migration 0040 adds checkpoint and generation fields with database defaults for older writers.
+Apply it before starting updated workers. Drain or restart older workers before using continuation
+jobs, whose task arguments include a generation number. Checkpoints are private operational data,
+never exposed by the response serializers, and are cleared on completion/cancellation or by bounded
+retention (30 days for abandoned Extraction Runs).
 
 ## Explicit Source Profile repair
 

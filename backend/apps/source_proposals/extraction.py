@@ -85,7 +85,8 @@ def submit_request(
     return request
 
 
-PIPELINE_VERSION = "assignment-extraction-v1"
+PIPELINE_VERSION = "assignment-extraction-v2"
+DISCOVERY_TIME_SLICE_SECONDS = 420
 RECOVERY_DELAY = timedelta(minutes=12)
 MAX_ATTEMPTS = 3
 
@@ -168,7 +169,7 @@ class AssignedSourceFetcher:
         )
 
 
-def run_extraction(request_id: str) -> bool:
+def run_extraction(request_id: str, generation: int = 0) -> bool:
     """Return whether delivery should retry; one run survives every bounded attempt."""
     initial = ExtractionRequest.objects.select_related("assignment").get(pk=request_id)
     with transaction.atomic():
@@ -177,6 +178,8 @@ def run_extraction(request_id: str) -> bool:
         if request.state in (ExtractionState.COMPLETE, ExtractionState.CANCELLED):
             return False
         run = ExtractionRun.objects.filter(request=request).first()
+        if (run.discovery_generation if run else 0) != generation:
+            return False
         if (
             run
             and run.state == ExtractionState.FAILED
@@ -191,7 +194,7 @@ def run_extraction(request_id: str) -> bool:
             and run.started_at > timezone.now() - RECOVERY_DELAY
         ):
             return True
-        if run and run.attempts >= MAX_ATTEMPTS:
+        if run and run.attempts >= MAX_ATTEMPTS and run.state != ExtractionState.QUEUED:
             run.state = ExtractionState.FAILED
             run.completed_at = timezone.now()
             run.errors = [
@@ -213,7 +216,8 @@ def run_extraction(request_id: str) -> bool:
                 started_at=timezone.now(),
             )
         else:
-            run.attempts += 1
+            if run.state != ExtractionState.QUEUED:
+                run.attempts += 1
             run.started_at = timezone.now()
             run.completed_at = None
         run.state = ExtractionState.RUNNING
@@ -234,11 +238,70 @@ def run_extraction(request_id: str) -> bool:
         from .extraction_availability import unavailable_reason
 
         fetcher = AssignedSourceFetcher(request)
-        contract = ExtractionContract(fetcher, max_pages=20, max_depth=2)
-        discovery = contract.discover(request.canonical_url)
+        saved_fetches = run.discovery_checkpoint.get("fetch_evidence", {})
+        fetcher.attempted_urls = set(saved_fetches.get("attempted_urls", []))
+        fetcher.skipped = saved_fetches.get("skipped", {})
+        fetcher.requested_urls = {
+            url: set(aliases) for url, aliases in saved_fetches.get("requested_urls", {}).items()
+        }
+        limits = request.profile_version.reservation
+        contract = ExtractionContract(
+            fetcher,
+            max_pages=limits.max_pages,
+            target_detail_pages=limits.target_detail_pages,
+        )
+        discovery = contract.discover(
+            request.canonical_url,
+            checkpoint=run.discovery_checkpoint,
+            time_slice_seconds=DISCOVERY_TIME_SLICE_SECONDS,
+        )
+        if discovery.checkpoint:
+            with transaction.atomic():
+                Source.objects.select_for_update().get(pk=request.assignment.source_id)
+                current_request = ExtractionRequest.objects.select_for_update().get(pk=request_id)
+                current = ExtractionRun.objects.get(request=current_request)
+                if (
+                    current.discovery_generation != generation
+                    or current.attempts != attempt
+                    or current.state != ExtractionState.RUNNING
+                ):
+                    return False
+                if not authorized(current_request):
+                    raise AuthorizationEnded
+                current.discovery_checkpoint = {
+                    **discovery.checkpoint,
+                    "fetch_evidence": {
+                        "attempted_urls": sorted(fetcher.attempted_urls),
+                        "skipped": fetcher.skipped,
+                        "requested_urls": {
+                            url: sorted(aliases) for url, aliases in fetcher.requested_urls.items()
+                        },
+                    },
+                }
+                current.discovery_generation += 1
+                current.discovery_stop_reason = discovery.stop_reason
+                current.state = ExtractionState.QUEUED
+                current.discovered = discovery.detail_page_count
+                current.attempted_pages = len(fetcher.attempted_urls - fetcher.skipped.keys())
+                current.save()
+                current_request.state = ExtractionState.QUEUED
+                current_request.save(update_fields=("state", "updated_at"))
+                from .tasks import extract_source
+
+                transaction.on_commit(lambda: extract_source.delay(request_id, generation + 1))
+            return False
         pages = []
         skipped_pages = list(fetcher.skipped.values())
         for page in discovery.pages:
+            aliases = fetcher.requested_urls.get(page.url, {page.url})
+            # Recheck retained successful pages, but never erase actual failure evidence
+            # when an exclusion was added while the response was in flight.
+            if (
+                page.http_status is not None
+                and page.http_status < 400
+                and any(fetcher.excluded_record(url) for url in {page.url, *aliases})
+            ):
+                continue
             if page.fetch_failure and page.fetch_failure.code == FetchFailureCode.SOURCE_EXCLUDED:
                 continue
             if normalize_public_domain(page.url) != request.assignment.source.domain:
@@ -276,6 +339,7 @@ def run_extraction(request_id: str) -> bool:
                 })
             elif page.classification.kind == PageKind.BLOCKED:
                 rejected += 1
+        skipped_pages = list(fetcher.skipped.values())
         discovered = len(pages)
         if not authorized(request):
             raise AuthorizationEnded
@@ -311,13 +375,21 @@ def run_extraction(request_id: str) -> bool:
         Source.objects.select_for_update().get(pk=request.assignment.source_id)
         request = ExtractionRequest.objects.select_for_update().get(pk=request_id)
         run = ExtractionRun.objects.get(request=request)
-        if run.attempts != attempt or run.state != ExtractionState.RUNNING:
+        if (
+            run.attempts != attempt
+            or run.state != ExtractionState.RUNNING
+            or run.discovery_generation != generation
+        ):
             return False
         if not authorized(request):
             state = ExtractionState.CANCELLED
             results = []
             errors = [authorization_error()]
         run.state = state
+        if state in (ExtractionState.COMPLETE, ExtractionState.CANCELLED):
+            run.discovery_checkpoint = {}
+        if state == ExtractionState.COMPLETE:
+            run.discovery_stop_reason = discovery.stop_reason
         run.completed_at = timezone.now()
         run.attempted_pages = len(fetcher.attempted_urls - fetcher.skipped.keys()) if fetcher else 0
         run.discovered = discovered

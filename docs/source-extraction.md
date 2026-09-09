@@ -55,8 +55,8 @@ release their own case with a reason; queue managers can force-release another O
 Rejection and requested changes also release the reservation while retaining its evidence and
 immutable decision history.
 
-Each reservation executes at most one fetch attempt. Duplicate deliveries observe the persisted
-start/completion state. Discovery checks the reservation between fetches and records incremental
+Each reservation executes one approved Discovery, which may span multiple bounded worker slices.
+Duplicate deliveries observe the persisted generation and start/completion state. Discovery checks the reservation between fetches and records incremental
 page counts. Celery applies a 10-minute soft limit and an 11-minute hard limit. The once-per-minute
 reservation maintenance task marks an interrupted attempt failed after 12 minutes and releases its
 host; redelivery performs the same recovery check. Retrying failed work requires a fresh explicit
@@ -232,8 +232,15 @@ and up to three attempts. A twelve-minute recovery window exceeds the eleven-min
 limit; an attempt number fences late results from an older worker. Authorization is checked
 between fetches, before extraction, and under the Source lock before retaining results.
 
-Discovery is limited to twenty pages and depth two. Extraction applies the approved profile without
-training or LLM calls. Results are deduplicated by canonical URL and retained with their evidence
+Discovery uses the page budget and rental-detail target retained by the request's approved Source
+Profile version. Recognized next-page, page-query and numbered page-path links can advance beyond
+two hops; only ordinary navigation spends the depth-two allowance. The total-page budget still
+counts catalog pages and failed fetches. The target counts rental-detail pages, not valid candidates.
+A 420-second slice saves progress and queues the next generation rather than restarting from the
+seed or consuming a retry. Processing stops when the target or page budget is reached, or no
+reachable links remain, and exposes that reason alongside the effective limits. Checkpoints retain
+redacted pages and fetch identities privately; authorization and Source Exclusions are rechecked
+before accepting resumed results. Extraction applies the approved profile without training or LLM calls. Results are deduplicated by canonical URL and retained with their evidence
 on the run. Valid candidates publish automatically in automatic mode or after one batch approval
 in approval-required mode; exceptions require individual review in either mode. The published
 counter records successful publications. Missing pages in a bounded run never withdraw existing

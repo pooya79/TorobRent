@@ -1,5 +1,9 @@
 import type { OperatorSourceProposal } from "./queries";
-import { classificationLabels, discoveryStageLabels } from "./discovery-labels";
+import {
+  classificationLabels,
+  discoveryStageLabels,
+  discoveryStopLabels,
+} from "./discovery-labels";
 
 export function DiscoveryEvidence({
   proposal,
@@ -35,6 +39,9 @@ export function DiscoveryEvidence({
             صفحات بررسی‌شده: {evidence.page_count?.toLocaleString("fa-IR")}؛
             آگهی اجاره: {evidence.detail_page_count?.toLocaleString("fa-IR")}
           </p>
+          {evidence.stop_reason && (
+            <p>{discoveryStopLabels[evidence.stop_reason]}</p>
+          )}
           <ul>
             {Object.entries(evidence.classifications ?? {}).map(
               ([kind, count]) => (

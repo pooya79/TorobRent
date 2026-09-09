@@ -379,6 +379,9 @@ class ExternalListingCandidateReviewClaim(models.Model):
 class SourceReservation(models.Model):
     """One auditable approval attempt; the Source row serializes host authorization."""
 
+    discovery_checkpoint = models.JSONField(default=dict, db_default={})
+    discovery_generation = models.PositiveIntegerField(default=0, db_default=0)
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     source = models.ForeignKey("catalog.Source", on_delete=models.PROTECT)
     proposal = models.ForeignKey(
@@ -618,6 +621,9 @@ class ExtractionRequest(models.Model):
 
 
 class ExtractionRun(models.Model):
+    discovery_checkpoint = models.JSONField(default=dict, db_default={})
+    discovery_generation = models.PositiveIntegerField(default=0, db_default=0)
+    discovery_stop_reason = models.CharField(max_length=32, default="", db_default="")
     attempted_pages = models.PositiveIntegerField(null=True)
     usable_results = models.PositiveIntegerField(null=True)
     skipped_pages = models.JSONField(default=list, db_default=[])

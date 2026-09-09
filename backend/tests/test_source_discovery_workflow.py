@@ -541,3 +541,105 @@ def test_url_approval_requires_explicit_valid_limits(api_client, limits):
     )
     assert response.status_code == 400
     assert not proposal.reservations.exists()
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("release_after_slice", [False, True])
+def test_discovery_continuation_retains_progress_and_rechecks_reservation(
+    api_client, monkeypatch, django_capture_on_commit_callbacks, release_after_slice
+):
+    from itertools import count
+
+    from apps.source_proposals.discovery_workflow import release_reservations, run_discovery
+    from apps.source_proposals.models import SourceProfileVersion
+    from apps.source_proposals.tasks import discover_source
+    from tests.test_source_extraction_contract import FixtureFetcher, listing_html
+
+    proposal = make_pending_proposal(
+        submitter=make_user(email="resume@example.com", submitter=True)
+    )
+    api_client.force_authenticate(make_operator())
+    base = f"/api/v1/operator/source-proposals/{proposal.pk}"
+    assert api_client.post(f"{base}/claim/", {}).status_code == 201
+    root = proposal.website_url
+    from urllib.parse import urlsplit
+
+    origin = f"{urlsplit(root).scheme}://{urlsplit(root).netloc}"
+    pages = {}
+    for number in range(4):
+        url = root if number == 0 else f"{root}?page={number + 1}"
+        links = "".join(
+            f'<a href="/listing/{10000 + number * 3 + offset}">اجاره آپارتمان تهران</a>'
+            for offset in range(3)
+        )
+        pages[url] = (
+            f'<h1>رهن و اجاره خانه</h1>{links}<a rel="next" href="?page={number + 2}">Next</a>'
+        )
+        for offset in range(3):
+            pages[f"{origin}/listing/{10000 + number * 3 + offset}"] = listing_html()
+    fetcher = FixtureFetcher(pages)
+    monkeypatch.setattr(
+        "apps.source_proposals.discovery_workflow.SourcePageFetcher", lambda **kw: fetcher
+    )
+    clock = count()
+    monkeypatch.setattr("apps.source_extraction.contract.monotonic", lambda: next(clock))
+    monkeypatch.setattr("apps.source_proposals.discovery_workflow.DISCOVERY_TIME_SLICE_SECONDS", 5)
+    from apps.source_proposals.discovery_workflow import ReservedSourceFetcher
+    from apps.source_proposals.models import SourceReservation
+
+    progress = []
+    original_fetch = ReservedSourceFetcher.fetch
+
+    def track_progress(self, urls, *, render=False):
+        result = original_fetch(self, urls, render=render)
+        progress.append(
+            SourceReservation.objects.get(pk=self.reservation_id).evidence["page_count"]
+        )
+        return result
+
+    monkeypatch.setattr(ReservedSourceFetcher, "fetch", track_progress)
+    queued = []
+    monkeypatch.setattr(discover_source, "delay", lambda *args: queued.append(args))
+    with django_capture_on_commit_callbacks(execute=True):
+        assert (
+            api_client.post(
+                f"{base}/approve/",
+                {
+                    "reviewed_revision": 1,
+                    "confirmed": True,
+                    "max_pages": 30,
+                    "target_detail_pages": 12,
+                },
+                format="json",
+            ).status_code
+            == 200
+        )
+    with django_capture_on_commit_callbacks(execute=True):
+        run_discovery(*queued.pop(0))
+    reservation = proposal.reservations.get()
+    assert reservation.discovery_checkpoint
+    assert SourceProfileVersion.objects.filter(reservation=reservation).count() == 0
+    assert "09121234567" not in str(reservation.discovery_checkpoint)
+    fetched = len(fetcher.calls)
+    run_discovery(str(reservation.pk), 0)
+    assert len(fetcher.calls) == fetched
+    if release_after_slice:
+        release_reservations(proposal, "abandoned")
+        run_discovery(*queued.pop(0))
+        assert len(fetcher.calls) == fetched
+        reservation.refresh_from_db()
+        assert reservation.discovery_checkpoint == {}
+        return
+    for _ in range(10):
+        with django_capture_on_commit_callbacks(execute=True):
+            run_discovery(*queued.pop(0))
+        reservation.refresh_from_db()
+        if reservation.completed_at:
+            break
+    assert reservation.completed_at
+    assert reservation.evidence["detail_page_count"] == 12
+    assert reservation.evidence["stop_reason"] == "target_reached"
+    assert reservation.discovery_checkpoint == {}
+    assert len(fetcher.calls) == 16
+    assert progress == list(range(1, 17))
+    assert SourceProfileVersion.objects.filter(reservation=reservation).count() == 1

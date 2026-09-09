@@ -332,3 +332,39 @@ def test_revocation_preserves_failed_run_diagnostics_and_blocks_retry(
     assert request["run"]["completed_at"] == run["completed_at"]
     assert run_extraction(request["id"]) is False
     assert api_client.get(detail_url).json()["assignment"]["recent_requests"][0] == request
+
+
+@pytest.mark.django_db
+def test_revocation_clears_saved_pages_from_a_failed_run(api_client, assigned_case):
+    from django.utils import timezone
+
+    from apps.source_proposals.discovery_workflow import expire_reservations
+    from apps.source_proposals.models import ExtractionRequest, ExtractionRun, ExtractionState
+
+    proposal, assignment, operator, _, _ = assigned_case
+    response = api_client.post(
+        f"/api/v1/source-proposals/{proposal.pk}/extraction-requests/",
+        {"assignment": assignment["id"], "url": proposal.website_url},
+        format="json",
+    )
+    assert response.status_code == 201
+    request = ExtractionRequest.objects.get(pk=response.data["id"])
+    request.state = ExtractionState.FAILED
+    request.save(update_fields=("state",))
+    run = ExtractionRun.objects.create(
+        request=request,
+        profile_version=request.profile_version,
+        pipeline_version="test",
+        state=ExtractionState.FAILED,
+        started_at=timezone.now(),
+        attempts=1,
+        discovery_checkpoint={"pages": [{"sanitized_html": "retained page"}]},
+    )
+    api_client.force_authenticate(operator)
+    assert revoke(api_client, assigned_case).status_code == 200
+    expire_reservations()
+    request.refresh_from_db()
+    run.refresh_from_db()
+    assert request.state == ExtractionState.CANCELLED
+    assert run.state == ExtractionState.FAILED
+    assert run.discovery_checkpoint == {}

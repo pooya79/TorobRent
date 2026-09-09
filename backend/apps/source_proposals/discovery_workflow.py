@@ -6,6 +6,7 @@ from typing import Any
 
 from django.core.exceptions import ValidationError
 from django.db import transaction
+from django.db.models import Q
 from django.utils import timezone
 
 from apps.accounts.capabilities import OperatorCapability, has_capability
@@ -23,6 +24,8 @@ from apps.source_extraction.observations import redact_phone_numbers
 from .current_website import lock_current_website
 from .models import (
     DiscoveryStage,
+    ExtractionRun,
+    ExtractionState,
     SourceAssignment,
     SourceProposal,
     SourceProposalEvent,
@@ -38,6 +41,7 @@ from .url_validation import normalize_public_domain, normalize_public_url
 RESERVATION_DURATION = timedelta(hours=24)
 # Beyond the Celery hard limit; a retry must never overlap a live fetch attempt.
 DISCOVERY_RECOVERY_DELAY = timedelta(minutes=12)
+DISCOVERY_TIME_SLICE_SECONDS = 420
 
 
 @transaction.atomic
@@ -137,7 +141,9 @@ class ReservedSourceFetcher:
     def __init__(self, reservation: SourceReservation) -> None:
         self.reservation_id = reservation.pk
         self.fetcher = SourcePageFetcher(approved_host=reservation.source.domain)
-        self.visited: set[str] = set()
+        self.visited: set[str] = set(reservation.discovery_checkpoint.get("visited", []))
+        self.evidence = dict(reservation.evidence)
+        self.evidence.pop("stop_reason", None)
 
     def fetch(self, urls: Sequence[str], *, render: bool = False) -> FetchBatch:
         live = SourceReservation.objects.filter(
@@ -147,7 +153,7 @@ class ReservedSourceFetcher:
             raise RuntimeError("Source authorization ended")
         result = self.fetcher.fetch(urls, render=render)
         self.visited.update(record.requested_url for record in result.records)
-        live.update(evidence={"page_count": len(self.visited)})
+        live.update(evidence={**self.evidence, "page_count": len(self.visited)})
         return result
 
 
@@ -161,7 +167,8 @@ def discovery_evidence(result: SourceDiscovery) -> dict[str, Any]:
         )
     )[:12]
     evidence = {
-        "page_count": len(result.pages),
+        "page_count": result.attempted_page_count,
+        "stop_reason": result.stop_reason,
         "detail_page_count": result.detail_page_count,
         "classifications": dict(Counter(page.classification.kind for page in result.pages)),
         "structures": [asdict(group) for group in result.structures],
@@ -197,7 +204,7 @@ def redact_evidence(value: Any) -> Any:
     return value
 
 
-def run_discovery(reservation_id: str) -> None:
+def run_discovery(reservation_id: str, generation: int = 0) -> None:
     recover_interrupted_discovery(reservation_id)
     proposal_id = SourceReservation.objects.values_list("proposal_id", flat=True).get(
         pk=reservation_id
@@ -207,6 +214,8 @@ def run_discovery(reservation_id: str) -> None:
         reservation = SourceReservation.objects.select_for_update().get(pk=reservation_id)
         if (
             reservation.started_at
+            or reservation.completed_at
+            or reservation.discovery_generation != generation
             or reservation.released_at
             or reservation.expires_at <= timezone.now()
         ):
@@ -223,7 +232,43 @@ def run_discovery(reservation_id: str) -> None:
             max_pages=reservation.max_pages,
             target_detail_pages=reservation.target_detail_pages,
         )
-        result = contract.discover(reservation.approved_url)
+        result = contract.discover(
+            reservation.approved_url,
+            checkpoint=reservation.discovery_checkpoint,
+            time_slice_seconds=DISCOVERY_TIME_SLICE_SECONDS,
+        )
+        if result.checkpoint:
+            with transaction.atomic():
+                proposal = SourceProposal.objects.select_for_update().get(
+                    pk=reservation.proposal_id
+                )
+                current = SourceReservation.objects.select_for_update().get(pk=reservation_id)
+                if (
+                    current.discovery_generation != generation
+                    or current.completed_at
+                    or current.released_at
+                    or current.expires_at <= timezone.now()
+                    or proposal.revision != current.revision
+                ):
+                    return
+                current.discovery_checkpoint = result.checkpoint
+                current.discovery_generation += 1
+                current.started_at = None
+                current.evidence = discovery_evidence(result)
+                current.save(
+                    update_fields=(
+                        "discovery_checkpoint",
+                        "discovery_generation",
+                        "started_at",
+                        "evidence",
+                    )
+                )
+                proposal.discovery_stage = DiscoveryStage.QUEUED
+                proposal.save(update_fields=("discovery_stage", "updated_at"))
+                from .tasks import discover_source
+
+                transaction.on_commit(lambda: discover_source.delay(reservation_id, generation + 1))
+            return
         evidence = discovery_evidence(result)
         try:
             profile = contract.propose_profile(result)
@@ -251,11 +296,12 @@ def run_discovery(reservation_id: str) -> None:
     with transaction.atomic():
         proposal = SourceProposal.objects.select_for_update().get(pk=reservation.proposal_id)
         reservation = SourceReservation.objects.select_for_update().get(pk=reservation_id)
-        if reservation.completed_at is not None:
+        if reservation.completed_at is not None or reservation.discovery_generation != generation:
             return
         reservation.evidence = evidence
+        reservation.discovery_checkpoint = {}
         reservation.completed_at = timezone.now()
-        reservation.save(update_fields=("evidence", "completed_at"))
+        reservation.save(update_fields=("evidence", "completed_at", "discovery_checkpoint"))
         if (
             reservation.released_at
             or reservation.expires_at <= timezone.now()
@@ -290,6 +336,7 @@ def release_reservations(proposal: SourceProposal, reason: str) -> None:
     SourceReservation.objects.filter(proposal=proposal, released_at__isnull=True).update(
         released_at=timezone.now(),
         release_reason=reason,
+        discovery_checkpoint={},
     )
 
 
@@ -343,6 +390,7 @@ def recover_interrupted_discovery(reservation_id: str) -> None:
         or reservation.started_at > timezone.now() - DISCOVERY_RECOVERY_DELAY
     ):
         return
+    reservation.discovery_checkpoint = {}
     reservation.completed_at = timezone.now()
     reservation.released_at = reservation.completed_at
     reservation.release_reason = "failed"
@@ -355,7 +403,15 @@ def recover_interrupted_discovery(reservation_id: str) -> None:
             }
         ],
     }
-    reservation.save(update_fields=("completed_at", "released_at", "release_reason", "evidence"))
+    reservation.save(
+        update_fields=(
+            "completed_at",
+            "released_at",
+            "release_reason",
+            "evidence",
+            "discovery_checkpoint",
+        )
+    )
     if proposal.revision == reservation.revision and proposal.state == "pending":
         proposal.discovery_stage = DiscoveryStage.FAILED
         proposal.save(update_fields=("discovery_stage", "updated_at"))
@@ -386,7 +442,9 @@ def expire_reservations() -> None:
             expired = proposal.reservations.filter(
                 released_at__isnull=True, expires_at__lte=timezone.now()
             )
-            if not expired.update(released_at=timezone.now(), release_reason="expired"):
+            if not expired.update(
+                released_at=timezone.now(), release_reason="expired", discovery_checkpoint={}
+            ):
                 continue
             proposal.discovery_stage = DiscoveryStage.RELEASED
             proposal.save(update_fields=("discovery_stage", "updated_at"))
@@ -398,3 +456,40 @@ def expire_reservations() -> None:
                 new_state=proposal.state,
                 reason="رزرو دامنه منقضی شد.",
             )
+
+    # A committed checkpoint survives an interrupted broker handoff. Generation checks
+    # make repeated delivery harmless, including overlap with the original queued job.
+    from .tasks import discover_source, extract_source
+
+    for reservation_id, generation in (
+        SourceReservation.objects
+        .filter(
+            released_at__isnull=True,
+            completed_at__isnull=True,
+            started_at__isnull=True,
+            expires_at__gt=timezone.now(),
+        )
+        .exclude(discovery_checkpoint={})
+        .values_list("id", "discovery_generation")
+    ):
+        discover_source.delay(str(reservation_id), generation)
+    for request_id, generation in (
+        ExtractionRun.objects
+        .filter(
+            state=ExtractionState.QUEUED,
+            request__state=ExtractionState.QUEUED,
+        )
+        .exclude(discovery_checkpoint={})
+        .values_list("request_id", "discovery_generation")
+    ):
+        extract_source.delay(str(request_id), generation)
+
+    SourceReservation.objects.filter(
+        Q(released_at__isnull=False) | Q(completed_at__isnull=False)
+    ).exclude(discovery_checkpoint={}).update(discovery_checkpoint={})
+    ExtractionRun.objects.filter(
+        Q(state__in=(ExtractionState.COMPLETE, ExtractionState.CANCELLED))
+        | Q(request__state=ExtractionState.CANCELLED)
+        | Q(state=ExtractionState.FAILED, attempts__gte=3)
+        | Q(started_at__lt=timezone.now() - timedelta(days=30))
+    ).exclude(discovery_checkpoint={}).update(discovery_checkpoint={})

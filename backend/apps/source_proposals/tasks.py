@@ -4,10 +4,10 @@ from celery import shared_task
 
 
 @shared_task(soft_time_limit=600, time_limit=660)  # type: ignore[untyped-decorator]
-def discover_source(reservation_id: str) -> None:
+def discover_source(reservation_id: str, generation: int = 0) -> None:
     from .discovery_workflow import run_discovery
 
-    run_discovery(reservation_id)
+    run_discovery(reservation_id, generation)
 
 
 @shared_task  # type: ignore[untyped-decorator]
@@ -25,10 +25,10 @@ def expire_source_reservations() -> None:
     acks_late=True,
     reject_on_worker_lost=True,
 )  # type: ignore[untyped-decorator]
-def extract_source(self: Any, request_id: str) -> None:
+def extract_source(self: Any, request_id: str, generation: int = 0) -> None:
     from .extraction import run_extraction
 
-    if run_extraction(request_id):
+    if run_extraction(request_id, generation):
         raise self.retry(countdown=720)
 
 

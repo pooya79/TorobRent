@@ -2393,6 +2393,7 @@ export interface components {
       detail: string;
     };
     DiscoveryEvidence: {
+      stop_reason?: string;
       profile_failure?: string;
       /** @default 0 */
       page_count: number;
@@ -2619,6 +2620,8 @@ export interface components {
       readonly submitted_url: string;
       /** Format: uri */
       readonly canonical_url: string;
+      readonly max_pages: number;
+      readonly target_detail_pages: number;
       readonly state: components["schemas"]["State299Enum"];
       /** Format: date-time */
       readonly created_at: string;
@@ -2642,6 +2645,7 @@ export interface components {
       /** Format: date-time */
       readonly completed_at: string | null;
       readonly attempted_pages: number | null;
+      readonly discovery_stop_reason: string;
       readonly usable_results: number | null;
       readonly discovered: number;
       readonly extracted: number;
@@ -3688,6 +3692,8 @@ export interface components {
       readonly source: components["schemas"]["AssignmentSource"];
       readonly active_profile_version:
         components["schemas"]["AssignmentProfileVersion"] | null;
+      readonly max_pages: number | null;
+      readonly target_detail_pages: number | null;
       readonly review_mode:
         | components["schemas"]["ReviewModeEnum"]
         | components["schemas"]["BlankEnum"];

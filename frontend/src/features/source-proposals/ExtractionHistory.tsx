@@ -1,3 +1,4 @@
+import { discoveryStopLabels } from "./discovery-labels";
 import { ExtractionRunReview } from "./ExtractionRunReview";
 import type { components } from "@/lib/api/schema";
 
@@ -39,6 +40,13 @@ export function ExtractionHistory({
             {request.canonical_url}
           </p>
           <p>{stateLabels[request.state]}</p>
+          {request.target_detail_pages != null && (
+            <p>
+              هدف: {request.target_detail_pages.toLocaleString("fa-IR")} آگهی
+              اجاره؛ سقف بررسی: {request.max_pages?.toLocaleString("fa-IR")}{" "}
+              صفحه
+            </p>
+          )}
           {request.is_current === false && (
             <p>سابقه استخراج؛ مجوز انتشار این نتایج پایان یافته است.</p>
           )}
@@ -47,6 +55,9 @@ export function ExtractionHistory({
           </time>
           {request.run && (
             <>
+              {request.run.discovery_stop_reason && (
+                <p>{discoveryStopLabels[request.run.discovery_stop_reason]}</p>
+              )}
               <p>تعداد تلاش: {request.run.attempts.toLocaleString("fa-IR")}</p>
               <dl className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                 {Object.entries(counters).map(([key, label]) => (

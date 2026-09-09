@@ -298,6 +298,7 @@ test("URL approval keeps the case visible with Discovery evidence and renewable 
       expires_at: "2026-09-06T08:00:00Z",
       evidence: {
         page_count: 8,
+        stop_reason: "frontier_exhausted",
         detail_page_count: 6,
         classifications: { rental_listing: 6, rental_index: 1, fetch_error: 1 },
         structures: [
@@ -385,6 +386,7 @@ test("URL approval keeps the case visible with Discovery evidence and renewable 
   ).toBeVisible();
   expect(screen.getByRole("heading", { name: "خانه‌یاب" })).toBeVisible();
   expect(screen.getByText(/صفحات بررسی‌شده: ۸/)).toBeVisible();
+  expect(screen.getByText("پیوند تازه‌ای برای ادامه پیدا نشد.")).toBeVisible();
   expect(
     screen.getByText(/حدود تأییدشده: سقف ۲۵۰ صفحه؛ هدف ۲۰۰/),
   ).toBeVisible();

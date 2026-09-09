@@ -139,6 +139,16 @@ class AssignmentProfileVersionSerializer(serializers.Serializer[Any]):
 
 
 class SourceAssignmentSerializer(serializers.ModelSerializer[SourceAssignment]):
+    max_pages = serializers.IntegerField(
+        source="approval.version.reservation.max_pages",
+        read_only=True,
+        allow_null=True,
+    )
+    target_detail_pages = serializers.IntegerField(
+        source="approval.version.reservation.target_detail_pages",
+        read_only=True,
+        allow_null=True,
+    )
     review_operator = serializers.UUIDField(
         source="source.responsible_operator_id", read_only=True, allow_null=True, default=None
     )
@@ -205,6 +215,8 @@ class SourceAssignmentSerializer(serializers.ModelSerializer[SourceAssignment]):
             "state",
             "source",
             "active_profile_version",
+            "max_pages",
+            "target_detail_pages",
             "review_mode",
             "created_at",
             "revoked_at",
@@ -403,6 +415,7 @@ class DiscoveryFailureSerializer(serializers.Serializer[Any]):
 
 
 class DiscoveryEvidenceSerializer(serializers.Serializer[Any]):
+    stop_reason = serializers.CharField(required=False)
     profile_failure = serializers.CharField(required=False)
     page_count = serializers.IntegerField(default=0)
     detail_page_count = serializers.IntegerField(default=0)

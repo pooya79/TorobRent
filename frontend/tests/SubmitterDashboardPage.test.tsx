@@ -511,10 +511,13 @@ test("submits an assigned URL and displays run counters and transient errors", a
     submitted_url: "https://khaneh.example/rentals",
     canonical_url: "https://khaneh.example/rentals",
     state: "failed",
+    max_pages: 100,
+    target_detail_pages: 60,
     created_at: "2026-09-05T08:00:00Z",
     run: {
       state: "failed",
       attempts: 1,
+      discovery_stop_reason: "page_limit",
       discovered: 10,
       extracted: 8,
       published: 0,
@@ -538,6 +541,8 @@ test("submits an assigned URL and displays run counters and transient errors", a
           history: [],
           assignment: {
             id: 7,
+            max_pages: 100,
+            target_detail_pages: 60,
             state: "active",
             source: { domain: "khaneh.example", display_name: "خانه‌یاب" },
             active_profile_version: { id: "version", number: 1 },
@@ -574,8 +579,13 @@ test("submits an assigned URL and displays run counters and transient errors", a
     await screen.findByLabelText("نشانی برای استخراج"),
     "https://khaneh.example/rentals",
   );
+  expect(screen.getByText(/حدود تأییدشده هر استخراج: هدف ۶۰/)).toBeVisible();
   await user.click(screen.getByRole("button", { name: "درخواست استخراج" }));
   expect(await screen.findByText("خطای موقت")).toBeVisible();
+  expect(screen.getByText("سقف صفحات بررسی‌شده تکمیل شد.")).toBeVisible();
+  expect(
+    screen.getByText(/هدف: ۶۰ آگهی اجاره؛ سقف بررسی: ۱۰۰ صفحه/),
+  ).toBeVisible();
   for (const label of [
     "کشف‌شده",
     "استخراج‌شده",

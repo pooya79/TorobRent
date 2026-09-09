@@ -6,9 +6,10 @@ import json
 import math
 from collections import Counter
 from collections.abc import Mapping, Sequence
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from importlib.resources import files
 from itertools import count
+from time import monotonic
 from typing import Any, Protocol
 from urllib.parse import urlsplit
 
@@ -90,6 +91,9 @@ class SourceDiscovery:
     dominant_fingerprint: str | None
     detail_page_count: int
     excluded_detail_page_urls: tuple[str, ...]
+    stop_reason: str = "frontier_exhausted"
+    checkpoint: Mapping[str, Any] = field(default_factory=dict)
+    attempted_page_count: int = 0
 
 
 @dataclass(frozen=True, slots=True)
@@ -185,6 +189,24 @@ def load_tehran_locations() -> list[TehranLocation]:
     return [TehranLocation(**item) for item in payload["locations"]]
 
 
+def _restore_discovery_page(value: Mapping[str, Any]) -> DiscoveryPage:
+    classification = dict(value["classification"])
+    classification["kind"] = PageKind(classification["kind"])
+    classification["evidence"] = tuple(classification["evidence"])
+    failure = value.get("fetch_failure")
+    if failure:
+        failure = {**failure, "code": FetchFailureCode(failure["code"])}
+    return DiscoveryPage(
+        **{
+            key: item
+            for key, item in value.items()
+            if key not in {"classification", "fetch_failure"}
+        },
+        classification=PageClassification(**classification),
+        fetch_failure=FetchFailure(**failure) if failure else None,
+    )
+
+
 class ExtractionContract:
     """Discover, train, validate, and extract through one persistence-free API."""
 
@@ -212,7 +234,15 @@ class ExtractionContract:
         self._max_depth = max_depth
         self._preferred_location_terms = preferred_location_terms
 
-    def discover(self, seed_url: str) -> SourceDiscovery:
+    def discover(
+        self,
+        seed_url: str,
+        *,
+        checkpoint: Mapping[str, Any] | None = None,
+        time_slice_seconds: float | None = None,
+    ) -> SourceDiscovery:
+        if time_slice_seconds is not None and time_slice_seconds <= 0:
+            raise ValueError("time_slice_seconds must be positive")
         canonical_seed = normalize_url(seed_url)
         seed_host = urlsplit(canonical_seed).netloc.casefold()
         frontier: list[tuple[int, int, str, int, str | None, PageKind | None]] = []
@@ -221,10 +251,29 @@ class ExtractionContract:
         visited: set[str] = set()
         pages: list[DiscoveryPage] = []
         details = 0
+        depth_limited = False
+        if checkpoint:
+            if checkpoint["seed_url"] != canonical_seed:
+                raise ExtractionContractError("Discovery checkpoint belongs to another URL")
+            frontier = [
+                (*item[:5], PageKind(item[5]) if item[5] else None)
+                for item in checkpoint["frontier"]
+            ]
+            sequence = count(max((item[1] for item in frontier), default=-1) + 1)
+            visited = set(checkpoint["visited"])
+            pages = [_restore_discovery_page(item) for item in checkpoint["pages"]]
+            details = sum(page.classification.kind == PageKind.RENTAL_LISTING for page in pages)
+            depth_limited = checkpoint["depth_limited"]
+        deadline = None if time_slice_seconds is None else monotonic() + time_slice_seconds
+        paused = False
+        seen_final_urls = {page.url for page in pages if page.sanitized_html is not None}
 
         while frontier and len(visited) < self._max_pages and details < self._target_detail_pages:
+            if deadline is not None and monotonic() >= deadline:
+                paused = True
+                break
             negative_score, _order, url, depth, parent, kind_hint = heapq.heappop(frontier)
-            if url in visited:
+            if url in visited or url in seen_final_urls:
                 continue
             visited.add(url)
             record, rendering_method = self._fetch(url)
@@ -249,6 +298,10 @@ class ExtractionContract:
                 continue
 
             fetched = record.page
+            final_url = normalize_url(fetched.url)
+            if final_url in seen_final_urls:
+                continue
+            seen_final_urls.add(final_url)
             html = fetched.body.decode("utf-8", errors="replace")
             content_type = next(
                 (
@@ -267,7 +320,14 @@ class ExtractionContract:
                 )
             else:
                 classification = classify_page(fetched.url, html)
-                if kind_hint is not None and classification.kind is PageKind.IRRELEVANT:
+                if kind_hint is PageKind.RENTAL_INDEX:
+                    classification = PageClassification(
+                        PageKind.RENTAL_INDEX,
+                        0.9,
+                        classification.score,
+                        ("A rental index identified this pagination URL",),
+                    )
+                elif kind_hint is not None and classification.kind is PageKind.IRRELEVANT:
                     classification = PageClassification(
                         kind_hint,
                         0.9,
@@ -292,7 +352,7 @@ class ExtractionContract:
             pages.append(page)
             if classification.kind is PageKind.RENTAL_LISTING:
                 details += 1
-            if depth >= self._max_depth or classification.kind in {
+            if classification.kind in {
                 PageKind.RENTAL_LISTING,
                 PageKind.FETCH_ERROR,
             }:
@@ -304,9 +364,14 @@ class ExtractionContract:
                 preferred_terms=self._preferred_location_terms,
             ):
                 if (
-                    candidate.score < minimum_score
+                    (candidate.score < minimum_score and not candidate.is_pagination)
                     or urlsplit(candidate.url).netloc.casefold() != seed_host
+                    or candidate.url in visited
                 ):
+                    continue
+                candidate_depth = depth if candidate.is_pagination else depth + 1
+                if candidate_depth > self._max_depth:
+                    depth_limited = True
                     continue
                 heapq.heappush(
                     frontier,
@@ -314,10 +379,13 @@ class ExtractionContract:
                         -candidate.score,
                         next(sequence),
                         candidate.url,
-                        depth + 1,
+                        candidate_depth,
                         page.url,
                         (
-                            PageKind.RENTAL_LISTING
+                            PageKind.RENTAL_INDEX
+                            if classification.kind is PageKind.RENTAL_INDEX
+                            and candidate.is_pagination
+                            else PageKind.RENTAL_LISTING
                             if classification.kind is PageKind.RENTAL_INDEX
                             and candidate.is_structured_listing
                             else None
@@ -325,7 +393,37 @@ class ExtractionContract:
                     ),
                 )
 
-        structures, dominant = self._group_structures(pages)
+        stop_reason = (
+            "target_reached"
+            if details >= self._target_detail_pages
+            else "page_limit"
+            if len(visited) >= self._max_pages
+            else "time_slice"
+            if paused
+            else "depth_limit"
+            if depth_limited
+            else "frontier_exhausted"
+        )
+        retained_checkpoint: dict[str, Any] = (
+            {
+                "seed_url": canonical_seed,
+                "frontier": frontier,
+                "visited": sorted(visited),
+                "pages": [asdict(page) for page in pages],
+                "depth_limited": depth_limited,
+            }
+            if paused
+            else {}
+        )
+        for retained_page in retained_checkpoint.get("pages", []):
+            retained_page["classification"]["evidence"] = [
+                redact_phone_numbers(item) for item in retained_page["classification"]["evidence"]
+            ]
+            if retained_page["fetch_failure"]:
+                retained_page["fetch_failure"]["detail"] = redact_phone_numbers(
+                    retained_page["fetch_failure"]["detail"]
+                )
+        structures, dominant = self._group_structures(pages) if not paused else ((), None)
         selected_urls = next(
             (set(group.supported_page_urls) for group in structures if group.selected), set()
         )
@@ -338,7 +436,12 @@ class ExtractionContract:
             structures=structures,
             dominant_fingerprint=dominant,
             detail_page_count=len(all_details),
-            excluded_detail_page_urls=tuple(url for url in all_details if url not in selected_urls),
+            excluded_detail_page_urls=(
+                () if paused else tuple(url for url in all_details if url not in selected_urls)
+            ),
+            stop_reason=stop_reason,
+            checkpoint=retained_checkpoint,
+            attempted_page_count=len(visited),
         )
 
     def propose_profile(

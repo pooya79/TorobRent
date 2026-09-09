@@ -4803,6 +4803,8 @@ components:
     DiscoveryEvidence:
       type: object
       properties:
+        stop_reason:
+          type: string
         profile_failure:
           type: string
         page_count:
@@ -5297,6 +5299,12 @@ components:
           type: string
           format: uri
           readOnly: true
+        max_pages:
+          type: integer
+          readOnly: true
+        target_detail_pages:
+          type: integer
+          readOnly: true
         state:
           allOf:
           - $ref: '#/components/schemas/State299Enum'
@@ -5320,11 +5328,13 @@ components:
       - created_at
       - id
       - is_current
+      - max_pages
       - profile_version
       - requester
       - run
       - state
       - submitted_url
+      - target_detail_pages
       - updated_at
     ExtractionRun:
       type: object
@@ -5375,6 +5385,9 @@ components:
           - integer
           - 'null'
           readOnly: true
+        discovery_stop_reason:
+          type: string
+          readOnly: true
         usable_results:
           type:
           - integer
@@ -5417,6 +5430,7 @@ components:
       - completed_at
       - decisions
       - discovered
+      - discovery_stop_reason
       - errors
       - extracted
       - failed
@@ -7835,6 +7849,16 @@ components:
           - $ref: '#/components/schemas/AssignmentProfileVersion'
           - type: 'null'
           readOnly: true
+        max_pages:
+          type:
+          - integer
+          - 'null'
+          readOnly: true
+        target_detail_pages:
+          type:
+          - integer
+          - 'null'
+          readOnly: true
         review_mode:
           readOnly: true
           oneOf:
@@ -7885,12 +7909,14 @@ components:
       - exceptions
       - exclusions
       - id
+      - max_pages
       - mode_revision
       - recent_requests
       - review_mode
       - review_operator
       - source
       - state
+      - target_detail_pages
     SourceAssignmentStateEnum:
       enum:
       - active

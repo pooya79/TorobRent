@@ -389,3 +389,81 @@ def test_http_errors_and_non_html_are_visible_run_failures(
     assert run["state"] == "failed"
     assert run["failed"] == 1
     assert run["errors"][0]["transient"] is transient
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("attempt_number", [1, 3])
+def test_extraction_continues_with_approved_limits_and_fences_old_deliveries(
+    api_client, assigned_case, monkeypatch, django_capture_on_commit_callbacks, attempt_number
+):
+    from itertools import count
+
+    from apps.source_proposals.extraction import run_extraction
+    from apps.source_proposals.models import ExtractionRequest, SourceReservation
+    from apps.source_proposals.tasks import extract_source
+    from tests.test_source_extraction_contract import listing_html
+
+    proposal, assignment, _, _, fetcher = assigned_case
+    # A target above the old 20-page ceiling, spread over a next-only chain.
+    SourceReservation.objects.filter(
+        profile_versions__id=assignment["active_profile_version"]["id"]
+    ).update(
+        max_pages=40,
+        target_detail_pages=24,
+    )
+    for number in range(8):
+        url = proposal.website_url if number == 0 else f"{proposal.website_url}?page={number + 1}"
+        links = "".join(
+            f'<a href="/listing/{20000 + number * 3 + offset}">اجاره آپارتمان تهران</a>'
+            for offset in range(3)
+        )
+        fetcher.pages[url] = (
+            f'<h1>رهن و اجاره خانه</h1>{links}<a rel="next" href="?page={number + 2}">Next</a>'
+        )
+        for offset in range(3):
+            fetcher.pages[f"https://khaneh.example/listing/{20000 + number * 3 + offset}"] = (
+                listing_html()
+            )
+    fetcher.calls.clear()
+    monkeypatch.setattr("apps.source_proposals.extraction.SourcePageFetcher", lambda **kw: fetcher)
+    clock = count()
+    monkeypatch.setattr("apps.source_extraction.contract.monotonic", lambda: next(clock))
+    monkeypatch.setattr("apps.source_proposals.extraction.DISCOVERY_TIME_SLICE_SECONDS", 5)
+    queued = []
+    monkeypatch.setattr(extract_source, "delay", lambda *args: queued.append(args))
+    with django_capture_on_commit_callbacks(execute=True):
+        response = api_client.post(
+            f"/api/v1/source-proposals/{proposal.pk}/extraction-requests/",
+            {"assignment": assignment["id"], "url": proposal.website_url},
+            format="json",
+        )
+    assert response.status_code == 201
+    assert response.data["target_detail_pages"] == 24
+    request_id = response.data["id"]
+    for _ in range(20):
+        args = queued.pop(0)
+        with django_capture_on_commit_callbacks(execute=True):
+            assert run_extraction(*args) is False
+        request = ExtractionRequest.objects.get(pk=request_id)
+        if request.state == "complete":
+            break
+        assert request.run.discovery_checkpoint
+        if request.run.discovery_generation == 1:
+            from apps.source_proposals.discovery_workflow import expire_reservations
+
+            run = request.run
+            run.attempts = attempt_number
+            run.save(update_fields=("attempts",))
+            queued.clear()  # Simulate a broker handoff lost after committing saved progress.
+            expire_reservations()
+            assert queued == [(request_id, 1)]
+        assert request.run.candidates.count() == 0
+        fetched = len(fetcher.calls)
+        assert run_extraction(request_id, 0) is False
+        assert len(fetcher.calls) == fetched
+    assert request.state == "complete"
+    assert request.run.discovered == 24
+    assert request.run.attempts == attempt_number
+    assert request.run.discovery_stop_reason == "target_reached"
+    assert request.run.discovery_checkpoint == {}
+    assert len(fetcher.calls) == 32
