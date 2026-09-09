@@ -34,7 +34,7 @@ export function PropertyPriceHistory({ listings }: { listings: Listing[] }) {
               className="text-primary size-5"
               aria-hidden="true"
             />
-            روند ودیعه و اجاره
+            روند رهن و اجاره
           </h2>
           <p className="text-muted-foreground mt-2 text-sm leading-7">
             تغییرات قیمت پیشنهادی هر آگهی، از زمان ثبت در ترب‌رنت
@@ -60,7 +60,7 @@ export function PropertyPriceHistory({ listings }: { listings: Listing[] }) {
           [
             {
               field: "deposit_toman",
-              label: "ودیعه",
+              label: "رهن",
               Icon: Wallet,
               color: "text-primary",
             },
@@ -186,7 +186,7 @@ export function PropertyPriceHistory({ listings }: { listings: Listing[] }) {
       {observations.length < 2 ? (
         <p className="text-muted-foreground mt-4 text-sm leading-7">
           هنوز سابقه کافی برای نمایش نمودار این آگهی وجود ندارد. قیمت‌های قبلی
-          تخمین زده نمی‌شوند؛ تغییرات بعدی ودیعه و اجاره در این بخش نمایش داده
+          تخمین زده نمی‌شوند؛ تغییرات بعدی رهن و اجاره در این بخش نمایش داده
           می‌شوند.
         </p>
       ) : (
@@ -197,12 +197,12 @@ export function PropertyPriceHistory({ listings }: { listings: Listing[] }) {
           <div className="overflow-x-auto">
             <table className="w-full text-start text-xs sm:text-sm">
               <caption className="text-muted-foreground pb-3 text-start">
-                مبالغ به تومان؛ مقیاس نمودار ودیعه و اجاره مستقل است.
+                مبالغ به تومان؛ مقیاس نمودار رهن و اجاره مستقل است.
               </caption>
               <thead>
                 <tr className="border-b">
                   <th className="py-3 text-start">تاریخ ثبت</th>
-                  <th className="text-start">ودیعه</th>
+                  <th className="text-start">رهن</th>
                   <th className="text-start">اجاره ماهانه</th>
                 </tr>
               </thead>

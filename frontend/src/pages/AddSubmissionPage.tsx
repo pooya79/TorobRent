@@ -423,7 +423,7 @@ function RentalTermsFields({
   return (
     <div className="grid gap-5 sm:grid-cols-2">
       <div className="space-y-2">
-        <Label htmlFor="deposit">ودیعه، تومان</Label>
+        <Label htmlFor="deposit">رهن، تومان</Label>
         <Input
           id="deposit"
           name="deposit_toman"
@@ -460,7 +460,7 @@ function RentalTermsFields({
           type="checkbox"
           defaultChecked={terms?.is_convertible}
         />
-        ودیعه و اجاره قابل تبدیل است
+        رهن و اجاره قابل تبدیل است
       </Label>
     </div>
   );
@@ -773,7 +773,7 @@ function StepFields({
           <dt className="text-muted-foreground">شرایط اجاره</dt>
           <dd>
             {submission.rental_terms
-              ? `${submission.rental_terms.deposit_toman.toLocaleString("fa-IR")} تومان ودیعه`
+              ? `${submission.rental_terms.deposit_toman.toLocaleString("fa-IR")} تومان رهن`
               : "هنوز ثبت نشده"}
           </dd>
         </div>
@@ -1102,7 +1102,7 @@ function DraftFlow({ submissionId }: { submissionId: string }) {
       ) {
         const message =
           deposit === 0 && rent === 0
-            ? "ودیعه و اجاره ماهانه نمی‌توانند هم‌زمان صفر باشند."
+            ? "رهن و اجاره ماهانه نمی‌توانند هم‌زمان صفر باشند."
             : "مبلغ را به‌صورت عدد صحیح و نامنفی، در محدوده مجاز وارد کنید.";
         setValidation({
           message,

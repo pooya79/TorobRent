@@ -922,7 +922,7 @@ export function ExternalListingCandidateCard({
             value={`${candidate.area_sqm?.toLocaleString("fa-IR") ?? "نامشخص"} متر`}
           />
           <Detail
-            label="ودیعه"
+            label="رهن"
             value={`${candidate.deposit_rial == null ? "نامشخص" : (candidate.deposit_rial / 10).toLocaleString("fa-IR")} تومان`}
           />
           <Detail

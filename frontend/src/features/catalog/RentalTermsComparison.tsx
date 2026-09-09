@@ -98,7 +98,7 @@ export function RentalTermsComparison({
       >
         <DialogTitle className="pe-8">برآورد هزینه ماهانه</DialogTitle>
         <DialogDescription>
-          ودیعه بیشتر یا اجاره بیشتر؟ با وارد کردن بازده سالانه مورد انتظار،
+          رهن بیشتر یا اجاره بیشتر؟ با وارد کردن بازده سالانه مورد انتظار،
           هزینه ماهانه ملک‌ها را با هم مقایسه کنید.
         </DialogDescription>
         <form className="space-y-5" onSubmit={submit}>
@@ -131,7 +131,7 @@ export function RentalTermsComparison({
               id="annual-return-rate-help"
               className="text-muted-foreground text-xs leading-6"
             >
-              بازدهی که انتظار دارید در یک سال از مبلغ ودیعه به دست آورید. برای
+              بازدهی که انتظار دارید در یک سال از مبلغ رهن به دست آورید. برای
               مقایسه فقط بر اساس اجاره، صفر وارد کنید.
             </p>
             {error ? (
@@ -146,11 +146,11 @@ export function RentalTermsComparison({
           </div>
           <div className="bg-muted/60 space-y-2 rounded-lg p-3 text-xs leading-6">
             <p className="font-medium">
-              برآورد ماهانه = اجاره + بازده ماهانه مبلغ ودیعه
+              برآورد ماهانه = اجاره + بازده ماهانه مبلغ رهن
             </p>
             <p className="text-muted-foreground">
               این مبلغ برای مقایسه است و اجاره پرداختی شما نیست. بازده ماهانه از
-              نرخ موثر سالانه محاسبه می‌شود و قطعی نیست. مبنا، ودیعه و اجاره یک
+              نرخ موثر سالانه محاسبه می‌شود و قطعی نیست. مبنا، رهن و اجاره یک
               آگهی فعال از هر ملک است.
             </p>
           </div>

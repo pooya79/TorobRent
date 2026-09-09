@@ -12,7 +12,7 @@ import { OpenStreetMapAdapter } from "@/features/map/OpenStreetMapAdapter";
 
 const marker: MapMarker = {
   propertyId: "property-1",
-  label: "ودیعه ۱ میلیارد، اجاره ۲۵ میلیون تومان",
+  label: "رهن ۱ میلیارد، اجاره ۲۵ میلیون تومان",
   mapPrices: { deposit: "۱", monthlyRent: "۲۵" },
   approximateLocation: {
     center: { latitude: 35.7665, longitude: 51.4749 },

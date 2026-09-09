@@ -351,7 +351,7 @@ test("normalizes Persian Toman input before saving and resumes at the next step"
   renderPage(`/add-submission?submission=${draft.id}&step=rental_terms`);
 
   await user.type(
-    await screen.findByLabelText("ودیعه، تومان"),
+    await screen.findByLabelText("رهن، تومان"),
     "۱٬۰۰۰٬۰۰۰٬۰۰۰",
   );
   await user.type(screen.getByLabelText("اجاره ماهانه، تومان"), "۲۵٬۰۰۰٬۰۰۰");
@@ -630,7 +630,7 @@ test("save and exit persists the current form without submitting for review", as
     }),
   );
   renderPage(`/add-submission?submission=${draft.id}&step=rental_terms`);
-  await user.type(await screen.findByLabelText("ودیعه، تومان"), "100000");
+  await user.type(await screen.findByLabelText("رهن، تومان"), "100000");
   await user.type(screen.getByLabelText("اجاره ماهانه، تومان"), "20000");
   await user.click(screen.getByText("ذخیره و خروج"));
   await waitFor(() =>
@@ -654,7 +654,7 @@ test("rejects negative rental amounts and Enter saves to the next step", async (
     }),
   );
   renderPage(`/add-submission?submission=${draft.id}&step=rental_terms`);
-  const deposit = await screen.findByLabelText("ودیعه، تومان");
+  const deposit = await screen.findByLabelText("رهن، تومان");
   await user.type(deposit, "-100");
   await user.type(screen.getByLabelText("اجاره ماهانه، تومان"), "20000");
   await user.click(screen.getByRole("button", { name: "ذخیره و ادامه" }));

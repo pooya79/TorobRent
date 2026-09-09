@@ -34,7 +34,7 @@ test("plots both prices, including zero rent, with a dated table and separate so
       }))}
     />,
   );
-  expect(screen.getByRole("img", { name: /نمودار ودیعه/ })).toBeVisible();
+  expect(screen.getByRole("img", { name: /نمودار رهن/ })).toBeVisible();
   expect(
     screen.getByRole("img", { name: /نمودار اجاره ماهانه/ }),
   ).toBeVisible();

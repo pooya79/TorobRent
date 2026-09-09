@@ -445,7 +445,7 @@ export function OperatorReviewPage() {
                     {selected.rental_terms?.deposit_toman.toLocaleString(
                       "fa-IR",
                     )}{" "}
-                    تومان ودیعه
+                    تومان رهن
                   </dd>
                 </div>
                 <div className="bg-muted rounded-lg p-4">

@@ -45,7 +45,7 @@ test("offers a keyboard-operable textual fallback for mapped Properties", async 
   const FakeMapAdapter = createFakeMapAdapter();
   const marker: MapMarker = {
     propertyId: "property-1",
-    label: "ودیعه و اجاره یک Active Listing",
+    label: "رهن و اجاره یک Active Listing",
     mapPrices: { deposit: "۱", monthlyRent: "۲۵" },
     approximateLocation: {
       center: { latitude: 35.7665, longitude: 51.4749 },
@@ -83,7 +83,7 @@ test("offers a keyboard-operable textual fallback for mapped Properties", async 
   await user.click(screen.getByText("فهرست دسترس‌پذیر نقشه"));
   await user.click(
     screen.getByRole("button", {
-      name: "آپارتمان در سعادت‌آباد: ودیعه و اجاره یک Active Listing",
+      name: "آپارتمان در سعادت‌آباد: رهن و اجاره یک Active Listing",
     }),
   );
 

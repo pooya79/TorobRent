@@ -24,7 +24,7 @@ const fields: Record<string, string> = {
   property_type: "نوع ملک",
   floor_area_sqm: "متراژ",
   bedroom_count: "اتاق خواب",
-  deposit_rial: "ودیعه",
+  deposit_rial: "رهن",
   monthly_rent_rial: "اجاره ماهانه",
   construction_year: "سال ساخت",
   floor: "طبقه",

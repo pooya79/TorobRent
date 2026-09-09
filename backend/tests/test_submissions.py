@@ -881,9 +881,9 @@ def test_invalid_rental_terms_preserve_the_last_valid_toman_values(api_client: A
     )
 
     assert invalid.status_code == 400
-    assert invalid.data["detail"] == "ودیعه و اجاره ماهانه نمی‌توانند هم‌زمان صفر باشند."
+    assert invalid.data["detail"] == "رهن و اجاره ماهانه نمی‌توانند هم‌زمان صفر باشند."
     assert invalid.data["errors"]["rental_terms.non_field_errors"][0]["message"] == (
-        "ودیعه و اجاره ماهانه نمی‌توانند هم‌زمان صفر باشند."
+        "رهن و اجاره ماهانه نمی‌توانند هم‌زمان صفر باشند."
     )
     resumed = api_client.get(detail_url)
     assert resumed.data["rental_terms"]["deposit_toman"] == 500_000_000

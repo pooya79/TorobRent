@@ -305,7 +305,7 @@ function ListingInquiryComposer({
         <div className="grid gap-2 pe-10">
           <DialogTitle>پیام به ثبت‌کننده</DialogTitle>
           <DialogDescription>
-            آگهی {listing.source.display_name} با ودیعه{" "}
+            آگهی {listing.source.display_name} با رهن{" "}
             {formatNumber(listing.rental_terms.deposit_toman)} تومان
           </DialogDescription>
         </div>
@@ -637,7 +637,7 @@ export function PropertyDetailPage({
                     <div className="flex items-center justify-between gap-3">
                       <span className="text-muted-foreground flex items-center gap-2 text-sm">
                         <Wallet className="size-4" aria-hidden="true" />
-                        ودیعه
+                        رهن
                       </span>
                       <p className="text-lg font-bold tabular-nums">
                         {formatNumber(listing.rental_terms.deposit_toman)}{" "}

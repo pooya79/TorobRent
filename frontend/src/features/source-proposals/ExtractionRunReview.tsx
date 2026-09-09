@@ -74,7 +74,7 @@ export function ExtractionRunReview({
           </a>
           <p>
             متراژ: {candidate.area_sqm?.toLocaleString("fa-IR") ?? "نامشخص"} متر
-            · ودیعه:{" "}
+            · رهن:{" "}
             {candidate.deposit_rial == null
               ? "نامشخص"
               : (candidate.deposit_rial / 10).toLocaleString("fa-IR")}{" "}

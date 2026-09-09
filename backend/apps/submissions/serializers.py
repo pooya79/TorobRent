@@ -222,7 +222,7 @@ class RentalTermsInputSerializer(serializers.Serializer[Any]):
 
     def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
         if attrs["deposit_rial"] == 0 and attrs["monthly_rent_rial"] == 0:
-            raise serializers.ValidationError("ودیعه و اجاره ماهانه نمی‌توانند هم‌زمان صفر باشند.")
+            raise serializers.ValidationError("رهن و اجاره ماهانه نمی‌توانند هم‌زمان صفر باشند.")
         return attrs
 
 

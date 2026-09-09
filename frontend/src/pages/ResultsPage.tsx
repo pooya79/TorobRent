@@ -171,7 +171,7 @@ function toMapMarker(
   return {
     fitBand: property.preference_assessment?.band,
     propertyId: property.id,
-    label: `${property.preference_assessment ? (property.preference_assessment.band ? fitBandLabels[property.preference_assessment.band] : "تناسب نامشخص") + " با ترجیحات شما\n" : ""}ودیعه ${card.rentalTerms.depositLabel}\nاجاره ماهانه ${card.rentalTerms.monthlyRentLabel}`,
+    label: `${property.preference_assessment ? (property.preference_assessment.band ? fitBandLabels[property.preference_assessment.band] : "تناسب نامشخص") + " با ترجیحات شما\n" : ""}رهن ${card.rentalTerms.depositLabel}\nاجاره ماهانه ${card.rentalTerms.monthlyRentLabel}`,
     mapPrices: {
       deposit: formatMapPrice(property.rental_terms.deposit_toman),
       monthlyRent: formatMapPrice(property.rental_terms.monthly_rent_toman),

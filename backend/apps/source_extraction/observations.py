@@ -420,7 +420,7 @@ class StructuredDataObserver:
                     item.get("priceType") or item.get("name") or ""
                 ).casefold()
                 price_field = None
-                deposit_terms = ("deposit", "security deposit", "ودیعه", "رهن")
+                deposit_terms = ("deposit", "security deposit", "رهن")
                 if any(term in price_type for term in deposit_terms):
                     price_field = "deposit_rial"
                 elif any(term in price_type for term in ("rent", "monthly", "اجاره")):
@@ -461,7 +461,7 @@ LABEL_FIELDS: dict[str, tuple[str, ...]] = {
     "floor": ("طبقه",),
     "total_floors": ("تعداد طبقات", "کل طبقات"),
     "units_per_floor": ("واحد در طبقه", "تعداد واحد در طبقه"),
-    "deposit_rial": ("ودیعه", "رهن"),
+    "deposit_rial": ("رهن",),
     "monthly_rent_rial": ("اجاره ماهانه", "اجاره"),
     "source_location_text": ("موقعیت", "محله", "آدرس"),
     "heating": ("گرمایش", "سیستم گرمایشی"),
@@ -760,7 +760,7 @@ class PersianTextObserver:
                     )
                 )
         for field_name, labels in (
-            ("deposit_rial", ("ودیعه", "رهن")),
+            ("deposit_rial", ("رهن",)),
             ("monthly_rent_rial", ("اجاره ماهانه", "اجاره")),
         ):
             for label in labels:

@@ -11,7 +11,7 @@ const labels: Record<string, string> = {
   area_sqm: "متراژ",
   bedroom_count: "اتاق خواب",
   room_count: "اتاق خواب",
-  deposit_rial: "ودیعه",
+  deposit_rial: "رهن",
   monthly_rent_rial: "اجاره ماهانه",
   title: "عنوان",
   description: "توضیحات",

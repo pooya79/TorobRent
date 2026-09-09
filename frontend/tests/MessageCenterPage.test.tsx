@@ -656,7 +656,7 @@ test("shows the immutable Listing snapshot beside inactive current availability"
 
   expect(await screen.findByText("اطلاعات هنگام شروع گفت‌وگو")).toBeVisible();
   expect(screen.getByText("۹۰ متر مربع")).toBeVisible();
-  expect(screen.getByText(/ودیعه.*۸۰۰٬۰۰۰٬۰۰۰ تومان/)).toBeVisible();
+  expect(screen.getByText(/رهن.*۸۰۰٬۰۰۰٬۰۰۰ تومان/)).toBeVisible();
   expect(screen.getByText(/اجاره ماهانه.*۲۰٬۰۰۰٬۰۰۰ تومان/)).toBeVisible();
   expect(screen.getByText("منبع: ترب‌رنت")).toBeVisible();
   expect(screen.getByText("وضعیت فعلی: غیرفعال")).toBeVisible();

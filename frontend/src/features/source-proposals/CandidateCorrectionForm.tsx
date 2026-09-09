@@ -19,7 +19,7 @@ import { CandidateMedia, type MediaChoice } from "./CandidateMedia";
 const numericFields = {
   area_sqm: "متراژ (متر مربع)",
   room_count: "تعداد اتاق خواب",
-  deposit_rial: "ودیعه (تومان)",
+  deposit_rial: "رهن (تومان)",
   monthly_rent_rial: "اجاره ماهانه (تومان)",
 } as const;
 

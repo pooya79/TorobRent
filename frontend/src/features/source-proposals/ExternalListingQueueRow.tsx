@@ -102,7 +102,7 @@ export function ExternalListingQueueRow({
       </div>
       <dl className="grid grid-cols-2 gap-2 text-sm xl:grid-cols-1">
         <div>
-          <dt className="text-muted-foreground text-xs">ودیعه</dt>
+          <dt className="text-muted-foreground text-xs">رهن</dt>
           <dd className="mt-1 font-medium">
             {rentalAmount(candidate.deposit_rial)}
           </dd>

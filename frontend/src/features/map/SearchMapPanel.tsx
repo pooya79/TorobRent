@@ -258,7 +258,7 @@ export function SearchMapPanel({
               </div>
               <div className="mt-3 space-y-1 text-sm">
                 <p className="font-semibold">
-                  ودیعه {preview.rentalTerms.depositLabel}
+                  رهن {preview.rentalTerms.depositLabel}
                 </p>
                 <p>اجاره ماهانه {preview.rentalTerms.monthlyRentLabel}</p>
                 <p className="text-muted-foreground text-xs">

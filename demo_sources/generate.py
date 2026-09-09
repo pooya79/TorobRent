@@ -184,7 +184,7 @@ def listing_json_ld(origin: str, listing: Listing) -> str:
         "priceSpecification": [
             {
                 "@type": "UnitPriceSpecification",
-                "name": "ودیعه",
+                "name": "رهن",
                 "priceType": "Security deposit",
                 "price": listing.deposit_toman,
                 "priceCurrency": "IRT",
@@ -216,7 +216,7 @@ def facts_dl(listing: Listing, *, variant: str = "standard") -> str:
 <dl class="property-facts">
   <div><dt>متراژ</dt><dd class="area">{listing.area} متر</dd></div>
   <div><dt>اتاق خواب</dt><dd class="rooms">{listing.bedrooms}</dd></div>
-  <div><dt>ودیعه (تومان)</dt><dd class="deposit">{toman(listing.deposit_toman)}</dd></div>
+  <div><dt>رهن (تومان)</dt><dd class="deposit">{toman(listing.deposit_toman)}</dd></div>
   <div><dt>اجاره ماهانه (تومان)</dt><dd class="rent">{toman(listing.rent_toman)}</dd></div>
   <div><dt>طبقه</dt><dd class="floor">{listing.floor}</dd></div>
   <div><dt>سال ساخت</dt><dd class="year">{listing.construction_year}</dd></div>
@@ -230,7 +230,7 @@ def facts_table(listing: Listing) -> str:
   <tbody>
     <tr><th>متراژ</th><td class="area">{listing.area} متر</td></tr>
     <tr><th>اتاق خواب</th><td class="rooms">{listing.bedrooms}</td></tr>
-    <tr><th>ودیعه</th><td class="deposit">{toman(listing.deposit_toman)}</td></tr>
+    <tr><th>رهن</th><td class="deposit">{toman(listing.deposit_toman)}</td></tr>
     <tr><th>اجاره ماهانه</th><td class="rent">{toman(listing.rent_toman)}</td></tr>
     <tr><th>طبقه</th><td>{listing.floor}</td></tr>
     <tr><th>سال ساخت</th><td>{listing.construction_year}</td></tr>
@@ -259,7 +259,7 @@ def visible_listing(site: Site, listing: Listing, *, alternate: bool = False) ->
       <p class="location">موقعیت در تهران، منطقه {listing.district}، {listing.neighborhood}</p>
     </div>
     <div class="price-box">
-      <span>ودیعه {toman(listing.deposit_toman)}</span>
+      <span>رهن {toman(listing.deposit_toman)}</span>
       <strong>اجاره ماهانه {toman(listing.rent_toman)}</strong>
     </div>
   </div>
@@ -339,7 +339,7 @@ def card(listing: Listing) -> str:
       <p class="eyebrow">تهران، {html.escape(listing.neighborhood)}</p>
       <h2>{html.escape(listing.title)}</h2>
       <p>{listing.bedrooms} اتاق · طبقه {listing.floor} · ساخت {listing.construction_year}</p>
-      <strong>{toman(listing.deposit_toman)} ودیعه</strong>
+      <strong>{toman(listing.deposit_toman)} رهن</strong>
       <span>{toman(listing.rent_toman)} اجاره ماهانه</span>
     </div>
   </a>
@@ -454,11 +454,11 @@ def write_extraction_scenarios(
     clean = listing_page(origin, site, clean_listing)
     missing = listing_page(origin, site, missing_listing)
     missing = missing.replace(
-        f"<span>ودیعه {toman(missing_listing.deposit_toman)}</span>",
-        "<span>ودیعه نامشخص</span>",
+        f"<span>رهن {toman(missing_listing.deposit_toman)}</span>",
+        "<span>رهن نامشخص</span>",
     ).replace(
-        f'<tr><th>ودیعه</th><td class="deposit">{toman(missing_listing.deposit_toman)}</td></tr>',
-        '<tr><th>ودیعه</th><td class="deposit">نامشخص</td></tr>',
+        f'<tr><th>رهن</th><td class="deposit">{toman(missing_listing.deposit_toman)}</td></tr>',
+        '<tr><th>رهن</th><td class="deposit">نامشخص</td></tr>',
     )
     conflict = listing_page(origin, site, conflict_listing).replace(
         f'<td class="area">{conflict_listing.area} متر</td>',
@@ -475,7 +475,7 @@ def write_extraction_scenarios(
   <ul>
     <li>متراژ {drift_listing.area} متر مربع</li>
     <li>{drift_listing.bedrooms} اتاق خواب</li>
-    <li>ودیعه {toman(drift_listing.deposit_toman)}</li>
+    <li>رهن {toman(drift_listing.deposit_toman)}</li>
     <li>اجاره ماهانه {toman(drift_listing.rent_toman)}</li>
   </ul>
   <button type="button">تماس با آگهی‌دهنده</button>
@@ -499,7 +499,7 @@ def write_extraction_scenarios(
         f'<li><a href="/{path}/">اجاره آپارتمان تهران — {label}</a></li>'
         for path, label in (
             ("scenario-property/90001/clean", "آگهی معتبر"),
-            ("scenario-property/90002/missing-deposit", "ودیعه نامشخص"),
+            ("scenario-property/90002/missing-deposit", "رهن نامشخص"),
             ("scenario-property/90003/conflicting-area", "متراژ متناقض"),
             ("scenario-property/90004/structural-drift", "ساختار تازه"),
         )

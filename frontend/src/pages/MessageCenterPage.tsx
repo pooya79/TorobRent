@@ -819,7 +819,7 @@ function MessageCenterContent({
                             متر مربع
                           </p>
                           <p className="text-muted-foreground mt-1 text-sm">
-                            ودیعه:{" "}
+                            رهن:{" "}
                             {toman(
                               detail.data.listing_context.opening_snapshot
                                 .rental_terms.deposit_rial,

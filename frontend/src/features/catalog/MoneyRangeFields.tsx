@@ -122,7 +122,7 @@ export function MoneyRangeFields({
   searchParams: URLSearchParams;
   deposit?: boolean;
 }) {
-  const title = deposit ? "ودیعه" : "اجاره ماهانه";
+  const title = deposit ? "رهن" : "اجاره ماهانه";
   const parameter = deposit ? "deposit" : "monthly_rent";
   return (
     <fieldset className="space-y-3 border-b pb-6">

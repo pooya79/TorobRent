@@ -168,7 +168,7 @@ test("website data guidance covers amenities and makes support limitations expli
     "واحد در طبقه",
     "محدوده ملک",
     "موقعیت جغرافیایی",
-    "ودیعه",
+    "رهن",
     "قابل مذاکره",
     "موجود بودن",
     "تصاویر",

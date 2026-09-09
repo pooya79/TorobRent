@@ -35,7 +35,7 @@ import {
 const preferenceGroups = [
   {
     title: "بودجه دلخواه",
-    description: "تعادل بین ودیعه و اجاره",
+    description: "تعادل بین رهن و اجاره",
     icon: Wallet,
     ids: ["monthly_rent", "deposit"],
     tone: "bg-amber-50/70 dark:bg-amber-950/20",

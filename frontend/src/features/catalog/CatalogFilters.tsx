@@ -32,8 +32,8 @@ import { selectedPropertyCategory } from "./property-type-selection";
 export const filterLabels = {
   district: "منطقه",
   neighborhood: "محله",
-  deposit_min_toman: "حداقل ودیعه",
-  deposit_max_toman: "حداکثر ودیعه",
+  deposit_min_toman: "حداقل رهن",
+  deposit_max_toman: "حداکثر رهن",
   monthly_rent_min_toman: "حداقل اجاره ماهانه",
   monthly_rent_max_toman: "حداکثر اجاره ماهانه",
   area_min: "حداقل متراژ",
@@ -483,7 +483,7 @@ export function CatalogFilters({
               )}
               <SelectItem value="newest">جدیدترین</SelectItem>
               <SelectItem value="monthly_rent">کمترین اجاره ماهانه</SelectItem>
-              <SelectItem value="deposit">کمترین ودیعه</SelectItem>
+              <SelectItem value="deposit">کمترین رهن</SelectItem>
               {searchParams.has("annual_return_rate") ? (
                 <SelectItem value="equivalent_monthly_cost">
                   کمترین هزینه ماهانه برآوردی
@@ -503,7 +503,7 @@ export function CatalogFilters({
             const maximum = searchParams.get(`${parameter}_max_toman`);
             return (
               <p key={parameter}>
-                {parameter === "deposit" ? "ودیعه" : "اجاره ماهانه"}:{" "}
+                {parameter === "deposit" ? "رهن" : "اجاره ماهانه"}:{" "}
                 {minimum ? `از ${compactToman(minimum)} ` : ""}
                 {maximum ? `تا ${compactToman(maximum)} ` : ""}
                 {minimum || maximum ? "تومان" : "بدون محدودیت"}

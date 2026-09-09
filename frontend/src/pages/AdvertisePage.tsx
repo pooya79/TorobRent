@@ -64,7 +64,7 @@ const persianStepNumbers = ["۱", "۲", "۳", "۴", "۵", "۶", "۷"] as const;
 const submissionStepDescriptions: Record<SubmissionStepId, string> = {
   location: "نشانی و موقعیت دقیق را برای بررسی خصوصی ثبت می‌کنید.",
   property_facts: "نوع، متراژ و دیگر واقعیت‌های ملک را وارد می‌کنید.",
-  rental_terms: "ودیعه و اجاره ماهانه را به‌صورت یک جفت ثبت می‌کنید.",
+  rental_terms: "رهن و اجاره ماهانه را به‌صورت یک جفت ثبت می‌کنید.",
   features_description: "وضعیت امکانات شناخته‌شده و توضیحات را کامل می‌کنید.",
   images: "تصاویر را بارگذاری و تصویر اصلی را انتخاب می‌کنید.",
   contact: "شماره پیشنهادی و رضایت انتشار آن را مشخص می‌کنید.",

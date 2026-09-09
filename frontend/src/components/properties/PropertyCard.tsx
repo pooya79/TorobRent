@@ -105,7 +105,7 @@ export function PropertyCard({
       {property.rentalTerms ? (
         <CardContent className="space-y-1 px-0 pb-3 text-sm">
           <div className="flex items-center gap-2 font-semibold">
-            <p>ودیعه {property.rentalTerms.depositLabel}</p>
+            <p>رهن {property.rentalTerms.depositLabel}</p>
             {property.rentalTermsComparison &&
             (property.rentalTermsComparison.isNegotiable ||
               property.rentalTermsComparison.isConvertible) ? (

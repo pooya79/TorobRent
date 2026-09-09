@@ -123,7 +123,7 @@ def test_dense_rental_index_is_not_misclassified_from_aggregate_card_details() -
         f'<a href="{url}">اجاره آپارتمان {index}</a>' for index, url in enumerate(detail_urls)
     )
     seed_html = (
-        f"<h1>اجاره خانه و آپارتمان</h1><p>ودیعه، اجاره ماهانه، متراژ، تعداد اتاق و تماس</p>{links}"
+        f"<h1>اجاره خانه و آپارتمان</h1><p>رهن، اجاره ماهانه، متراژ، تعداد اتاق و تماس</p>{links}"
     )
     fetcher = FixtureFetcher({
         seed_url: seed_html,
@@ -179,7 +179,7 @@ def test_detail_url_identity_outweighs_dense_recommendation_links() -> None:
     )
     detail_html = (
         "<h1>اجاره آپارتمان در تهران</h1>"
-        "<p>ودیعه، اجاره ماهانه، متراژ، تعداد اتاق و تماس</p>"
+        "<p>رهن، اجاره ماهانه، متراژ، تعداد اتاق و تماس</p>"
         f"{recommendations}"
     )
 
@@ -278,7 +278,7 @@ def test_discovery_selects_dominant_structure_and_keeps_excluded_coverage_explic
     alternate = (
         """
         <html><body><main class="redesign"><h1>اجاره خانه در تهران</h1>
-        <p>ودیعه ۵۰۰ میلیون تومان، اجاره ماهانه ۲۰ میلیون تومان</p>
+        <p>رهن ۵۰۰ میلیون تومان، اجاره ماهانه ۲۰ میلیون تومان</p>
         <p>متراژ ۸۵، اتاق خواب ۲</p><button>تماس</button>
         """
         + "".join(

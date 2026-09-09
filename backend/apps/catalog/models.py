@@ -331,7 +331,7 @@ class RentalTerms(models.Model):
     def clean(self) -> None:
         super().clean()
         if self.deposit_rial == 0 and self.monthly_rent_rial == 0:
-            raise ValidationError("ودیعه و اجاره ماهانه نمی‌توانند هم‌زمان صفر باشند.")
+            raise ValidationError("رهن و اجاره ماهانه نمی‌توانند هم‌زمان صفر باشند.")
 
 
 class ListingState(models.TextChoices):

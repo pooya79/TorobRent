@@ -44,7 +44,7 @@ def test_exceptions_stay_individually_reviewable_while_other_pages_publish(
     else:
         html = (
             "<article><h1>اجاره آپارتمان در تهران</h1>"
-            "<section>متراژ اتاق ودیعه ساختار تازه</section></article>"
+            "<section>متراژ اتاق رهن ساختار تازه</section></article>"
         )
     assigned_case[4].pages[target] = html
     run = execute_run(api_client, assigned_case, monkeypatch, django_capture_on_commit_callbacks)

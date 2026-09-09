@@ -587,7 +587,7 @@ test("stages Advanced Filters, previews the count, and commits or discards as on
   await user.click(trigger);
   let panel = await screen.findByRole("dialog", { name: "فیلترهای پیشرفته" });
   expect(within(panel).getByLabelText("مرتب‌سازی")).toHaveTextContent(
-    "کمترین ودیعه",
+    "کمترین رهن",
   );
   expect(
     within(within(panel).getByRole("group", { name: "بالکن" })).getByRole(
@@ -869,7 +869,7 @@ test("selects a marker, highlights its loaded card, and opens the complete previ
   renderResults("/search", createFakeMapAdapter());
 
   const marker = await screen.findByRole("button", {
-    name: /انتخاب آپارتمان در سعادت‌آباد، ودیعه ۱٬۰۰۰٬۰۰۰٬۰۰۰ تومان، اجاره ماهانه ۲۵٬۰۰۰٬۰۰۰ تومان/,
+    name: /انتخاب آپارتمان در سعادت‌آباد، رهن ۱٬۰۰۰٬۰۰۰٬۰۰۰ تومان، اجاره ماهانه ۲۵٬۰۰۰٬۰۰۰ تومان/,
   });
   await user.click(marker);
 
@@ -889,7 +889,7 @@ test("selects a marker, highlights its loaded card, and opens the complete previ
   );
   expect(preview).toHaveTextContent("سعادت‌آباد");
   expect(preview).toHaveTextContent("آپارتمان · ۱۱۰ متر · ۲ خواب");
-  expect(preview).toHaveTextContent("ودیعه ۱٬۰۰۰٬۰۰۰٬۰۰۰ تومان");
+  expect(preview).toHaveTextContent("رهن ۱٬۰۰۰٬۰۰۰٬۰۰۰ تومان");
   expect(preview).toHaveTextContent("اجاره ماهانه ۲۵٬۰۰۰٬۰۰۰ تومان");
   expect(preview).toHaveTextContent("۲ آگهی فعال");
   const previewFavorite = within(preview).getByRole("button", {
@@ -1143,7 +1143,7 @@ test("presents each Property with normalized facts and freshest complete Rental 
   expect(screen.getByText("۲ آگهی فعال")).toBeVisible();
   expect(screen.getByText("آپارتمان · ۱۱۰ متر · ۲ خواب")).toBeVisible();
   expect(screen.getByText("۱ پیشنهاد دیگر")).toBeVisible();
-  expect(screen.getByText("ودیعه ۱٬۰۰۰٬۰۰۰٬۰۰۰ تومان")).toBeVisible();
+  expect(screen.getByText("رهن ۱٬۰۰۰٬۰۰۰٬۰۰۰ تومان")).toBeVisible();
   expect(screen.getByText("اجاره ماهانه ۲۵٬۰۰۰٬۰۰۰ تومان")).toBeVisible();
   expect(document.querySelector("img")).toHaveAttribute(
     "src",
@@ -1221,7 +1221,7 @@ test("activates a zero-return comparison in the URL and renders server estimates
   expect(within(card).getByText("۲۵٬۰۰۰٬۰۰۰ تومان")).toBeVisible();
   expect(within(card).getByText("قابل تبدیل")).toBeVisible();
   expect(
-    within(card).queryByText(/هزینه فرصت ودیعه|فرمول و جزئیات/),
+    within(card).queryByText(/هزینه فرصت رهن|فرمول و جزئیات/),
   ).toBeNull();
   await user.click(screen.getByRole("button", { name: /برآورد هزینه.*۰/ }));
   expect(screen.getByLabelText("بازده سالانه مورد انتظار")).toHaveValue("۰");
@@ -1316,11 +1316,11 @@ test("offers the five specified sort choices with Newest selected by default", a
   ).toEqual([
     "جدیدترین",
     "کمترین اجاره ماهانه",
-    "کمترین ودیعه",
+    "کمترین رهن",
     "بیشترین متراژ",
     "کمترین متراژ",
   ]);
-  await user.click(screen.getByRole("option", { name: "کمترین ودیعه" }));
+  await user.click(screen.getByRole("option", { name: "کمترین رهن" }));
   await user.click(
     await within(filters).findByRole("button", { name: "نمایش ۱ ملک" }),
   );
@@ -1340,7 +1340,7 @@ test("renders public approximate markers and uncertainty circles through the map
 
   expect(
     await screen.findByRole("button", {
-      name: /انتخاب آپارتمان در سعادت‌آباد، ودیعه .*، اجاره ماهانه /,
+      name: /انتخاب آپارتمان در سعادت‌آباد، رهن .*، اجاره ماهانه /,
     }),
   ).toBeVisible();
   expect(screen.getByText("محدوده تقریبی ۵۰ متر")).toBeVisible();
@@ -1691,7 +1691,7 @@ test("marker selection does not accidentally redefine the viewport", async () =>
 
   await user.click(
     await screen.findByRole("button", {
-      name: /انتخاب آپارتمان در سعادت‌آباد، ودیعه .*، اجاره ماهانه /,
+      name: /انتخاب آپارتمان در سعادت‌آباد، رهن .*، اجاره ماهانه /,
     }),
   );
   await new Promise((resolve) => setTimeout(resolve, 600));
@@ -2213,7 +2213,7 @@ test("applies Advanced Filters with tolerant numeric entry and exposes removable
   const filters = await screen.findByRole("dialog", {
     name: "فیلترهای پیشرفته",
   });
-  await user.type(within(filters).getByLabelText("حداقل ودیعه"), "۵۰۰");
+  await user.type(within(filters).getByLabelText("حداقل رهن"), "۵۰۰");
   await user.click(
     within(
       within(filters).getByRole("group", { name: "تعداد اتاق خواب" }),
@@ -2368,21 +2368,21 @@ test("preserves exact toman amounts while editing units, applying, and reopening
   );
   await user.click(screen.getByRole("button", { name: "فیلترهای پیشرفته" }));
   let panel = await screen.findByRole("dialog", { name: "فیلترهای پیشرفته" });
-  expect(within(panel).getByLabelText("حداقل ودیعه")).toHaveValue("۵۰۰");
-  expect(within(panel).getByLabelText("حداکثر ودیعه")).toHaveValue("۱٫۵");
+  expect(within(panel).getByLabelText("حداقل رهن")).toHaveValue("۵۰۰");
+  expect(within(panel).getByLabelText("حداکثر رهن")).toHaveValue("۱٫۵");
   await user.click(
     within(panel).getByRole("button", {
-      name: "تغییر واحد حداکثر ودیعه، میلیارد تومان",
+      name: "تغییر واحد حداکثر رهن، میلیارد تومان",
     }),
   );
-  expect(within(panel).getByLabelText("حداکثر ودیعه")).toHaveValue("۱٬۵۰۰");
+  expect(within(panel).getByLabelText("حداکثر رهن")).toHaveValue("۱٬۵۰۰");
   await user.click(
     within(panel).getByRole("button", {
-      name: "تغییر واحد حداکثر ودیعه، میلیون تومان",
+      name: "تغییر واحد حداکثر رهن، میلیون تومان",
     }),
   );
-  await user.clear(within(panel).getByLabelText("حداکثر ودیعه"));
-  await user.type(within(panel).getByLabelText("حداکثر ودیعه"), "٢٫٢٥");
+  await user.clear(within(panel).getByLabelText("حداکثر رهن"));
+  await user.type(within(panel).getByLabelText("حداکثر رهن"), "٢٫٢٥");
   await user.type(within(panel).getByLabelText("حداکثر اجاره ماهانه"), "۱۲٫۵");
   await user.click(
     await within(panel).findByRole("button", { name: "نمایش ۱ ملک" }),
@@ -2395,13 +2395,13 @@ test("preserves exact toman amounts while editing units, applying, and reopening
   );
   await user.click(screen.getByRole("button", { name: "فیلترهای پیشرفته" }));
   panel = await screen.findByRole("dialog", { name: "فیلترهای پیشرفته" });
-  expect(within(panel).getByLabelText("حداکثر ودیعه")).toHaveValue("۲٫۲۵");
-  await user.clear(within(panel).getByLabelText("حداکثر ودیعه"));
-  await user.type(within(panel).getByLabelText("حداکثر ودیعه"), "۰٫۲");
-  expect(within(panel).getByLabelText("حداکثر ودیعه")).toBeInvalid();
+  expect(within(panel).getByLabelText("حداکثر رهن")).toHaveValue("۲٫۲۵");
+  await user.clear(within(panel).getByLabelText("حداکثر رهن"));
+  await user.type(within(panel).getByLabelText("حداکثر رهن"), "۰٫۲");
+  expect(within(panel).getByLabelText("حداکثر رهن")).toBeInvalid();
   await user.click(within(panel).getByRole("button", { name: "پاک کردن همه" }));
-  expect(within(panel).getByLabelText("حداکثر ودیعه")).toHaveValue("");
-  expect(within(panel).getByLabelText("حداکثر ودیعه")).toBeValid();
+  expect(within(panel).getByLabelText("حداکثر رهن")).toHaveValue("");
+  expect(within(panel).getByLabelText("حداکثر رهن")).toBeValid();
 });
 
 test("applies explicit priorities in the URL and restores canonical order on reset", async () => {
@@ -2477,7 +2477,7 @@ test("renders returned preference evidence outside the map and passes the same b
   expect(screen.getByText("هم‌راستا با خواسته شما: آسانسور")).toBeVisible();
   expect(screen.getByText("اطلاعات نامشخص: پارکینگ")).toBeVisible();
   expect(
-    screen.getByText(/فاصله از خواسته شما، به ترتیب اهمیت: ودیعه کمتر/),
+    screen.getByText(/فاصله از خواسته شما، به ترتیب اهمیت: رهن کمتر/),
   ).toBeVisible();
   await waitFor(() => expect(received?.markers[0]?.fitBand).toBe("high"));
   expect(received?.markers[0]?.label).toContain("تناسب زیاد");

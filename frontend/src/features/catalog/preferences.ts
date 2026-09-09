@@ -14,7 +14,7 @@ export const preferenceLabels = {
   balcony: "بالکن",
   furnished: "مبله",
   monthly_rent: "اجاره ماهانه کمتر",
-  deposit: "ودیعه کمتر",
+  deposit: "رهن کمتر",
   construction_year: "سال ساخت",
   freshness: "تازگی تایید موجود بودن",
 } as const;

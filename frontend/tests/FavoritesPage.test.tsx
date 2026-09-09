@@ -72,7 +72,7 @@ test("separates active and unavailable Favorites and removes either without reop
     within(unavailableSection).queryByRole("link", { name: unavailable.title }),
   ).not.toBeInTheDocument();
   expect(
-    within(unavailableSection).queryByText(/ودیعه|اجاره ماهانه/),
+    within(unavailableSection).queryByText(/رهن|اجاره ماهانه/),
   ).not.toBeInTheDocument();
 
   await user.click(

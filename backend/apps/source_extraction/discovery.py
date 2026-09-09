@@ -13,7 +13,6 @@ from apps.source_extraction.normalization import normalize_text, normalize_url
 RENTAL_TERMS = {
     "اجاره",
     "رهن",
-    "ودیعه",
     "rent",
     "rental",
     "lease",
@@ -32,7 +31,7 @@ PROPERTY_TERMS = {
 SALE_TERMS = {"فروش", "خرید", "sale", "buy"}
 DETAIL_TERMS = {
     "اجاره ماهانه",
-    "ودیعه",
+    "رهن",
     "متراژ",
     "تعداد اتاق",
     "اتاق خواب",

@@ -29,7 +29,7 @@ def main() -> None:
         assert (site_root / "sitemap.xml").is_file()
         sample = pages[0].read_text(encoding="utf-8")
         assert "اجاره ماهانه" in sample
-        assert "ودیعه" in sample
+        assert "رهن" in sample
         assert "تماس" in sample
         assert not re.search(r"هٔ|ۀ", sample)
         if key == "jsonld":

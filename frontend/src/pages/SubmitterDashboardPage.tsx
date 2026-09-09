@@ -438,7 +438,7 @@ export function SubmitterDashboardPage() {
                         <>
                           <div>
                             <dt className="text-muted-foreground text-xs">
-                              ودیعه
+                              رهن
                             </dt>
                             <dd className="mt-1 font-medium">
                               {submission.rental_terms.deposit_toman.toLocaleString(

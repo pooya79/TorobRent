@@ -101,7 +101,7 @@ def parse_toman(value: str) -> int:
 
 
 class RentalTermsAdminForm(forms.ModelForm):  # type: ignore[type-arg]
-    deposit_toman = forms.CharField(label="ودیعه (تومان)")
+    deposit_toman = forms.CharField(label="رهن (تومان)")
     monthly_rent_toman = forms.CharField(label="اجاره ماهانه (تومان)")
     is_negotiable = forms.BooleanField(label="قابل مذاکره", required=False)
     is_convertible = forms.BooleanField(label="قابل تبدیل", required=False)
@@ -241,7 +241,7 @@ class RentalTermsAdmin(ModelAdmin):  # type: ignore[type-arg]
     list_display = ("id", "deposit_toman", "monthly_rent_toman", "currency")
     search_fields = ("id",)
 
-    @admin.display(description="ودیعه (تومان)")
+    @admin.display(description="رهن (تومان)")
     def deposit_toman(self, terms: RentalTerms) -> int:
         return rial_to_toman(terms.deposit_rial)
 
