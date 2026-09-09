@@ -30,11 +30,17 @@ The generated `manifest.json` lists the exact Source Proposal and sitemap URLs.
 ## Preview locally
 
 The Compose file requires a base domain because generated absolute JSON-LD and image URLs must
-match the eventual public hosts:
+match the eventual public hosts. Configure the standalone demo in the repository's root `.env`:
+
+```dotenv
+DEMO_BASE_DOMAIN=sources.example.com
+DEMO_HTTP_PORT=8088
+```
+
+The Make target explicitly passes that file to Compose:
 
 ```bash
-DEMO_BASE_DOMAIN=sources.example.com DEMO_HTTP_PORT=8088 \
-  docker compose -f demo_sources/compose.yaml up --build
+make demo-sources-up
 curl -H 'Host: jsonld.sources.example.com' http://127.0.0.1:8088/rentals/
 ```
 
