@@ -9,7 +9,6 @@ import {
 import { useState, type FormEvent } from "react";
 import type { SetURLSearchParams } from "react-router";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Sheet,
@@ -20,7 +19,8 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { LocationMultiSelect } from "./LocationMultiSelect";
-import { normalizeNumericEntry, persianDigits } from "./numeric-entry";
+import { normalizeNumericEntry } from "./numeric-entry";
+import { NumericPreferenceControl } from "./NumericPreferenceControl";
 import { propertyTypeOptions } from "./property-taxonomy";
 import {
   preferenceLabels,
@@ -261,21 +261,11 @@ export function PreferenceControls({
                         draft[id]?.priority !== "unimportant" && (
                           <>
                             {numericPreferences[id] ? (
-                              <>
-                                <Label htmlFor={`preference-${id}-target`}>
-                                  {numericPreferences[id].unit}
-                                </Label>
-                                <Input
-                                  id={`preference-${id}-target`}
-                                  inputMode="numeric"
-                                  value={persianDigits(
-                                    String(draft[id]?.target ?? ""),
-                                  )}
-                                  onChange={(event) =>
-                                    update(id, { target: event.target.value })
-                                  }
-                                />
-                              </>
+                              <NumericPreferenceControl
+                                id={id}
+                                value={String(draft[id]?.target ?? "")}
+                                onChange={(target) => update(id, { target })}
+                              />
                             ) : id === "district" || id === "neighborhood" ? (
                               <LocationMultiSelect
                                 kind={id}
