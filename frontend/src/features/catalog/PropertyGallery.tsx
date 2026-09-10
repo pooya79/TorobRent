@@ -6,22 +6,33 @@ type Property = components["schemas"]["PropertyDetail"];
 export function PropertyGallery({ property }: { property: Property }) {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [failedUrls, setFailedUrls] = useState<string[]>([]);
-  const images = property.listings.flatMap((listing) =>
-    (listing.images ?? []).flatMap((image) => {
+  const media = [
+    ...(property.images ?? []).map((image) => ({
+      ...image,
+      id: `property-${image.id}`,
+      source: "تصاویر ملک",
+    })),
+    ...property.listings.flatMap((listing) =>
+      (listing.images ?? []).map((image) => ({
+        ...image,
+        id: `${listing.id}-${image.id}`,
+        source: listing.source.display_name,
+      })),
+    ),
+  ];
+  const images = media
+    .flatMap((image) => {
       const variant =
         image.variants.find((candidate) => candidate.kind === "medium") ??
         image.variants[0];
       return variant && !failedUrls.includes(variant.url)
-        ? [
-            {
-              ...variant,
-              id: `${listing.id}-${image.id}`,
-              source: listing.source.display_name,
-            },
-          ]
+        ? [{ ...variant, id: image.id, source: image.source }]
         : [];
-    }),
-  );
+    })
+    .filter(
+      (image, index, all) =>
+        all.findIndex((other) => other.url === image.url) === index,
+    );
   const selected = images[selectedIndex] ?? images[0];
   return (
     <section
@@ -34,11 +45,19 @@ export function PropertyGallery({ property }: { property: Property }) {
             <img
               className="aspect-[16/9] max-h-[480px] w-full object-cover"
               src={selected.url}
-              alt={`تصویر ملک از ${selected.source}`}
+              alt={
+                selected.source === "تصاویر ملک"
+                  ? "تصویر ملک"
+                  : `تصویر ملک از ${selected.source}`
+              }
               onError={() => setFailedUrls((urls) => [...urls, selected.url])}
             />
             <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-3 bg-gradient-to-t from-black/75 to-transparent px-5 pt-12 pb-4 text-white">
-              <p className="text-xs">تصویر از {selected.source}</p>
+              <p className="text-xs">
+                {selected.source === "تصاویر ملک"
+                  ? selected.source
+                  : `تصویر از ${selected.source}`}
+              </p>
               <span className="flex items-center gap-2 text-sm">
                 <Images className="size-4" aria-hidden="true" />
                 {new Intl.NumberFormat("fa-IR").format(images.length)} تصویر

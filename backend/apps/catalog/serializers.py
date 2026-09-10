@@ -9,10 +9,12 @@ from rest_framework import serializers
 from .models import (
     FeatureState,
     Listing,
+    ListingImage,
     LocationPrecision,
     OutboundPolicy,
     Property,
     PropertyCategory,
+    PropertyImage,
     PropertyType,
     property_category_for_type,
 )
@@ -606,7 +608,8 @@ class ListingMediaSerializer(serializers.Serializer[Any]):
     variants = ListingMediaVariantSerializer(many=True)
 
 
-def listing_images(listing: Listing) -> list[dict[str, Any]]:
+def catalog_images(owner: Listing | Property) -> list[dict[str, Any]]:
+    images: list[ListingImage | PropertyImage] = list(owner.images.all())
     return [
         {
             "id": image.pk,
@@ -621,14 +624,12 @@ def listing_images(listing: Listing) -> list[dict[str, Any]]:
                 for variant in image.variants.all()
             ],
         }
-        for image in sorted(
-            listing.images.all(), key=lambda image: (not image.is_primary, image.position)
-        )
+        for image in sorted(images, key=lambda image: (not image.is_primary, image.position))
     ]
 
 
 def listing_media_url(listing: Listing) -> str | None:
-    images = listing_images(listing)
+    images = catalog_images(listing)
     if not images:
         return None
     return next(
@@ -688,6 +689,7 @@ class PropertyDetailSerializer(serializers.Serializer[Any]):
     heating = serializers.CharField()
     cooling = serializers.CharField()
     features = FeaturesSerializer()
+    images = ListingMediaSerializer(many=True)
     listings = ListingPublicSerializer(many=True)
 
 
@@ -808,6 +810,7 @@ def property_detail_data(
             "balcony": property_.balcony,
             "furnished": property_.furnished,
         },
+        "images": catalog_images(property_),
         "listings": [
             {
                 "id": listing.id,
@@ -842,7 +845,7 @@ def property_detail_data(
                     else None
                 ),
                 "media_url": listing_media_url(listing),
-                "images": listing_images(listing),
+                "images": catalog_images(listing),
                 "is_negotiable": listing.terms.is_negotiable,
                 "is_convertible": listing.terms.is_convertible,
                 "availability_confirmed_at": listing.availability_confirmed_at,

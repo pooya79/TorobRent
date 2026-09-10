@@ -406,3 +406,44 @@ test("chooses an explicitly unverified Display Name and opens the sent inquiry",
     expect(navigate).toHaveBeenCalledWith("/messages/thread"),
   );
 });
+
+test("shows property photos when active listings have no images and switches thumbnails", async () => {
+  render(
+    <PropertyDetailPage
+      property={{
+        ...property,
+        images: [0, 1].map((index) => ({
+          id: `property-photo-${index}`,
+          is_primary: index === 0,
+          variants: [
+            {
+              kind: "medium",
+              url: `/api/v1/catalog/media/property-photo-${index}/`,
+              width: 960,
+              height: 720,
+            },
+          ],
+        })),
+        listings: property.listings.map((listing) => ({
+          ...listing,
+          images: [],
+        })),
+      }}
+    />,
+  );
+  const gallery = within(screen.getByRole("region", { name: "تصاویر ملک" }));
+  expect(gallery.getByRole("img", { name: "تصویر ملک" })).toHaveAttribute(
+    "src",
+    "/api/v1/catalog/media/property-photo-0/",
+  );
+  await userEvent.click(
+    gallery.getByRole("button", { name: "نمایش تصویر 2 از تصاویر ملک" }),
+  );
+  expect(gallery.getByRole("img", { name: "تصویر ملک" })).toHaveAttribute(
+    "src",
+    "/api/v1/catalog/media/property-photo-1/",
+  );
+  expect(
+    screen.queryByText("تصویری برای این ملک در دسترس نیست"),
+  ).not.toBeInTheDocument();
+});

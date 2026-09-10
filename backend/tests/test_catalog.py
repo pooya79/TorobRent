@@ -79,7 +79,7 @@ def test_public_catalog_query_count_is_bounded_for_representative_development_fi
     # Page count, page data, Property Type/Bedroom facets, and five self-excluding features.
     assert len(search_queries) <= 9
     # Listings and Property, plus bounded image/variant and price history prefetches.
-    assert len(detail_queries) <= 5
+    assert len(detail_queries) <= 7
 
 
 @pytest.mark.django_db
@@ -2171,3 +2171,34 @@ def test_property_detail_compares_active_source_listings_and_exposes_disagreemen
     assert disabled["media_url"] is None
     assert disabled["disagreements"] == []
     assert "inactive-comparison" not in listings_by_source
+
+
+@pytest.mark.django_db
+def test_property_detail_includes_property_photos_without_listing_photos(api_client: APIClient):
+    from apps.catalog.models import ListingImage, PropertyImage, PropertyImageVariant
+    from apps.common.models import MediaAsset
+
+    call_command("seed_dev", verbosity=0)
+    listing = Listing.objects.active().first()
+    assert listing is not None
+    property_ = listing.property
+
+    ListingImage.objects.filter(listing__property=property_).delete()
+    property_.images.all().delete()
+    for position, primary in [(0, False), (1, True)]:
+        image = PropertyImage.objects.create(
+            property=property_, position=position, is_primary=primary, reviewed_at=timezone.now()
+        )
+        asset = MediaAsset.objects.create(
+            file=f"reviewed-media/property-{position}.webp", width=960, height=720, byte_size=1
+        )
+        PropertyImageVariant.objects.create(image=image, kind="medium", asset=asset)
+
+    response = api_client.get(f"/api/v1/catalog/properties/{property_.id}/")
+
+    assert response.status_code == 200
+    assert len(response.data["images"]) == 2
+    assert response.data["images"][0]["is_primary"] is True
+    assert response.data["images"][0]["variants"] == [
+        {"kind": "medium", "url": f"/api/v1/catalog/media/{asset.id}/", "width": 960, "height": 720}
+    ]

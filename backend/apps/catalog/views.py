@@ -31,6 +31,7 @@ from .models import (
     OutboundPolicy,
     ProductEventType,
     Property,
+    PropertyImageVariant,
 )
 from .preferences import parse_preferences
 from .selectors import (
@@ -342,8 +343,16 @@ class PropertyDetailView(APIView):
         if not listings:
             raise NotFound("این ملک در دسترس نیست.")
         try:
-            property_ = Property.objects.select_related("city", "district", "neighborhood").get(
-                id=property_id
+            property_ = (
+                Property.objects
+                .select_related("city", "district", "neighborhood")
+                .prefetch_related(
+                    Prefetch(
+                        "images__variants",
+                        queryset=PropertyImageVariant.objects.select_related("asset"),
+                    )
+                )
+                .get(id=property_id)
             )
         except Property.DoesNotExist as exc:
             raise NotFound("این ملک در دسترس نیست.") from exc

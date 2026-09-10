@@ -7295,6 +7295,10 @@ components:
           type: string
         features:
           $ref: '#/components/schemas/Features'
+        images:
+          type: array
+          items:
+            $ref: '#/components/schemas/ListingMedia'
         listings:
           type: array
           items:
@@ -7309,6 +7313,7 @@ components:
       - floor
       - heating
       - id
+      - images
       - listings
       - location
       - property_category

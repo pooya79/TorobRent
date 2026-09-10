@@ -3455,6 +3455,7 @@ export interface components {
       heating: string;
       cooling: string;
       features: components["schemas"]["Features"];
+      images: components["schemas"]["ListingMedia"][];
       listings: components["schemas"]["ListingPublic"][];
     };
     PropertyFactsInput: {

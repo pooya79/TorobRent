@@ -32,6 +32,7 @@ const commercialFacets: components["schemas"]["CatalogFacets"] = {
 };
 
 export const propertyDetail: components["schemas"]["PropertyDetail"] = {
+  images: [],
   id: "8b294499-0f8d-45cb-8ec6-90ac3ca1669e",
   title: "آپارتمان در سعادت‌آباد",
   canonical_slug: "آپارتمان-در-سعادتآباد",
