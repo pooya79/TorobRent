@@ -1,3 +1,4 @@
+import { SourceProcessingStatus } from "./SourceProcessingStatus";
 import { caseSections, type CaseSectionId } from "./case-sections";
 import {
   ArrowLeft,
@@ -5,9 +6,6 @@ import {
   CircleDashed,
   UserRound,
   ShieldCheck,
-  PauseCircle,
-  PlayCircle,
-  Workflow,
   ExternalLink,
 } from "lucide-react";
 import { SourceProcessingPanel } from "@/features/source-proposals/SourceProcessingPanel";
@@ -22,7 +20,13 @@ import { SourceExceptionsPanel } from "./SourceExceptionsPanel";
 import { SourceBulkActions } from "./SourceBulkActions";
 import { SourceExclusionsSummary } from "./SourceExclusionsPanel";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { type ReactNode, useState, createContext, useContext } from "react";
+import {
+  type ReactNode,
+  useEffect,
+  useState,
+  createContext,
+  useContext,
+} from "react";
 import { Link } from "react-router";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -71,14 +75,31 @@ export function ProposalReviewCard({
   activeSection,
   onSectionChange,
   onDecisionSuccess,
+  statusUpdatedAt,
+  statusStale,
 }: {
   proposal: OperatorSourceProposal;
+  statusUpdatedAt?: number;
+  statusStale?: boolean;
   activeSection: CaseSectionId;
   onSectionChange: (section: CaseSectionId) => void;
   onDecisionSuccess: (proposal: OperatorSourceProposal) => void;
 }) {
   const [resultView, setResultView] = useState("runs");
   const [claimed, setClaimed] = useState(false);
+  const [claimExpiresAt, setClaimExpiresAt] = useState<string>();
+  const [claimExpired, setClaimExpired] = useState(false);
+  useEffect(() => {
+    if (!claimed || !claimExpiresAt) return;
+    const timer = window.setTimeout(
+      () => {
+        setClaimed(false);
+        setClaimExpired(true);
+      },
+      Math.max(0, Date.parse(claimExpiresAt) - Date.now()),
+    );
+    return () => window.clearTimeout(timer);
+  }, [claimed, claimExpiresAt]);
   const currentUser = useQuery(currentUserQuery);
   const mayForceRelease = currentUser.data?.operator_capabilities.includes(
     "manage_operator_queues",
@@ -102,11 +123,25 @@ export function ProposalReviewCard({
     Number(targetDetailPages) > 0 &&
     Number(maxPages) >= Number(targetDetailPages) &&
     Number(maxPages) <= 2147483647;
+  const discoveryStarted = ["queued", "running", "complete"].includes(
+    proposal.discovery_stage ?? "awaiting_url",
+  );
+  const limitsHint = validLimits
+    ? "حدود بررسی آماده است."
+    : Number(maxPages) > 2147483647
+      ? "عدد کوچکتری برای سقف صفحات وارد کنید."
+      : !maxPages || !targetDetailPages
+        ? "سقف صفحات و تعداد آگهی هدف را وارد کنید تا تأیید فعال شود."
+        : "عددهای صحیح و مثبت وارد کنید؛ تعداد آگهی هدف نباید از سقف صفحات بیشتر باشد.";
   const [confirmed, setConfirmed] = useState(false);
   const [reason, setReason] = useState("");
   const claim = useMutation({
     mutationFn: () => claimSourceProposal(proposal.id),
-    onSuccess: () => setClaimed(true),
+    onSuccess: (reviewClaim) => {
+      setClaimExpiresAt(reviewClaim.expires_at);
+      setClaimExpired(false);
+      setClaimed(true);
+    },
   });
   const decision = useMutation({
     mutationFn: ({
@@ -147,9 +182,11 @@ export function ProposalReviewCard({
         target_detail_pages: Number(targetDetailPages),
       }),
     onSuccess: (updated) => {
-      setClaimed(true);
+      setClaimed(false);
+      setClaimExpired(false);
       setConfirmed(false);
       onDecisionSuccess(updated);
+      claim.mutate();
     },
   });
 
@@ -175,6 +212,42 @@ export function ProposalReviewCard({
                 )}
               </AlertDescription>
             </Alert>
+          )}
+          {proposal.state === "pending" && (claimed || claimExpired) && (
+            <div
+              role="status"
+              className="bg-primary/5 mb-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border p-4"
+            >
+              <div className="grid gap-1 text-sm">
+                <p className="font-medium">
+                  {claimExpired
+                    ? "مهلت بررسی شما تمام شد."
+                    : "بررسی این پرونده را پذیرفته‌اید."}
+                </p>
+                {claimed && claimExpiresAt && (
+                  <p>
+                    مهلت بررسی:{" "}
+                    <time dateTime={claimExpiresAt}>
+                      {new Date(claimExpiresAt).toLocaleString("fa-IR")}
+                    </time>
+                  </p>
+                )}
+                <p className="text-muted-foreground">
+                  رزرو بررسی ۱۵ دقیقه اعتبار دارد. پس از پایان مهلت، برای ثبت
+                  تصمیم باید دوباره بررسی را بپذیرید. مسئولیت منبع با پایان این
+                  مهلت تغییر نمی‌کند.
+                </p>
+              </div>
+              {canReview && (
+                <Button
+                  variant="outline"
+                  disabled={claim.isPending}
+                  onClick={() => claim.mutate()}
+                >
+                  {claimExpired ? "پذیرش دوباره بررسی" : "تمدید مهلت بررسی"}
+                </Button>
+              )}
+            </div>
           )}
           <CaseSection id="overview" title="نمای کلی و اعلام نماینده">
             {proposal.current_website_conflict && (
@@ -330,54 +403,80 @@ export function ProposalReviewCard({
                 <DiscoveryEvidence proposal={proposal} />
               </div>
               <div className="grid min-w-0 gap-4">
-                {(claimed || proposal.state === "approved") && (
-                  <fieldset className="grid gap-3 rounded-xl border p-4 sm:grid-cols-2">
-                    <legend className="px-1 font-medium">حدود کشف صفحات</legend>
-                    <p className="text-muted-foreground text-sm sm:col-span-2">
-                      موجودی تقریبی اعلام‌شده:{" "}
-                      {inventoryLabels[proposal.inventory_range || "unknown"]}.
-                      با توجه به این برآورد، حدود بررسی را تعیین کنید. کشف با
-                      رسیدن به هر کدام از این حدود یا پایان لینک‌های قابل بررسی
-                      متوقف می‌شود.
-                    </p>
-                    <div className="grid gap-2">
-                      <Label htmlFor={`max-pages-${proposal.id}`}>
-                        سقف صفحات قابل بررسی
-                      </Label>
-                      <Input
-                        id={`max-pages-${proposal.id}`}
-                        type="number"
-                        min={1}
-                        max={2147483647}
-                        step={1}
-                        value={maxPages}
-                        onChange={(event) => setMaxPages(event.target.value)}
-                      />
-                    </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor={`target-pages-${proposal.id}`}>
-                        تعداد آگهی اجاره هدف
-                      </Label>
-                      <Input
-                        id={`target-pages-${proposal.id}`}
-                        type="number"
-                        min={1}
-                        max={Number(maxPages) || undefined}
-                        step={1}
-                        value={targetDetailPages}
-                        onChange={(event) =>
-                          setTargetDetailPages(event.target.value)
-                        }
-                      />
-                    </div>
-                    <p className="text-muted-foreground text-sm sm:col-span-2">
-                      تعداد آگهی هدف نباید از سقف صفحات بیشتر باشد. صفحات فهرست
-                      هم در سقف صفحات حساب می‌شوند. پردازش طولانی با ذخیره
-                      پیشرفت ادامه می‌یابد. استخراج‌های بعدی هم از همین حدود
-                      استفاده می‌کنند.
-                    </p>
-                  </fieldset>
+                <p className="text-muted-foreground text-sm">
+                  ابتدا نشانی و اختیار نماینده را بررسی کنید، سپس حدود بررسی را
+                  وارد کنید و دریافت صفحات را تأیید کنید. پس از کشف صفحات، روش
+                  استخراج را در تب پروفایل بررسی می‌کنید؛ این مرحله هنوز آگهی
+                  منتشر نمی‌کند.
+                </p>
+                {!canReview && (
+                  <p role="status" className="text-sm">
+                    برای ثبت تصمیم به دسترسی بررسی منابع و، برای منابع فعال،
+                    مسئولیت این منبع نیاز دارید.
+                  </p>
                 )}
+                {(claimed || proposal.state === "approved") &&
+                  (proposal.state === "approved" || !discoveryStarted) && (
+                    <fieldset className="grid gap-3 rounded-xl border p-4 sm:grid-cols-2">
+                      <legend className="px-1 font-medium">
+                        ۱. حدود بررسی سایت
+                      </legend>
+                      <p className="text-muted-foreground text-sm sm:col-span-2">
+                        موجودی تقریبی اعلام‌شده:{" "}
+                        {inventoryLabels[proposal.inventory_range || "unknown"]}
+                        . با توجه به این برآورد، حدود بررسی را تعیین کنید. کشف
+                        با رسیدن به هر کدام از این حدود یا پایان لینک‌های قابل
+                        بررسی متوقف می‌شود.
+                      </p>
+                      <div className="grid gap-2">
+                        <Label htmlFor={`max-pages-${proposal.id}`}>
+                          سقف صفحات قابل بررسی
+                        </Label>
+                        <Input
+                          id={`max-pages-${proposal.id}`}
+                          type="number"
+                          min={1}
+                          max={2147483647}
+                          step={1}
+                          aria-describedby={`limits-hint-${proposal.id}`}
+                          required
+                          value={maxPages}
+                          onChange={(event) => setMaxPages(event.target.value)}
+                        />
+                      </div>
+                      <div className="grid gap-2">
+                        <Label htmlFor={`target-pages-${proposal.id}`}>
+                          تعداد آگهی اجاره هدف
+                        </Label>
+                        <Input
+                          id={`target-pages-${proposal.id}`}
+                          type="number"
+                          min={1}
+                          max={Number(maxPages) || undefined}
+                          step={1}
+                          aria-describedby={`limits-hint-${proposal.id}`}
+                          required
+                          value={targetDetailPages}
+                          onChange={(event) =>
+                            setTargetDetailPages(event.target.value)
+                          }
+                        />
+                      </div>
+                      <p
+                        id={`limits-hint-${proposal.id}`}
+                        aria-live="polite"
+                        className="text-sm sm:col-span-2"
+                      >
+                        {limitsHint}
+                      </p>
+                      <p className="text-muted-foreground text-sm sm:col-span-2">
+                        تعداد آگهی هدف نباید از سقف صفحات بیشتر باشد. صفحات
+                        فهرست هم در سقف صفحات حساب می‌شوند. پردازش طولانی با
+                        ذخیره پیشرفت ادامه می‌یابد. استخراج‌های بعدی هم از همین
+                        حدود استفاده می‌کنند.
+                      </p>
+                    </fieldset>
+                  )}
                 {proposal.state !== "pending" ? (
                   <div className="grid gap-3">
                     <p className="text-muted-foreground text-sm">
@@ -396,7 +495,23 @@ export function ProposalReviewCard({
                       دریافت دوباره صفحات و بررسی نسخه تازه پروفایل را تأیید
                       می‌کنم.
                     </label>
+                    <p
+                      id={`profile-start-help-${proposal.id}`}
+                      aria-live="polite"
+                      className="text-sm"
+                    >
+                      {proposal.state !== "approved"
+                        ? "این پرونده در انتظار تأیید نیست. وضعیت و دلیل تصمیم را در تب تاریخچه ببینید."
+                        : !canDecideSource
+                          ? "شروع بررسی تازه فقط برای اپراتور مسئول منبع با دسترسی بررسی منابع ممکن است."
+                          : proposal.current_website_conflict
+                            ? "ابتدا تعارض وب‌سایت را در تب نمای کلی برطرف کنید."
+                            : !validLimits
+                              ? limitsHint
+                              : "برای شروع، دریافت دوباره صفحات را تأیید کنید."}
+                    </p>
                     <Button
+                      aria-describedby={`profile-start-help-${proposal.id}`}
                       disabled={
                         proposal.state !== "approved" ||
                         !confirmed ||
@@ -437,20 +552,34 @@ export function ProposalReviewCard({
                     className="grid gap-4"
                     onSubmit={(event) => {
                       event.preventDefault();
-                      decision.mutate({ kind: "request-changes", reason });
+                      if (reason.trim())
+                        decision.mutate({ kind: "request-changes", reason });
                     }}
                   >
-                    <div className="grid gap-2">
-                      <Label htmlFor={`reason-${proposal.id}`}>
-                        دلیل تصمیم
-                      </Label>
-                      <Input
-                        id={`reason-${proposal.id}`}
-                        name="reason"
-                        value={reason}
-                        onChange={(event) => setReason(event.target.value)}
-                      />
-                    </div>
+                    <p
+                      id={`approval-help-${proposal.id}`}
+                      aria-live="polite"
+                      className="text-sm"
+                    >
+                      {proposal.current_website_conflict
+                        ? "ابتدا تعارض وب‌سایت را در تب نمای کلی برطرف کنید."
+                        : discoveryStarted
+                          ? "نشانی قبلاً تأیید شده است. پس از پایان کشف، بررسی را در تب پروفایل ادامه دهید."
+                          : !validLimits
+                            ? limitsHint
+                            : !confirmed
+                              ? "برای فعال شدن تأیید، بررسی نشانی و اختیار نماینده را علامت بزنید."
+                              : "آماده شروع کشف صفحات. تأیید نهایی روش استخراج در مرحله بعد انجام می‌شود."}
+                    </p>
+                    {discoveryStarted && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => onSectionChange("profile")}
+                      >
+                        رفتن به بررسی پروفایل
+                      </Button>
+                    )}
                     <label className="flex items-start gap-2 text-sm">
                       <input
                         type="checkbox"
@@ -463,54 +592,67 @@ export function ProposalReviewCard({
                     <div className="flex flex-wrap gap-2">
                       <Button
                         type="button"
-                        variant="outline"
-                        disabled={claim.isPending}
-                        onClick={() => claim.mutate()}
-                      >
-                        تمدید مسئولیت بررسی
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        disabled={!reason.trim() || release.isPending}
-                        onClick={() => release.mutate()}
-                      >
-                        آزادسازی مسئولیت و رزرو
-                      </Button>
-                      <Button
-                        type="submit"
-                        variant="outline"
-                        disabled={decision.isPending}
-                      >
-                        درخواست اصلاح
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="destructive"
-                        disabled={decision.isPending}
-                        onClick={() =>
-                          decision.mutate({ kind: "reject", reason })
-                        }
-                      >
-                        رد پیشنهاد
-                      </Button>
-                      <Button
-                        type="button"
                         disabled={
                           !confirmed ||
                           !validLimits ||
                           proposal.current_website_conflict ||
                           decision.isPending ||
-                          ["queued", "running", "complete"].includes(
-                            proposal.discovery_stage ?? "awaiting_url",
-                          )
+                          discoveryStarted
                         }
+                        aria-describedby={`approval-help-${proposal.id}`}
                         onClick={() =>
                           decision.mutate({ kind: "approve", reason: "" })
                         }
                       >
                         تأیید نشانی و شروع کشف
                       </Button>
+                    </div>
+                    <div className="mt-2 grid gap-3 border-t pt-4">
+                      <h3 className="text-sm font-medium">
+                        اصلاح، رد یا انصراف از بررسی
+                      </h3>
+                      <div className="grid gap-2">
+                        <p className="text-muted-foreground text-sm">
+                          دلیل فقط برای درخواست اصلاح، رد یا انصراف لازم است؛
+                          تأیید نشانی به دلیل نیاز ندارد.
+                        </p>
+                        <Label htmlFor={`reason-${proposal.id}`}>
+                          دلیل تصمیم
+                        </Label>
+                        <Input
+                          id={`reason-${proposal.id}`}
+                          name="reason"
+                          value={reason}
+                          onChange={(event) => setReason(event.target.value)}
+                        />
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          disabled={!reason.trim() || release.isPending}
+                          onClick={() => release.mutate()}
+                        >
+                          انصراف از بررسی و آزادسازی رزرو
+                        </Button>
+                        <Button
+                          type="submit"
+                          variant="outline"
+                          disabled={!reason.trim() || decision.isPending}
+                        >
+                          درخواست اصلاح
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          disabled={!reason.trim() || decision.isPending}
+                          onClick={() =>
+                            decision.mutate({ kind: "reject", reason })
+                          }
+                        >
+                          رد پیشنهاد
+                        </Button>
+                      </div>
                     </div>
                   </form>
                 )}
@@ -623,39 +765,20 @@ export function ProposalReviewCard({
             )}
           </CaseSection>
           <CaseSection id="processing" title="تنظیمات پردازش و انتشار">
-            {proposal.assignment && (
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="bg-muted/30 rounded-xl border p-4">
-                  <div className="text-muted-foreground flex items-center gap-2 text-sm">
-                    {proposal.assignment.source.processing_paused ? (
-                      <PauseCircle className="size-5" />
-                    ) : (
-                      <PlayCircle className="size-5" />
-                    )}
-                    دریافت و پردازش صفحات
-                  </div>
-                  <p className="mt-3 text-lg font-semibold">
-                    {proposal.assignment.state !== "active"
-                      ? "تخصیص غیرفعال"
-                      : proposal.assignment.source.processing_paused
-                        ? "متوقف"
-                        : "فعال"}
-                  </p>
-                </div>
-                <div className="bg-muted/30 rounded-xl border p-4">
-                  <div className="text-muted-foreground flex items-center gap-2 text-sm">
-                    <Workflow className="size-5" />
-                    انتشار نتیجه معتبر
-                  </div>
-                  <p className="mt-3 text-lg font-semibold">
-                    {proposal.assignment.review_mode === "automatic"
-                      ? "خودکار"
-                      : proposal.assignment.review_mode === "approval_required"
-                        ? "پس از تأیید اپراتور"
-                        : "تعیین نشده"}
-                  </p>
-                </div>
-              </div>
+            <SourceProcessingStatus
+              proposal={proposal}
+              updatedAt={statusUpdatedAt}
+              stale={statusStale}
+              onResults={() => {
+                setResultView("runs");
+                onSectionChange("exceptions");
+              }}
+            />
+            {proposal.assignment?.state === "active" && !canDecideSource && (
+              <p className="text-muted-foreground text-sm">
+                مشاهده وضعیت برای شما ممکن است. تغییر تنظیمات فقط برای اپراتور
+                مسئول منبع با دسترسی بررسی منابع فعال است.
+              </p>
             )}
             <div className="grid items-start gap-5 lg:grid-cols-2">
               {" "}
@@ -674,11 +797,6 @@ export function ProposalReviewCard({
                     onUpdate={onDecisionSuccess}
                   />
                 )}
-              {!proposal.assignment && (
-                <p className="text-muted-foreground text-sm">
-                  پس از تأیید پروفایل و تخصیص منبع در دسترس قرار می‌گیرد.
-                </p>
-              )}
             </div>
           </CaseSection>
           <CaseSection id="exceptions" title="استثناها و نتایج پردازش">

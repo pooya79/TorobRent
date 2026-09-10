@@ -565,11 +565,9 @@ test.each([
         </MemoryRouter>
       </QueryClientProvider>,
     );
-    expect(await screen.findByText("تخصیص منبع فعال است")).toBeVisible();
-    expect(screen.getByText("خانه‌یاب")).toBeVisible();
-    expect(screen.getByText("www.khaneh.example")).toBeVisible();
-    expect(screen.getByText("نسخه فعال پروفایل: ۳")).toBeVisible();
-    expect(screen.getByText(explanation)).toBeVisible();
+    expect(await screen.findByText("وب‌سایت تأیید شده است")).toBeVisible();
+    expect(screen.queryByText("نسخه فعال پروفایل: ۳")).not.toBeInTheDocument();
+    expect(screen.queryByText(explanation)).not.toBeInTheDocument();
     expect(screen.getByText("پروفایل منبع تأیید شد.")).toBeVisible();
     expect(
       screen.queryByText("کشف پایان یافت؛ در انتظار بررسی پروفایل"),
@@ -582,7 +580,7 @@ test.each([
   },
 );
 
-test("submits an assigned URL and displays run counters and transient errors", async () => {
+test("submits an assigned URL and shows a concise outcome without technical errors", async () => {
   const user = userEvent.setup();
   let submitted = false;
   const runRequest = {
@@ -654,27 +652,26 @@ test("submits an assigned URL and displays run counters and transient errors", a
       </MemoryRouter>
     </QueryClientProvider>,
   );
+  await user.click(await screen.findByText("معرفی صفحه تازه از همین وب‌سایت"));
   await user.type(
     await screen.findByLabelText("نشانی برای استخراج"),
     "https://khaneh.example/rentals",
   );
-  expect(screen.getByText(/حدود تأییدشده هر استخراج: هدف ۶۰/)).toBeVisible();
-  await user.click(screen.getByRole("button", { name: "درخواست استخراج" }));
-  expect(await screen.findByText("خطای موقت")).toBeVisible();
-  expect(screen.getByText("سقف صفحات بررسی‌شده تکمیل شد.")).toBeVisible();
   expect(
-    screen.getByText(/هدف: ۶۰ آگهی اجاره؛ سقف بررسی: ۱۰۰ صفحه/),
+    screen.queryByText(/حدود تأییدشده هر استخراج/),
+  ).not.toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "درخواست استخراج" }));
+  expect(await screen.findByText("بررسی کامل نشد")).toBeVisible();
+  expect(
+    screen.getByText("۰ آگهی در این درخواست منتشر شده است."),
   ).toBeVisible();
-  for (const label of [
-    "کشف‌شده",
-    "استخراج‌شده",
-    "منتشرشده",
-    "نیازمند توجه",
-    "ردشده",
-    "ناموفق",
-  ]) {
-    expect(screen.getAllByText(label).length).toBeGreaterThan(0);
-  }
+  expect(
+    screen.getByText("برای پیگیری این درخواست با تیم بررسی تماس بگیرید."),
+  ).toBeVisible();
+  expect(screen.queryByText("خطای موقت")).not.toBeInTheDocument();
+  expect(
+    screen.queryByText("سقف صفحات بررسی‌شده تکمیل شد."),
+  ).not.toBeInTheDocument();
 });
 
 test("combines neighborhood search with status and clears empty filters", async () => {

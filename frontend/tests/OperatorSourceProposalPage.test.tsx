@@ -63,7 +63,7 @@ test("inspects, claims, and requests changes to a Source Proposal", async () => 
           id: "20000000-0000-4000-8000-000000000088",
           operator_label: "operator@example.com",
           revision: 1,
-          expires_at: "2026-09-01T08:15:00Z",
+          expires_at: new Date(Date.now() + 900_000).toISOString(),
           created_at: "2026-09-01T08:00:00Z",
         },
         { status: 201 },
@@ -187,7 +187,7 @@ test("reviews each External Listing candidate independently", async () => {
             id: "50000000-0000-4000-8000-000000000001",
             operator_label: "operator@example.com",
             revision: 1,
-            expires_at: "2026-09-01T08:15:00Z",
+            expires_at: new Date(Date.now() + 900_000).toISOString(),
             created_at: "2026-09-01T08:00:00Z",
           },
           { status: 201 },
@@ -337,7 +337,7 @@ test("URL approval keeps the case visible with Discovery evidence and renewable 
     http.post("*/api/v1/operator/source-proposals/:proposalId/claim/", () => {
       claimCount += 1;
       return HttpResponse.json(
-        { expires_at: "2026-09-05T08:15:00Z" },
+        { expires_at: new Date(Date.now() + 900_000).toISOString() },
         { status: 201 },
       );
     }),
@@ -370,6 +370,9 @@ test("URL approval keeps the case visible with Discovery evidence and renewable 
     name: "تأیید نشانی و شروع کشف",
   });
   expect(approve).toBeDisabled();
+  expect(approve).toHaveAccessibleDescription(
+    /سقف صفحات و تعداد آگهی هدف را وارد کنید/,
+  );
   expect(screen.getByText(/موجودی تقریبی اعلام‌شده/)).toHaveTextContent(
     "۵۱ تا ۲۰۰",
   );
@@ -397,7 +400,7 @@ test("URL approval keeps the case visible with Discovery evidence and renewable 
   expect(
     screen.getByRole("button", { name: "تأیید نشانی و شروع کشف" }),
   ).toBeDisabled();
-  await user.click(screen.getByRole("button", { name: "تمدید مسئولیت بررسی" }));
+  await user.click(screen.getByRole("button", { name: "تمدید مهلت بررسی" }));
   expect(claimCount).toBe(2);
   server.use(
     http.post(
@@ -407,7 +410,7 @@ test("URL approval keeps the case visible with Discovery evidence and renewable 
   );
   await user.type(screen.getByLabelText("دلیل تصمیم"), "بررسی متوقف شد");
   await user.click(
-    screen.getByRole("button", { name: "آزادسازی مسئولیت و رزرو" }),
+    screen.getByRole("button", { name: "انصراف از بررسی و آزادسازی رزرو" }),
   );
   expect(
     await screen.findByText("رزرو آزاد شد؛ در انتظار بررسی دوباره"),
@@ -676,6 +679,12 @@ test("keeps approved Source cases available for run monitoring", async () => {
   const user = userEvent.setup();
   let reviewBody: unknown;
   server.use(
+    http.post("*/api/v1/operator/source-proposals/:proposalId/claim/", () =>
+      HttpResponse.json(
+        { expires_at: new Date(Date.now() + 900_000).toISOString() },
+        { status: 201 },
+      ),
+    ),
     http.get("*/api/v1/users/me/", () =>
       HttpResponse.json({
         id: "operator",
@@ -743,9 +752,13 @@ test("keeps approved Source cases available for run monitoring", async () => {
     </QueryClientProvider>,
   );
   expect(
-    await screen.findByText("https://khaneh.example/new-rentals"),
+    await within(await screen.findByRole("tabpanel")).findByText(
+      "https://khaneh.example/new-rentals",
+    ),
   ).toBeVisible();
-  expect(screen.getByText("در حال استخراج")).toBeVisible();
+  expect(
+    within(screen.getByRole("tabpanel")).getByText("در حال استخراج"),
+  ).toBeVisible();
   expect(screen.queryByRole("button", { name: "شروع بررسی" })).toBeNull();
   expect(screen.queryByRole("button", { name: "درخواست استخراج" })).toBeNull();
   await user.click(screen.getByRole("tab", { name: "نشانی و کشف" }));
@@ -1545,7 +1558,7 @@ test("requires explicit legacy conflict resolution before URL approval", async (
   expect(
     await screen.findByRole("button", { name: "تأیید نشانی و شروع کشف" }),
   ).toBeDisabled();
-  expect(screen.getByRole("button", { name: "رد پیشنهاد" })).toBeEnabled();
+  expect(screen.getByRole("button", { name: "رد پیشنهاد" })).toBeDisabled();
 });
 
 test.each(["changes_requested", "rejected"])(
@@ -1706,6 +1719,7 @@ test.each([
           {
             ...proposal,
             state: "approved",
+            discovery_stage: "complete",
             responsibility: {
               operator: "next",
               operator_label: "next@example.com",
@@ -1755,6 +1769,22 @@ test.each([
       Boolean(screen.queryByRole("button", { name: "ثبت روش انتشار" })),
     ).toBe(allowed);
     await userEvent.click(screen.getByRole("tab", { name: "نشانی و کشف" }));
+    if (allowed) {
+      await userEvent.type(
+        screen.getByLabelText("سقف صفحات قابل بررسی"),
+        "250",
+      );
+      await userEvent.type(
+        screen.getByLabelText("تعداد آگهی اجاره هدف"),
+        "200",
+      );
+      await userEvent.click(
+        screen.getByLabelText(/دریافت دوباره صفحات و بررسی نسخه تازه/),
+      );
+      expect(
+        screen.getByRole("button", { name: "آغاز بررسی نسخه تازه پروفایل" }),
+      ).toBeEnabled();
+    }
     if (!allowed)
       expect(
         screen.getByRole("button", { name: "آغاز بررسی نسخه تازه پروفایل" }),
@@ -2025,5 +2055,63 @@ test("pauses a Source separately and resumes with explicit fresh publication mod
   );
   expect(
     await screen.findByRole("button", { name: "توقف پردازش منبع" }),
+  ).toBeVisible();
+});
+
+test("shows an expired review reservation and lets the operator claim it again", async () => {
+  const user = userEvent.setup();
+  let claims = 0;
+  server.use(
+    http.get("*/api/v1/operator/source-proposals/", () =>
+      HttpResponse.json([proposal]),
+    ),
+    http.post("*/api/v1/operator/source-proposals/:id/claim/", () => {
+      claims += 1;
+      return HttpResponse.json(
+        {
+          expires_at: new Date(
+            Date.now() + (claims === 1 ? -1000 : 900_000),
+          ).toISOString(),
+        },
+        { status: 201 },
+      );
+    }),
+  );
+  render(
+    <QueryClientProvider
+      client={
+        new QueryClient({ defaultOptions: { queries: { retry: false } } })
+      }
+    >
+      <MemoryRouter initialEntries={["/#url"]}>
+        <OperatorSourceProposalDetailPage proposalId={proposal.id} />
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+  await user.click(await screen.findByRole("button", { name: "شروع بررسی" }));
+  expect(await screen.findByText("مهلت بررسی شما تمام شد.")).toBeVisible();
+  expect(
+    screen.queryByRole("button", { name: "تأیید نشانی و شروع کشف" }),
+  ).not.toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "پذیرش دوباره بررسی" }));
+  expect(
+    await screen.findByText("بررسی این پرونده را پذیرفته‌اید."),
+  ).toBeVisible();
+  expect(screen.getByText(/مهلت بررسی:/)).toBeVisible();
+  expect(
+    screen.getByRole("button", { name: "تأیید نشانی و شروع کشف" }),
+  ).toBeDisabled();
+  await user.type(screen.getByLabelText("سقف صفحات قابل بررسی"), "250");
+  await user.type(screen.getByLabelText("تعداد آگهی اجاره هدف"), "200");
+  expect(
+    screen.getByRole("button", { name: "تأیید نشانی و شروع کشف" }),
+  ).toHaveAccessibleDescription(/علامت بزنید/);
+  await user.click(screen.getByLabelText(/نشانی و اختیار نماینده/));
+  expect(
+    screen.getByRole("button", { name: "تأیید نشانی و شروع کشف" }),
+  ).toBeEnabled();
+  await user.click(screen.getByRole("tab", { name: "پروفایل" }));
+  expect(
+    screen.getByRole("button", { name: "تمدید مهلت بررسی" }),
   ).toBeVisible();
 });

@@ -2,7 +2,6 @@ import { SourceConversationButton } from "@/features/source-proposals/SourceConv
 import { CurrentWebsiteStatus } from "@/features/source-proposals/CurrentWebsiteStatus";
 import { SourceAssignmentSummary } from "@/features/source-proposals/SourceAssignmentSummary";
 import { AccountWorkspace } from "@/features/account/AccountWorkspace";
-import { discoveryStageLabels } from "@/features/source-proposals/discovery-labels";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CheckCircle2, Globe2, ShieldCheck } from "lucide-react";
 import { useState, type FormEvent, type ReactNode } from "react";
@@ -86,7 +85,10 @@ export function SourceProposalPage() {
       );
     },
     refetchInterval: (query) =>
-      query.state.data?.assignment?.state === "active" ? 5000 : false,
+      query.state.data?.assignment?.state === "active" ||
+      query.state.data?.state === "pending"
+        ? 5000
+        : false,
     retry: false,
   });
   const proposal = proposalOverride ?? resume.data;
@@ -140,7 +142,11 @@ export function SourceProposalPage() {
       return submitSourceProposal(proposal.id);
     },
     onSuccess: (data) => {
-      setProposal(data);
+      queryClient.setQueryData(
+        ["source-proposal-resume", proposalId, startNew],
+        data,
+      );
+      setProposal(undefined);
       queryClient.setQueryData<SourceProposal[]>(
         ["source-proposals"],
         (current) =>
@@ -179,6 +185,9 @@ export function SourceProposalPage() {
       <PageFrame>
         <Card className="mx-auto max-w-2xl shadow-none">
           <CardContent className="grid gap-5 pt-6">
+            <h1 className="text-2xl font-semibold">
+              {proposal.website_name || "وب‌سایت شما"}
+            </h1>
             <CurrentWebsiteStatus proposal={proposal} />
             {(proposal.state !== "draft" || (proposal.revision ?? 1) > 1) && (
               <SourceConversationButton proposalId={proposal.id} />
@@ -212,14 +221,17 @@ export function SourceProposalPage() {
             <h1 className="text-2xl font-semibold">در انتظار بررسی اپراتور</h1>
             <CurrentWebsiteStatus proposal={proposal} />
             <SourceConversationButton proposalId={proposal.id} />
-            <p role="status">
-              {discoveryStageLabels[proposal.discovery_stage ?? "awaiting_url"]}
-            </p>
-            {proposal.discovery_message && <p>{proposal.discovery_message}</p>}
             <p className="text-muted-foreground leading-7">
-              پیشنهاد وب‌سایت {proposal.website_name} ثبت شده است. کشف اطلاعات
-              به معنی تأیید منبع یا انتشار آگهی نیست.
+              پیشنهاد وب‌سایت {proposal.website_name} ثبت شده است.{" "}
+              {proposal.discovery_message
+                ? "پیام تیم بررسی را بخوانید."
+                : "نتیجه بررسی همین‌جا نمایش داده می‌شود؛ فعلاً نیازی به اقدام شما نیست."}
             </p>
+            {proposal.discovery_message && (
+              <p className="rounded-lg border p-3 text-start">
+                {proposal.discovery_message}
+              </p>
+            )}
             <Button asChild>
               <Link to="/dashboard">مشاهده وضعیت در داشبورد</Link>
             </Button>

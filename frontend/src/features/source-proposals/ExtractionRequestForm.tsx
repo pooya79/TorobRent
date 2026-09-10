@@ -29,9 +29,12 @@ export function ExtractionRequestForm({
     },
     onSuccess: async () => {
       setUrl("");
-      await client.invalidateQueries({
-        queryKey: sourceProposalsQueryOptions.queryKey,
-      });
+      await Promise.all([
+        client.invalidateQueries({
+          queryKey: sourceProposalsQueryOptions.queryKey,
+        }),
+        client.invalidateQueries({ queryKey: ["source-proposal-resume"] }),
+      ]);
     },
   });
   return (

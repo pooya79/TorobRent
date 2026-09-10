@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { MemoryRouter, useLocation } from "react-router";
@@ -225,6 +225,29 @@ test("saves website details and confirms the no-fetch summary", async () => {
 
   expect(await screen.findByText("در انتظار بررسی اپراتور")).toBeVisible();
   expect(submittedBody).toEqual({ preview_confirmed: true });
+  server.use(
+    http.get("*/api/v1/source-proposals/", () =>
+      HttpResponse.json([
+        {
+          ...base,
+          state: "approved",
+          is_current: true,
+          website_name: "خانه‌یاب",
+          assignment: {
+            id: 12,
+            state: "active",
+            source: { processing_paused: false },
+            recent_requests: [],
+          },
+        },
+      ]),
+    ),
+  );
+  await act(() =>
+    queryClient.invalidateQueries({ queryKey: ["source-proposal-resume"] }),
+  );
+  expect(await screen.findByText("وب‌سایت تأیید شده است")).toBeVisible();
+  expect(screen.queryByText("در انتظار بررسی اپراتور")).not.toBeInTheDocument();
 });
 
 test("restores a pending Source Proposal with actionable discovery feedback", async () => {
@@ -660,7 +683,8 @@ test.each([
       </QueryClientProvider>,
     );
     expect(await screen.findByText("وب‌سایت جاری شما")).toBeInTheDocument();
-    expect(screen.getByText(label)).toBeVisible();
+    expect(screen.queryByText(label)).not.toBeInTheDocument();
+    expect(screen.getByText("وب‌سایت تأیید شده است")).toBeVisible();
     expect(screen.queryByRole("radio")).not.toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "ثبت روش انتشار" }),
@@ -669,6 +693,9 @@ test.each([
       screen.getByText(/برای جایگزینی وب‌سایت، ابتدا/),
     ).toBeInTheDocument();
     expect(screen.queryByLabelText("نام وب‌سایت")).not.toBeInTheDocument();
+    await userEvent.click(
+      screen.getByText("می‌خواهید وب‌سایت دیگری معرفی کنید؟"),
+    );
     expect(
       screen.getByRole("link", { name: "هماهنگی با اپراتور در مرکز پیام‌ها" }),
     ).toHaveAttribute("href", "/messages");
@@ -756,8 +783,10 @@ test.each(["approved", "pending"])(
         </MemoryRouter>
       </QueryClientProvider>,
     );
-    expect(await screen.findByText("پردازش منبع متوقف است.")).toBeVisible();
-    expect(screen.getByText("تخصیص منبع فعال است")).toBeVisible();
+    expect(
+      await screen.findByText("بررسی آگهی‌های تازه موقتاً متوقف است."),
+    ).toBeVisible();
+    expect(screen.getByText("وب‌سایت تأیید شده است")).toBeVisible();
     expect(
       screen.queryByRole("button", { name: "ازسرگیری با استخراج تازه" }),
     ).not.toBeInTheDocument();
@@ -808,10 +837,18 @@ test("refreshes active Source status while the representative keeps the screen o
       </MemoryRouter>
     </QueryClientProvider>,
   );
-  expect(await screen.findByText("پردازش منبع فعال است.")).toBeVisible();
+  expect(
+    await screen.findByText(
+      "نتیجه درخواست‌های شما در همین صفحه نمایش داده می‌شود.",
+    ),
+  ).toBeVisible();
   paused = true;
   expect(
-    await screen.findByText("پردازش منبع متوقف است.", {}, { timeout: 6500 }),
+    await screen.findByText(
+      "بررسی آگهی‌های تازه موقتاً متوقف است.",
+      {},
+      { timeout: 6500 },
+    ),
   ).toBeVisible();
   expect(
     screen.queryByRole("button", { name: "درخواست استخراج" }),

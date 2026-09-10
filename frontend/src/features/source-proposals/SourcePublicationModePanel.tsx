@@ -56,21 +56,9 @@ export function SourcePublicationModePanel({
       <fieldset className="grid gap-3" disabled={mutation.isPending}>
         <legend className="mb-3 font-semibold">روش انتشار منبع</legend>
         <p className="text-muted-foreground text-sm">
-          انتخاب کنید نتایج معتبر خودکار منتشر شوند یا منتظر تأیید اپراتور
-          بمانند.
+          استخراج در هر دو حالت انجام می‌شود. انتخاب کنید آگهی‌های به‌دست‌آمده
+          چه زمانی در سایت نمایش داده شوند.
         </p>
-        <details className="text-muted-foreground text-sm">
-          <summary className="text-foreground cursor-pointer">
-            اثر تغییر روش بر نتایج قبلی
-          </summary>
-          <div className="mt-3">
-            <p className="text-muted-foreground text-sm">
-              فعال‌سازی خودکار فقط برای درخواست‌های تازه است؛ نتایج قبلی با
-              تأیید صریح منتشر می‌شود. غیرفعال‌سازی، انتشار خودکار کارهای در صف
-              و در حال اجرا را هم متوقف می‌کند و نتایج برای بررسی باقی می‌ماند.
-            </p>
-          </div>
-        </details>
         {(
           [
             ["approval_required", "نیازمند تأیید انتشار"],
@@ -82,6 +70,8 @@ export function SourcePublicationModePanel({
             className="has-[:checked]:border-primary has-[:checked]:bg-primary/5 hover:bg-muted flex cursor-pointer items-start gap-3 rounded-xl border p-4 text-sm leading-6"
           >
             <Input
+              aria-label={label}
+              aria-describedby={`publication-description-${proposal.id}-${value}`}
               type="radio"
               name={`publication-mode-${proposal.id}`}
               className="mt-1 size-4 shrink-0"
@@ -89,16 +79,43 @@ export function SourcePublicationModePanel({
               checked={mode === value}
               onChange={() => setSelection(value)}
             />
-            {label}
+            <span className="grid gap-1">
+              <span className="font-medium">{label}</span>
+              <span
+                id={`publication-description-${proposal.id}-${value}`}
+                className="text-muted-foreground"
+              >
+                {value === "approval_required"
+                  ? "سامانه آگهی‌ها را استخراج می‌کند و نگه می‌دارد. شما نتایج را بررسی می‌کنید و انتشارشان را تأیید می‌کنید."
+                  : "نتایجی که بررسی‌های اعتبار را می‌گذرانند بدون تأیید جداگانه شما منتشر می‌شوند. موارد مشکل‌دار همچنان نیاز به رسیدگی دارند."}
+              </span>
+            </span>
           </label>
         ))}
+        <p
+          id={`mode-change-${proposal.id}`}
+          role="status"
+          className="bg-muted/30 rounded-lg p-3 text-sm"
+        >
+          {!selection || selection === assignment.review_mode
+            ? "این روش ذخیره شده است. برای تغییر، گزینه دیگر را انتخاب و سپس ثبت کنید."
+            : selection === "automatic"
+              ? "تغییر هنوز ثبت نشده است. پس از ثبت، فقط درخواست‌های تازه مجوز انتشار خودکار می‌گیرند؛ نتایج قبلی همچنان به تأیید شما نیاز دارند. این کار استخراج تازه شروع نمی‌کند."
+              : "تغییر هنوز ثبت نشده است. پس از ثبت، انتشار خودکار درخواست‌های در صف و در حال اجرا هم متوقف می‌شود؛ استخراج ادامه دارد و نتایج منتظر تأیید شما می‌مانند."}
+        </p>
         <Button
+          aria-describedby={`mode-change-${proposal.id}`}
           type="submit"
           disabled={!selection || selection === assignment.review_mode}
         >
-          ثبت روش انتشار
+          {mutation.isPending ? "در حال ثبت…" : "ثبت روش انتشار"}
         </Button>
       </fieldset>
+      {mutation.isSuccess && (
+        <p role="status" className="text-sm">
+          روش انتشار ذخیره شد.
+        </p>
+      )}
       {mutation.error && (
         <p role="alert">
           {errorMessage(

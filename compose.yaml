@@ -130,6 +130,7 @@ services:
     working_dir: /app/frontend
     command: sh -c "pnpm install --frozen-lockfile --store-dir=/pnpm/store && pnpm dev"
     environment:
+      PNPM_CONFIG_UPDATE_NOTIFIER: "false"
       VITE_PROXY_TARGET: http://backend:8000
       VITE_MAP_ADAPTER: ${VITE_MAP_ADAPTER:-openstreetmap}
       VITE_NESHAN_MAP_KEY: ${VITE_NESHAN_MAP_KEY:-}

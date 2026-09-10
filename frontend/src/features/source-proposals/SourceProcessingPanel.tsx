@@ -54,21 +54,10 @@ export function SourceProcessingPanel({
     >
       <h4 className="font-semibold">کنترل پردازش منبع</h4>
       <p className="text-muted-foreground text-sm">
-        با توقف پردازش، دریافت صفحات و انتشار نتایج ناتمام متوقف می‌شود.
+        {paused
+          ? "برای ادامه، یک استخراج تازه با پروفایل تأییدشده و حدود فعلی شروع می‌شود. نتایج ناتمام قبلی فقط در سابقه می‌مانند."
+          : "توقف، دریافت صفحات و انتشار نتایج ناتمام را متوقف می‌کند. آگهی‌های منتشرشده تا پایان اعتبارشان باقی می‌مانند."}
       </p>
-      <details className="text-muted-foreground text-sm">
-        <summary className="text-foreground cursor-pointer">
-          توقف و ازسرگیری چه اثری دارد؟
-        </summary>
-        <div className="mt-3">
-          <p className="text-muted-foreground text-sm">
-            توقف، دریافت صفحات و انتشار نتایج ناتمام را متوقف می‌کند. آگهی‌های
-            منتشرشده تا پایان اعتبار خود باقی می‌مانند. ازسرگیری، صفحات را با
-            پروفایل فعال و محدودیت‌های فعلی دوباره دریافت می‌کند؛ نتایج قدیمی
-            فقط در سابقه می‌مانند.
-          </p>
-        </div>
-      </details>
       <fieldset disabled={mutation.isPending} className="grid gap-3">
         {paused && (
           <>
@@ -86,21 +75,60 @@ export function SourceProcessingPanel({
                 className="has-[:checked]:border-primary has-[:checked]:bg-primary/5 hover:bg-muted flex cursor-pointer items-start gap-3 rounded-xl border p-4 text-sm leading-6"
               >
                 <Input
+                  aria-label={label}
+                  aria-describedby={`resume-description-${proposal.id}-${value}`}
                   type="radio"
                   className="mt-1 size-4 shrink-0"
                   name={`resume-mode-${proposal.id}`}
                   checked={mode === value}
                   onChange={() => setMode(value)}
                 />
-                {label}
+                <span className="grid gap-1">
+                  <span className="font-medium">{label}</span>
+                  <span
+                    id={`resume-description-${proposal.id}-${value}`}
+                    className="text-muted-foreground"
+                  >
+                    {value === "approval_required"
+                      ? "صفحات دوباره خوانده می‌شوند؛ نتایج تازه تا تأیید شما منتشر نمی‌شوند."
+                      : "صفحات دوباره خوانده می‌شوند؛ نتایج معتبر تازه بدون تأیید جداگانه منتشر می‌شوند."}
+                  </span>
+                </span>
               </label>
             ))}
           </>
         )}
-        <Button type="submit" disabled={!!paused && !mode}>
-          {paused ? "ازسرگیری با استخراج تازه" : "توقف پردازش منبع"}
+        {paused && (
+          <p
+            id={`resume-hint-${proposal.id}`}
+            role="status"
+            className="text-sm"
+          >
+            {!mode
+              ? "برای فعال شدن دکمه، روش انتشار نتایج تازه را انتخاب کنید."
+              : "با ازسرگیری، درخواست تازه در صف استخراج قرار می‌گیرد."}
+          </p>
+        )}
+        <Button
+          type="submit"
+          variant={paused ? "default" : "outline"}
+          aria-describedby={paused ? `resume-hint-${proposal.id}` : undefined}
+          disabled={!!paused && !mode}
+        >
+          {mutation.isPending
+            ? "در حال ثبت…"
+            : paused
+              ? "ازسرگیری با استخراج تازه"
+              : "توقف پردازش منبع"}
         </Button>
       </fieldset>
+      {mutation.isSuccess && (
+        <p role="status" className="text-sm">
+          {paused
+            ? "توقف پردازش ثبت شد."
+            : "درخواست استخراج تازه ثبت شد؛ شروع و پیشرفت آن را در وضعیت بالا ببینید."}
+        </p>
+      )}
       {mutation.error && (
         <p role="alert">
           {errorMessage(

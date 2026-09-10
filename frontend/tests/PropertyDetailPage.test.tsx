@@ -81,7 +81,7 @@ test("keeps unknown features distinct and shows the neutral media placeholder", 
   expect(screen.getByText("پارکینگ").parentElement).toHaveTextContent("دارد");
 });
 
-test("compares every active Listing and makes source disagreements visible", () => {
+test("shows listing details without raw source disagreements", () => {
   render(<PropertyDetailPage property={property} />);
 
   const direct = screen.getByRole("article", {
@@ -90,9 +90,9 @@ test("compares every active Listing and makes source disagreements visible", () 
   const external = screen.getByRole("article", { name: "آگهی منبع نمونه" });
   expect(direct).toHaveTextContent("۱٬۰۰۰٬۰۰۰٬۰۰۰ تومان");
   expect(external).toHaveTextContent("۸۰۰٬۰۰۰٬۰۰۰ تومان");
-  expect(external).toHaveTextContent("اختلاف با مشخصات تأییدشده");
-  expect(external).toHaveTextContent("متراژ: منبع ۱۰۸، تأییدشده ۱۱۰");
-  expect(external).toHaveTextContent("پارکینگ: منبع ندارد، تأییدشده دارد");
+  expect(external).not.toHaveTextContent("اختلاف با مشخصات تأییدشده");
+  expect(external).not.toHaveTextContent("متراژ: منبع ۱۰۸، تأییدشده ۱۱۰");
+  expect(external).not.toHaveTextContent("پارکینگ: منبع ندارد، تأییدشده دارد");
   expect(
     screen.getByRole("img", { name: "تصویر ملک از منبع نمونه" }),
   ).toHaveAttribute("src", "/api/v1/catalog/media/image-42/");

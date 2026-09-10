@@ -95,23 +95,6 @@ const featureStateLabels: Record<FeatureState, string> = {
   unknown: "نامشخص",
 };
 
-const sourceClaimLabels: Record<string, string> = {
-  property_type: "نوع ملک",
-  area_sqm: "متراژ",
-  room_count: "تعداد اتاق",
-  construction_year: "سال ساخت",
-  floor: "طبقه",
-  total_floors: "تعداد طبقات",
-  units_per_floor: "واحد در طبقه",
-  parking: "پارکینگ",
-  elevator: "آسانسور",
-  storage: "انباری",
-  balcony: "بالکن",
-  furnished: "مبله",
-  heating: "گرمایش",
-  cooling: "سرمایش",
-};
-
 function formatNumber(value: number) {
   return new Intl.NumberFormat("fa-IR").format(value);
 }
@@ -121,17 +104,6 @@ function formatFreshness(value: string) {
     dateStyle: "medium",
     timeZone: "Asia/Tehran",
   }).format(new Date(value));
-}
-
-function formatClaimValue(value: unknown) {
-  if (typeof value === "number") return formatNumber(value);
-  if (typeof value === "string" && value in featureStateLabels) {
-    return featureStateLabels[value as FeatureState];
-  }
-  if (value === null) return "ثبت نشده";
-  if (typeof value === "string") return value;
-  if (typeof value === "boolean") return value ? "بله" : "خیر";
-  return JSON.stringify(value) ?? "ثبت نشده";
 }
 
 function ListingContinuation({
@@ -680,20 +652,6 @@ export function PropertyDetailPage({
                         {listing.description}
                       </p>
                     </div>
-                  )}
-                  {listing.disagreements.length > 0 && (
-                    <section className="bg-muted/60 rounded-xl border p-3">
-                      <h3 className="text-sm font-semibold">
-                        اختلاف با مشخصات تأییدشده
-                      </h3>
-                      <ul className="text-muted-foreground mt-2 space-y-2 text-xs leading-6">
-                        {listing.disagreements.map((disagreement) => (
-                          <li
-                            key={disagreement.field}
-                          >{`${sourceClaimLabels[disagreement.field] ?? disagreement.field}: منبع ${formatClaimValue(disagreement.source_value)}، تأییدشده ${formatClaimValue(disagreement.normalized_value)}`}</li>
-                        ))}
-                      </ul>
-                    </section>
                   )}
                   <p className="text-muted-foreground flex items-center gap-2 text-xs leading-6">
                     <Clock3 className="size-3.5 shrink-0" aria-hidden="true" />

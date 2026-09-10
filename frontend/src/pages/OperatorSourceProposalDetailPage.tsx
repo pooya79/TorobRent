@@ -43,13 +43,11 @@ export function OperatorSourceProposalDetailPage({
   const proposal = proposals.data?.find((item) => item.id === id);
   useEffect(() => {
     const revealTab = () =>
-      document
-        .getElementById(`tab-${activeSection}`)
-        ?.scrollIntoView?.({
-          behavior: "instant",
-          block: "nearest",
-          inline: "nearest",
-        });
+      document.getElementById(`tab-${activeSection}`)?.scrollIntoView?.({
+        behavior: "instant",
+        block: "nearest",
+        inline: "nearest",
+      });
     revealTab();
     window.addEventListener("resize", revealTab);
     return () => window.removeEventListener("resize", revealTab);
@@ -210,6 +208,8 @@ export function OperatorSourceProposalDetailPage({
           <ProposalReviewCard
             key={proposal.id}
             proposal={proposal}
+            statusUpdatedAt={proposals.dataUpdatedAt}
+            statusStale={proposals.isRefetchError}
             activeSection={activeSection}
             onSectionChange={selectSection}
             onDecisionSuccess={update}

@@ -52,8 +52,8 @@ export function SourceResponsibilityPanel({
         {responsibility.operator_label ?? "مسئول تعیین نشده است"}
       </p>
       <p className="text-muted-foreground text-sm">
-        تصمیم‌های منبع به مسئول فعلی با اختیار بررسی منبع تعلق دارد. برای پذیرش
-        مسئولیت، مدیر صف باید آن را به شما واگذار کند.
+        مسئولیت این منبع محدودیت زمانی ندارد و با پایان مهلت ۱۵ دقیقه‌ای بررسی
+        حذف نمی‌شود. تغییر اپراتور مسئول را مدیر صف انجام می‌دهد.
       </p>
       {canManage && (
         <form

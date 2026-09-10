@@ -12,9 +12,8 @@ export function CurrentWebsiteStatus({
       <Alert variant="destructive">
         <AlertTitle>تعارض وب‌سایت‌های جاری</AlertTitle>
         <AlertDescription>
-          بیش از یک وب‌سایت جاری دارید. برای انتخاب وب‌سایت باقی‌مانده با
-          اپراتور هماهنگ کنید. پیش‌نویس اضافی را حذف کنید؛ پیشنهادهای دیگر باید
-          بسته و تخصیص‌های اضافی با دلیل صریح لغو شوند. سوابق حفظ می‌شوند.
+          بیش از یک وب‌سایت جاری دارید. برای انتخاب وب‌سایتی که می‌خواهید ادامه
+          دهید، با تیم بررسی تماس بگیرید.
           <Link className="underline" to="/messages">
             هماهنگی با اپراتور در مرکز پیام‌ها
           </Link>
@@ -29,15 +28,18 @@ export function CurrentWebsiteStatus({
       </p>
       {proposal.assignment?.state === "active" ? (
         <>
-          <p>
-            برای جایگزینی وب‌سایت، ابتدا از اپراتور بخواهید تخصیص فعلی را لغو
-            کند. لغو تخصیص، پروفایل را غیرفعال و استخراج را متوقف می‌کند و
-            آگهی‌های منتشرشده این منبع را ناموجود می‌کند. سپس می‌توانید وب‌سایت
-            تازه معرفی کنید؛ سوابق حفظ می‌شوند.
-          </p>
-          <Link className="underline" to="/messages">
-            هماهنگی با اپراتور در مرکز پیام‌ها
-          </Link>
+          <details>
+            <summary className="text-muted-foreground cursor-pointer">
+              می‌خواهید وب‌سایت دیگری معرفی کنید؟
+            </summary>
+            <p className="mt-2">
+              برای جایگزینی وب‌سایت، ابتدا با تیم بررسی هماهنگ کنید. پایان
+              همکاری، نمایش آگهی‌های این وب‌سایت را متوقف می‌کند.
+            </p>
+            <Link className="underline" to="/messages">
+              هماهنگی با اپراتور در مرکز پیام‌ها
+            </Link>
+          </details>
         </>
       ) : proposal.is_current ? (
         <p>
