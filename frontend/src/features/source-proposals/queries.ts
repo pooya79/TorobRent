@@ -14,22 +14,27 @@ export type OperatorSourceProposal =
 export type ExternalListingCandidate =
   components["schemas"]["ExternalListingCandidate"];
 
+export async function listSourceProposals() {
+  const { data, error } = await api.GET("/api/v1/source-proposals/");
+  if (error || !data) throw apiError(error);
+  return data;
+}
+
 export const sourceProposalsQueryOptions = queryOptions({
   queryKey: ["source-proposals"] as const,
   refetchInterval: 5000,
-  queryFn: async () => {
-    const { data, error } = await api.GET("/api/v1/source-proposals/");
-    if (error || !data) throw apiError(error);
-    return data;
-  },
+  queryFn: listSourceProposals,
 });
 
 export async function resumeOrCreateSourceProposal(startNew = false) {
-  const { data, error } = await api.POST("/api/v1/source-proposals/", {
-    body: { start_new: startNew },
-  });
+  const { data, error, response } = await api.POST(
+    "/api/v1/source-proposals/",
+    {
+      body: { start_new: startNew },
+    },
+  );
   if (error || !data) throw apiError(error);
-  return data;
+  return { proposal: data, created: response.status === 201 };
 }
 
 export async function getSourceProposal(proposalId: string) {

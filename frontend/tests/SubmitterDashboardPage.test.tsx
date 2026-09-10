@@ -63,6 +63,7 @@ test("shows Source Proposals separately with status and next action", async () =
   expect(screen.queryByRole("link", { name: "معرفی وب‌سایت" })).toBeNull();
   expect(await screen.findByText("خانه‌یاب")).toBeVisible();
   expect(screen.getAllByText("پیش‌نویس")[0]).toBeVisible();
+  expect(screen.queryByText("در انتظار تأیید نشانی")).toBeNull();
   expect(
     screen.getByRole("link", { name: "ادامه پیشنهاد وب‌سایت خانه‌یاب" }),
   ).toHaveAttribute(
@@ -404,9 +405,10 @@ test("shows decision email delivery state without hiding the durable decision", 
   expect(screen.getByText(/ارسال ایمیل ناموفق بود/)).toBeVisible();
 });
 
-test("warns about final-week expiry and confirms unchanged availability in one action", async () => {
+test("offers clear edit, renewal, and removal actions for a published ad", async () => {
   const user = userEvent.setup();
   let confirmationCount = 0;
+  let archiveCount = 0;
   const submission = {
     id: "10000000-0000-4000-8000-000000000013",
     role: "owner",
@@ -454,6 +456,18 @@ test("warns about final-week expiry and confirms unchanged availability in one a
         });
       },
     ),
+    http.post("*/api/v1/submissions/:submissionId/archive/", () => {
+      archiveCount += 1;
+      return HttpResponse.json({
+        ...submission,
+        available_actions: [],
+        availability: {
+          ...submission.availability,
+          state: "archived",
+          expiring_soon: false,
+        },
+      });
+    }),
   );
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
@@ -469,13 +483,31 @@ test("warns about final-week expiry and confirms unchanged availability in one a
   expect(
     await screen.findByText(/در هفت روز آینده منقضی می‌شود/),
   ).toBeVisible();
-  await user.click(screen.getByRole("button", { name: "تأیید موجودی" }));
+  expect(
+    screen.getByRole("link", { name: "ویرایش آگهی ملک در سعادت‌آباد" }),
+  ).toHaveAttribute(
+    "href",
+    "/add-submission?submission=10000000-0000-4000-8000-000000000013&step=location",
+  );
+  expect(screen.queryByRole("button", { name: "ناموجود شده" })).toBeNull();
+  expect(screen.queryByRole("button", { name: "بایگانی" })).toBeNull();
+
+  await user.click(
+    screen.getByRole("button", { name: "تمدید نمایش برای ۳۰ روز" }),
+  );
 
   expect(confirmationCount).toBe(1);
   expect(
-    await screen.findByText("موجودی آگهی برای ۳۰ روز دیگر تأیید شد."),
+    await screen.findByText("نمایش آگهی برای ۳۰ روز دیگر تمدید شد."),
   ).toBeVisible();
   expect(screen.queryByText(/در هفت روز آینده منقضی می‌شود/)).toBeNull();
+
+  await user.click(
+    screen.getByRole("button", { name: "حذف آگهی ملک در سعادت‌آباد" }),
+  );
+  expect(screen.getByText(/از نتایج جست‌وجو حذف می‌شود/)).toBeVisible();
+  await user.click(screen.getByRole("button", { name: "حذف آگهی" }));
+  expect(archiveCount).toBe(1);
 });
 
 test.each([

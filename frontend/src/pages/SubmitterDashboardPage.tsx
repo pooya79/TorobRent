@@ -32,7 +32,6 @@ import {
 import {
   archiveListing,
   confirmListingAvailability,
-  markListingUnavailable,
   removeSubmissionDraft,
   type Submission,
   submissionsQueryOptions,
@@ -103,10 +102,9 @@ export function SubmitterDashboardPage() {
       action,
     }: {
       submissionId: string;
-      action: "confirm" | "unavailable" | "archive";
+      action: "confirm" | "archive";
     }) => {
       if (action === "confirm") return confirmListingAvailability(submissionId);
-      if (action === "unavailable") return markListingUnavailable(submissionId);
       return archiveListing(submissionId);
     },
     onSuccess: (updated) => {
@@ -285,10 +283,16 @@ export function SubmitterDashboardPage() {
           const canConfirmAvailability =
             submission.available_actions?.includes("confirm_availability") ??
             false;
-          const canMarkUnavailable =
-            submission.available_actions?.includes("mark_unavailable") ?? false;
           const canArchive =
             submission.available_actions?.includes("archive") ?? false;
+          const editLabel =
+            submission.state === "changes_requested"
+              ? "اصلاح"
+              : submission.state === "published"
+                ? "ویرایش آگهی"
+                : "ادامه";
+          const editStep =
+            submission.state === "published" ? "location" : currentStep;
           const latestReason = [...(submission.history ?? [])]
             .reverse()
             .find((event) => event.reason)?.reason;
@@ -338,13 +342,10 @@ export function SubmitterDashboardPage() {
                     {canEdit && (
                       <Button asChild variant="outline">
                         <Link
-                          to={`/add-submission?submission=${submission.id}&step=${currentStep}`}
-                          aria-label={`${submission.state === "changes_requested" ? "اصلاح" : "ادامه"} ${title}`}
+                          to={`/add-submission?submission=${submission.id}&step=${editStep}`}
+                          aria-label={`${editLabel} ${title}`}
                         >
-                          {submission.state === "changes_requested"
-                            ? "اصلاح"
-                            : "ادامه"}{" "}
-                          <ArrowLeft aria-hidden="true" />
+                          {editLabel} <ArrowLeft aria-hidden="true" />
                         </Link>
                       </Button>
                     )}
@@ -371,49 +372,17 @@ export function SubmitterDashboardPage() {
                         }
                       />
                     )}
-                    {canConfirmAvailability && (
-                      <Button
-                        type="button"
-                        onClick={() =>
-                          availabilityAction.mutate({
-                            submissionId: submission.id,
-                            action: "confirm",
-                          })
-                        }
-                        disabled={availabilityAction.isPending}
-                      >
-                        تأیید موجودی
-                      </Button>
-                    )}
-                    {canMarkUnavailable && (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() =>
-                          availabilityAction.mutate({
-                            submissionId: submission.id,
-                            action: "unavailable",
-                          })
-                        }
-                        disabled={availabilityAction.isPending}
-                      >
-                        ناموجود شده
-                      </Button>
-                    )}
                     {canArchive && (
-                      <Button
-                        type="button"
-                        variant="destructive"
-                        onClick={() =>
+                      <RemoveListingDialog
+                        label={title}
+                        pending={availabilityAction.isPending}
+                        onRemove={() =>
                           availabilityAction.mutate({
                             submissionId: submission.id,
                             action: "archive",
                           })
                         }
-                        disabled={availabilityAction.isPending}
-                      >
-                        بایگانی
-                      </Button>
+                      />
                     )}
                   </div>
                 </div>
@@ -466,9 +435,26 @@ export function SubmitterDashboardPage() {
                 )}
                 {submission.availability?.expiring_soon && (
                   <Alert>
-                    <AlertDescription>
-                      این آگهی در هفت روز آینده منقضی می‌شود. اگر همچنان موجود
-                      است، موجودی را تأیید کنید.
+                    <AlertDescription className="flex flex-wrap items-center justify-between gap-3">
+                      <span>
+                        این آگهی در هفت روز آینده منقضی می‌شود. در صورت نیاز،
+                        نمایش آن را برای ۳۰ روز دیگر تمدید کنید.
+                      </span>
+                      {canConfirmAvailability && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          onClick={() =>
+                            availabilityAction.mutate({
+                              submissionId: submission.id,
+                              action: "confirm",
+                            })
+                          }
+                          disabled={availabilityAction.isPending}
+                        >
+                          تمدید نمایش برای ۳۰ روز
+                        </Button>
+                      )}
                     </AlertDescription>
                   </Alert>
                 )}
@@ -477,7 +463,7 @@ export function SubmitterDashboardPage() {
                   availabilityAction.variables.action === "confirm" && (
                     <Alert>
                       <AlertDescription>
-                        موجودی آگهی برای ۳۰ روز دیگر تأیید شد.
+                        نمایش آگهی برای ۳۰ روز دیگر تمدید شد.
                       </AlertDescription>
                     </Alert>
                   )}
@@ -488,7 +474,7 @@ export function SubmitterDashboardPage() {
                       <AlertDescription>
                         {errorMessage(
                           availabilityAction.error,
-                          "تغییر وضعیت موجودی انجام نشد.",
+                          "عملیات آگهی انجام نشد. دوباره تلاش کنید.",
                         )}
                       </AlertDescription>
                     </Alert>
@@ -584,17 +570,6 @@ export function SubmitterDashboardPage() {
             return (
               <Card className="shadow-none" key={proposal.id}>
                 <CardContent className="flex flex-col gap-4 sm:flex-row sm:items-center">
-                  {proposal.is_current &&
-                    state !== "approved" &&
-                    state !== "rejected" && (
-                      <p role="status">
-                        {
-                          discoveryStageLabels[
-                            proposal.discovery_stage ?? "awaiting_url"
-                          ]
-                        }
-                      </p>
-                    )}
                   <span className="bg-muted flex size-12 shrink-0 items-center justify-center rounded-full">
                     <Globe2 className="size-5" aria-hidden="true" />
                   </span>
@@ -607,6 +582,12 @@ export function SubmitterDashboardPage() {
                       </span>
                     </div>
                     <CurrentWebsiteStatus proposal={proposal} />
+                    {proposal.is_current && state === "pending" && (
+                      <p className="text-muted-foreground mt-2 text-sm">
+                        پیشرفت بررسی:{" "}
+                        {discoveryStageLabels[proposal.discovery_stage]}
+                      </p>
+                    )}
                     {proposal.assignment && (
                       <SourceAssignmentSummary
                         assignment={proposal.assignment}
@@ -727,6 +708,50 @@ function DeleteDraftDialog({
             onClick={onDelete}
           >
             حذف پیش‌نویس
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
+
+function RemoveListingDialog({
+  label,
+  pending,
+  onRemove,
+}: {
+  label: string;
+  pending: boolean;
+  onRemove: () => void;
+}) {
+  return (
+    <AlertDialog>
+      <AlertDialogTrigger asChild>
+        <Button
+          aria-label={`حذف آگهی ${label}`}
+          disabled={pending}
+          type="button"
+          variant="destructive"
+        >
+          <Trash2 aria-hidden="true" /> حذف آگهی
+        </Button>
+      </AlertDialogTrigger>
+      <AlertDialogContent dir="rtl">
+        <AlertDialogHeader>
+          <AlertDialogTitle>آگهی حذف شود؟</AlertDialogTitle>
+          <AlertDialogDescription>
+            آگهی «{label}» از نتایج جست‌وجو حذف می‌شود. سابقه آن برای شما باقی
+            می‌ماند.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>انصراف</AlertDialogCancel>
+          <AlertDialogAction
+            className="bg-destructive hover:bg-destructive/90 text-white"
+            disabled={pending}
+            onClick={onRemove}
+          >
+            حذف آگهی
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

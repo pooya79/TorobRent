@@ -5,13 +5,7 @@ import { AccountWorkspace } from "@/features/account/AccountWorkspace";
 import { discoveryStageLabels } from "@/features/source-proposals/discovery-labels";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CheckCircle2, Globe2, ShieldCheck } from "lucide-react";
-import {
-  useEffect,
-  useRef,
-  useState,
-  type FormEvent,
-  type ReactNode,
-} from "react";
+import { useState, type FormEvent, type ReactNode } from "react";
 import { Link, useSearchParams } from "react-router";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -24,6 +18,8 @@ import {
   autosaveSourceProposalDraft,
   generateSourceProposalPreview,
   getSourceProposal,
+  listSourceProposals,
+  removeSourceProposalDraft,
   resumeOrCreateSourceProposal,
   saveSourceProposalDetails,
   submitSourceProposal,
@@ -71,7 +67,6 @@ export function SourceProposalPage() {
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
   const [proposalId] = useState(() => searchParams.get("proposal"));
-  const resolvedProposalId = useRef(proposalId);
   const [startNew] = useState(
     () => !proposalId && searchParams.get("new") === "1",
   );
@@ -82,12 +77,13 @@ export function SourceProposalPage() {
   const resume = useQuery({
     queryKey: ["source-proposal-resume", proposalId, startNew],
     queryFn: async () => {
-      const id = resolvedProposalId.current;
-      const result = await (id
-        ? getSourceProposal(id)
-        : resumeOrCreateSourceProposal(startNew));
-      resolvedProposalId.current = result.id;
-      return result;
+      if (proposalId) return getSourceProposal(proposalId);
+      const proposals = await listSourceProposals();
+      return (
+        proposals.find(
+          (candidate) => candidate.is_current && !candidate.discarded_at,
+        ) ?? null
+      );
     },
     refetchInterval: (query) =>
       query.state.data?.assignment?.state === "active" ? 5000 : false,
@@ -98,17 +94,40 @@ export function SourceProposalPage() {
     detailsOverride ??
     (proposal ? detailsFromProposal(proposal) : emptyDetails);
   const autosave = useMutation({
-    mutationFn: (body: SourceProposalDraft) => {
-      if (!proposal) throw new Error("پیشنهاد وب‌سایت هنوز آماده نیست.");
-      return autosaveSourceProposalDraft(proposal.id, body);
-    },
+    mutationFn: ({
+      proposalId: id,
+      body,
+    }: {
+      proposalId: string;
+      body: SourceProposalDraft;
+    }) => autosaveSourceProposalDraft(id, body),
     onSuccess: (data) => setProposal(data),
   });
   const preview = useMutation({
     mutationFn: async () => {
-      if (!proposal) throw new Error("پیشنهاد وب‌سایت هنوز آماده نیست.");
-      await saveSourceProposalDetails(proposal.id, details);
-      return generateSourceProposalPreview(proposal.id);
+      let activeProposal = proposal;
+      let created = false;
+      if (!activeProposal) {
+        const result = await resumeOrCreateSourceProposal(startNew);
+        activeProposal = result.proposal;
+        created = result.created;
+      }
+      let saved: SourceProposal;
+      try {
+        saved = await saveSourceProposalDetails(activeProposal.id, details);
+      } catch (error) {
+        if (created) {
+          await removeSourceProposalDraft(activeProposal.id).catch(
+            () => undefined,
+          );
+        }
+        throw error;
+      }
+      if (!proposal) {
+        setProposal(saved);
+        setSearchParams({ proposal: saved.id }, { replace: true });
+      }
+      return generateSourceProposalPreview(saved.id);
     },
     onSuccess: (data) => {
       setProposal(data);
@@ -132,10 +151,6 @@ export function SourceProposalPage() {
     },
   });
 
-  useEffect(() => {
-    if (resume.data && startNew) setSearchParams({}, { replace: true });
-  }, [resume.data, setSearchParams, startNew]);
-
   if (resume.isError) {
     return (
       <PageFrame>
@@ -146,7 +161,7 @@ export function SourceProposalPage() {
       </PageFrame>
     );
   }
-  if (resume.isPending || !proposal) {
+  if (resume.isPending) {
     return (
       <PageFrame>
         <p role="status">در حال بازیابی پیشنهاد وب‌سایت…</p>
@@ -154,10 +169,11 @@ export function SourceProposalPage() {
     );
   }
   if (
-    proposal.current_website_conflict ||
-    proposal.assignment?.state === "active" ||
-    proposal.discarded_at ||
-    ["approved", "rejected", "revoked"].includes(proposal.state ?? "")
+    proposal &&
+    (proposal.current_website_conflict ||
+      proposal.assignment?.state === "active" ||
+      proposal.discarded_at ||
+      ["approved", "rejected", "revoked"].includes(proposal.state ?? ""))
   ) {
     return (
       <PageFrame>
@@ -184,7 +200,7 @@ export function SourceProposalPage() {
       </PageFrame>
     );
   }
-  if (proposal.state === "pending") {
+  if (proposal?.state === "pending") {
     return (
       <PageFrame>
         <Card className="mx-auto max-w-2xl shadow-none">
@@ -213,7 +229,7 @@ export function SourceProposalPage() {
     );
   }
 
-  const previewData = proposal.preview;
+  const previewData = proposal?.preview;
   const showPreview = !!previewData;
   const setField = <K extends keyof typeof details>(
     key: K,
@@ -222,7 +238,11 @@ export function SourceProposalPage() {
   const autosaveField = <K extends keyof SourceProposalDraft>(
     key: K,
     value: SourceProposalDraft[K],
-  ) => autosave.mutate({ [key]: value });
+  ) => {
+    if (proposal) {
+      autosave.mutate({ proposalId: proposal.id, body: { [key]: value } });
+    }
+  };
   const handleDetails = (event: FormEvent) => {
     event.preventDefault();
     preview.mutate();
@@ -230,10 +250,11 @@ export function SourceProposalPage() {
 
   return (
     <PageFrame>
-      <CurrentWebsiteStatus proposal={proposal} />
-      {(proposal.state !== "draft" || (proposal.revision ?? 1) > 1) && (
-        <SourceConversationButton proposalId={proposal.id} />
-      )}
+      {proposal && <CurrentWebsiteStatus proposal={proposal} />}
+      {proposal &&
+        (proposal.state !== "draft" || (proposal.revision ?? 1) > 1) && (
+          <SourceConversationButton proposalId={proposal.id} />
+        )}
       <header className="mb-8 max-w-3xl">
         <p className="text-info mb-2 text-sm font-semibold">
           معرفی منبع بیرونی

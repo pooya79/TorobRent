@@ -179,6 +179,62 @@ def test_complete_submission_enters_review_once_and_records_the_transition(api_c
 
 
 @pytest.mark.django_db
+def test_editing_a_published_submission_creates_a_revision_that_requires_review(
+    api_client: APIClient,
+):
+    submission = make_complete_submission()
+    submission.state = SubmissionState.PUBLISHED
+    submission.save(update_fields=("state", "updated_at"))
+    api_client.force_authenticate(submission.submitter)
+
+    edited = api_client.patch(
+        f"/api/v1/submissions/{submission.id}/",
+        {
+            "completed_step": "features_description",
+            "features": {
+                "parking": "present",
+                "elevator": "present",
+                "storage": "absent",
+                "balcony": "present",
+                "furnished": "absent",
+            },
+            "description": "توضیحات ویرایش شده",
+        },
+        format="json",
+    )
+
+    assert edited.status_code == 200
+    assert edited.data["state"] == "draft"
+    assert edited.data["revision"] == 2
+    assert edited.data["description"] == "توضیحات ویرایش شده"
+    assert edited.data["review"] == {}
+    assert SubmissionEvent.objects.filter(
+        submission=submission,
+        revision=2,
+        prior_state=SubmissionState.PUBLISHED,
+        new_state=SubmissionState.DRAFT,
+    ).exists()
+
+    reviewed = api_client.patch(
+        f"/api/v1/submissions/{submission.id}/",
+        {
+            "completed_step": "review",
+            "review": {"accuracy_confirmed": True},
+        },
+        format="json",
+    )
+    resubmitted = api_client.post(
+        f"/api/v1/submissions/{submission.id}/submit/",
+        {},
+        format="json",
+    )
+
+    assert reviewed.status_code == 200
+    assert resubmitted.status_code == 200
+    assert resubmitted.data["state"] == "pending"
+
+
+@pytest.mark.django_db
 @pytest.mark.parametrize(
     "invalid_contact",
     ("unverified_account_phone", "different_phone", "missing_publication_acknowledgement"),

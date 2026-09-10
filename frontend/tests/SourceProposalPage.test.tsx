@@ -14,6 +14,109 @@ function LocationSearch() {
   return <output data-testid="location-search">{useLocation().search}</output>;
 }
 
+test("does not create a Source Proposal draft merely by opening the empty form", async () => {
+  let createCount = 0;
+  server.use(
+    http.get("*/api/v1/source-proposals/", () => HttpResponse.json([])),
+    http.post("*/api/v1/source-proposals/", () => {
+      createCount += 1;
+      return HttpResponse.json(
+        {
+          id: proposalId,
+          state: "draft",
+          current_step: "details",
+          website_name: "",
+          website_url: "",
+          relationship: "",
+          inventory_range: "",
+          sitemap_url: "",
+          operator_note: "",
+          authority_declared: false,
+          preview: null,
+          preview_confirmed: false,
+          available_actions: ["edit", "delete"],
+        },
+        { status: 201 },
+      );
+    }),
+  );
+
+  render(
+    <QueryClientProvider
+      client={
+        new QueryClient({ defaultOptions: { queries: { retry: false } } })
+      }
+    >
+      <MemoryRouter initialEntries={["/source-proposal?new=1"]}>
+        <SourceProposalPage />
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+
+  expect(
+    await screen.findByRole("heading", { name: "معرفی وب‌سایت اجاره" }),
+  ).toBeVisible();
+  expect(createCount).toBe(0);
+});
+
+test("cleans up a new empty draft when the first details save is rejected", async () => {
+  const user = userEvent.setup();
+  let removed = false;
+  server.use(
+    http.get("*/api/v1/source-proposals/", () => HttpResponse.json([])),
+    http.post("*/api/v1/source-proposals/", () =>
+      HttpResponse.json(
+        {
+          id: proposalId,
+          state: "draft",
+          current_step: "details",
+          website_name: "",
+          website_url: "",
+          available_actions: ["edit", "delete"],
+        },
+        { status: 201 },
+      ),
+    ),
+    http.patch("*/api/v1/source-proposals/:proposalId/", () =>
+      HttpResponse.json({ detail: "نشانی عمومی معتبر نیست." }, { status: 400 }),
+    ),
+    http.delete("*/api/v1/source-proposals/:proposalId/", () => {
+      removed = true;
+      return new HttpResponse(null, { status: 204 });
+    }),
+  );
+  render(
+    <QueryClientProvider
+      client={
+        new QueryClient({
+          defaultOptions: {
+            queries: { retry: false },
+            mutations: { retry: false },
+          },
+        })
+      }
+    >
+      <MemoryRouter initialEntries={["/source-proposal?new=1"]}>
+        <SourceProposalPage />
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+
+  const name = await screen.findByLabelText("نام وب‌سایت");
+  const url = screen.getByLabelText("نشانی صفحه اصلی یا کاتالوگ");
+  await user.type(name, "خانه‌یاب");
+  await user.type(url, "https://unsafe.example/catalog");
+  await user.click(screen.getByLabelText(/اختیار معرفی این وب‌سایت/));
+  await user.click(
+    screen.getByRole("button", { name: "ذخیره و مشاهده پیش‌نمایش" }),
+  );
+
+  expect(await screen.findByText("نشانی عمومی معتبر نیست.")).toBeVisible();
+  await waitFor(() => expect(removed).toBe(true));
+  expect(name).toHaveValue("خانه‌یاب");
+  expect(url).toHaveValue("https://unsafe.example/catalog");
+});
+
 test("saves website details and confirms the no-fetch summary", async () => {
   const user = userEvent.setup();
   let savedBody: unknown;
@@ -37,6 +140,7 @@ test("saves website details and confirms the no-fetch summary", async () => {
     updated_at: "2026-08-31T08:00:00Z",
   };
   server.use(
+    http.get("*/api/v1/source-proposals/", () => HttpResponse.json([])),
     http.post("*/api/v1/source-proposals/", () =>
       HttpResponse.json(base, { status: 201 }),
     ),
@@ -125,27 +229,30 @@ test("saves website details and confirms the no-fetch summary", async () => {
 
 test("restores a pending Source Proposal with actionable discovery feedback", async () => {
   server.use(
-    http.post("*/api/v1/source-proposals/", () =>
-      HttpResponse.json({
-        id: proposalId,
-        state: "pending",
-        discovery_message:
-          "صفحه آگهی قابل استفاده‌ای یافت نشد؛ نشانی نمونه دیگری به تیم بررسی بدهید یا ساختار وب‌سایت را اصلاح کنید.",
-        current_step: "preview",
-        website_name: "خانه‌یاب",
-        website_url: "https://khaneh.example/rentals",
-        relationship: "website_owner",
-        inventory_range: "unknown",
-        sitemap_url: "",
-        operator_note: "",
-        authority_declared: true,
-        preview: { title: "بازبینی اطلاعات وب‌سایت" },
-        preview_confirmed: true,
-        pending_since: "2026-08-31T09:00:00Z",
-        available_actions: [],
-        created_at: "2026-08-31T08:00:00Z",
-        updated_at: "2026-08-31T09:00:00Z",
-      }),
+    http.get("*/api/v1/source-proposals/", () =>
+      HttpResponse.json([
+        {
+          id: proposalId,
+          state: "pending",
+          is_current: true,
+          discovery_message:
+            "صفحه آگهی قابل استفاده‌ای یافت نشد؛ نشانی نمونه دیگری به تیم بررسی بدهید یا ساختار وب‌سایت را اصلاح کنید.",
+          current_step: "preview",
+          website_name: "خانه‌یاب",
+          website_url: "https://khaneh.example/rentals",
+          relationship: "website_owner",
+          inventory_range: "unknown",
+          sitemap_url: "",
+          operator_note: "",
+          authority_declared: true,
+          preview: { title: "بازبینی اطلاعات وب‌سایت" },
+          preview_confirmed: true,
+          pending_since: "2026-08-31T09:00:00Z",
+          available_actions: [],
+          created_at: "2026-08-31T08:00:00Z",
+          updated_at: "2026-08-31T09:00:00Z",
+        },
+      ]),
     ),
   );
   const queryClient = new QueryClient({
@@ -218,30 +325,50 @@ test("resumes the Source Proposal selected from the dashboard", async () => {
   expect(createCalled).toBe(false);
 });
 
-test("clears the one-shot new flag after starting from the dashboard", async () => {
+test("creates a draft from valid details and replaces the one-shot new flag", async () => {
+  const user = userEvent.setup();
   let createBody: unknown;
+  const created = {
+    id: proposalId,
+    state: "draft" as const,
+    current_step: "details" as const,
+    website_name: "",
+    website_url: "",
+    relationship: "",
+    inventory_range: "",
+    sitemap_url: "",
+    operator_note: "",
+    authority_declared: false,
+    preview: null,
+    preview_confirmed: false,
+    pending_since: null,
+    available_actions: ["edit"],
+    created_at: "2026-08-31T08:00:00Z",
+    updated_at: "2026-08-31T08:00:00Z",
+  };
   server.use(
+    http.get("*/api/v1/source-proposals/", () => HttpResponse.json([])),
     http.post("*/api/v1/source-proposals/", async ({ request }) => {
       createBody = await request.json();
-      return HttpResponse.json({
-        id: proposalId,
-        state: "draft",
-        current_step: "details",
-        website_name: "",
-        website_url: "",
-        relationship: "",
-        inventory_range: "",
-        sitemap_url: "",
-        operator_note: "",
-        authority_declared: false,
-        preview: null,
-        preview_confirmed: false,
-        pending_since: null,
-        available_actions: ["edit"],
-        created_at: "2026-08-31T08:00:00Z",
-        updated_at: "2026-08-31T08:00:00Z",
-      });
+      return HttpResponse.json(created, { status: 201 });
     }),
+    http.patch("*/api/v1/source-proposals/:proposalId/", () =>
+      HttpResponse.json({
+        ...created,
+        website_name: "خانه‌یاب",
+        website_url: "https://khaneh.example/",
+        authority_declared: true,
+      }),
+    ),
+    http.post("*/api/v1/source-proposals/:proposalId/preview/", () =>
+      HttpResponse.json({
+        ...created,
+        preview: {
+          title: "بازبینی اطلاعات وب‌سایت",
+          disclaimer: "هیچ درخواستی به وب‌سایت ارسال نمی‌شود.",
+        },
+      }),
+    ),
   );
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
@@ -260,35 +387,47 @@ test("clears the one-shot new flag after starting from the dashboard", async () 
       name: "معرفی وب‌سایت اجاره",
     }),
   ).toBeVisible();
+  expect(createBody).toBeUndefined();
+  await user.type(screen.getByLabelText("نام وب‌سایت"), "خانه‌یاب");
+  await user.type(
+    screen.getByLabelText("نشانی صفحه اصلی یا کاتالوگ"),
+    "https://khaneh.example/",
+  );
+  await user.click(screen.getByLabelText(/اختیار معرفی این وب‌سایت/));
+  await user.click(
+    screen.getByRole("button", { name: "ذخیره و مشاهده پیش‌نمایش" }),
+  );
   expect(createBody).toEqual({ start_new: true });
   await waitFor(() =>
-    expect(screen.getByTestId("location-search")).toHaveTextContent(/^$/),
+    expect(screen.getByTestId("location-search")).toHaveTextContent(
+      `?proposal=${proposalId}`,
+    ),
   );
 });
 
 test("keeps entered details available when URL validation fails", async () => {
   const user = userEvent.setup();
+  const existing = {
+    id: proposalId,
+    state: "draft",
+    is_current: true,
+    current_step: "details",
+    website_name: "",
+    website_url: "",
+    relationship: "",
+    inventory_range: "",
+    sitemap_url: "",
+    operator_note: "",
+    authority_declared: false,
+    preview: {},
+    preview_confirmed: false,
+    pending_since: null,
+    available_actions: ["edit"],
+    created_at: "2026-08-31T08:00:00Z",
+    updated_at: "2026-08-31T08:00:00Z",
+  };
   server.use(
-    http.post("*/api/v1/source-proposals/", () =>
-      HttpResponse.json({
-        id: proposalId,
-        state: "draft",
-        current_step: "details",
-        website_name: "",
-        website_url: "",
-        relationship: "",
-        inventory_range: "",
-        sitemap_url: "",
-        operator_note: "",
-        authority_declared: false,
-        preview: {},
-        preview_confirmed: false,
-        pending_since: null,
-        available_actions: ["edit"],
-        created_at: "2026-08-31T08:00:00Z",
-        updated_at: "2026-08-31T08:00:00Z",
-      }),
-    ),
+    http.get("*/api/v1/source-proposals/", () => HttpResponse.json([existing])),
     http.patch("*/api/v1/source-proposals/:proposalId/", () =>
       HttpResponse.json({ detail: "نشانی عمومی معتبر نیست." }, { status: 400 }),
     ),
@@ -345,25 +484,27 @@ test.each([
   "resumes an active website showing %s publication mode without operator controls",
   async (mode, label) => {
     server.use(
-      http.post("*/api/v1/source-proposals/", () =>
-        HttpResponse.json({
-          id: proposalId,
-          state: "approved",
-          is_current: true,
-          current_website_conflict: false,
-          website_name: "خانه‌یاب",
-          website_url: "https://khaneh.example/",
-          available_actions: [],
-          assignment: {
-            id: 12,
-            state: "active",
-            source: { display_name: "خانه‌یاب", domain: "khaneh.example" },
-            active_profile_version: { id: "version", number: 1 },
-            review_mode: mode,
-            mode_revision: 1,
-            recent_requests: [],
+      http.get("*/api/v1/source-proposals/", () =>
+        HttpResponse.json([
+          {
+            id: proposalId,
+            state: "approved",
+            is_current: true,
+            current_website_conflict: false,
+            website_name: "خانه‌یاب",
+            website_url: "https://khaneh.example/",
+            available_actions: [],
+            assignment: {
+              id: 12,
+              state: "active",
+              source: { display_name: "خانه‌یاب", domain: "khaneh.example" },
+              active_profile_version: { id: "version", number: 1 },
+              review_mode: mode,
+              mode_revision: 1,
+              recent_requests: [],
+            },
           },
-        }),
+        ]),
       ),
     );
     render(
@@ -435,30 +576,32 @@ test.each(["approved", "pending"])(
   "representative sees a paused Source during %s without extraction or resume controls",
   async (state) => {
     server.use(
-      http.post("*/api/v1/source-proposals/", () =>
-        HttpResponse.json({
-          id: proposalId,
-          state,
-          is_current: true,
-          current_website_conflict: false,
-          website_name: "خانه‌یاب",
-          website_url: "https://khaneh.example/",
-          available_actions: [],
-          assignment: {
-            id: 12,
-            state: "active",
-            source: {
-              display_name: "خانه‌یاب",
-              domain: "khaneh.example",
-              processing_paused: true,
-              processing_revision: 1,
+      http.get("*/api/v1/source-proposals/", () =>
+        HttpResponse.json([
+          {
+            id: proposalId,
+            state,
+            is_current: true,
+            current_website_conflict: false,
+            website_name: "خانه‌یاب",
+            website_url: "https://khaneh.example/",
+            available_actions: [],
+            assignment: {
+              id: 12,
+              state: "active",
+              source: {
+                display_name: "خانه‌یاب",
+                domain: "khaneh.example",
+                processing_paused: true,
+                processing_revision: 1,
+              },
+              active_profile_version: { id: "version", number: 1 },
+              review_mode: "automatic",
+              mode_revision: 0,
+              recent_requests: [],
             },
-            active_profile_version: { id: "version", number: 1 },
-            review_mode: "automatic",
-            mode_revision: 0,
-            recent_requests: [],
           },
-        }),
+        ]),
       ),
     );
     render(
@@ -509,9 +652,8 @@ test("refreshes active Source status while the representative keeps the screen o
     },
   });
   server.use(
-    http.post("*/api/v1/source-proposals/", () => HttpResponse.json(current())),
-    http.get("*/api/v1/source-proposals/:proposalId/", () =>
-      HttpResponse.json(current()),
+    http.get("*/api/v1/source-proposals/", () =>
+      HttpResponse.json([current()]),
     ),
   );
   render(
@@ -545,18 +687,11 @@ test("resolves the current website again when returning with an old revoked case
     available_actions: [],
     website_url: "https://old.example/",
   });
-  let created = false;
+  let listed = false;
   server.use(
-    http.post("*/api/v1/source-proposals/", () => {
-      created = true;
-      return HttpResponse.json({
-        id: proposalId,
-        state: "draft",
-        current_step: "details",
-        website_name: "",
-        website_url: "",
-        available_actions: [],
-      });
+    http.get("*/api/v1/source-proposals/", () => {
+      listed = true;
+      return HttpResponse.json([]);
     }),
   );
   render(
@@ -566,6 +701,6 @@ test("resolves the current website again when returning with an old revoked case
       </MemoryRouter>
     </QueryClientProvider>,
   );
-  await waitFor(() => expect(created).toBe(true));
+  await waitFor(() => expect(listed).toBe(true));
   expect(await screen.findByLabelText("نام وب‌سایت")).toBeVisible();
 });
