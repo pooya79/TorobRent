@@ -217,6 +217,31 @@ def test_seed_dev_prepares_submitter_workflows_and_is_idempotent():
 
 
 @pytest.mark.django_db
+def test_seed_dev_prepares_revealable_phone_and_upgrades_legacy_fixture():
+    call_command("seed_dev", verbosity=0)
+    listing = Listing.objects.get(id=development_fixture_id(DevelopmentFixtureKind.LISTING, 1))
+    submission = Submission.objects.get(listing=listing)
+
+    assert submission.contact_phone == listing.direct_phone
+    renter = login("renter-two@torobrent.local", "dev-renter-two")
+    reveal = renter.post(
+        f"/api/v1/catalog/listings/{listing.id}/phone-reveal/",
+        {},
+        format="json",
+        HTTP_X_TOROBRENT_EVENT_SESSION="10000000-0000-4000-8000-000000000101",
+    )
+    assert reveal.status_code == 200
+    assert reveal.data == {"phone": listing.direct_phone}
+
+    submission.contact_phone = "09120000000"
+    submission.save(update_fields=("contact_phone",))
+    call_command("seed_dev", verbosity=0)
+
+    submission.refresh_from_db()
+    assert submission.contact_phone == listing.direct_phone
+
+
+@pytest.mark.django_db
 def test_seed_dev_includes_review_history_and_reasons():
     call_command("seed_dev", verbosity=0)
 

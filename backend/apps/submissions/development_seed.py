@@ -13,6 +13,8 @@ from .models import (
     SubmitterRole,
 )
 
+LEGACY_DEVELOPMENT_CONTACT_PHONE = "09120000000"
+
 
 @dataclass(frozen=True)
 class DevelopmentSubmissionSpec:
@@ -68,6 +70,11 @@ def seed_development_submissions(
         DevelopmentSubmissionSpec(SubmissionState.PUBLISHED, expired_listing),
     )
     for index, spec in enumerate(specs, start=1):
+        contact_phone = (
+            spec.listing.direct_phone
+            if spec.listing is not None and spec.listing.direct_phone
+            else LEGACY_DEVELOPMENT_CONTACT_PHONE
+        )
         submission, created = Submission.objects.get_or_create(
             id=development_fixture_id(DevelopmentFixtureKind.SUBMISSION, index),
             defaults={
@@ -99,7 +106,7 @@ def seed_development_submissions(
                 "furnished": property_.furnished,
                 "description": "پیشنهاد ساختگی برای توسعه گردش کار Submitter و Operator.",
                 "contact_name": "کاربر توسعه",
-                "contact_phone": "09120000000",
+                "contact_phone": contact_phone,
                 "authorization_declared": True,
                 "phone_publication_consent": True,
                 "review_data": {"development_seed": True},
@@ -112,3 +119,13 @@ def seed_development_submissions(
                 submitter=submitter,
                 operator=operator,
             )
+        elif (
+            spec.listing is not None
+            and spec.listing.direct_phone
+            and submission.contact_phone == LEGACY_DEVELOPMENT_CONTACT_PHONE
+            and submission.review_data == {"development_seed": True}
+        ):
+            # Repair fixtures created before direct Listings and their approved
+            # Submissions shared the same phone number. Preserve any other edit.
+            submission.contact_phone = spec.listing.direct_phone
+            submission.save(update_fields=("contact_phone",))
