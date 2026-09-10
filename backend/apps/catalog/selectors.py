@@ -174,8 +174,27 @@ def _with_normalized_name(queryset: QuerySet[Any, Any]) -> QuerySet[Any, Any]:
 
 def autocomplete_locations(query: str, *, limit: int = 10) -> list[LocationSuggestion]:
     normalized_query = normalize_persian_search(query)
+    neighborhoods = _with_normalized_name(
+        Neighborhood.objects.filter(
+            reviewed=True,
+            district__city_id=TEHRAN_CITY_ID,
+            district__reviewed=True,
+            district__city__reviewed=True,
+        ).select_related("district__city")
+    )
     if not normalized_query:
-        return []
+        return [
+            LocationSuggestion(
+                neighborhood.id,
+                "neighborhood",
+                neighborhood.name_fa,
+                (
+                    f"{neighborhood.name_fa}، {neighborhood.district.name_fa}، "
+                    f"{neighborhood.district.city.name_fa}"
+                ),
+            )
+            for neighborhood in neighborhoods.order_by("name_fa")[:limit]
+        ]
 
     suggestions: list[LocationSuggestion] = []
     cities = _with_normalized_name(City.objects.filter(id=TEHRAN_CITY_ID, reviewed=True)).filter(
@@ -201,14 +220,7 @@ def autocomplete_locations(query: str, *, limit: int = 10) -> list[LocationSugge
         for district in districts.order_by("number")[:limit]
     )
 
-    neighborhoods = _with_normalized_name(
-        Neighborhood.objects.filter(
-            reviewed=True,
-            district__city_id=TEHRAN_CITY_ID,
-            district__reviewed=True,
-            district__city__reviewed=True,
-        ).select_related("district__city")
-    ).filter(search_name__icontains=normalized_query)
+    neighborhoods = neighborhoods.filter(search_name__icontains=normalized_query)
     suggestions.extend(
         LocationSuggestion(
             neighborhood.id,

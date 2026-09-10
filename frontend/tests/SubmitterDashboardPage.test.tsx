@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
 import { MemoryRouter } from "react-router";
 import userEvent from "@testing-library/user-event";
@@ -229,6 +229,53 @@ test("lists the Submitter's draft state and server-backed resume action", async 
       "هنوز آگهی ثبت‌شده‌ای ندارید. با ثبت مشخصات ملک شروع کنید.",
     ),
   ).toBeVisible();
+});
+
+test("orders submissions from the most recently updated to the oldest", async () => {
+  server.use(
+    http.get("*/api/v1/submissions/", () =>
+      HttpResponse.json([
+        {
+          id: "older-submission",
+          state: "draft",
+          role: "owner",
+          images: [],
+          location: { neighborhood: "سعادت‌آباد" },
+          updated_at: "2026-09-01T08:00:00Z",
+          available_actions: ["edit"],
+        },
+        {
+          id: "newer-submission",
+          state: "pending",
+          role: "owner",
+          images: [],
+          location: { neighborhood: "پونک" },
+          updated_at: "2026-09-09T08:00:00Z",
+          available_actions: [],
+        },
+      ]),
+    ),
+  );
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  render(
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter>
+        <SubmitterDashboardPage />
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+
+  await screen.findByRole("heading", { name: "ملک در پونک" });
+  const submissionList = screen.getByRole("region", {
+    name: "ارسال‌های شما",
+  });
+  expect(
+    within(submissionList)
+      .getAllByRole("heading", { level: 3 })
+      .map((heading) => heading.textContent),
+  ).toEqual(["ملک در پونک", "ملک در سعادت‌آباد"]);
 });
 
 test("shows current review state, reason, history, and the available edit action", async () => {

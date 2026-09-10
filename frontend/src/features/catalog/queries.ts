@@ -47,10 +47,21 @@ async function fetchPropertySearchPage(
   return data;
 }
 
-export function locationAutocompleteQueryOptions(query: string) {
+export function locationAutocompleteQueryOptions(
+  query: string,
+  {
+    enabled = true,
+    suggestOnEmpty = false,
+  }: { enabled?: boolean; suggestOnEmpty?: boolean } = {},
+) {
+  const normalizedQuery = query.trim();
   return queryOptions({
-    queryKey: ["catalog", "locations", query] as const,
-    enabled: query.trim().length >= 2,
+    queryKey: ["catalog", "locations", query, { suggestOnEmpty }] as const,
+    enabled:
+      enabled &&
+      (normalizedQuery.length === 0
+        ? suggestOnEmpty
+        : normalizedQuery.length >= 2),
     staleTime: 5 * 60_000,
     queryFn: async () => {
       const baseUrl =

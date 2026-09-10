@@ -1192,6 +1192,19 @@ def test_anonymous_renter_autocompletes_tehran_locations_with_tolerant_persian_i
 
 
 @pytest.mark.django_db
+def test_location_autocomplete_suggests_reviewed_neighborhoods_without_a_query(
+    api_client: APIClient,
+):
+    call_command("loaddata", "catalog_seed", verbosity=0)
+
+    response = api_client.get("/api/v1/catalog/locations/")
+
+    assert response.status_code == 200
+    assert response.data
+    assert all(item["kind"] == "neighborhood" for item in response.data)
+
+
+@pytest.mark.django_db
 def test_anonymous_renter_discovers_only_supported_cities_without_a_query(
     api_client: APIClient,
 ):

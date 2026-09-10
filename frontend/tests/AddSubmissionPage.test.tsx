@@ -45,21 +45,38 @@ function renderPage(entry = "/add-submission") {
   );
 }
 
-test("creates an Owner draft and presents the seven server-backed steps", async () => {
+test("starts the form without creating a draft until property information is saved", async () => {
   const user = userEvent.setup();
+  let createRequests = 0;
+  let savedBody: unknown;
   server.use(
-    http.post("*/api/v1/submissions/", () =>
-      HttpResponse.json(draft, { status: 201 }),
-    ),
+    http.get("*/api/v1/submissions/", () => HttpResponse.json([])),
+    http.post("*/api/v1/submissions/", () => {
+      createRequests += 1;
+      return HttpResponse.json(draft, { status: 201 });
+    }),
     http.get("*/api/v1/submissions/:id/", () => HttpResponse.json(draft)),
+    http.patch("*/api/v1/submissions/:id/", async ({ request }) => {
+      savedBody = await request.json();
+      return HttpResponse.json({
+        ...draft,
+        current_step: "property_facts",
+        location: {
+          neighborhood: "سعادت‌آباد",
+          neighborhood_id: "30000000-0000-4000-8000-000000000043",
+          address: "بلوار دریا",
+        },
+      });
+    }),
   );
   renderPage();
 
   await user.click(
-    screen.getByRole("button", { name: "ساخت یا ادامه پیش‌نویس" }),
+    await screen.findByRole("button", { name: "شروع ثبت آگهی" }),
   );
 
   expect(await screen.findByText(/مرحله ۱ از ۷/)).toBeVisible();
+  expect(createRequests).toBe(0);
   for (const step of [
     "نشانی ملک",
     "مشخصات ملک",
@@ -71,11 +88,29 @@ test("creates an Owner draft and presents the seven server-backed steps", async 
   ]) {
     expect(screen.getAllByText(step).length).toBeGreaterThan(0);
   }
+
+  await user.click(screen.getByLabelText("محله"));
+  await user.click(
+    await screen.findByRole("option", {
+      name: "سعادت‌آباد، منطقه ۲، تهران",
+    }),
+  );
+  await user.type(screen.getByLabelText("نشانی دقیق"), "بلوار دریا");
+  await user.click(screen.getByRole("button", { name: "ذخیره و ادامه" }));
+
+  await waitFor(() => expect(createRequests).toBe(1));
+  expect(savedBody).toMatchObject({
+    completed_step: "location",
+    location: {
+      neighborhood_id: "30000000-0000-4000-8000-000000000043",
+      address: "بلوار دریا",
+    },
+  });
 });
 
 test("resumes the matching relationship draft at its saved step", async () => {
   const user = userEvent.setup();
-  let createBody: unknown;
+  let createRequests = 0;
   const resumedDraft = {
     ...draft,
     current_step: "contact",
@@ -87,9 +122,10 @@ test("resumes the matching relationship draft at its saved step", async () => {
     },
   };
   server.use(
-    http.post("*/api/v1/submissions/", async ({ request }) => {
-      createBody = await request.json();
-      return HttpResponse.json(resumedDraft);
+    http.get("*/api/v1/submissions/", () => HttpResponse.json([resumedDraft])),
+    http.post("*/api/v1/submissions/", () => {
+      createRequests += 1;
+      return HttpResponse.json(resumedDraft, { status: 201 });
     }),
     http.get("*/api/v1/submissions/:id/", () =>
       HttpResponse.json(resumedDraft),
@@ -98,13 +134,13 @@ test("resumes the matching relationship draft at its saved step", async () => {
   renderPage();
 
   await user.click(
-    screen.getByRole("button", { name: "ساخت یا ادامه پیش‌نویس" }),
+    await screen.findByRole("button", { name: "ادامه پیش‌نویس" }),
   );
 
   expect(
     await screen.findByRole("heading", { name: "اطلاعات تماس" }),
   ).toBeVisible();
-  expect(createBody).toEqual({ role: "owner", resume_existing: true });
+  expect(createRequests).toBe(0);
 });
 
 test("shows the verified account phone as the mandatory public continuation route", async () => {
@@ -248,6 +284,42 @@ test("places an Exact Location with a draggable map pin and saves coordinates wi
   );
 });
 
+test("opens neighborhood suggestions on focus and searches only after typing", async () => {
+  const user = userEvent.setup();
+  const locationQueries: string[] = [];
+  server.use(
+    http.get("*/api/v1/submissions/:id/", () => HttpResponse.json(draft)),
+    http.get("*/api/v1/catalog/locations/", ({ request }) => {
+      locationQueries.push(new URL(request.url).searchParams.get("q") ?? "");
+      return HttpResponse.json([
+        {
+          id: "30000000-0000-4000-8000-000000000043",
+          kind: "neighborhood",
+          name: "سعادت‌آباد",
+          label: "سعادت‌آباد، منطقه ۲، تهران",
+        },
+      ]);
+    }),
+  );
+  renderPage(`/add-submission?submission=${draft.id}&step=location`);
+
+  const neighborhood = await screen.findByLabelText("محله");
+  expect(screen.queryByRole("option")).not.toBeInTheDocument();
+  expect(locationQueries).toEqual([]);
+
+  await user.click(neighborhood);
+
+  expect(
+    await screen.findByRole("option", {
+      name: "سعادت‌آباد، منطقه ۲، تهران",
+    }),
+  ).toBeVisible();
+  expect(locationQueries).toEqual([""]);
+
+  await user.type(neighborhood, "سعادت");
+  await waitFor(() => expect(locationQueries.at(-1)).toBe("سعادت"));
+});
+
 test("attaches localized validation to the relevant field and preserves valid input", async () => {
   const user = userEvent.setup();
   server.use(
@@ -266,6 +338,27 @@ test("attaches localized validation to the relevant field and preserves valid in
     "متراژ باید بیشتر از صفر باشد.",
   );
   expect(area).toHaveAttribute("aria-invalid", "true");
+  expect(screen.getByLabelText("تعداد اتاق خواب")).toHaveValue("۲");
+});
+
+test("keeps unsaved values on the current step after validation fails", async () => {
+  const user = userEvent.setup();
+  server.use(
+    http.get("*/api/v1/submissions/:id/", () =>
+      HttpResponse.json({ ...draft, current_step: "property_facts" }),
+    ),
+  );
+  renderPage(`/add-submission?submission=${draft.id}&step=property_facts`);
+
+  await user.type(await screen.findByLabelText("تعداد اتاق خواب"), "۲");
+  await user.click(screen.getByRole("button", { name: "ذخیره و ادامه" }));
+  expect(screen.getByRole("alert")).toHaveTextContent(
+    "متراژ باید بیشتر از صفر باشد.",
+  );
+
+  await user.click(screen.getAllByRole("button", { name: /شرایط اجاره/ })[0]!);
+
+  expect(screen.getByRole("heading", { name: "مشخصات ملک" })).toBeVisible();
   expect(screen.getByLabelText("تعداد اتاق خواب")).toHaveValue("۲");
 });
 
@@ -350,10 +443,7 @@ test("normalizes Persian Toman input before saving and resumes at the next step"
   );
   renderPage(`/add-submission?submission=${draft.id}&step=rental_terms`);
 
-  await user.type(
-    await screen.findByLabelText("رهن، تومان"),
-    "۱٬۰۰۰٬۰۰۰٬۰۰۰",
-  );
+  await user.type(await screen.findByLabelText("رهن، تومان"), "۱٬۰۰۰٬۰۰۰٬۰۰۰");
   await user.type(screen.getByLabelText("اجاره ماهانه، تومان"), "۲۵٬۰۰۰٬۰۰۰");
   await user.click(screen.getByRole("button", { name: "ذخیره و ادامه" }));
 
@@ -465,6 +555,52 @@ test("saves final review and submits the revision to the Operator queue", async 
 
   await waitFor(() => expect(submitted).toBe(true));
   expect(await screen.findByText("در انتظار بررسی اپراتور")).toBeVisible();
+});
+
+test("navigates to missing information after final submission validation", async () => {
+  const user = userEvent.setup();
+  const reviewDraft = {
+    ...draft,
+    current_step: "review",
+    media_complete: true,
+    review: {},
+  };
+  server.use(
+    http.get("*/api/v1/submissions/:id/", () => HttpResponse.json(reviewDraft)),
+    http.patch("*/api/v1/submissions/:id/", () =>
+      HttpResponse.json({
+        ...reviewDraft,
+        review: { accuracy_confirmed: true },
+      }),
+    ),
+    http.post("*/api/v1/submissions/:id/submit/", () =>
+      HttpResponse.json(
+        {
+          detail: "مشخصات ملک کامل نیست.",
+          errors: {
+            property_facts: [
+              { code: "required", message: "مشخصات ملک الزامی است." },
+            ],
+          },
+        },
+        { status: 400 },
+      ),
+    ),
+  );
+  renderPage(`/add-submission?submission=${draft.id}&step=review`);
+
+  await user.click(
+    await screen.findByLabelText(
+      "اطلاعات واردشده را بازبینی کردم و درستی آن را تأیید می‌کنم.",
+    ),
+  );
+  await user.click(screen.getByRole("button", { name: "ارسال برای بررسی" }));
+  expect(await screen.findByText("مشخصات ملک الزامی است.")).toBeVisible();
+
+  await user.click(screen.getAllByRole("button", { name: /مشخصات ملک/ })[0]!);
+  expect(
+    await screen.findByRole("heading", { name: "مشخصات ملک" }),
+  ).toBeVisible();
 });
 
 test("uploads, previews, reorders, selects primary, removes, and completes the media step", async () => {

@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, Save, ArrowLeft, ShieldCheck } from "lucide-react";
+import { Check, Save, ArrowLeft, ChevronDown, ShieldCheck } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
 
@@ -27,10 +27,12 @@ import {
 } from "@/features/submissions/SubmissionImagesFields";
 import {
   createSubmission,
+  removeSubmissionDraft,
   requestAlternateContactVerification,
   saveSubmissionStep,
   submitSubmission,
   submissionQueryOptions,
+  submissionsQueryOptions,
   type Submission,
   type SubmissionStepUpdate,
   verifyAlternateContact,
@@ -81,6 +83,7 @@ const persianStepNumbers = ["۱", "۲", "۳", "۴", "۵", "۶", "۷"] as const;
 type ValidationState = {
   message: string;
   fields: Record<string, string>;
+  canNavigate?: boolean;
 };
 
 function fieldMessage(
@@ -118,17 +121,33 @@ function reviewAccuracyConfirmed(review: unknown) {
 }
 
 function RoleChooser({
-  onCreated,
+  onSelected,
   resumeExisting,
 }: {
-  onCreated: (draft: Submission) => void;
+  onSelected: (selection: {
+    role: "owner" | "agent";
+    existing?: Submission;
+  }) => void;
   resumeExisting: boolean;
 }) {
   const [role, setRole] = useState<"owner" | "agent">("owner");
-  const mutation = useMutation({
-    mutationFn: () => createSubmission(role, resumeExisting),
-    onSuccess: onCreated,
+  const submissions = useQuery({
+    ...submissionsQueryOptions,
+    enabled: resumeExisting,
   });
+  const existing = resumeExisting
+    ? submissions.data
+        ?.filter(
+          (submission) =>
+            submission.role === role &&
+            (submission.state === "draft" ||
+              submission.state === "changes_requested"),
+        )
+        .sort(
+          (left, right) =>
+            Date.parse(right.updated_at) - Date.parse(left.updated_at),
+        )[0]
+    : undefined;
 
   return (
     <Card className="mx-auto max-w-2xl shadow-none">
@@ -151,19 +170,23 @@ function RoleChooser({
             <RadioGroupItem value="agent" /> نماینده مالک هستم
           </Label>
         </RadioGroup>
-        {mutation.isError && (
+        {submissions.isError && (
           <Alert variant="destructive" role="alert">
             <AlertDescription>
-              {errorMessage(mutation.error, "ساخت پیش‌نویس ممکن نشد.")}
+              بررسی پیش‌نویس‌های قبلی ممکن نشد. دوباره تلاش کنید.
             </AlertDescription>
           </Alert>
         )}
         <Button
           className="rounded-full"
-          disabled={mutation.isPending}
-          onClick={() => mutation.mutate()}
+          disabled={resumeExisting && submissions.isPending}
+          onClick={() => onSelected({ role, existing })}
         >
-          {mutation.isPending ? "در حال آماده‌سازی…" : "ساخت یا ادامه پیش‌نویس"}
+          {resumeExisting && submissions.isPending
+            ? "در حال بررسی…"
+            : existing
+              ? "ادامه پیش‌نویس"
+              : "شروع ثبت آگهی"}
         </Button>
       </CardContent>
     </Card>
@@ -175,7 +198,7 @@ function LocationFields({
   validation,
   onDirty,
 }: {
-  submission: Submission;
+  submission: Pick<Submission, "location">;
   validation?: ValidationState;
   onDirty: () => void;
 }) {
@@ -183,6 +206,7 @@ function LocationFields({
   const [selectedId, setSelectedId] = useState(
     submission.location?.neighborhood_id ?? "",
   );
+  const [suggestionsOpen, setSuggestionsOpen] = useState(false);
   const [exactLocation, setExactLocation] = useState(
     submission.location?.exact_location
       ? {
@@ -191,7 +215,15 @@ function LocationFields({
         }
       : null,
   );
-  const suggestions = useQuery(locationAutocompleteQueryOptions(query));
+  const suggestions = useQuery(
+    locationAutocompleteQueryOptions(query, {
+      enabled: suggestionsOpen,
+      suggestOnEmpty: true,
+    }),
+  );
+  const neighborhoodSuggestions = (suggestions.data ?? []).filter(
+    (item) => item.kind === "neighborhood",
+  );
   const neighborhoodError = fieldMessage(
     validation,
     "location.neighborhood_id",
@@ -201,30 +233,64 @@ function LocationFields({
 
   return (
     <div className="grid gap-5">
-      <div className="space-y-2">
-        <Label htmlFor="location-query">محله</Label>
-        <Input
-          id="location-query"
-          value={query}
-          onChange={(event) => {
-            setQuery(event.target.value);
-            setSelectedId("");
-          }}
-          autoComplete="off"
-          aria-invalid={Boolean(neighborhoodError)}
-          aria-describedby={
-            neighborhoodError ? "location-error" : "location-help"
+      <div
+        className="space-y-2"
+        onBlur={(event) => {
+          if (!event.currentTarget.contains(event.relatedTarget)) {
+            setSuggestionsOpen(false);
           }
-        />
+        }}
+      >
+        <Label htmlFor="location-query">محله</Label>
+        <div className="relative">
+          <Input
+            id="location-query"
+            className="pe-10"
+            role="combobox"
+            value={query}
+            onFocus={() => setSuggestionsOpen(true)}
+            onChange={(event) => {
+              setQuery(event.target.value);
+              setSelectedId("");
+              setSuggestionsOpen(true);
+            }}
+            onKeyDown={(event) => {
+              if (event.key === "Escape") setSuggestionsOpen(false);
+            }}
+            autoComplete="off"
+            aria-autocomplete="list"
+            aria-controls={
+              suggestionsOpen ? "neighborhood-suggestions" : undefined
+            }
+            aria-expanded={suggestionsOpen}
+            aria-invalid={Boolean(neighborhoodError)}
+            aria-describedby={
+              neighborhoodError ? "location-error" : "location-help"
+            }
+          />
+          <ChevronDown
+            className="text-muted-foreground pointer-events-none absolute end-3 top-3.5 size-4"
+            aria-hidden="true"
+          />
+        </div>
         <p id="location-help" className="text-muted-foreground text-xs">
           نام محله را بنویسید و یکی از پیشنهادها را انتخاب کنید.
         </p>
         <FieldError id="location-error" message={neighborhoodError} />
-        {suggestions.data && suggestions.data.length > 0 && !selectedId && (
-          <div className="border-border grid rounded-lg border" role="listbox">
-            {suggestions.data
-              .filter((item) => item.kind === "neighborhood")
-              .map((item) => (
+        {suggestionsOpen && suggestions.isPending && (
+          <p className="text-muted-foreground text-xs" role="status">
+            در حال بارگذاری محله‌ها…
+          </p>
+        )}
+        {suggestionsOpen &&
+          neighborhoodSuggestions.length > 0 &&
+          !selectedId && (
+            <div
+              id="neighborhood-suggestions"
+              className="border-border grid max-h-64 overflow-y-auto rounded-lg border shadow-sm"
+              role="listbox"
+            >
+              {neighborhoodSuggestions.map((item) => (
                 <button
                   className="hover:bg-muted min-h-11 px-3 text-start text-sm"
                   key={item.id}
@@ -234,13 +300,14 @@ function LocationFields({
                   onClick={() => {
                     setQuery(item.label);
                     setSelectedId(item.id);
+                    setSuggestionsOpen(false);
                   }}
                 >
                   {item.label}
                 </button>
               ))}
-          </div>
-        )}
+            </div>
+          )}
         <input name="neighborhood_id" type="hidden" value={selectedId} />
       </div>
       <div className="space-y-2">
@@ -965,6 +1032,173 @@ function stepPayload(
   };
 }
 
+function locationValidation(form: FormData): ValidationState | undefined {
+  const neighborhoodMissing = !formValue(form, "neighborhood_id");
+  const addressMissing = !formValue(form, "address").trim();
+  if (!neighborhoodMissing && !addressMissing) return undefined;
+  return {
+    message: "محله و نشانی دقیق را وارد کنید.",
+    fields: {
+      ...(neighborhoodMissing && {
+        "location.neighborhood_id": "یک محله از پیشنهادها انتخاب کنید.",
+      }),
+      ...(addressMissing && {
+        "location.address": "نشانی دقیق الزامی است.",
+      }),
+    },
+  };
+}
+
+function NewSubmissionLocationFlow({
+  role,
+  onSaved,
+}: {
+  role: "owner" | "agent";
+  onSaved: (submissionId: string) => void;
+}) {
+  const [validation, setValidation] = useState<ValidationState>();
+  const queryClient = useQueryClient();
+  const mutation = useMutation({
+    mutationFn: async (body: SubmissionStepUpdate) => {
+      const created = await createSubmission(role, false);
+      try {
+        const saved = await saveSubmissionStep(created.id, body);
+        return { id: created.id, saved };
+      } catch (error) {
+        await removeSubmissionDraft(created.id).catch(() => undefined);
+        throw error;
+      }
+    },
+    onSuccess: ({ id, saved }) => {
+      queryClient.setQueryData(["submissions", id], saved);
+      void queryClient.invalidateQueries({
+        queryKey: ["submissions"],
+        exact: true,
+      });
+      onSaved(id);
+    },
+    onError: (error) =>
+      setValidation({
+        message: errorMessage(error, "ذخیره اطلاعات ملک ممکن نشد."),
+        fields: error instanceof ApiError ? error.fields : {},
+      }),
+  });
+  return (
+    <>
+      <header className="mb-8 flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <Badge variant="secondary" className="mb-3">
+            <Save aria-hidden="true" /> هنوز پیش‌نویسی ساخته نشده
+          </Badge>
+          <h1 className="text-3xl font-semibold tracking-tight">
+            ثبت آگهی اجاره
+          </h1>
+          <p className="text-muted-foreground mt-2">مرحله ۱ از ۷ · نشانی ملک</p>
+        </div>
+        <Button asChild variant="outline">
+          <Link to="/dashboard">انصراف</Link>
+        </Button>
+      </header>
+      <div
+        className="bg-muted mb-6 h-1.5 overflow-hidden rounded-full"
+        role="progressbar"
+        aria-label="مرحله کنونی ثبت آگهی"
+        aria-valuemin={1}
+        aria-valuemax={7}
+        aria-valuenow={1}
+        aria-valuetext="مرحله ۱ از ۷"
+      >
+        <div
+          className="bg-primary h-full rounded-full"
+          style={{ width: `${100 / steps.length}%` }}
+        />
+      </div>
+      <div className="grid gap-6 xl:grid-cols-[12rem_minmax(0,1fr)]">
+        <nav aria-label="مراحل ثبت آگهی">
+          <ol className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-1">
+            {steps.map((item, index) => (
+              <li key={item.id}>
+                <button
+                  type="button"
+                  disabled
+                  aria-current={index === 0 ? "step" : undefined}
+                  className={`flex min-h-11 w-full items-center gap-3 rounded-lg px-3 text-start text-sm ${index === 0 ? "bg-primary/10 text-foreground font-semibold" : "text-muted-foreground"}`}
+                >
+                  <span
+                    className={`flex size-7 shrink-0 items-center justify-center rounded-full text-xs ${index === 0 ? "bg-primary text-primary-foreground" : "bg-muted"}`}
+                  >
+                    {persianStepNumbers[index]}
+                  </span>
+                  {item.label}
+                </button>
+              </li>
+            ))}
+          </ol>
+          <p className="text-muted-foreground mt-4 text-xs leading-6">
+            پیش‌نویس پس از ذخیره نخستین اطلاعات ملک ساخته می‌شود.
+          </p>
+        </nav>
+        <Card className="shadow-none">
+          <CardHeader>
+            <h2 className="text-xl font-semibold tracking-tight">نشانی ملک</h2>
+            <p className="text-muted-foreground text-sm">
+              {stepDescriptions.location}
+            </p>
+          </CardHeader>
+          <CardContent>
+            {validation && (
+              <Alert className="mb-6" variant="destructive" role="alert">
+                <AlertTitle>اطلاعات این مرحله را بررسی کنید</AlertTitle>
+                <AlertDescription>{validation.message}</AlertDescription>
+              </Alert>
+            )}
+            <form
+              onSubmit={(event) => {
+                event.preventDefault();
+                const form = new FormData(event.currentTarget);
+                const nextValidation = locationValidation(form);
+                if (nextValidation) {
+                  setValidation(nextValidation);
+                  return;
+                }
+                const payload = stepPayload("location", form);
+                if (payload) mutation.mutate(payload);
+              }}
+              onChange={() => setValidation(undefined)}
+            >
+              <fieldset
+                disabled={mutation.isPending}
+                className="min-w-0 space-y-7"
+              >
+                <LocationFields
+                  submission={{ location: null }}
+                  validation={validation}
+                  onDirty={() => setValidation(undefined)}
+                />
+                <div className="flex justify-end border-t pt-6">
+                  <Button type="submit" disabled={mutation.isPending}>
+                    {mutation.isPending ? "در حال ذخیره…" : "ذخیره و ادامه"}
+                    <ArrowLeft aria-hidden="true" />
+                  </Button>
+                </div>
+              </fieldset>
+            </form>
+          </CardContent>
+        </Card>
+      </div>
+    </>
+  );
+}
+
+class FinalSubmissionError extends Error {
+  constructor(
+    readonly original: unknown,
+    readonly saved: Submission,
+  ) {
+    super("Submission finalization failed after the review step was saved");
+  }
+}
+
 function DraftFlow({ submissionId }: { submissionId: string }) {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -979,6 +1213,10 @@ function DraftFlow({ submissionId }: { submissionId: string }) {
     : (submission?.current_step ?? "location");
   const stepIndex = steps.findIndex((item) => item.id === step);
   const stepMeta = steps[stepIndex] ?? steps[0];
+  const markDirty = () => {
+    setDirty(true);
+    setValidation(undefined);
+  };
   const mutation = useMutation({
     mutationFn: async ({
       body,
@@ -989,7 +1227,11 @@ function DraftFlow({ submissionId }: { submissionId: string }) {
     }) => {
       const saved = await saveSubmissionStep(submissionId, body);
       if (body.completed_step === "review" && destination === "continue") {
-        return submitSubmission(submissionId);
+        try {
+          return await submitSubmission(submissionId);
+        } catch (error) {
+          throw new FinalSubmissionError(error, saved);
+        }
       }
       return saved;
     },
@@ -1017,11 +1259,22 @@ function DraftFlow({ submissionId }: { submissionId: string }) {
         });
       }
     },
-    onError: (error) =>
+    onError: (error) => {
+      const originalError =
+        error instanceof FinalSubmissionError ? error.original : error;
+      if (error instanceof FinalSubmissionError) {
+        queryClient.setQueryData(["submissions", submissionId], error.saved);
+        setDirty(false);
+      }
       setValidation({
-        message: errorMessage(error, "اطلاعات این مرحله را بررسی کنید."),
-        fields: error instanceof ApiError ? error.fields : {},
-      }),
+        message: errorMessage(
+          originalError,
+          "اطلاعات این مرحله را بررسی کنید.",
+        ),
+        fields: originalError instanceof ApiError ? originalError.fields : {},
+        canNavigate: error instanceof FinalSubmissionError,
+      });
+    },
   });
 
   if (submissionQuery.isPending) return <p>در حال بارگذاری پیش‌نویس…</p>;
@@ -1050,6 +1303,12 @@ function DraftFlow({ submissionId }: { submissionId: string }) {
     const destination =
       (event.nativeEvent as SubmitEvent).submitter?.getAttribute("value") ??
       "continue";
+    const isStepDestination = steps.some((item) => item.id === destination);
+    if (isStepDestination && validation?.canNavigate) {
+      setValidation(undefined);
+      setSearchParams({ submission: submissionId, step: destination });
+      return;
+    }
     if (destination !== "continue" && !dirty) {
       if (destination === "exit") void navigate("/dashboard");
       else setSearchParams({ submission: submissionId, step: destination });
@@ -1057,24 +1316,12 @@ function DraftFlow({ submissionId }: { submissionId: string }) {
     }
     const form = new FormData(event.currentTarget);
     const payload = stepPayload(step, form);
-    if (
-      step === "location" &&
-      (!formValue(form, "neighborhood_id") ||
-        !formValue(form, "address").trim())
-    ) {
-      const message = "محله و نشانی دقیق را وارد کنید.";
-      setValidation({
-        message,
-        fields: {
-          ...(!formValue(form, "neighborhood_id") && {
-            "location.neighborhood_id": "یک محله از پیشنهادها انتخاب کنید.",
-          }),
-          ...(!formValue(form, "address").trim() && {
-            "location.address": "نشانی دقیق الزامی است.",
-          }),
-        },
-      });
-      return;
+    if (step === "location") {
+      const nextValidation = locationValidation(form);
+      if (nextValidation) {
+        setValidation(nextValidation);
+        return;
+      }
     }
     if (
       step === "property_facts" &&
@@ -1201,7 +1448,8 @@ function DraftFlow({ submissionId }: { submissionId: string }) {
         ))}
       </ol>
       <p className="text-muted-foreground mt-4 text-xs leading-6">
-        با رفتن به مرحله دیگر، اطلاعات این مرحله ذخیره می‌شود.
+        با رفتن به مرحله دیگر، اطلاعات معتبر این مرحله ذخیره می‌شود. پس از خطای
+        اعتبارسنجی نیز می‌توانید مستقیما به مرحله دیگری بروید.
       </p>
     </nav>
   );
@@ -1279,7 +1527,7 @@ function DraftFlow({ submissionId }: { submissionId: string }) {
             <form
               id="submission-form"
               onSubmit={submit}
-              onChange={() => setDirty(true)}
+              onChange={markDirty}
               onKeyDown={(event) => {
                 if (
                   event.key === "Enter" &&
@@ -1301,7 +1549,7 @@ function DraftFlow({ submissionId }: { submissionId: string }) {
                 className="min-w-0 space-y-7"
               >
                 <StepFields
-                  onDirty={() => setDirty(true)}
+                  onDirty={markDirty}
                   step={step}
                   submission={submission}
                   validation={validation}
@@ -1344,6 +1592,7 @@ function DraftFlow({ submissionId }: { submissionId: string }) {
 
 export function AddSubmissionPage() {
   const [searchParams, setSearchParams] = useSearchParams();
+  const [newRole, setNewRole] = useState<"owner" | "agent">();
   const submissionId = searchParams.get("submission");
   return (
     <AccountWorkspace>
@@ -1351,6 +1600,13 @@ export function AddSubmissionPage() {
         <DraftFlow
           key={`${submissionId}-${searchParams.get("step") ?? ""}`}
           submissionId={submissionId}
+        />
+      ) : newRole ? (
+        <NewSubmissionLocationFlow
+          role={newRole}
+          onSaved={(id) =>
+            setSearchParams({ submission: id, step: "property_facts" })
+          }
         />
       ) : (
         <>
@@ -1365,12 +1621,16 @@ export function AddSubmissionPage() {
           </header>
           <RoleChooser
             resumeExisting={!searchParams.has("new")}
-            onCreated={(draft) =>
-              setSearchParams({
-                submission: draft.id,
-                step: draft.current_step ?? "location",
-              })
-            }
+            onSelected={({ role, existing }) => {
+              if (existing) {
+                setSearchParams({
+                  submission: existing.id,
+                  step: existing.current_step ?? "location",
+                });
+                return;
+              }
+              setNewRole(role);
+            }}
           />
         </>
       )}
