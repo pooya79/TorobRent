@@ -11,12 +11,14 @@ export function PropertyGallery({ property }: { property: Property }) {
       ...image,
       id: `property-${image.id}`,
       source: "تصاویر ملک",
+      isPropertyImage: true,
     })),
     ...property.listings.flatMap((listing) =>
       (listing.images ?? []).map((image) => ({
         ...image,
         id: `${listing.id}-${image.id}`,
         source: listing.source.display_name,
+        isPropertyImage: false,
       })),
     ),
   ];
@@ -26,7 +28,14 @@ export function PropertyGallery({ property }: { property: Property }) {
         image.variants.find((candidate) => candidate.kind === "medium") ??
         image.variants[0];
       return variant && !failedUrls.includes(variant.url)
-        ? [{ ...variant, id: image.id, source: image.source }]
+        ? [
+            {
+              ...variant,
+              id: image.id,
+              source: image.source,
+              isPropertyImage: image.isPropertyImage,
+            },
+          ]
         : [];
     })
     .filter(
@@ -46,7 +55,7 @@ export function PropertyGallery({ property }: { property: Property }) {
               className="aspect-[16/9] max-h-[480px] w-full object-cover"
               src={selected.url}
               alt={
-                selected.source === "تصاویر ملک"
+                selected.isPropertyImage
                   ? "تصویر ملک"
                   : `تصویر ملک از ${selected.source}`
               }
@@ -54,7 +63,7 @@ export function PropertyGallery({ property }: { property: Property }) {
             />
             <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-3 bg-gradient-to-t from-black/75 to-transparent px-5 pt-12 pb-4 text-white">
               <p className="text-xs">
-                {selected.source === "تصاویر ملک"
+                {selected.isPropertyImage
                   ? selected.source
                   : `تصویر از ${selected.source}`}
               </p>
@@ -64,6 +73,18 @@ export function PropertyGallery({ property }: { property: Property }) {
               </span>
             </div>
           </div>
+          {!selected.isPropertyImage && (
+            <div className="bg-muted/40 space-y-1 border-t px-5 py-3">
+              <p className="text-sm font-medium">
+                تصویر آگهی؛ تاییدنشده به عنوان تصویر ملک
+              </p>
+              <p className="text-muted-foreground text-xs leading-6">
+                این تصویر از آگهی منبع است و هنوز به عنوان تصویر ملک تایید نشده
+                است. فقط تصاویر تاییدشده ملک می‌توانند تصویر اصلی در نتایج جستجو
+                باشند.
+              </p>
+            </div>
+          )}
           {images.length > 1 && (
             <div className="bg-card flex gap-2 overflow-x-auto p-3">
               {images.map((image, index) => (
