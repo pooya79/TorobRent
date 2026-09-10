@@ -99,48 +99,98 @@ export function SourceExceptionsPanel({
               استخراج دوباره گروه
             </Button>
           )}
-          {pages.map((page) => (
-            <article key={page.id} className="grid gap-2 border-t pt-2">
-              <a
-                href={page.canonical_url}
-                target="_blank"
-                rel="noreferrer"
-                dir="ltr"
-                className="break-all underline"
-              >
-                {page.canonical_url}
-              </a>
-              <p>{page.exclusion_reason || page.detail}</p>
-              {page.first_occurrence && (
-                <p>اولین رخداد: {date(page.first_occurrence)}</p>
-              )}
-              <p>آخرین تلاش: {date(page.last_attempt_at)}</p>
-              {canRetry && !page.exclusion_reason && (
-                <Button
-                  variant="outline"
-                  disabled={mutation.isPending}
-                  onClick={() => mutation.mutate([page.id])}
-                >
-                  استخراج دوباره صفحه
-                </Button>
-              )}
-              <details>
-                <summary>تاریخچه تلاش‌ها</summary>
-                <ol className="grid gap-2 p-2">
-                  {page.history.map((attempt) => (
-                    <li key={`${attempt.run}-${attempt.attempt}`}>
-                      {date(attempt.attempted_at)} · تلاش{" "}
-                      {attempt.attempt.toLocaleString("fa-IR")} ·{" "}
-                      {labels[attempt.state] ?? attempt.state} ·{" "}
-                      {attempt.detail}
-                      {!attempt.is_current &&
-                        " · نتیجه قدیمی؛ وضعیت فعلی را تغییر نداده است"}
-                    </li>
-                  ))}
-                </ol>
-              </details>
-            </article>
-          ))}
+          <div
+            role="region"
+            aria-label={`جدول ${labels[problem] ?? "مشکلات صفحات"}`}
+            tabIndex={0}
+            className="overflow-x-auto rounded-lg border"
+          >
+            <table className="w-full min-w-160 text-sm">
+              <thead className="bg-muted/40">
+                <tr>
+                  {["صفحه", "مشکل یا نتیجه", "آخرین بررسی", "اقدام"].map(
+                    (label) => (
+                      <th
+                        scope="col"
+                        key={label}
+                        className="p-3 text-start font-medium"
+                      >
+                        {label}
+                      </th>
+                    ),
+                  )}
+                </tr>
+              </thead>
+              <tbody>
+                {pages.map((page) => (
+                  <tr key={page.id} className="border-t align-top">
+                    <th
+                      scope="row"
+                      className="max-w-72 p-3 text-start font-normal"
+                    >
+                      <a
+                        href={page.canonical_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        dir="ltr"
+                        className="block text-start break-all underline"
+                      >
+                        {page.canonical_url}
+                      </a>
+                    </th>
+                    <td className="max-w-72 p-3">
+                      {page.exclusion_reason || page.detail}
+                    </td>
+                    <td className="p-3">
+                      <time dateTime={page.last_attempt_at}>
+                        {date(page.last_attempt_at)}
+                      </time>
+                      <details className="mt-3">
+                        <summary className="text-muted-foreground cursor-pointer">
+                          تاریخچه تلاش‌ها
+                        </summary>
+                        {page.first_occurrence && (
+                          <p className="mt-2">
+                            اولین رخداد: {date(page.first_occurrence)}
+                          </p>
+                        )}
+                        <ol className="mt-2 grid gap-2">
+                          {page.history.map((attempt) => (
+                            <li key={`${attempt.run}-${attempt.attempt}`}>
+                              {date(attempt.attempted_at)} · تلاش{" "}
+                              {attempt.attempt.toLocaleString("fa-IR")} ·{" "}
+                              {labels[attempt.state] ?? attempt.state} ·{" "}
+                              {attempt.detail}
+                              {!attempt.is_current &&
+                                " · نتیجه قدیمی؛ وضعیت فعلی را تغییر نداده است"}
+                            </li>
+                          ))}
+                        </ol>
+                      </details>
+                    </td>
+                    <td className="p-3">
+                      {canRetry && !page.exclusion_reason ? (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={mutation.isPending}
+                          onClick={() => mutation.mutate([page.id])}
+                        >
+                          استخراج دوباره صفحه
+                        </Button>
+                      ) : (
+                        <span className="text-muted-foreground">
+                          {page.exclusion_reason
+                            ? "خارج از محدوده پردازش"
+                            : "فقط مشاهده"}
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </section>
       ))}
       {mutation.isError && <p role="alert">{mutation.error.message}</p>}

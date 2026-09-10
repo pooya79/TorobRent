@@ -901,7 +901,7 @@ test.each(["approval_required", "automatic"])(
     expect(button).toBeDisabled();
     await user.click(
       screen.getByLabelText(
-        "نمونه‌ها را بررسی و انتشار نتایج معتبر را تأیید می‌کنم",
+        "نتایج را بررسی و انتشار همه موارد آماده تأیید این نوبت را تأیید می‌کنم",
       ),
     );
     await user.click(button);

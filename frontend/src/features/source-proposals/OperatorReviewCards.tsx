@@ -802,6 +802,11 @@ export function ProposalReviewCard({
           <CaseSection id="exceptions" title="استثناها و نتایج پردازش">
             {proposal.assignment ? (
               <>
+                <p className="text-muted-foreground text-sm">
+                  برای بررسی و انتشار آگهی‌ها، نوبت استخراج را باز کنید. «مشکلات
+                  صفحات» برای خطاهای دریافت و استخراج است؛ «محدودیت‌های فعال»
+                  صفحاتی را نشان می‌دهد که عمداً پردازش نمی‌شوند.
+                </p>
                 <div className="grid gap-3 sm:grid-cols-3">
                   {[
                     [
@@ -811,7 +816,7 @@ export function ProposalReviewCard({
                     ],
                     [
                       "problems",
-                      "مشکلات باز",
+                      "مشکلات صفحات",
                       proposal.assignment.exceptions?.filter(
                         (item) => item.state === "open",
                       ).length ?? 0,
