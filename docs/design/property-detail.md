@@ -26,9 +26,9 @@ produce an explicit insufficient-history state rather than a fabricated trend.
 ## Visual checks
 
 The four `screenshots/property-detail-{light,dark}-{desktop,mobile}.png` captures show the
-fictional development property at 1440 and 390 pixels. The price charts were also checked
-with synthetic observations in an isolated preview database; these observations are not
-part of the production migration or development seed. The
+fictional development property at 1440 and 390 pixels. Development Listings include two
+clearly fictional historical price pairs plus their current pair so both charts can be exercised;
+production migrations never fabricate historical dates. The
 `property-price-history-dark-example.png` image documents that synthetic chart example. Automated accessibility checks on
 the detail content found no WCAG A/AA violations in either theme at either width.
 

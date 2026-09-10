@@ -9,6 +9,8 @@ class DevelopmentFixtureKind(StrEnum):
     PROPERTY = "property"
     TERMS = "terms"
     LISTING = "listing"
+    LISTING_IMAGE = "listing-image"
+    PROPERTY_IMAGE = "property-image"
     SUBMISSION = "submission"
     SUBMISSION_EVENT = "submission-event"
     LISTING_INQUIRY = "listing-inquiry"

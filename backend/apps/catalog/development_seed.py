@@ -1,11 +1,21 @@
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from pathlib import Path
 
-from django.conf import settings
+from django.core.files.base import ContentFile
+from django.core.files.storage import default_storage
 from django.core.management import call_command
+from PIL import Image
 
 from apps.common.development_seed import DevelopmentFixtureKind, development_fixture_id
+from apps.common.media import (
+    FirstPartyImageInput,
+    ImageProcessingStatus,
+    MediaVariantKind,
+    process_first_party_image,
+)
+from apps.common.models import MediaAsset
 
 from .locations import derive_public_location
 from .models import (
@@ -13,10 +23,15 @@ from .models import (
     City,
     FeatureState,
     Listing,
+    ListingImage,
+    ListingImageVariant,
+    ListingPriceObservation,
     ListingState,
     Neighborhood,
     OutboundPolicy,
     Property,
+    PropertyImage,
+    PropertyImageVariant,
     PropertyType,
     RentalTerms,
     Source,
@@ -28,6 +43,16 @@ PUBLISHED_AT = datetime(2026, 1, 1, tzinfo=UTC)
 DEVELOPMENT_LATITUDE_ORIGIN = Decimal("35.650000")
 DEVELOPMENT_LONGITUDE_ORIGIN = Decimal("51.300000")
 DEVELOPMENT_LOCATION_STEP = Decimal("0.025000")
+DEVELOPMENT_MEDIA_DIRECTORY = Path(__file__).parent / "fixtures" / "development_media"
+DEVELOPMENT_MEDIA_NAMES_BY_PROPERTY_TYPE = {
+    PropertyType.APARTMENT: ("living-room", "bedroom", "kitchen-balcony"),
+    PropertyType.HOUSE: ("living-room", "kitchen-balcony", "bedroom"),
+    PropertyType.VILLA: ("kitchen-balcony", "living-room", "bedroom"),
+    PropertyType.OFFICE: ("office",),
+    PropertyType.SHOP: ("shop",),
+    PropertyType.WAREHOUSE: ("warehouse-workshop",),
+    PropertyType.WORKSHOP: ("warehouse-workshop",),
+}
 
 
 @dataclass(frozen=True)
@@ -147,6 +172,164 @@ def _listing_state(index: int) -> ListingState:
     }.get(index, ListingState.PUBLISHED)
 
 
+def _seed_media_assets() -> dict[str, dict[MediaVariantKind, MediaAsset]]:
+    assets_by_name: dict[str, dict[MediaVariantKind, MediaAsset]] = {}
+    for media_name in sorted({
+        name for names in DEVELOPMENT_MEDIA_NAMES_BY_PROPERTY_TYPE.values() for name in names
+    }):
+        source_path = DEVELOPMENT_MEDIA_DIRECTORY / f"{media_name}.jpg"
+        variant_names = {
+            kind: f"external-media/development/{media_name}/{kind}.webp"
+            for kind in MediaVariantKind
+        }
+        if not all(default_storage.exists(file_name) for file_name in variant_names.values()):
+            for file_name in variant_names.values():
+                default_storage.delete(file_name)
+            input_key = f"external-media/development/{media_name}/source.upload"
+            default_storage.delete(input_key)
+            default_storage.save(input_key, ContentFile(source_path.read_bytes()))
+
+            def variant_key(kind: MediaVariantKind, name: str = media_name) -> str:
+                return f"external-media/development/{name}/{kind}.webp"
+
+            try:
+                result = process_first_party_image(
+                    FirstPartyImageInput(
+                        storage=default_storage,
+                        input_key=input_key,
+                        variant_key=variant_key,
+                    )
+                )
+            finally:
+                default_storage.delete(input_key)
+            if result.status != ImageProcessingStatus.READY:
+                raise RuntimeError(f"Could not process development image {source_path.name}")
+
+        assets: dict[MediaVariantKind, MediaAsset] = {}
+        for kind, file_name in variant_names.items():
+            with (
+                default_storage.open(file_name, "rb") as image_file,
+                Image.open(image_file) as image,
+            ):
+                width, height = image.size
+            asset, _created = MediaAsset.objects.update_or_create(
+                file=file_name,
+                defaults={
+                    "width": width,
+                    "height": height,
+                    "byte_size": default_storage.size(file_name),
+                },
+            )
+            assets[kind] = asset
+        assets_by_name[media_name] = assets
+    return assets_by_name
+
+
+def _seed_listing_images(
+    listings: list[Listing], assets_by_name: dict[str, dict[MediaVariantKind, MediaAsset]]
+) -> None:
+    for index, listing in enumerate(listings, start=1):
+        media_names = DEVELOPMENT_MEDIA_NAMES_BY_PROPERTY_TYPE[
+            PropertyType(listing.property.property_type)
+        ]
+        permits_images = listing.source.is_builtin or listing.source.allows_external_media
+        if not permits_images:
+            continue
+        image_count = 1 + (index * 17) % len(media_names)
+        for position in range(image_count):
+            media_name = media_names[(index + position - 1) % len(media_names)]
+            listing_image, _created = ListingImage.objects.get_or_create(
+                id=development_fixture_id(
+                    DevelopmentFixtureKind.LISTING_IMAGE, index * 10 + position
+                ),
+                defaults={
+                    "listing": listing,
+                    "position": position,
+                    "is_primary": position == 0,
+                },
+            )
+            for kind, asset in assets_by_name[media_name].items():
+                ListingImageVariant.objects.get_or_create(
+                    image=listing_image,
+                    kind=kind,
+                    defaults={"asset": asset},
+                )
+
+
+def _seed_property_images(
+    properties: list[Property], assets_by_name: dict[str, dict[MediaVariantKind, MediaAsset]]
+) -> None:
+    for index, property_ in enumerate(properties, start=1):
+        if index % 2 == 0:
+            continue
+        media_names = DEVELOPMENT_MEDIA_NAMES_BY_PROPERTY_TYPE[
+            PropertyType(property_.property_type)
+        ]
+        image_count = 1 + (index * 11) % len(media_names)
+        for position in range(image_count):
+            media_name = media_names[(index + position - 1) % len(media_names)]
+            property_image, _created = PropertyImage.objects.get_or_create(
+                id=development_fixture_id(
+                    DevelopmentFixtureKind.PROPERTY_IMAGE, index * 10 + position
+                ),
+                defaults={
+                    "property": property_,
+                    "position": position,
+                    "is_primary": position == 0,
+                    "reviewed_at": PUBLISHED_AT,
+                },
+            )
+            for kind, asset in assets_by_name[media_name].items():
+                PropertyImageVariant.objects.get_or_create(
+                    image=property_image,
+                    kind=kind,
+                    defaults={"asset": asset},
+                )
+
+
+def _historical_price(current: int, *, percentage: int, zero_value: int) -> int:
+    if current == 0:
+        return zero_value
+    return current * percentage // 100
+
+
+def _seed_price_history(listings: list[Listing]) -> None:
+    observed_at = datetime.now(tz=UTC)
+    history_points = (
+        (PUBLISHED_AT, 80, 200_000_000, 20_000_000),
+        (PUBLISHED_AT + timedelta(days=90), 90, 100_000_000, 10_000_000),
+    )
+    for listing in listings:
+        if listing.state != ListingState.PUBLISHED:
+            continue
+        for recorded_at, percentage, zero_deposit, zero_rent in history_points:
+            ListingPriceObservation.objects.get_or_create(
+                listing=listing,
+                recorded_at=recorded_at,
+                defaults={
+                    "deposit_rial": _historical_price(
+                        listing.terms.deposit_rial,
+                        percentage=percentage,
+                        zero_value=zero_deposit,
+                    ),
+                    "monthly_rent_rial": _historical_price(
+                        listing.terms.monthly_rent_rial,
+                        percentage=percentage,
+                        zero_value=zero_rent,
+                    ),
+                },
+            )
+        latest = listing.price_history.order_by("-recorded_at", "-id").first()
+        current_pair = (listing.terms.deposit_rial, listing.terms.monthly_rent_rial)
+        if latest is None or (latest.deposit_rial, latest.monthly_rent_rial) != current_pair:
+            ListingPriceObservation.objects.create(
+                listing=listing,
+                recorded_at=observed_at,
+                deposit_rial=current_pair[0],
+                monthly_rent_rial=current_pair[1],
+            )
+
+
 def _seed_listings(properties: list[Property]) -> list[Listing]:
     sources = _seed_sources()
     listings: list[Listing] = []
@@ -177,12 +360,7 @@ def _seed_listings(properties: list[Property]) -> list[Listing]:
                 "source_claims": {"area_sqm": property_.area_sqm + 5} if index > 60 else {},
                 "provenance_note": "داده توسعه؛ موجودی زنده یا داده خزنده نیست.",
                 "external_url": f"https://{source.domain}/listings/{index}" if external else "",
-                "external_media_url": (
-                    f"{settings.FRONTEND_ORIGIN.rstrip('/')}/sample-media/"
-                    f"property-{index % 3 + 1}.svg"
-                    if source.allows_external_media
-                    else ""
-                ),
+                "external_media_url": "",
                 "direct_phone": "02100000000" if not external else "",
                 "published_at": PUBLISHED_AT,
                 "availability_confirmed_at": PUBLISHED_AT,
@@ -197,6 +375,10 @@ def seed_development_catalog() -> DevelopmentCatalog:
     _load_locations()
     properties = _seed_properties()
     listings = _seed_listings(properties)
+    assets_by_name = _seed_media_assets()
+    _seed_listing_images(listings, assets_by_name)
+    _seed_property_images(properties, assets_by_name)
+    _seed_price_history(listings)
     return DevelopmentCatalog(
         properties=len(properties),
         listings=len(listings),

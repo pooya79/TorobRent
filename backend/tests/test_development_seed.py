@@ -11,8 +11,10 @@ from apps.accounts.models import User
 from apps.catalog.models import (
     FeatureState,
     Listing,
+    ListingImage,
     ListingState,
     Property,
+    PropertyImage,
     PropertyType,
     RentalTerms,
 )
@@ -101,10 +103,24 @@ def test_seed_dev_catalog_exercises_review_scenarios():
     assert RentalTerms.objects.filter(deposit_rial__gt=0, monthly_rent_rial=0).exists()
     assert Property.objects.annotate(total=Count("listings")).filter(total__gt=1).count() == 20
     assert Listing.objects.exclude(source_claims={}).exists()
-    assert Listing.objects.filter(
-        source__allows_external_media=True, external_media_url__gt=""
-    ).exists()
-    assert Listing.objects.filter(external_media_url="").exists()
+    image_counts = set(
+        Listing.objects
+        .annotate(total=Count("images"))
+        .filter(total__gt=0)
+        .values_list("total", flat=True)
+    )
+    assert image_counts == {1, 2, 3}
+    assert (
+        Listing.objects
+        .filter(source__allows_external_media=False, images__isnull=False)
+        .filter(source__is_builtin=False)
+        .count()
+        == 0
+    )
+    assert ListingImage.objects.annotate(total=Count("variants")).exclude(total=3).count() == 0
+    assert Property.objects.filter(images__isnull=False).distinct().count() == 30
+    assert PropertyImage.objects.filter(is_primary=True).count() == 30
+    assert PropertyImage.objects.annotate(total=Count("variants")).exclude(total=3).count() == 0
     assert set(Listing.objects.values_list("state", flat=True)) == set(ListingState.values)
     assert (
         Property.objects
@@ -121,6 +137,34 @@ def test_seed_dev_catalog_exercises_review_scenarios():
         .count()
         > 50
     )
+    for listing in Listing.objects.select_related(
+        "property__city", "property__district", "property__neighborhood", "source", "terms"
+    ):
+        listing.property.full_clean()
+        listing.terms.full_clean()
+        listing.full_clean()
+
+
+@pytest.mark.django_db
+def test_seed_dev_media_matches_public_catalog_contract():
+    call_command("seed_dev", verbosity=0)
+    property_ = Property.objects.get(id=development_fixture_id(DevelopmentFixtureKind.PROPERTY, 1))
+
+    client = APIClient()
+    search = client.get("/api/v1/catalog/properties/")
+    assert search.status_code == 200
+    assert any(result["primary_image"] is not None for result in search.data["results"])
+
+    detail = client.get(f"/api/v1/catalog/properties/{property_.id}/")
+    assert detail.status_code == 200
+    listing = detail.data["listings"][0]
+    assert len(listing["images"]) == 3
+    variants = listing["images"][0]["variants"]
+    assert {variant["kind"] for variant in variants} == {"small", "medium", "large"}
+    assert client.get(variants[0]["url"]).status_code == 200
+    assert len(listing["price_history"]) >= 3
+    assert len({point["deposit_toman"] for point in listing["price_history"]}) >= 2
+    assert len({point["monthly_rent_toman"] for point in listing["price_history"]}) >= 2
 
 
 @pytest.mark.django_db
