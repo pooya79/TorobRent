@@ -1220,9 +1220,7 @@ test("activates a zero-return comparison in the URL and renders server estimates
   expect(within(card).getByText("برآورد ماهانه")).toBeVisible();
   expect(within(card).getByText("۲۵٬۰۰۰٬۰۰۰ تومان")).toBeVisible();
   expect(within(card).getByText("قابل تبدیل")).toBeVisible();
-  expect(
-    within(card).queryByText(/هزینه فرصت رهن|فرمول و جزئیات/),
-  ).toBeNull();
+  expect(within(card).queryByText(/هزینه فرصت رهن|فرمول و جزئیات/)).toBeNull();
   await user.click(screen.getByRole("button", { name: /برآورد هزینه.*۰/ }));
   expect(screen.getByLabelText("بازده سالانه مورد انتظار")).toHaveValue("۰");
   await user.click(screen.getByRole("button", { name: "حذف برآورد" }));
@@ -1235,6 +1233,75 @@ test("activates a zero-return comparison in the URL and renders server estimates
     );
   });
   expect(screen.queryByText("برآورد ماهانه")).toBeNull();
+});
+
+test.each([null, "deposit", "preference_fit"])(
+  "applies estimates while preserving %s ordering and preferences",
+  async (ordering) => {
+    const user = userEvent.setup();
+    const preferences = JSON.stringify({
+      elevator: { priority: "very_important", target: "present" },
+    });
+    const params = new URLSearchParams({ preferences, area_min: "50" });
+    if (ordering) params.set("ordering", ordering);
+    let requestedParams = new URLSearchParams();
+    server.use(
+      http.get("*/api/v1/catalog/properties/", ({ request }) => {
+        requestedParams = new URL(request.url).searchParams;
+        return HttpResponse.json(propertySearchPage);
+      }),
+    );
+    renderResults(`/search?${params}`);
+    await user.click(screen.getByRole("button", { name: "برآورد هزینه" }));
+    await user.type(screen.getByLabelText("بازده سالانه مورد انتظار"), "۳۰");
+    await user.click(screen.getByRole("button", { name: "فقط اعمال برآورد" }));
+
+    await waitFor(() =>
+      expect(requestedParams.get("annual_return_rate")).toBe("30"),
+    );
+    expect(requestedParams.get("ordering")).toBe(ordering);
+    expect(requestedParams.get("preferences")).toBe(preferences);
+    expect(requestedParams.get("area_min")).toBe("50");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  },
+);
+
+test("market references fill an editable draft without applying or sorting", async () => {
+  const user = userEvent.setup();
+  renderResults("/search?ordering=deposit");
+  await user.click(screen.getByRole("button", { name: "برآورد هزینه" }));
+  const rate = screen.getByLabelText("بازده سالانه مورد انتظار");
+  await user.type(rate, "۵۰۱");
+  await user.click(screen.getByRole("button", { name: "فقط اعمال برآورد" }));
+  expect(rate).toBeInvalid();
+  for (const [asset, value] of [
+    ["طلای ۱۸ عیار", "۱۷۵"],
+    ["دلار آزاد", "۱۳۱"],
+    ["بیت‌کوین", "۶۴"],
+  ]) {
+    await user.click(
+      screen.getByRole("button", {
+        name: `استفاده از نرخ ${asset}، ${value} درصد`,
+      }),
+    );
+    expect(rate).toHaveValue(value);
+    expect(rate).toBeValid();
+    expect(screen.getByLabelText("وضعیت جست‌وجو")).not.toHaveTextContent(
+      "annual_return_rate",
+    );
+    expect(screen.getByLabelText("وضعیت جست‌وجو")).toHaveTextContent(
+      "ordering=deposit",
+    );
+  }
+  await user.clear(rate);
+  await user.type(rate, "۲۰");
+  await user.click(screen.getByRole("button", { name: "فقط اعمال برآورد" }));
+  expect(screen.getByLabelText("وضعیت جست‌وجو")).toHaveTextContent(
+    "annual_return_rate=20",
+  );
+  expect(screen.getByLabelText("وضعیت جست‌وجو")).toHaveTextContent(
+    "ordering=deposit",
+  );
 });
 
 test("validates and applies a custom annual return assumption", async () => {
@@ -1253,7 +1320,7 @@ test("validates and applies a custom annual return assumption", async () => {
   await user.click(screen.getByRole("button", { name: "برآورد هزینه" }));
   const rate = await screen.findByLabelText("بازده سالانه مورد انتظار");
   await user.type(rate, "۵۰۰٫۰۱");
-  await user.click(screen.getByRole("button", { name: "محاسبه و مرتب‌سازی" }));
+  await user.click(screen.getByRole("button", { name: "فقط اعمال برآورد" }));
   expect(rate).toBeInvalid();
   expect(screen.getByRole("alert")).toHaveTextContent(
     "نرخ باید بین ۰ تا ۵۰۰ درصد و حداکثر دارای دو رقم اعشار باشد.",
@@ -1262,7 +1329,7 @@ test("validates and applies a custom annual return assumption", async () => {
 
   await user.clear(rate);
   await user.type(rate, "۱۲٫۵");
-  await user.click(screen.getByRole("button", { name: "محاسبه و مرتب‌سازی" }));
+  await user.keyboard("{Enter}");
   await waitFor(() => expect(requestedRate).toBe("12.5"));
   expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   await user.click(screen.getByRole("button", { name: /برآورد هزینه.*۱۲/ }));
