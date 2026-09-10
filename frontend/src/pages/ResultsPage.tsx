@@ -1,7 +1,7 @@
 import { PreferenceControls } from "@/features/catalog/PreferenceControls";
 import { fitBandLabels } from "@/features/catalog/preferences";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
-import { Map as MapIcon, SlidersHorizontal, X } from "lucide-react";
+import { Map as MapIcon, MapPinOff, SlidersHorizontal, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 
@@ -346,15 +346,36 @@ export function ResultsPage({ mapAdapter }: { mapAdapter?: MapAdapter }) {
   const [mobileMapOpen, setMobileMapOpen] = useState(false);
   const [mapAvailable, setMapAvailable] = useState(true);
   const [desktopMapEnabled, setDesktopMapEnabled] = useState(false);
+  const [mapFilterDisabled, setMapFilterDisabled] = useState(false);
   const [selectedPropertyId, setSelectedPropertyId] = useState<string | null>(
     null,
   );
   const viewportTimer = useRef<number | undefined>(undefined);
   const loadMoreSentinel = useRef<HTMLDivElement>(null);
+  const listSearchParams = useMemo(() => {
+    const next = new URLSearchParams(searchParams);
+    if (mapFilterDisabled) {
+      for (const name of viewportParameterNames) next.delete(name);
+    }
+    return next;
+  }, [mapFilterDisabled, searchParams]);
   const search = useInfiniteQuery(
-    propertySearchInfiniteQueryOptions(searchParams),
+    propertySearchInfiniteQueryOptions(listSearchParams),
+  );
+  const viewportFilterActive = viewportParameterNames.every((name) =>
+    searchParams.has(name),
+  );
+  const mapSearch = useQuery(
+    propertySearchQueryOptions(
+      searchParams,
+      mapFilterDisabled && viewportFilterActive,
+    ),
   );
   const searchData = search.data?.pages[0];
+  const mapSearchData =
+    mapFilterDisabled && viewportFilterActive
+      ? (mapSearch.data ?? searchData)
+      : searchData;
   const properties = useMemo(() => {
     const byId = new Map<string, PropertySummary>();
     for (const page of search.data?.pages ?? []) {
@@ -376,7 +397,7 @@ export function ResultsPage({ mapAdapter }: { mapAdapter?: MapAdapter }) {
   }, [searchParams]);
   const resultSearchParams = useMemo(() => {
     const result = new URLSearchParams(
-      searchData?.requestSearchParams ?? searchParams,
+      searchData?.requestSearchParams ?? listSearchParams,
     );
     const requestedPage = Math.max(
       1,
@@ -388,6 +409,7 @@ export function ResultsPage({ mapAdapter }: { mapAdapter?: MapAdapter }) {
   }, [
     search.data?.pages.length,
     searchData?.requestSearchParams,
+    listSearchParams,
     searchParams,
   ]);
   const MapAdapterComponent = mapAdapter ?? configuredMapAdapter;
@@ -435,11 +457,11 @@ export function ResultsPage({ mapAdapter }: { mapAdapter?: MapAdapter }) {
     setSearchParams(next, { replace: true });
   }, [searchParams, setSearchParams]);
   const mapMarkers =
-    searchData?.map.markers
-      .map((property) => toMapMarker(property, resultSearchParams))
+    mapSearchData?.map.markers
+      .map((property) => toMapMarker(property, searchParams))
       .filter((marker): marker is MapMarker => marker !== null) ?? [];
   const mapClusters: MapCluster[] =
-    searchData?.map.clusters.map((cluster) => ({
+    mapSearchData?.map.clusters.map((cluster) => ({
       id: cluster.id,
       center: {
         latitude: Number(cluster.latitude),
@@ -525,6 +547,14 @@ export function ResultsPage({ mapAdapter }: { mapAdapter?: MapAdapter }) {
     },
     [setSearchParams],
   );
+  const toggleMapFilter = () => {
+    const next = new URLSearchParams(searchParams);
+    next.delete("page");
+    setMapFilterDisabled((disabled) => !disabled);
+    if (next.toString() !== searchParams.toString()) {
+      setSearchParams(next, { replace: true });
+    }
+  };
   useEffect(() => () => window.clearTimeout(viewportTimer.current), []);
   const activeFilters = Object.entries(filterLabels).filter(([name]) =>
     resultSearchParams.has(name),
@@ -638,6 +668,18 @@ export function ResultsPage({ mapAdapter }: { mapAdapter?: MapAdapter }) {
             )}
           </p>
           <div className="flex flex-wrap items-center gap-2">
+            {mapAvailable && (
+              <Button
+                type="button"
+                size="sm"
+                variant={mapFilterDisabled ? "secondary" : "outline"}
+                aria-pressed={mapFilterDisabled}
+                onClick={toggleMapFilter}
+              >
+                <MapPinOff aria-hidden="true" /> محدوده نقشه روی نتایج اعمال
+                نشود
+              </Button>
+            )}
             {mapAvailable ? (
               search.data ? (
                 <Sheet open={mobileMapOpen} onOpenChange={setMobileMapOpen}>

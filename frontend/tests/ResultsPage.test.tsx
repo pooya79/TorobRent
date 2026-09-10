@@ -1451,6 +1451,85 @@ test("settles user map movement into a shareable replacement viewport query", as
   );
 });
 
+test("can keep the map and URL moving without filtering the result list", async () => {
+  const user = userEvent.setup();
+  const requestedSearches: URLSearchParams[] = [];
+  const additionalProperty = {
+    ...propertySearchPage.results[0]!,
+    id: "40000000-0000-4000-8000-000000000077",
+    title: "آپارتمان دوم خارج از نقشه",
+    canonical_slug: "آپارتمان-دوم-خارج-از-نقشه",
+  };
+  server.use(
+    http.get("*/api/v1/catalog/properties/", ({ request }) => {
+      const parameters = new URL(request.url).searchParams;
+      requestedSearches.push(parameters);
+      if (!parameters.has("viewport_north")) {
+        return HttpResponse.json({
+          ...propertySearchPage,
+          count: 2,
+          results: [...propertySearchPage.results, additionalProperty],
+        });
+      }
+      return HttpResponse.json(propertySearchPage);
+    }),
+  );
+  renderResults(
+    "/search?parking=present&viewport_north=35.8&viewport_east=51.5&viewport_south=35.7&viewport_west=51.3&viewport_zoom=13",
+    createFakeMapAdapter(),
+  );
+
+  await screen.findByRole("heading", { name: "آپارتمان در سعادت‌آباد" });
+  const toggle = screen.getByRole("button", {
+    name: "محدوده نقشه روی نتایج اعمال نشود",
+  });
+  expect(toggle).toHaveAttribute("aria-pressed", "false");
+
+  await user.click(toggle);
+
+  await waitFor(() => {
+    expect(toggle).toHaveAttribute("aria-pressed", "true");
+    const state = screen.getByLabelText("وضعیت جست‌وجو");
+    expect(state).toHaveTextContent("parking=present");
+    expect(state).toHaveTextContent("viewport_north=35.8");
+    expect(
+      within(
+        screen.getByRole("region", { name: "ملک‌های پیدا شده" }),
+      ).getAllByRole("article"),
+    ).toHaveLength(2);
+  });
+
+  await user.click(
+    screen.getByRole("button", { name: "تغییر محدوده آزمایشی" }),
+  );
+  await waitFor(() =>
+    expect(screen.getByLabelText("وضعیت جست‌وجو")).toHaveTextContent(
+      "viewport_zoom=14",
+    ),
+  );
+  expect(
+    within(
+      screen.getByRole("region", { name: "ملک‌های پیدا شده" }),
+    ).getAllByRole("article"),
+  ).toHaveLength(2);
+  expect(requestedSearches.at(-1)?.get("parking")).toBe("present");
+  expect(requestedSearches.at(-1)?.get("viewport_zoom")).toBe("14");
+
+  await user.click(toggle);
+
+  await waitFor(() => {
+    expect(toggle).toHaveAttribute("aria-pressed", "false");
+    const state = screen.getByLabelText("وضعیت جست‌وجو");
+    expect(state).toHaveTextContent("parking=present");
+    expect(state).toHaveTextContent("viewport_zoom=14");
+    expect(
+      within(
+        screen.getByRole("region", { name: "ملک‌های پیدا شده" }),
+      ).getAllByRole("article"),
+    ).toHaveLength(1);
+  });
+});
+
 test("replaces an outside shared viewport with its Tehran-constrained equivalent", async () => {
   const user = userEvent.setup();
   renderResults(
