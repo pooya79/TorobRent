@@ -402,8 +402,6 @@ def _lock_candidate(
 
         if not authorized(candidate.extraction_run.request):
             raise ValidationError("تخصیص یا پروفایل این نتیجه دیگر فعال نیست.")
-        if not for_correction and not candidate.validation_errors and not candidate.corrections:
-            raise ValidationError("نتیجه معتبر باید با تصمیم گروهی استخراج منتشر شود.")
     return candidate
 
 

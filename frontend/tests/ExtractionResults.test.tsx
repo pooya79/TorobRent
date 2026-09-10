@@ -51,13 +51,11 @@ test("makes results beyond the first five inspectable with pagination, search, a
   await user.click(screen.getByRole("button", { name: "صفحه بعد" }));
   const row = screen.getByRole("row", { name: /آگهی 25 / });
   expect(row).toHaveTextContent("نیازمند رسیدگی");
-  await user.click(within(row).getByRole("button", { name: "جزئیات" }));
-  expect(screen.getByText("جزئیات آگهی 25")).toBeVisible();
   expect(
-    within(row).getByRole("link", { name: "پرونده آگهی" }),
+    within(row).getByRole("link", { name: "بررسی و اصلاح" }),
   ).toHaveAttribute(
     "href",
-    "/operator/external-listings?proposal=proposal&candidate=candidate-25",
+    "/operator/source-proposals/proposal?candidate=candidate-25#exceptions",
   );
   await user.type(screen.getByLabelText("جست‌وجوی عنوان یا نشانی آگهی"), "25");
   expect(screen.getByRole("status")).toHaveTextContent("۱ نتیجه مطابق فیلتر");

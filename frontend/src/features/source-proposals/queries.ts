@@ -369,17 +369,28 @@ export async function withdrawExcludedListings(
   return data;
 }
 
-export function operatorSourceContextQueryOptions(proposalId: string | null) {
+export function operatorSourceContextQueryOptions(
+  proposalId: string | null,
+  candidateId?: string | null,
+) {
   return queryOptions({
     queryKey: proposalId
       ? ["operator-source-proposals", proposalId]
-      : ["operator-source-proposals"],
+      : candidateId
+        ? ["operator-source-proposals", "candidate", candidateId]
+        : ["operator-source-proposals"],
     refetchInterval: 5000,
     queryFn: async () => {
       const { data, error } = await api.GET(
         "/api/v1/operator/source-proposals/",
         {
-          params: { query: proposalId ? { proposal: proposalId } : {} },
+          params: {
+            query: proposalId
+              ? { proposal: proposalId }
+              : candidateId
+                ? { candidate: candidateId }
+                : {},
+          },
         },
       );
       if (error || !data) throw apiError(error);

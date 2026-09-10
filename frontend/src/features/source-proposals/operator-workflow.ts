@@ -54,7 +54,7 @@ function workflowStage(proposal: OperatorSourceProposal) {
         : "منبع فعال",
       action: proposal.assignment.source.processing_paused
         ? "بررسی علت توقف پردازش"
-        : "بررسی نتایج و استثناها",
+        : "بررسی ملک‌ها و انتشار",
       section: proposal.assignment.source.processing_paused
         ? "processing"
         : "exceptions",

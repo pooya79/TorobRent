@@ -374,24 +374,28 @@ def test_concurrent_batch_decisions_publish_once(
 
 
 @pytest.mark.django_db
-def test_valid_results_cannot_bypass_batch_review_through_individual_endpoints(
+def test_valid_results_support_individual_review_by_responsible_operator(
     api_client, assigned_case, monkeypatch, django_capture_on_commit_callbacks
 ):
     from apps.catalog.models import Listing
     from tests.test_source_proposal_review import make_operator
 
     run = execute_run(api_client, assigned_case, monkeypatch, django_capture_on_commit_callbacks)
-    base = f"/api/v1/operator/external-listing-candidates/{run['candidates'][0]['id']}"
-    for operator in (assigned_case[2], make_operator(email="unassigned@example.com")):
-        api_client.force_authenticate(operator)
-        assert api_client.post(f"{base}/claim/", {}).status_code == 400
-        assert (
-            api_client.post(
-                f"{base}/approve/", {"reviewed_revision": 1, "confirmed": True}, format="json"
-            ).status_code
-            == 400
-        )
+    candidate = run["candidates"][0]
+    base = f"/api/v1/operator/external-listing-candidates/{candidate['id']}"
+    api_client.force_authenticate(make_operator(email="unassigned@example.com"))
+    assert api_client.post(f"{base}/claim/", {}).status_code in (400, 409)
     assert Listing.objects.count() == 0
+    api_client.force_authenticate(assigned_case[2])
+    assert api_client.post(f"{base}/claim/", {}).status_code == 201
+    response = api_client.post(
+        f"{base}/approve/",
+        {"reviewed_revision": candidate["revision"], "confirmed": True},
+        format="json",
+    )
+    assert response.status_code == 200, response.json()
+    assert response.json()["state"] == "published"
+    assert Listing.objects.count() == 1
 
 
 @pytest.mark.django_db
@@ -451,3 +455,34 @@ def test_previous_workers_can_insert_runs_candidates_and_events_after_migration(
         reason="Legacy review",
     )
     assert ExternalListingCandidateEvent.objects.get(pk=old_event.pk).corrections == {}
+
+
+@pytest.mark.django_db
+def test_source_properties_remain_inspectable_outside_recent_run_history(
+    api_client, assigned_case, monkeypatch, django_capture_on_commit_callbacks
+):
+    from apps.source_proposals.models import ExternalListingCandidate
+    from apps.source_proposals.serializers import SourceAssignmentSerializer
+
+    run = execute_run(api_client, assigned_case, monkeypatch, django_capture_on_commit_callbacks)
+    proposal = assigned_case[0]
+    superseded_id = run["candidates"][0]["id"]
+    retained_id = run["candidates"][1]["id"]
+    ExternalListingCandidate.objects.filter(pk=superseded_id).update(superseded=True)
+    monkeypatch.setattr(SourceAssignmentSerializer, "get_recent_requests", lambda self, obj: [])
+    endpoint = "/api/v1/operator/source-proposals/"
+    result = api_client.get(endpoint, {"proposal": str(proposal.pk)}).json()[0]
+    assert result["assignment"]["recent_requests"] == []
+    assert len(result["properties"]) == 9
+    assert superseded_id not in {item["id"] for item in result["properties"]}
+    assert all(item["is_current"] for item in result["properties"])
+    assert api_client.get(endpoint).json()[0]["properties"] == []
+    resolved = api_client.get(endpoint, {"candidate": retained_id}).json()
+    assert len(resolved) == 1
+    assert resolved[0]["id"] == str(proposal.pk)
+    proposal.refresh_from_db()
+    proposal.source.processing_paused = True
+    proposal.source.save(update_fields=["processing_paused"])
+    paused = api_client.get(endpoint, {"proposal": str(proposal.pk)}).json()[0]
+    assert len(paused["properties"]) == 9
+    assert not any(item["is_current"] for item in paused["properties"])

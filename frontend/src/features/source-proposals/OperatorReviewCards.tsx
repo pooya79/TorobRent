@@ -1,3 +1,4 @@
+import { candidateValidationMessages } from "./candidate-validation";
 import { SourceProcessingStatus } from "./SourceProcessingStatus";
 import { caseSections, type CaseSectionId } from "./case-sections";
 import {
@@ -15,6 +16,7 @@ import { SourcePublicationModePanel } from "@/features/source-proposals/SourcePu
 import { SourceResponsibilityPanel } from "@/features/source-proposals/SourceResponsibilityPanel";
 import { CandidateEvidence } from "@/features/source-proposals/CandidateEvidence";
 import { CandidateCorrectionForm } from "@/features/source-proposals/CandidateCorrectionForm";
+import { ExtractionRunReview } from "./ExtractionRunReview";
 import { ExtractionHistory } from "./ExtractionHistory";
 import { SourceExceptionsPanel } from "./SourceExceptionsPanel";
 import { SourceBulkActions } from "./SourceBulkActions";
@@ -27,12 +29,11 @@ import {
   createContext,
   useContext,
 } from "react";
-import { Link } from "react-router";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -85,7 +86,7 @@ export function ProposalReviewCard({
   onSectionChange: (section: CaseSectionId) => void;
   onDecisionSuccess: (proposal: OperatorSourceProposal) => void;
 }) {
-  const [resultView, setResultView] = useState("runs");
+  const [resultView, setResultView] = useState("properties");
   const [claimed, setClaimed] = useState(false);
   const [claimExpiresAt, setClaimExpiresAt] = useState<string>();
   const [claimExpired, setClaimExpired] = useState(false);
@@ -325,7 +326,7 @@ export function ProposalReviewCard({
                 </Button>
               </div>
             </div>
-            <div className="grid gap-3 sm:grid-cols-3">
+            <div className="grid grid-cols-2 gap-2 xl:grid-cols-4">
               {[
                 {
                   label: "نشانی و اختیار",
@@ -802,16 +803,16 @@ export function ProposalReviewCard({
           <CaseSection id="exceptions" title="استثناها و نتایج پردازش">
             {proposal.assignment ? (
               <>
-                <p className="text-muted-foreground text-sm">
-                  برای بررسی و انتشار آگهی‌ها، نوبت استخراج را باز کنید. «مشکلات
-                  صفحات» برای خطاهای دریافت و استخراج است؛ «محدودیت‌های فعال»
-                  صفحاتی را نشان می‌دهد که عمداً پردازش نمی‌شوند.
-                </p>
-                <div className="grid gap-3 sm:grid-cols-3">
+                <div className="grid grid-cols-2 gap-2 xl:grid-cols-4">
                   {[
                     [
+                      "properties",
+                      "ملک‌های وب‌سایت",
+                      proposal.properties?.length ?? 0,
+                    ],
+                    [
                       "runs",
-                      "نوبت‌های استخراج",
+                      "تاریخچه استخراج",
                       proposal.assignment.recent_requests?.length ?? 0,
                     ],
                     [
@@ -842,6 +843,17 @@ export function ProposalReviewCard({
                       </span>
                     </button>
                   ))}
+                </div>
+                <div
+                  className={
+                    resultView === "properties" ? "grid gap-4" : "hidden"
+                  }
+                >
+                  <ExtractionRunReview
+                    properties={proposal.properties ?? []}
+                    proposalId={proposal.id}
+                    canApprove={false}
+                  />
                 </div>
                 <div
                   className={resultView === "runs" ? "grid gap-4" : "hidden"}
@@ -899,6 +911,12 @@ export function ProposalReviewCard({
                   )}
                 </div>
               </>
+            ) : proposal.properties?.length ? (
+              <ExtractionRunReview
+                properties={proposal.properties}
+                proposalId={proposal.id}
+                canApprove={false}
+              />
             ) : (
               <div className="bg-muted/30 rounded-xl border border-dashed p-8 text-center">
                 <p className="font-medium">هنوز پردازشی انجام نشده است</p>
@@ -968,8 +986,17 @@ export function ExternalListingCandidateCard({
   canDecide: boolean;
   onDecisionSuccess: (candidateId: string) => void;
 }) {
+  const closed =
+    candidate.superseded ||
+    candidate.state === "published" ||
+    candidate.state === "rejected" ||
+    candidate.state === "cancelled";
   const [claimed, setClaimed] = useState(false);
-  const [confirmed, setConfirmed] = useState(false);
+  const [dirty, setDirty] = useState(false);
+  const [confirmedRevision, setConfirmedRevision] = useState<number | null>(
+    null,
+  );
+  const confirmed = confirmedRevision === candidate.revision;
   const [reason, setReason] = useState("");
   const claim = useMutation({
     mutationFn: () => claimExternalListingCandidate(candidate.id),
@@ -987,45 +1014,52 @@ export function ExternalListingCandidateCard({
   });
 
   return (
-    <Card className="shadow-none">
-      <CardHeader>
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <h3 className="font-semibold">{candidate.title}</h3>
-          <div className="flex gap-2">
-            <Badge variant="secondary">{candidateStatus(candidate)}</Badge>
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent className="grid gap-5">
-        {candidate.source_proposal_id && (
-          <Link
-            className="text-primary underline underline-offset-4"
-            to={`/operator/source-proposals/${candidate.source_proposal_id}`}
-          >
-            پرونده منبع · {candidate.source.display_name}
-          </Link>
-        )}
+    <Card className="border-0 bg-transparent shadow-none">
+      <CardContent className="grid gap-4 p-0">
+        <Badge variant="secondary" className="w-fit">
+          {candidateStatus(candidate)}
+        </Badge>
         <Alert>
           <AlertTitle aria-level={4}>
-            این آگهی استخراج‌شده هنوز منتشر نشده است
+            {candidate.state === "published"
+              ? "این ملک منتشر شده است"
+              : candidate.state === "rejected" ||
+                  candidate.state === "cancelled" ||
+                  candidate.superseded
+                ? "این نتیجه بایگانی شده است"
+                : "این ملک هنوز منتشر نشده است"}
           </AlertTitle>
           <AlertDescription>
-            این آگهی برای بررسی و تصمیم مستقل آماده است.
+            {canDecide
+              ? "اطلاعات را با صفحه اصلی مقایسه کنید. در صورت نیاز اصلاح کنید و سپس درباره انتشار تصمیم بگیرید."
+              : "این نما فقط برای مشاهده است."}
           </AlertDescription>
         </Alert>
-        {Object.keys(candidate.validation_errors ?? {}).length > 0 && (
-          <Alert variant="destructive">
-            <AlertTitle aria-level={4}>
-              پیش از انتشار، اطلاعات آگهی را اصلاح کنید
-            </AlertTitle>
-            <AlertDescription>
-              {Object.keys(
-                candidate.validation_errors ?? {},
-              ).length.toLocaleString("fa-IR")}{" "}
-              مورد نیازمند بررسی است. جزئیات در بخش شواهد و اعتبارسنجی آمده است.
-            </AlertDescription>
-          </Alert>
-        )}
+        {!closed &&
+          Object.keys(candidate.validation_errors ?? {}).length > 0 && (
+            <Alert variant="destructive">
+              <AlertTitle aria-level={4}>
+                پیش از انتشار، اطلاعات آگهی را اصلاح کنید
+              </AlertTitle>
+              <AlertDescription>
+                {Object.keys(
+                  candidate.validation_errors ?? {},
+                ).length.toLocaleString("fa-IR")}{" "}
+                مورد نیازمند بررسی است.
+                <ul className="mt-2 list-inside list-disc">
+                  {candidateValidationMessages(candidate).map(
+                    (message, index) => (
+                      <li key={index}>{message}</li>
+                    ),
+                  )}
+                </ul>
+                <p className="mt-2">
+                  اگر صفحه مربوط به یک ملک نیست، به‌جای پر کردن اطلاعات نامشخص
+                  آن را رد کنید.
+                </p>
+              </AlertDescription>
+            </Alert>
+          )}
         {/^https?:\/\//i.test(candidate.external_url) && (
           <Button asChild variant="outline">
             <a
@@ -1038,9 +1072,6 @@ export function ExternalListingCandidateCard({
           </Button>
         )}
         <dl className="grid gap-4 sm:grid-cols-2">
-          <Detail label="منبع" value={candidate.source.display_name} />
-          <Detail label="دامنه منبع" value={candidate.source.domain} />
-          <Detail label="پیوند اصلی آگهی" value={candidate.external_url} />
           <Detail
             label="متراژ"
             value={`${candidate.area_sqm?.toLocaleString("fa-IR") ?? "نامشخص"} متر`}
@@ -1055,73 +1086,112 @@ export function ExternalListingCandidateCard({
           />
         </dl>
         <p className="text-muted-foreground text-sm">{candidate.description}</p>
-        <CandidateEvidence candidate={candidate} />
+
+        {canDecide && !claimed && (
+          <p className="text-muted-foreground text-sm">
+            شروع بررسی، این ملک را برای بررسی شما رزرو می‌کند؛ چیزی منتشر
+            نمی‌شود. سپس فرم اصلاح و دکمه‌های تصمیم نمایش داده می‌شوند.
+          </p>
+        )}
         {claimed && canDecide && candidate.extraction_run && (
-          <CandidateCorrectionForm candidate={candidate} />
-        )}
-        {!claimed || !canDecide ? (
-          <Button
-            onClick={() => claim.mutate()}
-            disabled={claim.isPending || !canDecide}
-            aria-label={`شروع بررسی ${candidate.title}`}
+          <details
+            open={
+              Object.keys(candidate.validation_errors ?? {}).length > 0 ||
+              undefined
+            }
+            className="rounded-lg border p-3"
           >
-            شروع بررسی آگهی
-          </Button>
-        ) : (
-          <div className="grid gap-4">
-            <div className="grid gap-2">
-              <Label htmlFor={`candidate-reason-${candidate.id}`}>
-                دلیل تصمیم {candidate.title}
-              </Label>
-              <Input
-                id={`candidate-reason-${candidate.id}`}
-                value={reason}
-                onChange={(event) => setReason(event.target.value)}
-              />
-            </div>
-            <label className="flex items-start gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={confirmed}
-                onChange={(event) => setConfirmed(event.target.checked)}
-                aria-label={`تأیید انتشار ${candidate.title}`}
-              />
-              تأیید می‌کنم این آگهی استخراج‌شده مستقلاً بررسی شده و ادامه آن فقط
-              از پیوند اصلی آگهی خواهد بود.
-            </label>
-            <div className="flex flex-wrap gap-2">
-              <Button
-                variant="outline"
-                disabled={decision.isPending || !reason.trim()}
-                onClick={() => decision.mutate("request-changes")}
-                aria-label={`درخواست اصلاح ${candidate.title}`}
-              >
-                درخواست اصلاح
-              </Button>
-              <Button
-                variant="destructive"
-                disabled={decision.isPending || !reason.trim()}
-                onClick={() => decision.mutate("reject")}
-                aria-label={`رد ${candidate.title}`}
-              >
-                رد آگهی استخراج‌شده
-              </Button>
-              <Button
-                disabled={
-                  !confirmed ||
-                  decision.isPending ||
-                  candidate.state !== "pending" ||
-                  Boolean(candidate.exclusion_reason) ||
-                  Object.keys(candidate.validation_errors ?? {}).length > 0
-                }
-                onClick={() => decision.mutate("approve")}
-                aria-label={`تأیید و انتشار ${candidate.title}`}
-              >
-                تأیید و انتشار
-              </Button>
-            </div>
-          </div>
+            <summary className="cursor-pointer font-medium">
+              اصلاح مشخصات و تصاویر این ملک
+            </summary>
+            <CandidateCorrectionForm
+              candidate={candidate}
+              onDirtyChange={setDirty}
+            />
+          </details>
         )}
+        {canDecide &&
+          (!claimed ? (
+            <Button
+              onClick={() => claim.mutate()}
+              disabled={claim.isPending || !canDecide}
+              aria-label={`شروع بررسی ${candidate.title}`}
+            >
+              {claim.isPending
+                ? "در حال آماده‌سازی…"
+                : "شروع بررسی و باز کردن فرم اصلاح"}
+            </Button>
+          ) : (
+            <div className="grid gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor={`candidate-reason-${candidate.id}`}>
+                  دلیل رد یا درخواست اصلاح {candidate.title}
+                </Label>
+                <Input
+                  id={`candidate-reason-${candidate.id}`}
+                  value={reason}
+                  onChange={(event) => setReason(event.target.value)}
+                />
+              </div>
+              <p className="text-muted-foreground text-xs">
+                دلیل فقط برای رد یا درخواست اصلاح لازم است. تأیید انتشار به دلیل
+                نیاز ندارد.
+              </p>
+              <label className="flex items-start gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={confirmed}
+                  onChange={(event) =>
+                    setConfirmedRevision(
+                      event.target.checked ? candidate.revision : null,
+                    )
+                  }
+                  aria-label={`تأیید انتشار ${candidate.title}`}
+                />
+                تأیید می‌کنم این آگهی استخراج‌شده مستقلاً بررسی شده و ادامه آن
+                فقط از پیوند اصلی آگهی خواهد بود.
+              </label>
+              {dirty && (
+                <p role="status" className="text-sm">
+                  پیش از ثبت تصمیم، اصلاحات را ذخیره کنید یا از آن‌ها انصراف
+                  دهید.
+                </p>
+              )}
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  variant="outline"
+                  disabled={dirty || decision.isPending || !reason.trim()}
+                  onClick={() => decision.mutate("request-changes")}
+                  aria-label={`درخواست اصلاح ${candidate.title}`}
+                >
+                  درخواست اصلاح
+                </Button>
+                <Button
+                  variant="destructive"
+                  disabled={dirty || decision.isPending || !reason.trim()}
+                  onClick={() => decision.mutate("reject")}
+                  aria-label={`رد ${candidate.title}`}
+                >
+                  رد آگهی استخراج‌شده
+                </Button>
+                <Button
+                  disabled={
+                    dirty ||
+                    !confirmed ||
+                    decision.isPending ||
+                    candidate.state !== "pending" ||
+                    Boolean(candidate.exclusion_reason) ||
+                    Object.keys(candidate.validation_errors ?? {}).length > 0
+                  }
+                  onClick={() => decision.mutate("approve")}
+                  aria-label={`تأیید و انتشار ${candidate.title}`}
+                >
+                  تأیید و انتشار
+                </Button>
+              </div>
+            </div>
+          ))}
+        <CandidateEvidence candidate={candidate} showValidation={closed} />
         {(claim.error || decision.error) && (
           <Alert variant="destructive">
             <AlertDescription>

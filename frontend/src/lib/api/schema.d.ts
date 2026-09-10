@@ -2518,6 +2518,7 @@ export interface components {
     };
     ExternalListingCandidate: {
       superseded?: boolean;
+      readonly is_current: boolean;
       /** Format: uuid */
       readonly id: string;
       /** Format: uuid */
@@ -3080,6 +3081,7 @@ export interface components {
       readonly updated_at: string;
       readonly submitter:
         components["schemas"]["SourceProposalSubmitter"] | null;
+      readonly properties: components["schemas"]["ExternalListingCandidate"][];
       readonly needs_reconciliation: boolean;
       readonly discovery: components["schemas"]["SourceDiscovery"] | null;
       readonly profile_versions: components["schemas"]["SourceProfileVersion"][];
@@ -6439,6 +6441,7 @@ export interface operations {
   v1_operator_source_proposals_list: {
     parameters: {
       query?: {
+        candidate?: string;
         proposal?: string;
       };
       header?: never;

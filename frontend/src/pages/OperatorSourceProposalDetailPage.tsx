@@ -1,10 +1,20 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { Link, useParams, useLocation, useNavigate } from "react-router";
 import { PageMain } from "@/components/layout/PageMain";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ProposalReviewCard } from "@/features/source-proposals/OperatorReviewCards";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { candidateCanDecide } from "@/features/source-proposals/external-listing-workflow";
+import {
+  ExternalListingCandidateCard,
+  ProposalReviewCard,
+} from "@/features/source-proposals/OperatorReviewCards";
 import {
   operatorSourceContextQueryOptions,
   type OperatorSourceProposal,
@@ -40,7 +50,33 @@ export function OperatorSourceProposalDetailPage({
   const currentUser = useQuery(currentUserQuery);
   const queryClient = useQueryClient();
   const [completed, setCompleted] = useState(false);
+  const returnFocus = useRef<HTMLElement | null>(null);
   const proposal = proposals.data?.find((item) => item.id === id);
+  const candidateId = new URLSearchParams(search).get("candidate");
+  const candidate =
+    proposal?.properties?.find((item) => item.id === candidateId) ??
+    proposal?.assignment?.recent_requests
+      ?.flatMap((request) => request.run?.candidates ?? [])
+      .find((item) => item.id === candidateId);
+  const closeCandidate = () => {
+    const params = new URLSearchParams(search);
+    params.delete("candidate");
+    void navigate(`${pathname}${params.size ? `?${params}` : ""}#exceptions`, {
+      preventScrollReset: true,
+    });
+  };
+  const canReviewCandidate = Boolean(
+    candidate &&
+    candidateCanDecide(candidate, proposal, currentUser.data?.id) &&
+    currentUser.data?.operator_capabilities.includes(
+      "review_source_proposals",
+    ) &&
+    currentUser.data.id !== proposal?.submitter?.id &&
+    !proposal?.assignment?.source.processing_paused &&
+    candidate.is_current !== false &&
+    !candidate.superseded &&
+    (candidate.state === "pending" || candidate.state === "changes_requested"),
+  );
   useEffect(() => {
     const revealTab = () =>
       document.getElementById(`tab-${activeSection}`)?.scrollIntoView?.({
@@ -125,38 +161,41 @@ export function OperatorSourceProposalDetailPage({
             </div>
             {currentUser.data?.operator_capabilities.includes(
               "review_source_proposals",
-            ) && (
-              <Button asChild variant="outline">
-                <Link
-                  to={`/operator/external-listings?proposal=${proposal.id}`}
-                >
-                  آگهی‌های این منبع
-                </Link>
-              </Button>
-            )}
+            ) &&
+              activeSection !== "exceptions" && (
+                <Button asChild variant="outline">
+                  <Link to={`${pathname}#exceptions`}>آگهی‌های این منبع</Link>
+                </Button>
+              )}
           </header>
           {completed && (
             <p role="status" className="bg-primary/10 mb-4 rounded-lg p-3">
               تصمیم ثبت شد.
             </p>
           )}
-          <div className="bg-primary/5 border-primary/15 mb-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border px-4 py-3">
-            <div className="flex flex-wrap items-center gap-3">
-              <span className="text-muted-foreground text-xs">اقدام بعدی</span>
-              <p className="text-sm font-medium">
-                {sourceWorkflow(proposal).action}
-              </p>
+          {activeSection !== sourceWorkflow(proposal).section && (
+            <div className="bg-primary/5 border-primary/15 mb-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border px-4 py-3">
+              <div className="flex flex-wrap items-center gap-3">
+                <span className="text-muted-foreground text-xs">
+                  اقدام بعدی
+                </span>
+                <p className="text-sm font-medium">
+                  {sourceWorkflow(proposal).action}
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() =>
+                  selectSection(
+                    sourceWorkflow(proposal).section as CaseSectionId,
+                  )
+                }
+              >
+                رفتن به اقدام بعدی
+              </Button>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() =>
-                selectSection(sourceWorkflow(proposal).section as CaseSectionId)
-              }
-            >
-              رفتن به اقدام بعدی
-            </Button>
-          </div>
+          )}
           <div className="bg-background sticky top-18 z-20 mb-5 rounded-xl border p-1.5 lg:top-0">
             <div
               role="tablist"
@@ -205,6 +244,74 @@ export function OperatorSourceProposalDetailPage({
               )}
             </div>
           </div>
+          <Dialog
+            open={Boolean(candidateId)}
+            onOpenChange={(open) => {
+              if (!open) closeCandidate();
+            }}
+          >
+            <DialogContent
+              className="max-h-[90dvh] w-[calc(100%-2rem)] max-w-3xl overflow-y-auto"
+              onOpenAutoFocus={() => {
+                returnFocus.current = document.activeElement as HTMLElement;
+              }}
+              onCloseAutoFocus={(event) => {
+                event.preventDefault();
+                (returnFocus.current?.isConnected
+                  ? returnFocus.current
+                  : document.getElementById("tab-exceptions")
+                )?.focus();
+              }}
+            >
+              <DialogTitle className="pe-10">
+                {candidate?.title || "بررسی ملک"}
+              </DialogTitle>
+              <DialogDescription>
+                نتیجه دریافت‌شده از {proposal.website_name}؛ اصلاح و تصمیم فقط
+                برای همین صفحه اعمال می‌شود.
+              </DialogDescription>
+              {candidate ? (
+                <>
+                  {!canReviewCandidate &&
+                    candidate.state !== "published" &&
+                    candidate.state !== "rejected" &&
+                    candidate.state !== "cancelled" && (
+                      <p
+                        role="status"
+                        className="rounded-lg border p-3 text-sm"
+                      >
+                        {candidate.is_current === false || candidate.superseded
+                          ? "این نتیجه متعلق به استخراج غیرفعال یا قدیمی است؛ برای پیگیری، وضعیت پردازش منبع را ببینید."
+                          : "برای تصمیم‌گیری، پردازش باید فعال باشد و شما اپراتور مسئول این منبع باشید."}
+                      </p>
+                    )}
+                  <ExternalListingCandidateCard
+                    key={candidate.id}
+                    candidate={candidate}
+                    canDecide={canReviewCandidate}
+                    onDecisionSuccess={() => {
+                      void queryClient.invalidateQueries({
+                        queryKey: ["operator-source-proposals"],
+                      });
+                      void queryClient.invalidateQueries({
+                        queryKey: ["operator-external-listing-candidates"],
+                      });
+                      setCompleted(true);
+                      closeCandidate();
+                    }}
+                  />
+                </>
+              ) : (
+                <p role="status">
+                  این ملک پیدا نشد یا با نتیجه تازه جایگزین شده است. فهرست
+                  ملک‌های وب‌سایت را بررسی کنید.
+                </p>
+              )}
+              <Button variant="outline" onClick={closeCandidate}>
+                بازگشت به ملک‌های وب‌سایت
+              </Button>
+            </DialogContent>
+          </Dialog>
           <ProposalReviewCard
             key={proposal.id}
             proposal={proposal}

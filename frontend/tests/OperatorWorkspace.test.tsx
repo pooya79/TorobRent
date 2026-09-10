@@ -157,7 +157,7 @@ test("shows Source Proposal validation only for its dedicated capability", async
       name: "اعتبارسنجی Source Proposalها",
     }),
   ).toBeVisible();
-  expect(screen.getByRole("link", { name: "اعتبارسنجی منابع" })).toBeVisible();
+  expect(screen.getByRole("link", { name: "مدیریت منابع" })).toBeVisible();
   expect(
     screen.queryByRole("link", { name: "بررسی درخواست‌های ثبت آگهی" }),
   ).not.toBeInTheDocument();

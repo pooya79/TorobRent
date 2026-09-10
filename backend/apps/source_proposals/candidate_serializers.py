@@ -1,3 +1,4 @@
+from functools import cached_property
 from typing import Any
 
 from drf_spectacular.utils import extend_schema_field
@@ -77,7 +78,25 @@ class CandidateImageSerializer(serializers.ModelSerializer[CandidateImage]):
 
 
 class ExternalListingCandidateSerializer(serializers.ModelSerializer[ExternalListingCandidate]):
+    is_current = serializers.SerializerMethodField()
     exclusion_reason = serializers.SerializerMethodField()
+
+    @cached_property
+    def current_runs(self) -> dict[str, bool]:
+        return {}
+
+    def get_is_current(self, candidate: ExternalListingCandidate) -> bool:
+        from .extraction import authorized
+
+        if candidate.superseded:
+            return False
+        run = candidate.extraction_run
+        if run is None:
+            return True
+        key = str(run.pk)
+        if key not in self.current_runs:
+            self.current_runs[key] = authorized(run.request)
+        return self.current_runs[key]
 
     def get_exclusion_reason(self, candidate: ExternalListingCandidate) -> str:
         from .exclusions import blocking_exclusion
@@ -95,6 +114,7 @@ class ExternalListingCandidateSerializer(serializers.ModelSerializer[ExternalLis
         model = ExternalListingCandidate
         fields = (
             "superseded",
+            "is_current",
             "id",
             "source_proposal_id",
             "extraction_run",

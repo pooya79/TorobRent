@@ -77,15 +77,6 @@ export function OperatorSourceProposalPage() {
             منبع را پیدا کنید، اقدام بعدی را ببینید و پرونده آن را باز کنید.
           </p>
         </div>
-        {currentUser.data?.operator_capabilities.includes(
-          "review_source_proposals",
-        ) && (
-          <Button asChild variant="outline">
-            <Link to="/operator/external-listings">
-              بررسی آگهی‌های استخراج‌شده <ArrowUpLeft aria-hidden="true" />
-            </Link>
-          </Button>
-        )}
       </header>
       <div className="bg-card rounded-xl border shadow-sm">
         <div className="grid gap-5 border-b p-5">

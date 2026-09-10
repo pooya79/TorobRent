@@ -2,21 +2,7 @@ import type { ExternalListingCandidate } from "./queries";
 
 import { CandidateMedia } from "./CandidateMedia";
 
-const labels: Record<string, string> = {
-  city: "شهر",
-  district: "منطقه",
-  neighborhood: "محله",
-  property_type: "نوع ملک",
-  floor_area_sqm: "متراژ",
-  area_sqm: "متراژ",
-  bedroom_count: "اتاق خواب",
-  room_count: "اتاق خواب",
-  deposit_rial: "رهن",
-  monthly_rent_rial: "اجاره ماهانه",
-  title: "عنوان",
-  description: "توضیحات",
-  structure: "ساختار صفحه",
-};
+import { candidateFieldLabels as labels } from "./candidate-validation";
 
 export function CandidateEvidence({
   candidate,

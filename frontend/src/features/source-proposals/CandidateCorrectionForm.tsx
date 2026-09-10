@@ -26,9 +26,11 @@ const numericFields = {
 export function CandidateCorrectionForm({
   candidate,
   onCorrected,
+  onDirtyChange,
 }: {
   candidate: ExternalListingCandidate;
   onCorrected?: () => void;
+  onDirtyChange?: (dirty: boolean) => void;
 }) {
   const [values, setValues] = useState<
     components["schemas"]["CandidateCorrectionValues"]
@@ -73,6 +75,7 @@ export function CandidateCorrectionForm({
       void queryClient.invalidateQueries({
         queryKey: operatorSourceProposalsQueryOptions.queryKey,
       });
+      onDirtyChange?.(false);
       onCorrected?.();
       setValues({});
       setMediaChanged(false);
@@ -80,69 +83,77 @@ export function CandidateCorrectionForm({
   });
   return (
     <form
-      className="grid gap-3 rounded border p-3"
+      className="mt-4 grid gap-4 sm:grid-cols-2"
       onSubmit={(event) => {
         event.preventDefault();
         correction.mutate();
       }}
     >
-      <h4 className="font-semibold">اصلاح همین آگهی</h4>
-      <p className="text-sm">
-        شواهد و ساختار صفحه را بررسی کنید. این اصلاح پروفایل منبع را تغییر
-        نمی‌دهد.
+      <p className="text-muted-foreground text-sm sm:col-span-2">
+        این تغییر فقط برای همین ملک ذخیره می‌شود و روی ملک‌های دیگر اثر ندارد.
       </p>
-      <Label htmlFor={`location-${candidate.id}`}>محله بازبینی‌شده</Label>
-      <Input
-        id={`location-${candidate.id}`}
-        value={query}
-        onChange={(event) => {
-          setQuery(event.target.value);
-          setSelected(false);
-          setValues((current) => {
-            const next = { ...current };
-            delete next.neighborhood;
-            return next;
-          });
-        }}
-      />
-      {!selected &&
-        locations.data
-          ?.filter((item) => item.kind === "neighborhood")
-          .map((item) => (
-            <Button
-              type="button"
-              variant="outline"
-              key={item.id}
-              onClick={() => {
-                setValues((current) => ({ ...current, neighborhood: item.id }));
-                setQuery(item.label);
-                setSelected(true);
-              }}
-            >
-              {item.label}
-            </Button>
+      <div className="grid content-start gap-2">
+        <Label htmlFor={`location-${candidate.id}`}>محله بازبینی‌شده</Label>
+        <Input
+          id={`location-${candidate.id}`}
+          value={query}
+          onChange={(event) => {
+            onDirtyChange?.(true);
+            setQuery(event.target.value);
+            setSelected(false);
+            setValues((current) => {
+              const next = { ...current };
+              delete next.neighborhood;
+              return next;
+            });
+          }}
+        />
+        {!selected &&
+          locations.data
+            ?.filter((item) => item.kind === "neighborhood")
+            .map((item) => (
+              <Button
+                type="button"
+                variant="outline"
+                key={item.id}
+                onClick={() => {
+                  onDirtyChange?.(true);
+                  setValues((current) => ({
+                    ...current,
+                    neighborhood: item.id,
+                  }));
+                  setQuery(item.label);
+                  setSelected(true);
+                }}
+              >
+                {item.label}
+              </Button>
+            ))}
+        {locations.isError && <p role="alert">محله‌ها بارگذاری نشد.</p>}
+      </div>
+      <div className="grid content-start gap-2">
+        <Label htmlFor={`type-${candidate.id}`}>نوع ملک</Label>
+        <select
+          id={`type-${candidate.id}`}
+          className="rounded border p-2"
+          value={values.property_type ?? candidate.property_type}
+          onChange={(event) => {
+            onDirtyChange?.(true);
+            setValues((current) => ({
+              ...current,
+              property_type: event.target
+                .value as components["schemas"]["PropertyTypeEnum"],
+            }));
+          }}
+        >
+          <option value="">نامشخص</option>
+          {propertyTypeOptions.map(([value, label]) => (
+            <option key={value} value={value}>
+              {label}
+            </option>
           ))}
-      {locations.isError && <p role="alert">محله‌ها بارگذاری نشد.</p>}
-      <Label htmlFor={`type-${candidate.id}`}>نوع ملک</Label>
-      <select
-        id={`type-${candidate.id}`}
-        className="rounded border p-2"
-        value={values.property_type ?? candidate.property_type}
-        onChange={(event) =>
-          setValues((current) => ({
-            ...current,
-            property_type: event.target
-              .value as components["schemas"]["PropertyTypeEnum"],
-          }))
-        }
-      >
-        <option value="">نامشخص</option>
-        {propertyTypeOptions.map(([value, label]) => (
-          <option key={value} value={value}>
-            {label}
-          </option>
-        ))}
-      </select>
+        </select>
+      </div>
       {Object.entries(numericFields).map(([key, label]) => {
         const field = key as keyof typeof numericFields;
         const factor = field.endsWith("_rial") ? 10 : 1;
@@ -155,33 +166,37 @@ export function CandidateCorrectionForm({
               type="number"
               min={0}
               value={value == null ? "" : value / factor}
-              onChange={(event) =>
+              onChange={(event) => {
+                onDirtyChange?.(true);
                 setValues((current) => ({
                   ...current,
                   [field]:
                     event.target.value === ""
                       ? null
                       : Number(event.target.value) * factor,
-                }))
-              }
+                }));
+              }}
             />
           </div>
         );
       })}
-      <CandidateMedia
-        images={candidate.media}
-        choices={media}
-        onChange={(next) => {
-          setMedia(next);
-          setMediaChanged(true);
-        }}
-      />
-      <Label htmlFor={`correction-reason-${candidate.id}`}>دلیل اصلاح</Label>
-      <Input
-        id={`correction-reason-${candidate.id}`}
-        value={reason}
-        onChange={(event) => setReason(event.target.value)}
-      />
+      <div className="grid gap-2 sm:col-span-2">
+        <CandidateMedia
+          images={candidate.media}
+          choices={media}
+          onChange={(next) => {
+            onDirtyChange?.(true);
+            setMedia(next);
+            setMediaChanged(true);
+          }}
+        />
+        <Label htmlFor={`correction-reason-${candidate.id}`}>دلیل اصلاح</Label>
+        <Input
+          id={`correction-reason-${candidate.id}`}
+          value={reason}
+          onChange={(event) => setReason(event.target.value)}
+        />
+      </div>
       <Button
         type="submit"
         disabled={
@@ -192,9 +207,38 @@ export function CandidateCorrectionForm({
       >
         ذخیره اصلاح آگهی
       </Button>
-      {correction.isError && <p role="alert">{correction.error.message}</p>}
+      <Button
+        type="button"
+        variant="ghost"
+        disabled={correction.isPending}
+        onClick={() => {
+          setValues({});
+          setMedia(
+            candidate.media.map((image) => ({
+              id: image.id,
+              excluded: !!image.excluded,
+              is_primary: !!image.is_primary,
+              accept_as_property: !!image.accepted_at,
+            })),
+          );
+          setMediaChanged(false);
+          setQuery("");
+          setSelected(false);
+          setReason("");
+          onDirtyChange?.(false);
+        }}
+      >
+        انصراف از اصلاحات ذخیره‌نشده
+      </Button>
+      {correction.isError && (
+        <p role="alert" className="sm:col-span-2">
+          {correction.error.message}
+        </p>
+      )}
       {correction.isSuccess && (
-        <p role="status">اصلاح ذخیره شد؛ اعتبارسنجی دوباره انجام شد.</p>
+        <p role="status" className="sm:col-span-2">
+          اصلاح ذخیره شد؛ اعتبارسنجی دوباره انجام شد.
+        </p>
       )}
     </form>
   );

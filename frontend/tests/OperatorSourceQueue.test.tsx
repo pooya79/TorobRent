@@ -117,7 +117,7 @@ test("opens exactly one case from a legacy link and exposes its sections", async
   expect(screen.getByRole("tablist", { name: "بخش‌های پرونده" })).toBeVisible();
   expect(
     screen.getByRole("link", { name: "آگهی‌های این منبع" }),
-  ).toHaveAttribute("href", "/operator/external-listings?proposal=source-a");
+  ).toHaveAttribute("href", "/operator/source-proposals/source-a#exceptions");
 });
 test("shows a useful empty result when search matches no source", async () => {
   server.use(

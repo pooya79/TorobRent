@@ -1682,6 +1682,11 @@ paths:
       summary: List Source Proposals for Operator review or open a conversation context
       parameters:
       - in: query
+        name: candidate
+        schema:
+          type: string
+          format: uuid
+      - in: query
         name: proposal
         schema:
           type: string
@@ -5048,6 +5053,9 @@ components:
       properties:
         superseded:
           type: boolean
+        is_current:
+          type: boolean
+          readOnly: true
         id:
           type: string
           format: uuid
@@ -5169,6 +5177,7 @@ components:
       - external_url
       - history
       - id
+      - is_current
       - listing_id
       - media
       - revision
@@ -6457,6 +6466,11 @@ components:
           - $ref: '#/components/schemas/SourceProposalSubmitter'
           - type: 'null'
           readOnly: true
+        properties:
+          type: array
+          items:
+            $ref: '#/components/schemas/ExternalListingCandidate'
+          readOnly: true
         needs_reconciliation:
           type: boolean
           readOnly: true
@@ -6497,6 +6511,7 @@ components:
       - preview
       - profile_repairs
       - profile_versions
+      - properties
       - responsibility
       - revision
       - submitter

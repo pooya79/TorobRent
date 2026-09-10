@@ -29,17 +29,10 @@ export const operatorModules = [
   },
   {
     capabilities: ["review_source_proposals", "manage_operator_queues"],
-    description: "اعتبارسنجی منبع و رابطه نماینده آن",
+    description: "بررسی وب‌سایت، استخراج و انتشار ملک‌های آن",
     icon: Globe2,
-    label: "اعتبارسنجی منابع",
+    label: "مدیریت منابع",
     to: "/operator/source-proposals",
-  },
-  {
-    capabilities: ["review_source_proposals"],
-    description: "بررسی مستقل و انتشار آگهی‌های منابع بیرونی",
-    icon: ClipboardCheck,
-    label: "آگهی‌های استخراج‌شده",
-    to: "/operator/external-listings",
   },
   {
     capabilities: ["review_submissions"],

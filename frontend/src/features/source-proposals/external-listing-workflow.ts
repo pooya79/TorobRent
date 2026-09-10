@@ -12,6 +12,11 @@ export function candidateNeedsAttention(candidate: ExternalListingCandidate) {
 }
 
 export function candidateStatus(candidate: ExternalListingCandidate) {
+  if (candidate.superseded) return "جایگزین شده";
+  if (candidate.state === "published") return "منتشر شده";
+  if (candidate.state === "rejected") return "رد شده";
+  if (candidate.state === "cancelled") return "لغو شده";
+  if (candidate.is_current === false) return "استخراج غیرفعال";
   if (candidate.exclusion_reason) return "محدودیت انتشار";
   if (candidateNeedsAttention(candidate)) return "نیازمند اصلاح";
   return {

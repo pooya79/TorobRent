@@ -682,6 +682,7 @@ class OperatorSourceProposalSerializer(SourceProposalSerializer):
     responsibility = SourceResponsibilitySerializer(
         source="source", read_only=True, allow_null=True
     )
+    properties = serializers.SerializerMethodField()
     needs_reconciliation = serializers.SerializerMethodField()
     discovery = serializers.SerializerMethodField()
     profile_versions = serializers.SerializerMethodField()
@@ -690,12 +691,28 @@ class OperatorSourceProposalSerializer(SourceProposalSerializer):
     class Meta(SourceProposalSerializer.Meta):
         fields = SourceProposalSerializer.Meta.fields + (  # type: ignore[assignment]
             "submitter",
+            "properties",
             "needs_reconciliation",
             "discovery",
             "profile_versions",
             "profile_repairs",
             "responsibility",
         )
+
+    @extend_schema_field(ExternalListingCandidateSerializer(many=True))
+    def get_properties(self, proposal: SourceProposal) -> list[dict[str, Any]]:
+        if not self.context.get("include_properties", True):
+            return []
+        candidates = (
+            proposal.external_listing_candidates
+            .filter(discovery_version__isnull=True, superseded=False)
+            .select_related("source", "source_proposal")
+            .prefetch_related(
+                "extraction_run__request__assignment", "events__actor", "images__variants"
+            )
+            .order_by("-created_at")
+        )
+        return list(ExternalListingCandidateSerializer(candidates, many=True).data)
 
     @extend_schema_field(SourceProfileRepairSerializer(many=True))
     def get_profile_repairs(self, proposal: SourceProposal) -> list[dict[str, Any]]:

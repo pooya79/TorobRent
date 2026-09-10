@@ -54,6 +54,7 @@ class CanReleaseSourceProposal(BasePermission):
 
 class SourceProposalContextQuerySerializer(serializers.Serializer[Any]):
     proposal = serializers.UUIDField(required=False)
+    candidate = serializers.UUIDField(required=False)
 
 
 class OperatorSourceProposalListView(APIView):
@@ -85,8 +86,20 @@ class OperatorSourceProposalListView(APIView):
                 .filter(pk=proposal_id)
                 .exclude(submitter=cast(User, request.user))
             )
+        if candidate_id := query.validated_data.get("candidate"):
+            from apps.communications.source_conversations import conversation_proposals_for
+
+            proposals = (
+                conversation_proposals_for(cast(User, request.user))
+                .filter(external_listing_candidates__pk=candidate_id)
+                .exclude(submitter=cast(User, request.user))
+            )
         return Response(
-            OperatorSourceProposalSerializer(proposals.select_related("submitter"), many=True).data
+            OperatorSourceProposalSerializer(
+                proposals.select_related("submitter"),
+                many=True,
+                context={"include_properties": bool(query.validated_data)},
+            ).data
         )
 
 
