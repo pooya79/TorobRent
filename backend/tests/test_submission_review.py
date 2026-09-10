@@ -869,6 +869,19 @@ def test_approval_can_group_with_existing_property_and_new_revision_stays_privat
 
 
 @pytest.mark.django_db
+def test_operator_cannot_list_or_inspect_unsubmitted_drafts(api_client: APIClient):
+    draft = make_complete_submission(email="private-draft@example.com")
+    api_client.force_authenticate(make_operator())
+
+    queue = api_client.get("/api/v1/operator/submissions/")
+    detail = api_client.get(f"/api/v1/operator/submissions/{draft.id}/")
+
+    assert queue.status_code == 200
+    assert str(draft.id) not in {item["id"] for item in queue.data["results"]}
+    assert detail.status_code == 404
+
+
+@pytest.mark.django_db
 def test_operator_queue_filters_state_source_location_and_freshness(api_client: APIClient):
     pending = make_complete_submission(email="pending@example.com")
     submit_for_review(submission=pending, actor=pending.submitter)

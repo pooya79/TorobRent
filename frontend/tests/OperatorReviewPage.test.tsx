@@ -165,6 +165,17 @@ test("loads the real Operator queue and requires a reason for changes", async ()
   await waitFor(() => expect(reason).toBe("شماره تماس را اصلاح کنید."));
 });
 
+test("does not offer private drafts as an Operator queue filter", async () => {
+  serveSubmission();
+
+  renderPage();
+
+  await screen.findByRole("heading", { name: "صف بررسی آگهی‌ها" });
+  expect(
+    screen.queryByRole("radio", { name: "پیش‌نویس" }),
+  ).not.toBeInTheDocument();
+});
+
 test("displays an Office with its derived category and optional room count", async () => {
   serveSubmission({
     ...pendingSubmission,

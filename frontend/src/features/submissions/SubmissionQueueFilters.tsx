@@ -74,7 +74,6 @@ export function SubmissionQueueFilters({
             ["changes_requested", "نیازمند اصلاح"],
             ["published", "منتشرشده"],
             ["rejected", "ردشده"],
-            ["draft", "پیش‌نویس"],
           ]}
         />
         <div className="grid gap-6 xl:grid-cols-[1fr_auto]">

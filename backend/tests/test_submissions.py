@@ -737,7 +737,7 @@ def test_unverified_or_different_submitter_cannot_mutate_a_draft(api_client: API
 
 
 @pytest.mark.django_db
-def test_exact_location_is_visible_only_to_responsible_submitter_and_review_operator(
+def test_exact_location_in_a_draft_is_visible_only_to_the_responsible_submitter(
     api_client: APIClient,
 ):
     call_command("loaddata", "catalog_seed", verbosity=0)
@@ -838,11 +838,7 @@ def test_exact_location_is_visible_only_to_responsible_submitter_and_review_oper
     )
     api_client.force_authenticate(reviewer)
     reviewed = api_client.get(f"/api/v1/operator/submissions/{submission_id}/")
-    assert reviewed.status_code == 200
-    assert reviewed.data["location"]["exact_location"] == {
-        "latitude": "35.770001",
-        "longitude": "51.379999",
-    }
+    assert reviewed.status_code == 404
 
 
 @pytest.mark.django_db

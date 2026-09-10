@@ -11,8 +11,10 @@ OPERATOR_AGING_AFTER = timedelta(hours=48)
 
 
 def submissions_reviewable_by(*, operator: User) -> QuerySet[Submission]:
-    """Return Submissions the Operator may review, excluding their own work."""
-    return Submission.objects.exclude(submitter=operator)
+    """Return submitted Submissions the Operator may review, excluding their own work."""
+    return Submission.objects.exclude(
+        submitter=operator,
+    ).exclude(state=SubmissionState.DRAFT)
 
 
 def submission_workload_summary(*, operator: User) -> dict[str, int]:
