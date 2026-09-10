@@ -6,6 +6,8 @@ from rest_framework.views import exception_handler
 
 
 def _field_errors(data: Any, prefix: str = "") -> dict[str, list[dict[str, str]]] | None:
+    if isinstance(data, Sequence) and not isinstance(data, str):
+        data = {"non_field_errors": data}
     if not isinstance(data, Mapping):
         return None
     errors: dict[str, list[dict[str, str]]] = {}

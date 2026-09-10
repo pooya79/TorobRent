@@ -245,6 +245,7 @@ export function SourceProposalPage() {
   };
   const handleDetails = (event: FormEvent) => {
     event.preventDefault();
+    autosave.reset();
     preview.mutate();
   };
 
@@ -297,9 +298,16 @@ export function SourceProposalPage() {
                   onChange={(event) =>
                     setField("website_url", event.target.value)
                   }
-                  onBlur={() =>
-                    autosaveField("website_url", details.website_url)
-                  }
+                  onBlur={(event) => {
+                    const nextElement = event.relatedTarget;
+                    if (
+                      nextElement instanceof HTMLButtonElement &&
+                      nextElement.type === "submit"
+                    ) {
+                      return;
+                    }
+                    autosaveField("website_url", details.website_url);
+                  }}
                 />
               </Field>
               <Field label="رابطه شما با وب‌سایت" htmlFor="relationship">
@@ -388,8 +396,11 @@ export function SourceProposalPage() {
                   دارم.
                 </Label>
               </div>
-              {preview.isError && <ErrorAlert error={preview.error} />}
-              {autosave.isError && <ErrorAlert error={autosave.error} />}
+              {preview.isError ? (
+                <ErrorAlert error={preview.error} />
+              ) : (
+                autosave.isError && <ErrorAlert error={autosave.error} />
+              )}
               {autosave.isSuccess && (
                 <p className="text-muted-foreground text-sm" role="status">
                   پیش‌نویس ذخیره شد.

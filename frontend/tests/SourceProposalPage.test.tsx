@@ -477,6 +477,147 @@ test("keeps entered details available when URL validation fails", async () => {
   expect(url).toHaveValue("https://unsafe.example/catalog");
 });
 
+test("shows one actionable error without autosaving the URL when submit receives focus", async () => {
+  const user = userEvent.setup();
+  const existing = {
+    id: proposalId,
+    state: "draft",
+    is_current: true,
+    current_step: "details",
+    website_name: "خانه روشن",
+    website_url: "https://old.example/",
+    relationship: "website_owner",
+    inventory_range: "more_than_200",
+    sitemap_url: "",
+    operator_note: "",
+    authority_declared: true,
+    preview: {},
+    preview_confirmed: false,
+    pending_since: null,
+    available_actions: ["edit"],
+    created_at: "2026-08-31T08:00:00Z",
+    updated_at: "2026-08-31T08:00:00Z",
+  };
+  const autosavedBodies: unknown[] = [];
+  const problem = {
+    type: "https://example.com/problems/validation_error",
+    title: "Bad request",
+    status: 400,
+    detail:
+      "این نشانی فقط برای پیش‌نمایش مرورگر است. برای ثبت منبع از http://jsonld.demo.example.com/rentals/ استفاده کنید.",
+    code: "validation_error",
+  };
+  server.use(
+    http.get("*/api/v1/source-proposals/", () => HttpResponse.json([existing])),
+    http.patch(
+      "*/api/v1/source-proposals/:proposalId/draft/",
+      async ({ request }) => {
+        autosavedBodies.push(await request.json());
+        return HttpResponse.json(problem, { status: 400 });
+      },
+    ),
+    http.patch("*/api/v1/source-proposals/:proposalId/", () =>
+      HttpResponse.json(problem, { status: 400 }),
+    ),
+  );
+  render(
+    <QueryClientProvider
+      client={
+        new QueryClient({
+          defaultOptions: {
+            queries: { retry: false },
+            mutations: { retry: false },
+          },
+        })
+      }
+    >
+      <MemoryRouter>
+        <SourceProposalPage />
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+
+  const url = await screen.findByLabelText("نشانی صفحه اصلی یا کاتالوگ");
+  await user.clear(url);
+  await user.type(url, "http://jsonld.localhost:8088/rentals/");
+  await user.click(
+    screen.getByRole("button", { name: "ذخیره و مشاهده پیش‌نمایش" }),
+  );
+
+  expect(await screen.findByText(/فقط برای پیش‌نمایش مرورگر/)).toBeVisible();
+  expect(screen.getAllByText(/فقط برای پیش‌نمایش مرورگر/)).toHaveLength(1);
+  expect(autosavedBodies).not.toContainEqual({
+    website_url: "http://jsonld.localhost:8088/rentals/",
+  });
+});
+
+test("clears an old autosave error after a successful explicit save", async () => {
+  const user = userEvent.setup();
+  const existing = {
+    id: proposalId,
+    state: "draft",
+    is_current: true,
+    current_step: "details",
+    website_name: "خانه روشن",
+    website_url: "https://old.example/",
+    relationship: "website_owner",
+    inventory_range: "more_than_200",
+    sitemap_url: "",
+    operator_note: "",
+    authority_declared: true,
+    preview: {},
+    preview_confirmed: false,
+    available_actions: ["edit"],
+  };
+  server.use(
+    http.get("*/api/v1/source-proposals/", () => HttpResponse.json([existing])),
+    http.patch("*/api/v1/source-proposals/:proposalId/draft/", () =>
+      HttpResponse.json({ detail: "خطای ذخیره خودکار" }, { status: 400 }),
+    ),
+    http.patch("*/api/v1/source-proposals/:proposalId/", () =>
+      HttpResponse.json({ ...existing, current_step: "preview" }),
+    ),
+    http.post("*/api/v1/source-proposals/:proposalId/preview/", () =>
+      HttpResponse.json({
+        ...existing,
+        current_step: "preview",
+        preview: {
+          title: "بازبینی اطلاعات وب‌سایت",
+          disclaimer: "هیچ درخواستی به وب‌سایت ارسال نمی‌شود.",
+        },
+      }),
+    ),
+  );
+  render(
+    <QueryClientProvider
+      client={
+        new QueryClient({
+          defaultOptions: {
+            queries: { retry: false },
+            mutations: { retry: false },
+          },
+        })
+      }
+    >
+      <MemoryRouter>
+        <SourceProposalPage />
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+
+  const url = await screen.findByLabelText("نشانی صفحه اصلی یا کاتالوگ");
+  await user.clear(url);
+  await user.type(url, "https://valid.example/");
+  await user.tab();
+  expect(await screen.findByText("خطای ذخیره خودکار")).toBeVisible();
+  await user.click(
+    screen.getByRole("button", { name: "ذخیره و مشاهده پیش‌نمایش" }),
+  );
+
+  expect(await screen.findByText("بازبینی اطلاعات وب‌سایت")).toBeVisible();
+  expect(screen.queryByText("خطای ذخیره خودکار")).not.toBeInTheDocument();
+});
+
 test.each([
   ["automatic", "نتایج معتبر درخواست‌های تازه خودکار منتشر می‌شود."],
   ["approval_required", "نتایج هر بار استخراج نیازمند تأیید اپراتور است."],

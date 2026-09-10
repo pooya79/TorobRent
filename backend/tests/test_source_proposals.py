@@ -1,5 +1,6 @@
 import pytest
 from django.db import IntegrityError, transaction
+from django.test import override_settings
 from django.utils import timezone
 from rest_framework.test import APIClient
 
@@ -154,6 +155,34 @@ def test_unsafe_website_url_is_rejected_without_losing_saved_details(
     assert rejected.status_code == 400
     assert resumed.data["website_url"] == valid_details["website_url"]
     assert resumed.data["operator_note"] == "یادداشت حفظ شود."
+
+
+@pytest.mark.django_db
+@override_settings(
+    DEBUG=True,
+    SOURCE_FETCH_PRIVATE_HOSTS=["jsonld.demo.example.com"],
+)
+def test_browser_only_demo_url_returns_the_container_facing_url(api_client: APIClient):
+    authenticate_submitter(api_client)
+    created = api_client.post("/api/v1/source-proposals/", {}, format="json")
+
+    rejected = api_client.patch(
+        f"/api/v1/source-proposals/{created.data['id']}/",
+        {
+            "website_name": "خانه روشن",
+            "website_url": "http://jsonld.localhost:8088/rentals/",
+            "relationship": "website_owner",
+            "inventory_range": "more_than_200",
+            "sitemap_url": "",
+            "operator_note": "",
+            "authority_declared": True,
+        },
+        format="json",
+    )
+
+    assert rejected.status_code == 400
+    assert "فقط برای پیش‌نمایش مرورگر" in rejected.data["detail"]
+    assert "http://jsonld.demo.example.com/rentals/" in rejected.data["detail"]
 
 
 @pytest.mark.django_db

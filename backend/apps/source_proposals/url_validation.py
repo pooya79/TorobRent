@@ -2,7 +2,26 @@ import ipaddress
 import re
 from urllib.parse import urlsplit, urlunsplit
 
+from django.conf import settings
 from django.core.exceptions import ValidationError
+
+
+def _development_demo_replacement(*, hostname: str, url: str) -> str | None:
+    """Return the container-facing URL for an exact local demo preview host."""
+    if not settings.DEBUG or not hostname.endswith(".localhost"):
+        return None
+    site_name = hostname.removesuffix(".localhost")
+    configured_hosts = getattr(settings, "SOURCE_FETCH_PRIVATE_HOSTS", ())
+    matching_hosts = [
+        host.strip().rstrip(".").lower()
+        for host in configured_hosts
+        if host.strip().split(".", 1)[0].lower() == site_name
+    ]
+    if len(matching_hosts) != 1:
+        return None
+    parts = urlsplit(url)
+    replacement_host = str(matching_hosts[0])
+    return urlunsplit((parts.scheme, replacement_host, parts.path or "/", parts.query, ""))
 
 
 def normalize_public_url(url: str) -> str:
@@ -12,6 +31,12 @@ def normalize_public_url(url: str) -> str:
             raise ValueError
         parts = urlsplit(url)
         hostname = (parts.hostname or "").rstrip(".").encode("idna").decode("ascii").lower()
+        demo_replacement = _development_demo_replacement(hostname=hostname, url=url)
+        if demo_replacement:
+            raise ValidationError(
+                "این نشانی فقط برای پیش\u200cنمایش مرورگر است. "
+                f"برای ثبت منبع از {demo_replacement} استفاده کنید."
+            )
         if (
             parts.scheme not in {"http", "https"}
             or parts.username is not None
@@ -47,6 +72,8 @@ def normalize_public_url(url: str) -> str:
         else:
             raise ValueError
         return urlunsplit((parts.scheme, hostname, parts.path or "/", parts.query, ""))
+    except ValidationError:
+        raise
     except ValueError, UnicodeError:
         raise ValidationError(
             "نشانی عمومی معتبر با http یا https و بدون اطلاعات ورود وارد کنید."
