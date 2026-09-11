@@ -104,6 +104,13 @@ export function Layout({ children }: { children: React.ReactNode }) {
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <link
+          rel="preload"
+          href="/fonts/vazirmatn/Vazirmatn-v33.003-variable.woff2"
+          as="font"
+          type="font/woff2"
+          crossOrigin="anonymous"
+        />
         <meta
           name="theme-color"
           content={THEME_COLORS.light}
