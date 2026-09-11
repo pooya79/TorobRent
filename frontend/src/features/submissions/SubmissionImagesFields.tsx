@@ -130,7 +130,7 @@ export function SubmissionImagesFields({
         <Input
           id="submission-images"
           aria-label="افزودن تصاویر"
-          className="sr-only"
+          className="sr-only size-px"
           type="file"
           accept="image/jpeg,image/png,image/webp"
           multiple
@@ -244,7 +244,7 @@ export function SubmissionImagesFields({
                   <Label className="border-border flex min-h-10 cursor-pointer items-center justify-center gap-2 rounded-md border px-3 text-sm">
                     <RotateCcw aria-hidden="true" /> جایگزینی و تلاش دوباره
                     <Input
-                      className="sr-only"
+                      className="sr-only size-px"
                       type="file"
                       accept="image/jpeg,image/png,image/webp"
                       disabled={operationPending}
