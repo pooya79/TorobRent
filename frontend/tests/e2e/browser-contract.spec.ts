@@ -104,6 +104,37 @@ test("restores protected Contact Support composition after login", async ({
   expect(results.violations).toEqual([]);
 });
 
+test("keeps the document scroll position when opening a message", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.goto("/messages");
+  await page
+    .getByLabel("ایمیل یا شماره تلفن")
+    .fill("submitter@torobrent.local");
+  await page.getByLabel("گذرواژه").fill("dev-submitter");
+  await page.getByRole("button", { name: "ورود" }).click();
+  await expect(page).toHaveURL(/\/messages$/);
+
+  const firstMessage = page
+    .getByRole("region", { name: "فهرست پیام‌ها" })
+    .getByRole("link")
+    .first();
+  await expect(firstMessage).toBeVisible();
+  await page.evaluate(() => {
+    document.documentElement.style.scrollBehavior = "auto";
+    window.scrollTo(0, 73);
+  });
+  const scrollY = await page.evaluate(() => window.scrollY);
+  expect(scrollY).toBeGreaterThan(0);
+
+  await firstMessage.click();
+  await expect(page).toHaveURL(/\/messages\/[^/]+$/);
+  await expect(page.locator("h2[tabindex='-1']")).toBeFocused();
+
+  expect(await page.evaluate(() => window.scrollY)).toBe(scrollY);
+});
+
 test("keeps the mobile layout contained and restores visible focus", async ({
   page,
 }) => {

@@ -10,7 +10,13 @@ import {
   MailOpen,
   MessageCircle,
 } from "lucide-react";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -145,11 +151,13 @@ function groupMessages(messages: MessageSummary[]) {
 export function MessageCenterPage() {
   const { messageId } = useParams();
   const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const feedScrollTopRef = useRef(0);
   return (
     <AccountWorkspace>
       <MessageCenterContent
         key={messageId ?? "inbox"}
         draft={messageId ? (drafts[messageId] ?? "") : ""}
+        feedScrollTopRef={feedScrollTopRef}
         onDraftChange={(body) => {
           if (messageId)
             setDrafts((current) => ({ ...current, [messageId]: body }));
@@ -161,9 +169,11 @@ export function MessageCenterPage() {
 
 function MessageCenterContent({
   draft,
+  feedScrollTopRef,
   onDraftChange,
 }: {
   draft: string;
+  feedScrollTopRef: { current: number };
   onDraftChange: (body: string) => void;
 }) {
   const { messageId } = useParams();
@@ -175,6 +185,7 @@ function MessageCenterContent({
   const detail = useQuery(messageDetailQueryOptions(messageId));
   const queryClient = useQueryClient();
   const detailHeading = useRef<HTMLHeadingElement>(null);
+  const feedPanel = useRef<HTMLElement>(null);
   const [editingId, setEditingId] = useState<string>();
   const [pendingExternalHref, setPendingExternalHref] = useState<string>();
   const [blockConfirmationOpen, setBlockConfirmationOpen] = useState(false);
@@ -262,9 +273,14 @@ function MessageCenterContent({
   });
 
   const loadedMessageId = detail.data?.id;
+  useLayoutEffect(() => {
+    if (feedPanel.current)
+      feedPanel.current.scrollTop = feedScrollTopRef.current;
+  }, [feedScrollTopRef]);
+
   useEffect(() => {
     if (!loadedMessageId) return;
-    detailHeading.current?.focus();
+    detailHeading.current?.focus({ preventScroll: true });
     void queryClient.invalidateQueries({ queryKey: ["messages", "feed"] });
     void queryClient.invalidateQueries({
       queryKey: ["messages", "unread-count"],
@@ -363,6 +379,10 @@ function MessageCenterContent({
             "border-border min-w-0 xl:max-h-[calc(100dvh-12rem)] xl:overflow-y-auto xl:border-e",
             messageId && "hidden xl:block",
           )}
+          onScroll={(event) => {
+            feedScrollTopRef.current = event.currentTarget.scrollTop;
+          }}
+          ref={feedPanel}
           role="region"
         >
           <div className="bg-card sticky top-0 z-10 flex items-center justify-between gap-3 border-b p-4">
@@ -439,6 +459,7 @@ function MessageCenterContent({
                                   "border-s-primary bg-primary/5",
                                 !message.read && "bg-muted/40",
                               )}
+                              preventScrollReset
                               to={`/messages/${message.id}${searchParams.size ? `?${searchParams}` : ""}`}
                             >
                               <span className="bg-primary/10 text-primary mt-1 flex size-9 shrink-0 items-center justify-center rounded-full">

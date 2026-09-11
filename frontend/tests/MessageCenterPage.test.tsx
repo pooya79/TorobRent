@@ -1,5 +1,11 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { MemoryRouter, Route, Routes } from "react-router";
@@ -56,6 +62,7 @@ function supportMessage(id: string, title: string, preview: string) {
 
 test("opens a notification on a stable detail route and can mark it unread", async () => {
   let markedUnread = false;
+  const headingFocus = vi.spyOn(HTMLHeadingElement.prototype, "focus");
   server.use(
     http.get("*/api/v1/messages/", () =>
       HttpResponse.json({
@@ -102,6 +109,7 @@ test("opens a notification on a stable detail route and can mark it unread", asy
     name: "اصلاح پیشنهاد لازم است",
   });
   expect(heading).toHaveFocus();
+  expect(headingFocus).toHaveBeenCalledWith({ preventScroll: true });
   expect(within(detail).getByText("تصاویر را اصلاح کنید.")).toBeVisible();
   expect(
     within(detail).getByRole("link", { name: "مشاهده پیشنهاد" }),
@@ -119,6 +127,42 @@ test("opens a notification on a stable detail route and can mark it unread", asy
     }),
   );
   expect(markedUnread).toBe(true);
+});
+
+test("keeps the message list scroll position when opening a message", async () => {
+  server.use(
+    http.get("*/api/v1/messages/", () =>
+      HttpResponse.json({
+        count: 1,
+        next: null,
+        previous: null,
+        results: [message],
+      }),
+    ),
+    http.get("*/api/v1/messages/:messageId/", () =>
+      HttpResponse.json({
+        ...message,
+        body: message.preview,
+        read: true,
+        target: null,
+      }),
+    ),
+  );
+  renderPage();
+  const user = userEvent.setup();
+
+  const feed = await screen.findByRole("region", { name: "فهرست پیام‌ها" });
+  const messageLink = await within(feed).findByRole("link", {
+    name: /اصلاح پیشنهاد لازم است/,
+  });
+  fireEvent.scroll(feed, { target: { scrollTop: 240 } });
+
+  await user.click(messageLink);
+  await screen.findByRole("region", { name: "جزئیات پیام" });
+
+  expect(screen.getByRole("region", { name: "فهرست پیام‌ها" }).scrollTop).toBe(
+    240,
+  );
 });
 
 test("filters the feed and renders empty and error states", async () => {
