@@ -222,10 +222,12 @@ the reviewer and timestamp, host edits are disabled, and revocation stops subseq
 No Submission is created for external media.
 
 Each Discovery or Extraction Run processes at most twelve source-ordered image URLs. Every image
-uses HTTPS, revalidates DNS and host approval across redirects, pins the public connection address,
-and shares a 15-second deadline across its redirect chain (at most five redirects). Encoded input
-is limited to 10 MiB and decoded JPEG/PNG/WebP input to 40 million pixels. The shared processor
-strips metadata and produces 480/960/1440-pixel WebP variants.
+uses HTTPS outside local development, revalidates DNS and host approval across redirects, pins the
+public connection address, and shares a 15-second deadline across its redirect chain (at most five
+redirects). With `DEBUG=True`, exact hosts in `SOURCE_FETCH_PRIVATE_HOSTS` may also serve images over
+HTTP so the bundled demo Sources work without local TLS; other image hosts remain HTTPS-only.
+Encoded input is limited to 10 MiB and decoded JPEG/PNG/WebP input to 40 million pixels. The shared
+processor strips metadata and produces 480/960/1440-pixel WebP variants.
 
 Extraction commits valid rental facts before enqueueing the separate media task. Media tasks use
 stable run/reservation IDs, late acknowledgement, bounded retries, and 240/300-second soft/hard

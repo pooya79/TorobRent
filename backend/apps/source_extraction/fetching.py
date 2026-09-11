@@ -837,8 +837,35 @@ class SourceImageFetcher(SourcePageFetcher):
     ) -> None:
         super().__init__(approved_host=approved_hosts[0], transport=transport, resolver=resolver)
         self._approved_hosts = {_normalize_host(host) for host in approved_hosts}
-        self._schemes = {"https"}
+        configured_private_hosts = {
+            _normalize_host(host.strip())
+            for host in getattr(settings, "SOURCE_FETCH_PRIVATE_HOSTS", ())
+            if host.strip()
+        }
+        # The bundled demo Sources run over plain HTTP inside the local Compose network. Reuse the
+        # exact-host, DEBUG-only private-destination allowlist for their images; never extend this
+        # exception to ordinary approved Source/CDN hosts or to production.
+        self._development_http_hosts = (
+            self._approved_hosts.intersection(configured_private_hosts)
+            if self._allows_private_destination
+            else set()
+        )
+        self._schemes = {"http", "https"}
         self._max_response_bytes = MAX_SOURCE_IMAGE_BYTES
+
+    def _validate_url(self, url: str) -> FetchFailure | None:
+        try:
+            parsed = urlsplit(url)
+            host = _normalize_host(parsed.hostname) if parsed.hostname else None
+        except UnicodeError, ValueError:
+            return super()._validate_url(url)
+        # SourceImageFetcher otherwise accepts HTTP here only so the superclass can perform all of
+        # its usual host, credential, port, DNS, redirect, and response-size validation afterward.
+        if parsed.scheme.lower() == "http" and host not in self._development_http_hosts:
+            return FetchFailure(
+                FetchFailureCode.INVALID_SCHEME, url, "URL scheme is not permitted."
+            )
+        return super()._validate_url(url)
 
     def fetch(self, urls: Sequence[str], *, render: bool = False) -> FetchBatch:
         records = []
