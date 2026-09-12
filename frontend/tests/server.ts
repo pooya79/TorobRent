@@ -61,6 +61,19 @@ export const server = setupServer(
   http.get("*/api/v1/operator/external-listing-candidates/", () =>
     HttpResponse.json([]),
   ),
+  http.get("*/api/v1/operator/catalog-curation/suggestions/", () =>
+    HttpResponse.json({
+      count: 0,
+      next: null,
+      previous: null,
+      results: [],
+      filters: {
+        band: "likely",
+        claim: "unclaimed",
+        ordering: "confidence",
+      },
+    }),
+  ),
   http.post(
     "*/api/v1/catalog/properties/:propertyId/view/",
     () => new HttpResponse(null, { status: 204 }),

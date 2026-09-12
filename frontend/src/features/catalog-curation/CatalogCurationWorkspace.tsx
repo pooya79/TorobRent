@@ -1,4 +1,5 @@
 import { PropertyMatchReview } from "./PropertyMatchReview";
+import { PropertyMatchSuggestions } from "./PropertyMatchSuggestions";
 import { useQuery } from "@tanstack/react-query";
 import { GitCompareArrows, Layers3, Search, Sparkles } from "lucide-react";
 import { type FormEvent, useState } from "react";
@@ -385,22 +386,14 @@ export function CatalogCurationWorkspace() {
         </Button>
       </nav>
 
-      <div
-        className="mb-8 grid gap-3 sm:grid-cols-2"
-        aria-label="مسیرهای آینده"
+      <section
+        id="suggestions"
+        className="mb-8 scroll-mt-24 rounded-2xl border p-5"
       >
-        <section
-          id="suggestions"
-          className="scroll-mt-24 rounded-2xl border p-4"
-        >
-          <div className="flex items-center justify-between gap-3">
-            <h2 className="font-semibold">پیشنهادها</h2>
-            <Badge variant="secondary">به‌زودی</Badge>
-          </div>
-          <p className="text-muted-foreground mt-2 text-sm">
-            پیشنهادهای خودکار در نسخه بعدی فعال می‌شوند.
-          </p>
-        </section>
+        <PropertyMatchSuggestions />
+      </section>
+
+      <div className="mb-8" aria-label="مسیرهای آینده">
         <section
           id="grouped-properties"
           className="scroll-mt-24 rounded-2xl border p-4"

@@ -21,6 +21,7 @@ from .locations import derive_public_location
 from .matching import compare_properties
 from .models import (
     Listing,
+    ListingGroupingAction,
     ListingGroupingEvent,
     ListingImage,
     ListingImageVariant,
@@ -29,6 +30,9 @@ from .models import (
     PropertyImageVariant,
     PropertyMatchClaim,
     PropertyMatchDecision,
+    PropertyMatchSuggestion,
+    PropertyMatchSuggestionEvaluation,
+    PropertyMatchSuggestionState,
     RentalTerms,
 )
 from .operator_serializers import property_evidence_data
@@ -52,6 +56,11 @@ def _authorize(actor: User) -> None:
 def _properties(ids: list[UUID], *, lock: bool = False) -> list[Property]:
     if len(ids) != 2 or len(set(ids)) != 2:
         raise ValidationError("دقیقاً دو ملک متفاوت انتخاب کنید.")
+    from .services import current_property_id
+
+    ids = [current_property_id(property_id) for property_id in ids]
+    if len(set(ids)) != 2:
+        raise ReviewConflict()
     if lock:
         # Pair order from the client never determines database lock order.
         list(Property.objects.select_for_update().filter(pk__in=ids).order_by("pk"))
@@ -59,6 +68,38 @@ def _properties(ids: list[UUID], *, lock: bool = False) -> list[Property]:
     if len(found) != 2:
         raise ReviewConflict()
     return [found[pk] for pk in ids]
+
+
+def _approval_properties(ids: list[UUID]) -> list[Property]:
+    """Lock the reviewed roots and every root joined by an adjacent suggestion in UUID order."""
+    selected = _properties(ids)
+    selected_ids = {property_.pk for property_ in selected}
+    adjacent_endpoint_ids = _adjacent_suggestion_endpoint_ids(selected_ids)
+    from .services import current_property_id
+
+    lock_ids = selected_ids | {
+        current_property_id(property_id) for property_id in adjacent_endpoint_ids
+    }
+    list(Property.objects.select_for_update().filter(pk__in=lock_ids).order_by("pk"))
+    confirmed = _properties(ids)
+    if {property_.pk for property_ in confirmed} != selected_ids:
+        raise ReviewConflict()
+    current_adjacent_roots = {
+        current_property_id(property_id)
+        for property_id in _adjacent_suggestion_endpoint_ids(selected_ids)
+    }
+    if not current_adjacent_roots.issubset(lock_ids):
+        raise ReviewConflict()
+    return confirmed
+
+
+def _adjacent_suggestion_endpoint_ids(property_ids: set[UUID]) -> set[UUID]:
+    suggestions = PropertyMatchSuggestion.objects.filter(
+        Q(left_id__in=property_ids) | Q(right_id__in=property_ids)
+    )
+    return set(suggestions.values_list("left_id", flat=True)) | set(
+        suggestions.values_list("right_id", flat=True)
+    )
 
 
 def _lock_evidence(ids: list[UUID]) -> None:
@@ -119,11 +160,102 @@ def _revision(snapshot: dict[str, Any]) -> str:
     return hashlib.sha256(json.dumps(snapshot, sort_keys=True).encode()).hexdigest()
 
 
+def _component_property_ids(root_ids: list[UUID]) -> set[UUID]:
+    component_ids = set(root_ids)
+    frontier = set(root_ids)
+    while frontier:
+        children = set(
+            Property.objects.filter(merged_into_id__in=frontier).values_list("pk", flat=True)
+        )
+        frontier = children - component_ids
+        component_ids.update(frontier)
+    return component_ids
+
+
+def _approved_connection_data(properties: list[Property]) -> dict[str, list[Any]]:
+    root_ids = [property_.pk for property_ in properties]
+    component_ids = _component_property_ids(root_ids)
+    decisions = PropertyMatchDecision.objects.filter(
+        outcome=PropertyMatchDecision.Outcome.SAME_PROPERTY,
+        survivor_id__in=component_ids,
+        redundant_id__in=component_ids,
+    ).order_by("created_at", "pk")
+    indirect_listing_ids = list(
+        ListingGroupingEvent.objects
+        .filter(
+            action=ListingGroupingAction.MERGE,
+            decision__outcome=PropertyMatchDecision.Outcome.SAME_PROPERTY,
+            listing__property_id__in=root_ids,
+        )
+        .order_by("listing_id")
+        .values_list("listing_id", flat=True)
+        .distinct()
+    )
+    return {
+        "approved_connections": [
+            {
+                "decision_id": decision.pk,
+                "left_property_id": decision.redundant_id,
+                "right_property_id": decision.survivor_id,
+            }
+            for decision in decisions
+        ],
+        "indirect_listing_ids": indirect_listing_ids,
+    }
+
+
+def _evaluation_snapshot(evaluation: PropertyMatchSuggestionEvaluation) -> dict[str, Any]:
+    return {
+        "score": evaluation.score,
+        "band": evaluation.band,
+        "scoring_version": evaluation.scoring_version,
+        "evidence_fingerprint": evaluation.evidence_fingerprint,
+        "left_revision": evaluation.left_revision,
+        "right_revision": evaluation.right_revision,
+        "evidence": evaluation.evidence,
+        "origin": evaluation.origin,
+    }
+
+
+def _current_suggestion(
+    *,
+    suggestion_id: UUID,
+    properties: list[UUID],
+) -> tuple[PropertyMatchSuggestion, PropertyMatchSuggestionEvaluation]:
+    from .match_suggestions import property_identity_revision
+
+    suggestion = (
+        PropertyMatchSuggestion.objects.select_for_update().filter(pk=suggestion_id).first()
+    )
+    ordered = sorted(properties)
+    if (
+        suggestion is None
+        or [suggestion.left_id, suggestion.right_id] != ordered
+        or suggestion.state != PropertyMatchSuggestionState.PENDING
+    ):
+        raise ReviewConflict()
+    evaluation = suggestion.evaluations.order_by("-created_at", "-pk").first()
+    if evaluation is None:
+        raise ReviewConflict()
+    roots = {
+        item.pk: item for item in Property.objects.filter(pk__in=ordered, merged_into__isnull=True)
+    }
+    if len(roots) != 2:
+        raise ReviewConflict()
+    if (
+        property_identity_revision(roots[ordered[0]]) != evaluation.left_revision
+        or property_identity_revision(roots[ordered[1]]) != evaluation.right_revision
+        or suggestion.evidence_fingerprint != evaluation.evidence_fingerprint
+    ):
+        raise ReviewConflict()
+    return suggestion, evaluation
+
+
 @transaction.atomic
 def comparison_data(ids: list[UUID]) -> dict[str, Any]:
-    _properties(ids, lock=True)
+    properties = _properties(ids, lock=True)
+    ids = [property_.pk for property_ in properties]
     _lock_evidence(ids)
-    properties = _properties(ids)
     snapshot = _snapshot(properties)
     claim = PropertyMatchClaim.objects.filter(
         Q(left_id__in=ids) | Q(right_id__in=ids), expires_at__gt=timezone.now()
@@ -131,6 +263,7 @@ def comparison_data(ids: list[UUID]) -> dict[str, Any]:
     return {
         **snapshot["assessment"],
         **decision_options(properties),
+        **_approved_connection_data(properties),
         "properties": [property_evidence_data(item) for item in properties],
         "revision": _revision(snapshot),
         "claim": (
@@ -142,13 +275,26 @@ def comparison_data(ids: list[UUID]) -> dict[str, Any]:
 
 
 @transaction.atomic
-def claim_comparison(*, actor: User, properties: list[UUID], revision: str) -> dict[str, Any]:
+def claim_comparison(
+    *,
+    actor: User,
+    properties: list[UUID],
+    revision: str,
+    suggestion_id: UUID | None = None,
+) -> dict[str, Any]:
     _authorize(actor)
     selected = _properties(properties, lock=True)
+    properties = [property_.pk for property_ in selected]
     _eligible(actor, properties)
     _lock_evidence(properties)
     if _revision(_snapshot(selected)) != revision:
         raise ReviewConflict()
+    suggestion = None
+    if suggestion_id is not None:
+        suggestion, _ = _current_suggestion(
+            suggestion_id=suggestion_id,
+            properties=properties,
+        )
     now = timezone.now()
     occupied = PropertyMatchClaim.objects.filter(
         Q(left_id__in=properties) | Q(right_id__in=properties), expires_at__gt=now
@@ -162,11 +308,16 @@ def claim_comparison(*, actor: User, properties: list[UUID], revision: str) -> d
             left_id=pair[0],
             right_id=pair[1],
             actor=actor,
+            suggestion=suggestion,
             expires_at=now + CLAIM_LIFETIME,
         )
     else:
+        if claim.suggestion_id not in (None, suggestion_id):
+            raise ReviewConflict()
+        if suggestion is not None and claim.suggestion_id is None:
+            claim.suggestion = suggestion
         claim.expires_at = now + CLAIM_LIFETIME
-        claim.save(update_fields=["expires_at"])
+        claim.save(update_fields=["suggestion", "expires_at"])
     return comparison_data(properties)
 
 
@@ -264,6 +415,7 @@ def approve_comparison(
     images_confirmed: bool,
     warning_confirmed: bool = False,
     reason: str = "",
+    suggestion_id: UUID | None = None,
 ) -> PropertyMatchDecision:
     _authorize(actor)
     request_digest = _revision(
@@ -280,19 +432,40 @@ def approve_comparison(
                     "images_confirmed": images_confirmed,
                     "warning_confirmed": warning_confirmed,
                     "reason": reason,
+                    "suggestion_id": suggestion_id,
                 },
                 cls=DjangoJSONEncoder,
             )
         )
     )
-    # Lock the original pair even on retries so duplicate delivery observes the commit.
-    list(Property.objects.select_for_update().filter(pk__in=properties).order_by("pk"))
-    existing = PropertyMatchDecision.objects.filter(claim_id=claim_id).first()
+    from .services import current_property_id
+
+    resolved_property_ids = [current_property_id(property_id) for property_id in properties]
+    if len(set(resolved_property_ids)) != 2:
+        list(
+            Property.objects.select_for_update().filter(pk__in=resolved_property_ids).order_by("pk")
+        )
+        existing = (
+            PropertyMatchDecision.objects.select_for_update().filter(claim_id=claim_id).first()
+        )
+        if (
+            existing is not None
+            and existing.actor_id == actor.pk
+            and existing.request_digest == request_digest
+        ):
+            return existing
+        raise ReviewConflict()
+    selected = _approval_properties(properties)
+    properties = [property_.pk for property_ in selected]
+    survivor_id = current_property_id(survivor_id)
+    fact_choices = {
+        field: current_property_id(property_id) for field, property_id in fact_choices.items()
+    }
+    existing = PropertyMatchDecision.objects.select_for_update().filter(claim_id=claim_id).first()
     if existing:
         if existing.actor_id != actor.pk or existing.request_digest != request_digest:
             raise ReviewConflict()
         return existing
-    selected = _properties(properties)
     _eligible(actor, properties)
     claim = PropertyMatchClaim.objects.filter(
         pk=claim_id,
@@ -302,6 +475,17 @@ def approve_comparison(
         right_id=max(properties),
     ).first()
     if claim is None:
+        raise ReviewConflict()
+    suggestion = None
+    evaluation = None
+    if suggestion_id is not None:
+        if claim.suggestion_id != suggestion_id:
+            raise ReviewConflict()
+        suggestion, evaluation = _current_suggestion(
+            suggestion_id=suggestion_id,
+            properties=properties,
+        )
+    elif claim.suggestion_id is not None:
         raise ReviewConflict()
     _lock_evidence(properties)
     before = _snapshot(selected)
@@ -359,6 +543,11 @@ def approve_comparison(
     decision = PropertyMatchDecision.objects.create(
         claim=claim,
         actor=actor,
+        origin=evaluation.origin if evaluation is not None else "operator_initiated",
+        outcome=PropertyMatchDecision.Outcome.SAME_PROPERTY,
+        suggestion=suggestion,
+        evaluation=evaluation,
+        evaluation_snapshot=_evaluation_snapshot(evaluation) if evaluation is not None else {},
         survivor=survivor,
         redundant=redundant,
         before_revision=revision,
@@ -371,11 +560,112 @@ def approve_comparison(
         request_digest=request_digest,
         reason=reason,
     )
+    if suggestion is not None:
+        suggestion.state = PropertyMatchSuggestionState.APPROVED
+        suggestion.snoozed_until = None
+        suggestion.save(update_fields=["state", "snoozed_until", "updated_at"])
     merge_properties(target=survivor, duplicate=redundant, reason=reason, decision=decision)
     after = _snapshot([survivor, redundant])
     decision.after_snapshot = after
     decision.after_revision = _revision(after)
     decision.save(update_fields=["after_snapshot", "after_revision"])
+    claim.expires_at = timezone.now()
+    claim.save(update_fields=["expires_at"])
+    return decision
+
+
+@transaction.atomic
+def decide_suggestion(
+    *,
+    actor: User,
+    suggestion_id: UUID,
+    revision: str,
+    claim_id: UUID,
+    outcome: str,
+    reason: str = "",
+    snooze_days: int | None = None,
+) -> PropertyMatchDecision:
+    _authorize(actor)
+    request_digest = _revision({
+        "suggestion_id": str(suggestion_id),
+        "revision": revision,
+        "claim_id": str(claim_id),
+        "outcome": outcome,
+        "reason": reason,
+        "snooze_days": snooze_days,
+    })
+    suggestion_reference = PropertyMatchSuggestion.objects.filter(pk=suggestion_id).first()
+    if suggestion_reference is None:
+        raise ReviewConflict()
+    referenced_properties = [suggestion_reference.left_id, suggestion_reference.right_id]
+    selected = _properties(referenced_properties, lock=True)
+    properties = [property_.pk for property_ in selected]
+    existing = PropertyMatchDecision.objects.filter(claim_id=claim_id).first()
+    if existing is not None:
+        if existing.actor_id != actor.pk or existing.request_digest != request_digest:
+            raise ReviewConflict()
+        return existing
+    _eligible(actor, properties)
+    suggestion, evaluation = _current_suggestion(
+        suggestion_id=suggestion_id,
+        properties=properties,
+    )
+    claim = PropertyMatchClaim.objects.filter(
+        pk=claim_id,
+        actor=actor,
+        suggestion=suggestion,
+        expires_at__gt=timezone.now(),
+        left_id=suggestion.left_id,
+        right_id=suggestion.right_id,
+    ).first()
+    if claim is None:
+        raise ReviewConflict()
+    _lock_evidence(properties)
+    before = _snapshot(selected)
+    if _revision(before) != revision:
+        raise ReviewConflict()
+    if outcome not in {
+        PropertyMatchDecision.Outcome.NOT_SAME_PROPERTY,
+        PropertyMatchDecision.Outcome.SNOOZED,
+    }:
+        raise ValidationError("تصمیم پیشنهاد معتبر نیست.")
+    if outcome == PropertyMatchDecision.Outcome.SNOOZED and snooze_days not in (1, 7, 30):
+        raise ValidationError("تعویق باید ۱، ۷ یا ۳۰ روز باشد.")
+    decision = PropertyMatchDecision.objects.create(
+        claim=claim,
+        actor=actor,
+        origin=evaluation.origin,
+        outcome=outcome,
+        suggestion=suggestion,
+        evaluation=evaluation,
+        evaluation_snapshot=_evaluation_snapshot(evaluation),
+        survivor=None,
+        redundant=None,
+        before_revision=revision,
+        after_revision=revision,
+        evidence=before,
+        after_snapshot=before,
+        selected_facts={},
+        selected_image_ids=[],
+        affected_listing_ids=[row["id"] for row in before["listings"]],
+        request_digest=request_digest,
+        reason=reason,
+    )
+    suggestion.suppressed_evidence_fingerprint = evaluation.evidence_fingerprint
+    if outcome == PropertyMatchDecision.Outcome.NOT_SAME_PROPERTY:
+        suggestion.state = PropertyMatchSuggestionState.REJECTED
+        suggestion.snoozed_until = None
+    else:
+        suggestion.state = PropertyMatchSuggestionState.SNOOZED
+        suggestion.snoozed_until = timezone.now() + timedelta(days=snooze_days or 7)
+    suggestion.save(
+        update_fields=[
+            "state",
+            "suppressed_evidence_fingerprint",
+            "snoozed_until",
+            "updated_at",
+        ]
+    )
     claim.expires_at = timezone.now()
     claim.save(update_fields=["expires_at"])
     return decision

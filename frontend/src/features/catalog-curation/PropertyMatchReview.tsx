@@ -18,9 +18,11 @@ function factLabel(value: unknown): string {
 
 export function PropertyMatchReview({
   comparison,
+  suggestionId,
   onRefresh,
 }: {
   comparison: Comparison;
+  suggestionId?: string;
   onRefresh: () => void;
 }) {
   const queryClient = useQueryClient();
@@ -38,28 +40,41 @@ export function PropertyMatchReview({
   const [imagesConfirmed, setImagesConfirmed] = useState(false);
   const [warningConfirmed, setWarningConfirmed] = useState(false);
   const [reason, setReason] = useState("");
+  const [snoozeDays, setSnoozeDays] = useState<1 | 7 | 30>(7);
   const [claimId, setClaimId] = useState<string | null>(null);
   const [expiresAt, setExpiresAt] = useState<string | null>(
     comparison.claim?.expires_at ?? null,
   );
   const [message, setMessage] = useState<string | null>(null);
-  const [completed, setCompleted] = useState<string | null>(null);
+  const [completed, setCompleted] = useState<{
+    outcome: "same_property" | "not_same_property" | "snoozed";
+    survivorId?: string;
+  } | null>(null);
   const properties = comparison.properties.map((property) => property.id);
   const warning =
     comparison.band === "below_threshold" ||
     comparison.signals.some((signal) => signal.classification === "blocker");
+  const refreshCurrentRootsOnConflict = (status: number) => {
+    if (status === 409) onRefresh();
+  };
   const claim = useMutation({
     mutationFn: async () => {
-      const { data, error } = await api.POST(
+      const { data, error, response } = await api.POST(
         "/api/v1/operator/catalog-curation/claim/",
         {
-          body: { properties, revision: comparison.revision },
+          body: {
+            properties,
+            revision: comparison.revision,
+            suggestion_id: suggestionId,
+          },
         },
       );
-      if (error || !data?.claim)
+      if (error || !data?.claim) {
+        refreshCurrentRootsOnConflict(response.status);
         throw new Error(
           "بررسی در اختیار شما نیست یا شواهد تغییر کرده است. مقایسه را تازه کنید.",
         );
+      }
       return data.claim;
     },
     onSuccess: (data) => {
@@ -89,10 +104,12 @@ export function PropertyMatchReview({
             images_confirmed: imagesConfirmed,
             warning_confirmed: warningConfirmed,
             reason,
+            suggestion_id: suggestionId,
           },
         },
       );
       if (error || !data) {
+        refreshCurrentRootsOnConflict(response.status);
         throw new Error(
           response.status === 409
             ? "شواهد یا مسئول بررسی تغییر کرده است. مقایسه را تازه کنید و دوباره تأیید کنید."
@@ -103,7 +120,88 @@ export function PropertyMatchReview({
     },
     onSuccess: (data) => {
       void queryClient.invalidateQueries({ queryKey: ["catalog"] });
-      setCompleted(data.survivor_id);
+      if (suggestionId) {
+        void queryClient.invalidateQueries({
+          queryKey: ["catalog-curation", "suggestions"],
+        });
+      }
+      setCompleted({
+        outcome: "same_property",
+        survivorId: data.survivor_id ?? undefined,
+      });
+      setClaimId(null);
+      setMessage(null);
+    },
+    onError: (error) => {
+      setMessage(error.message);
+      setClaimId(null);
+    },
+  });
+  const reject = useMutation({
+    mutationFn: async () => {
+      if (!claimId || !suggestionId)
+        throw new Error("ابتدا بررسی را شروع کنید.");
+      const { data, error, response } = await api.POST(
+        "/api/v1/operator/catalog-curation/suggestions/{suggestion_id}/reject/",
+        {
+          params: { path: { suggestion_id: suggestionId } },
+          body: { revision: comparison.revision, claim_id: claimId, reason },
+        },
+      );
+      if (error || !data) {
+        refreshCurrentRootsOnConflict(response.status);
+        throw new Error(
+          response.status === 409
+            ? "شواهد یا مسئول بررسی تغییر کرده است. پیشنهاد را تازه کنید."
+            : "تصمیم متفاوت بودن ثبت نشد.",
+        );
+      }
+      return data;
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: ["catalog-curation", "suggestions"],
+      });
+      setCompleted({ outcome: "not_same_property" });
+      setClaimId(null);
+      setMessage(null);
+    },
+    onError: (error) => {
+      setMessage(error.message);
+      setClaimId(null);
+    },
+  });
+  const snooze = useMutation({
+    mutationFn: async () => {
+      if (!claimId || !suggestionId)
+        throw new Error("ابتدا بررسی را شروع کنید.");
+      const { data, error, response } = await api.POST(
+        "/api/v1/operator/catalog-curation/suggestions/{suggestion_id}/snooze/",
+        {
+          params: { path: { suggestion_id: suggestionId } },
+          body: {
+            revision: comparison.revision,
+            claim_id: claimId,
+            reason,
+            days: snoozeDays,
+          },
+        },
+      );
+      if (error || !data) {
+        refreshCurrentRootsOnConflict(response.status);
+        throw new Error(
+          response.status === 409
+            ? "شواهد یا مسئول بررسی تغییر کرده است. پیشنهاد را تازه کنید."
+            : "تعویق پیشنهاد ثبت نشد.",
+        );
+      }
+      return data;
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: ["catalog-curation", "suggestions"],
+      });
+      setCompleted({ outcome: "snoozed" });
       setClaimId(null);
       setMessage(null);
     },
@@ -116,17 +214,29 @@ export function PropertyMatchReview({
     return (
       <Card>
         <CardContent className="space-y-3 pt-6">
-          <p role="status">گروه‌بندی ثبت شد.</p>
-          <a
-            className="text-primary underline"
-            href={`/properties/${completed}`}
-          >
-            مشاهده ملک باقی‌مانده
-          </a>
+          <p role="status">
+            {completed.outcome === "same_property"
+              ? "گروه‌بندی ثبت شد."
+              : completed.outcome === "not_same_property"
+                ? "تصمیم متفاوت بودن ثبت شد."
+                : "پیشنهاد به تعویق افتاد."}
+          </p>
+          {completed.survivorId ? (
+            <a
+              className="text-primary underline"
+              href={`/properties/${completed.survivorId}`}
+            >
+              مشاهده ملک باقی‌مانده
+            </a>
+          ) : null}
         </CardContent>
       </Card>
     );
-  const busy = claim.isPending || approve.isPending;
+  const busy =
+    claim.isPending ||
+    approve.isPending ||
+    reject.isPending ||
+    snooze.isPending;
   return (
     <Card>
       <CardHeader>
@@ -292,21 +402,59 @@ export function PropertyMatchReview({
               onChange={(event) => setReason(event.target.value)}
             />
           </label>
+          {suggestionId ? (
+            <label className="grid max-w-xs gap-2">
+              مدت تعویق
+              <select
+                className="w-full rounded-md border p-2"
+                value={snoozeDays}
+                onChange={(event) =>
+                  setSnoozeDays(Number(event.target.value) as 1 | 7 | 30)
+                }
+              >
+                <option value={1}>۱ روز</option>
+                <option value={7}>۷ روز</option>
+                <option value={30}>۳۰ روز</option>
+              </select>
+            </label>
+          ) : null}
         </fieldset>
-        <Button
-          type="button"
-          disabled={
-            busy ||
-            !claimId ||
-            !survivorConfirmed ||
-            !imagesConfirmed ||
-            (warning && !warningConfirmed) ||
-            Object.values(facts).some((value) => !value)
-          }
-          onClick={() => approve.mutate()}
-        >
-          تأیید و گروه‌بندی
-        </Button>
+        <div className="flex flex-wrap gap-3">
+          <Button
+            type="button"
+            disabled={
+              busy ||
+              !claimId ||
+              !survivorConfirmed ||
+              !imagesConfirmed ||
+              (warning && !warningConfirmed) ||
+              Object.values(facts).some((value) => !value)
+            }
+            onClick={() => approve.mutate()}
+          >
+            تأیید و گروه‌بندی
+          </Button>
+          {suggestionId ? (
+            <>
+              <Button
+                type="button"
+                variant="destructive"
+                disabled={busy || !claimId}
+                onClick={() => reject.mutate()}
+              >
+                این دو ملک متفاوت‌اند
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={busy || !claimId}
+                onClick={() => snooze.mutate()}
+              >
+                تعویق پیشنهاد
+              </Button>
+            </>
+          ) : null}
+        </div>
       </CardContent>
     </Card>
   );

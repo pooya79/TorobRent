@@ -56,7 +56,9 @@ def backfill_listing_image_hashes(
         if not image.perceptual_dhash:
             changes["perceptual_dhash"] = identity.perceptual_dhash
         if changes:
-            ListingImage.objects.filter(id=image.id).update(**changes)
+            for field, value in changes.items():
+                setattr(image, field, value)
+            image.save(update_fields=tuple(changes))
             updated += 1
     return HashBackfillBatch(
         inspected=len(images),

@@ -312,6 +312,100 @@ def test_duplicate_approvals_are_safe_under_concurrency(api_client, comparison_c
 
 
 @pytest.mark.django_db(transaction=True)
+def test_connected_approvals_lock_all_roots_stably_and_leave_no_partial_merge():
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Barrier
+
+    from django.db import close_old_connections
+    from django.db.models import Count
+    from django.utils import timezone
+
+    from apps.catalog.match_decisions import (
+        FACT_FIELDS,
+        ReviewConflict,
+        approve_comparison,
+        comparison_data,
+    )
+    from apps.catalog.match_suggestions import evaluate_property_pair
+    from apps.catalog.models import (
+        Listing,
+        Property,
+        PropertyMatchClaim,
+        PropertyMatchDecision,
+    )
+
+    postgres_only()
+    source = Source.objects.create(
+        name="connected-concurrency-source",
+        domain="connected-concurrency.example",
+        display_name="منبع همزمان",
+        outbound_policy=OutboundPolicy.EXTERNAL_LINK,
+    )
+    property_a, _ = make_current_property(source=source, source_reference="A")
+    property_b, _ = make_current_property(source=source, source_reference="B")
+    property_c, _ = make_current_property(source=source, source_reference="C")
+    suggestion_ab = evaluate_property_pair(property_a.pk, property_b.pk, origin="focused")
+    suggestion_bc = evaluate_property_pair(property_b.pk, property_c.pk, origin="focused")
+    assert suggestion_ab is not None
+    assert suggestion_bc is not None
+    operator = make_operator(email="connected-concurrency@example.com")
+    cases = []
+    for left, right, suggestion in (
+        (property_a, property_b, suggestion_ab),
+        (property_b, property_c, suggestion_bc),
+    ):
+        comparison = comparison_data([left.pk, right.pk])
+        ordered_ids = sorted((left.pk, right.pk))
+        claim = PropertyMatchClaim.objects.create(
+            left_id=ordered_ids[0],
+            right_id=ordered_ids[1],
+            actor=operator,
+            suggestion=suggestion,
+            expires_at=timezone.now() + timezone.timedelta(minutes=10),
+        )
+        cases.append({
+            "actor": operator,
+            "properties": [left.pk, right.pk],
+            "revision": comparison["revision"],
+            "claim_id": claim.pk,
+            "survivor_id": left.pk,
+            "survivor_confirmed": True,
+            "fact_choices": {field: left.pk for field in FACT_FIELDS},
+            "image_ids": [],
+            "images_confirmed": True,
+            "warning_confirmed": True,
+            "suggestion_id": suggestion.pk,
+        })
+    barrier = Barrier(2)
+
+    def approve(index: int) -> str:
+        close_old_connections()
+        try:
+            barrier.wait(timeout=10)
+            try:
+                approve_comparison(**cases[index])
+            except ReviewConflict:
+                return "conflict"
+            return "approved"
+        finally:
+            close_old_connections()
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        results = list(pool.map(approve, range(2)))
+
+    assert sorted(results) == ["approved", "conflict"]
+    assert PropertyMatchDecision.objects.filter(outcome="same_property").count() == 1
+    assert Property.objects.filter(merged_into__isnull=True).count() == 2
+    assert sorted(
+        Listing.objects
+        .filter(property__merged_into__isnull=True)
+        .values("property_id")
+        .annotate(count=Count("id"))
+        .values_list("count", flat=True)
+    ) == [1, 2]
+
+
+@pytest.mark.django_db(transaction=True)
 def test_favorite_save_racing_grouping_follows_survivor(api_client, comparison_case):
     from concurrent.futures import ThreadPoolExecutor
     from threading import Barrier

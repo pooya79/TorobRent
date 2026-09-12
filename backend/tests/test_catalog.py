@@ -1711,7 +1711,10 @@ def test_property_search_exposes_only_the_reviewed_primary_property_image(
 
     call_command("seed_dev", verbosity=0)
     initial_search = api_client.get("/api/v1/catalog/properties/")
-    property_ = Property.objects.get(id=initial_search.data["results"][0]["id"])
+    initial_summary = next(
+        item for item in initial_search.data["results"] if item["primary_image"] is None
+    )
+    property_ = Property.objects.get(id=initial_summary["id"])
     listing = Listing.objects.active().filter(property=property_).first()
     assert listing is not None
     listing_asset = MediaAsset.objects.create(
@@ -1720,11 +1723,15 @@ def test_property_search_exposes_only_the_reviewed_primary_property_image(
         height=720,
         byte_size=1,
     )
-    listing_image = ListingImage.objects.create(listing=listing, position=0, is_primary=True)
-    ListingImageVariant.objects.create(
+    listing_image, _ = ListingImage.objects.get_or_create(
+        listing=listing,
+        position=0,
+        defaults={"is_primary": True},
+    )
+    ListingImageVariant.objects.update_or_create(
         image=listing_image,
         kind="medium",
-        asset=listing_asset,
+        defaults={"asset": listing_asset},
     )
 
     without_property_image = api_client.get("/api/v1/catalog/properties/")

@@ -704,6 +704,74 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/v1/operator/catalog-curation/suggestions/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Browse persisted Property Match Suggestions */
+    get: operations["v1_operator_catalog_curation_suggestions_retrieve"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/operator/catalog-curation/suggestions/{suggestion_id}/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Inspect one Property Match Suggestion and its current evidence */
+    get: operations["v1_operator_catalog_curation_suggestions_retrieve_2"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/operator/catalog-curation/suggestions/{suggestion_id}/reject/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Record that a scheduled Property Match Suggestion is not the same Property */
+    post: operations["v1_operator_catalog_curation_suggestions_reject_create"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/operator/catalog-curation/suggestions/{suggestion_id}/snooze/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Snooze a scheduled Property Match Suggestion */
+    post: operations["v1_operator_catalog_curation_suggestions_snooze_create"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/v1/operator/conversation-reports/": {
     parameters: {
       query?: never;
@@ -2229,6 +2297,13 @@ export interface components {
       available_until: string | null;
       expiring_soon: boolean;
     };
+    /**
+     * @description * `likely` - likely
+     *     * `possible` - possible
+     *     * `below_threshold` - below_threshold
+     * @enum {string}
+     */
+    Band182Enum: "likely" | "possible" | "below_threshold";
     /** @enum {unknown} */
     BlankEnum: "";
     CandidateCorrection: {
@@ -2557,6 +2632,13 @@ export interface components {
     CurrentWebsiteConflict: {
       detail: string;
     };
+    /**
+     * @description * `1` - 1
+     *     * `7` - 7
+     *     * `30` - 30
+     * @enum {integer}
+     */
+    DaysEnum: 1 | 7 | 30;
     DecisionCorrectionAudit: {
       internal_note?: string;
       normalized_corrections?: components["schemas"]["NormalizedCorrectionsAudit"];
@@ -3310,12 +3392,26 @@ export interface components {
       readonly claim: components["schemas"]["ReviewClaim"] | null;
     };
     /**
+     * @description * `focused` - focused
+     *     * `nightly` - nightly
+     *     * `rescore` - rescore
+     * @enum {string}
+     */
+    OriginEnum: "focused" | "nightly" | "rescore";
+    /**
      * @description * `direct_contact` - تماس مستقیم
      *     * `external_link` - پیوند منبع
      *     * `disabled` - غیرفعال
      * @enum {string}
      */
     OutboundPolicyEnum: "direct_contact" | "external_link" | "disabled";
+    /**
+     * @description * `same_property` - یک ملک
+     *     * `not_same_property` - دو ملک متفاوت
+     *     * `snoozed` - تعویق
+     * @enum {string}
+     */
+    OutcomeEnum: "same_property" | "not_same_property" | "snoozed";
     PaginatedConversationReportQueueList: {
       /** @example 123 */
       count: number;
@@ -3654,7 +3750,7 @@ export interface components {
     PropertyComparison: {
       scoring_version: string;
       score: number;
-      band: components["schemas"]["PropertyComparisonBandEnum"];
+      band: components["schemas"]["Band182Enum"];
       is_calibrated_probability: boolean;
       signals: components["schemas"]["MatchSignal"][];
       properties: components["schemas"]["CatalogCurationPropertyEvidence"][];
@@ -3664,14 +3760,9 @@ export interface components {
       suggested_survivor_id: string;
       decision_fields: components["schemas"]["PropertyMatchFact"][];
       property_images: components["schemas"]["PropertyMatchImage"][];
+      approved_connections: components["schemas"]["PropertyMatchApprovedConnection"][];
+      indirect_listing_ids: string[];
     };
-    /**
-     * @description * `likely` - likely
-     *     * `possible` - possible
-     *     * `below_threshold` - below_threshold
-     * @enum {string}
-     */
-    PropertyComparisonBandEnum: "likely" | "possible" | "below_threshold";
     PropertyDetail: {
       /** Format: uuid */
       id: string;
@@ -3725,6 +3816,8 @@ export interface components {
       properties: string[];
       revision: string;
       /** Format: uuid */
+      suggestion_id?: string | null;
+      /** Format: uuid */
       claim_id: string;
       /** Format: uuid */
       survivor_id: string;
@@ -3739,6 +3832,14 @@ export interface components {
       /** @default  */
       reason: string;
     };
+    PropertyMatchApprovedConnection: {
+      /** Format: uuid */
+      decision_id: string;
+      /** Format: uuid */
+      left_property_id: string;
+      /** Format: uuid */
+      right_property_id: string;
+    };
     PropertyMatchClaim: {
       /** Format: uuid */
       id: string;
@@ -3750,6 +3851,8 @@ export interface components {
     PropertyMatchClaimRequest: {
       properties: string[];
       revision: string;
+      /** Format: uuid */
+      suggestion_id?: string | null;
     };
     PropertyMatchDecision: {
       /** Format: uuid */
@@ -3757,10 +3860,16 @@ export interface components {
       /** Format: uuid */
       actor_id: string;
       readonly origin: string;
+      readonly outcome: components["schemas"]["OutcomeEnum"];
       /** Format: uuid */
-      survivor_id: string;
+      suggestion_id: string | null;
       /** Format: uuid */
-      redundant_id: string;
+      evaluation_id: string | null;
+      readonly evaluation_snapshot: unknown;
+      /** Format: uuid */
+      survivor_id: string | null;
+      /** Format: uuid */
+      redundant_id: string | null;
       readonly before_revision: string;
       readonly after_revision: string;
       readonly evidence: unknown;
@@ -3773,6 +3882,19 @@ export interface components {
       /** Format: date-time */
       readonly created_at: string;
     };
+    PropertyMatchEvidenceSummary: {
+      label: string;
+      classification: components["schemas"]["PropertyMatchEvidenceSummaryClassificationEnum"];
+      contribution: number;
+    };
+    /**
+     * @description * `support` - support
+     *     * `contradiction` - contradiction
+     *     * `blocker` - blocker
+     * @enum {string}
+     */
+    PropertyMatchEvidenceSummaryClassificationEnum:
+      "support" | "contradiction" | "blocker";
     PropertyMatchFact: {
       key: string;
       label: string;
@@ -3790,6 +3912,91 @@ export interface components {
       /** Format: uuid */
       property_id: string;
       url: string;
+    };
+    PropertyMatchSuggestion: {
+      /** Format: uuid */
+      id: string;
+      property_ids: string[];
+      properties: components["schemas"]["CatalogCurationPropertySearch"][];
+      state: components["schemas"]["StateAffEnum"];
+      score: number;
+      band: components["schemas"]["Band182Enum"];
+      scoring_version: string;
+      evidence_summary: components["schemas"]["PropertyMatchEvidenceSummary"][];
+      claim: components["schemas"]["PropertyMatchClaim"] | null;
+      origin: components["schemas"]["OriginEnum"];
+      /** Format: date-time */
+      snoozed_until: string | null;
+      /** Format: date-time */
+      first_suggested_at: string;
+      /** Format: date-time */
+      last_evaluated_at: string;
+    };
+    PropertyMatchSuggestionDecisionRequest: {
+      revision: string;
+      /** Format: uuid */
+      claim_id: string;
+      /** @default  */
+      reason: string;
+    };
+    PropertyMatchSuggestionDetail: {
+      /** Format: uuid */
+      id: string;
+      property_ids: string[];
+      properties: components["schemas"]["CatalogCurationPropertySearch"][];
+      state: components["schemas"]["StateAffEnum"];
+      score: number;
+      band: components["schemas"]["Band182Enum"];
+      scoring_version: string;
+      evidence_summary: components["schemas"]["PropertyMatchEvidenceSummary"][];
+      claim: components["schemas"]["PropertyMatchClaim"] | null;
+      origin: components["schemas"]["OriginEnum"];
+      /** Format: date-time */
+      snoozed_until: string | null;
+      /** Format: date-time */
+      first_suggested_at: string;
+      /** Format: date-time */
+      last_evaluated_at: string;
+      comparison: components["schemas"]["PropertyComparison"];
+      evaluation_history: components["schemas"]["PropertyMatchSuggestionEvaluation"][];
+      decision_history: components["schemas"]["PropertyMatchDecision"][];
+    };
+    PropertyMatchSuggestionEvaluation: {
+      /** Format: uuid */
+      id: string;
+      score: number;
+      band: components["schemas"]["Band182Enum"];
+      scoring_version: string;
+      evidence_fingerprint: string;
+      left_revision: string;
+      right_revision: string;
+      evidence: components["schemas"]["MatchSignal"][];
+      origin: components["schemas"]["OriginEnum"];
+      /** Format: date-time */
+      created_at: string;
+    };
+    PropertyMatchSuggestionFilters: {
+      band: string;
+      claim: string;
+      ordering: string;
+    };
+    PropertyMatchSuggestionPage: {
+      count: number;
+      /** Format: uri */
+      next: string | null;
+      /** Format: uri */
+      previous: string | null;
+      results: components["schemas"]["PropertyMatchSuggestion"][];
+      filters: components["schemas"]["PropertyMatchSuggestionFilters"];
+    };
+    PropertyMatchSuggestionSnoozeRequest: {
+      revision: string;
+      /** Format: uuid */
+      claim_id: string;
+      /** @default  */
+      reason: string;
+      /** @default 7 */
+      days: components["schemas"]["DaysEnum"];
     };
     PropertySearchPage: {
       ignored_preferences?: string[];
@@ -4523,6 +4730,16 @@ export interface components {
      * @enum {string}
      */
     State299Enum: "queued" | "running" | "complete" | "failed" | "cancelled";
+    /**
+     * @description * `pending` - pending
+     *     * `approved` - approved
+     *     * `rejected` - rejected
+     *     * `snoozed` - snoozed
+     *     * `superseded` - superseded
+     * @enum {string}
+     */
+    StateAffEnum:
+      "pending" | "approved" | "rejected" | "snoozed" | "superseded";
     Submission: {
       /** Format: uuid */
       readonly id: string;
@@ -6687,6 +6904,167 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["CatalogCurationPropertySearchPage"];
+        };
+      };
+    };
+  };
+  v1_operator_catalog_curation_suggestions_retrieve: {
+    parameters: {
+      query?: {
+        band?: string;
+        claim?: string;
+        ordering?: string;
+        page?: number;
+        page_size?: number;
+        state?: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PropertyMatchSuggestionPage"];
+        };
+      };
+    };
+  };
+  v1_operator_catalog_curation_suggestions_retrieve_2: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        suggestion_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PropertyMatchSuggestionDetail"];
+        };
+      };
+    };
+  };
+  v1_operator_catalog_curation_suggestions_reject_create: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        suggestion_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["PropertyMatchSuggestionDecisionRequest"];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PropertyMatchDecision"];
+        };
+      };
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PropertyMatchDecision"];
+        };
+      };
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Problem"];
+        };
+      };
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Problem"];
+        };
+      };
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  v1_operator_catalog_curation_suggestions_snooze_create: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        suggestion_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["PropertyMatchSuggestionSnoozeRequest"];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PropertyMatchDecision"];
+        };
+      };
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PropertyMatchDecision"];
+        };
+      };
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Problem"];
+        };
+      };
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Problem"];
+        };
+      };
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Problem"];
         };
       };
     };

@@ -371,14 +371,17 @@ def merge_properties(
     if duplicate.merged_into_id is not None:
         raise ValidationError("ملک تکراری قبلاً ادغام شده است.")
 
-    duplicate_favorites = Favorite.objects.select_for_update().filter(property=duplicate)
+    list(
+        Favorite.objects
+        .select_for_update()
+        .filter(property_id__in=(target.pk, duplicate.pk))
+        .order_by("account_id", "property_id", "pk")
+    )
+    duplicate_favorites = Favorite.objects.filter(property=duplicate).order_by("account_id", "pk")
     for duplicate_favorite in duplicate_favorites:
-        target_favorite = (
-            Favorite.objects
-            .select_for_update()
-            .filter(account_id=duplicate_favorite.account_id, property=target)
-            .first()
-        )
+        target_favorite = Favorite.objects.filter(
+            account_id=duplicate_favorite.account_id, property=target
+        ).first()
         if target_favorite is None:
             duplicate_favorite.property = target
             duplicate_favorite.save(update_fields=["property"])
@@ -404,6 +407,12 @@ def merge_properties(
     duplicate.merged_into = target
     duplicate.merged_at = timezone.now()
     duplicate.save(update_fields=["merged_into", "merged_at"])
+    from .match_suggestions import rebase_suggestions_after_merge
+
+    rebase_suggestions_after_merge(
+        survivor_id=target.pk,
+        redundant_id=duplicate.pk,
+    )
     return target
 
 

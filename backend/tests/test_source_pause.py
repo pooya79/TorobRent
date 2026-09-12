@@ -41,7 +41,15 @@ def test_pause_blocks_requests_and_supervised_publication_and_notifies(
     )
     detail = api_client.get(f"/api/v1/source-proposals/{proposal.pk}/").json()
     assert detail["assignment"]["state"] == "active"
-    assert detail["assignment"]["recent_requests"][0]["run"]["candidates"] == run["candidates"]
+    retained_candidates = detail["assignment"]["recent_requests"][0]["run"]["candidates"]
+
+    def without_current_flag(candidate):
+        return {key: value for key, value in candidate.items() if key != "is_current"}
+
+    assert [without_current_flag(candidate) for candidate in retained_candidates] == [
+        without_current_flag(candidate) for candidate in run["candidates"]
+    ]
+    assert all(candidate["is_current"] is False for candidate in retained_candidates)
     assert "پردازش منبع متوقف شد" in str(api_client.get("/api/v1/messages/").json())
 
 

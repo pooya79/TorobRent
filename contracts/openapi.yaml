@@ -1568,6 +1568,172 @@ paths:
               schema:
                 $ref: '#/components/schemas/CatalogCurationPropertySearchPage'
           description: ''
+  /api/v1/operator/catalog-curation/suggestions/:
+    get:
+      operationId: v1_operator_catalog_curation_suggestions_retrieve
+      summary: Browse persisted Property Match Suggestions
+      parameters:
+      - in: query
+        name: band
+        schema:
+          type: string
+      - in: query
+        name: claim
+        schema:
+          type: string
+      - in: query
+        name: ordering
+        schema:
+          type: string
+      - in: query
+        name: page
+        schema:
+          type: integer
+      - in: query
+        name: page_size
+        schema:
+          type: integer
+      - in: query
+        name: state
+        schema:
+          type: string
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PropertyMatchSuggestionPage'
+          description: ''
+  /api/v1/operator/catalog-curation/suggestions/{suggestion_id}/:
+    get:
+      operationId: v1_operator_catalog_curation_suggestions_retrieve_2
+      summary: Inspect one Property Match Suggestion and its current evidence
+      parameters:
+      - in: path
+        name: suggestion_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PropertyMatchSuggestionDetail'
+          description: ''
+  /api/v1/operator/catalog-curation/suggestions/{suggestion_id}/reject/:
+    post:
+      operationId: v1_operator_catalog_curation_suggestions_reject_create
+      summary: Record that a scheduled Property Match Suggestion is not the same Property
+      parameters:
+      - in: path
+        name: suggestion_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PropertyMatchSuggestionDecisionRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PropertyMatchDecision'
+          description: ''
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PropertyMatchDecision'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: ''
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: ''
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: ''
+  /api/v1/operator/catalog-curation/suggestions/{suggestion_id}/snooze/:
+    post:
+      operationId: v1_operator_catalog_curation_suggestions_snooze_create
+      summary: Snooze a scheduled Property Match Suggestion
+      parameters:
+      - in: path
+        name: suggestion_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PropertyMatchSuggestionSnoozeRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PropertyMatchDecision'
+          description: ''
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PropertyMatchDecision'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: ''
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: ''
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: ''
   /api/v1/operator/conversation-reports/:
     get:
       operationId: v1_operator_conversation_reports_list
@@ -4373,6 +4539,16 @@ components:
       - confirmed_at
       - expiring_soon
       - state
+    Band182Enum:
+      enum:
+      - likely
+      - possible
+      - below_threshold
+      type: string
+      description: |-
+        * `likely` - likely
+        * `possible` - possible
+        * `below_threshold` - below_threshold
     BlankEnum:
       enum:
       - ''
@@ -5168,6 +5344,16 @@ components:
           type: string
       required:
       - detail
+    DaysEnum:
+      enum:
+      - 1
+      - 7
+      - 30
+      type: integer
+      description: |-
+        * `1` - 1
+        * `7` - 7
+        * `30` - 30
     DecisionCorrectionAudit:
       type: object
       properties:
@@ -7005,6 +7191,16 @@ components:
       - revision
       - role
       - source_id
+    OriginEnum:
+      enum:
+      - focused
+      - nightly
+      - rescore
+      type: string
+      description: |-
+        * `focused` - focused
+        * `nightly` - nightly
+        * `rescore` - rescore
     OutboundPolicyEnum:
       enum:
       - direct_contact
@@ -7015,6 +7211,16 @@ components:
         * `direct_contact` - تماس مستقیم
         * `external_link` - پیوند منبع
         * `disabled` - غیرفعال
+    OutcomeEnum:
+      enum:
+      - same_property
+      - not_same_property
+      - snoozed
+      type: string
+      description: |-
+        * `same_property` - یک ملک
+        * `not_same_property` - دو ملک متفاوت
+        * `snoozed` - تعویق
     PaginatedConversationReportQueueList:
       type: object
       required:
@@ -7720,7 +7926,7 @@ components:
           maximum: 100
           minimum: 0
         band:
-          $ref: '#/components/schemas/PropertyComparisonBandEnum'
+          $ref: '#/components/schemas/Band182Enum'
         is_calibrated_probability:
           type: boolean
         signals:
@@ -7748,10 +7954,21 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/PropertyMatchImage'
+        approved_connections:
+          type: array
+          items:
+            $ref: '#/components/schemas/PropertyMatchApprovedConnection'
+        indirect_listing_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
       required:
+      - approved_connections
       - band
       - claim
       - decision_fields
+      - indirect_listing_ids
       - is_calibrated_probability
       - properties
       - property_images
@@ -7760,16 +7977,6 @@ components:
       - scoring_version
       - signals
       - suggested_survivor_id
-    PropertyComparisonBandEnum:
-      enum:
-      - likely
-      - possible
-      - below_threshold
-      type: string
-      description: |-
-        * `likely` - likely
-        * `possible` - possible
-        * `below_threshold` - below_threshold
     PropertyDetail:
       type: object
       properties:
@@ -7961,6 +8168,11 @@ components:
         revision:
           type: string
           maxLength: 64
+        suggestion_id:
+          type:
+          - string
+          - 'null'
+          format: uuid
         claim_id:
           type: string
           format: uuid
@@ -7998,6 +8210,22 @@ components:
       - revision
       - survivor_confirmed
       - survivor_id
+    PropertyMatchApprovedConnection:
+      type: object
+      properties:
+        decision_id:
+          type: string
+          format: uuid
+        left_property_id:
+          type: string
+          format: uuid
+        right_property_id:
+          type: string
+          format: uuid
+      required:
+      - decision_id
+      - left_property_id
+      - right_property_id
     PropertyMatchClaim:
       type: object
       properties:
@@ -8027,6 +8255,11 @@ components:
         revision:
           type: string
           maxLength: 64
+        suggestion_id:
+          type:
+          - string
+          - 'null'
+          format: uuid
       required:
       - properties
       - revision
@@ -8043,11 +8276,31 @@ components:
         origin:
           type: string
           readOnly: true
+        outcome:
+          allOf:
+          - $ref: '#/components/schemas/OutcomeEnum'
+          readOnly: true
+        suggestion_id:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        evaluation_id:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        evaluation_snapshot:
+          readOnly: true
         survivor_id:
-          type: string
+          type:
+          - string
+          - 'null'
           format: uuid
         redundant_id:
-          type: string
+          type:
+          - string
+          - 'null'
           format: uuid
         before_revision:
           type: string
@@ -8085,15 +8338,42 @@ components:
       - after_snapshot
       - before_revision
       - created_at
+      - evaluation_id
+      - evaluation_snapshot
       - evidence
       - grouping_event_ids
       - id
       - origin
+      - outcome
       - reason
       - redundant_id
       - selected_facts
       - selected_image_ids
+      - suggestion_id
       - survivor_id
+    PropertyMatchEvidenceSummary:
+      type: object
+      properties:
+        label:
+          type: string
+        classification:
+          $ref: '#/components/schemas/PropertyMatchEvidenceSummaryClassificationEnum'
+        contribution:
+          type: integer
+      required:
+      - classification
+      - contribution
+      - label
+    PropertyMatchEvidenceSummaryClassificationEnum:
+      enum:
+      - support
+      - contradiction
+      - blocker
+      type: string
+      description: |-
+        * `support` - support
+        * `contradiction` - contradiction
+        * `blocker` - blocker
     PropertyMatchFact:
       type: object
       properties:
@@ -8130,6 +8410,260 @@ components:
       - id
       - property_id
       - url
+    PropertyMatchSuggestion:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        property_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+          maxItems: 2
+          minItems: 2
+        properties:
+          type: array
+          items:
+            $ref: '#/components/schemas/CatalogCurationPropertySearch'
+        state:
+          $ref: '#/components/schemas/StateAffEnum'
+        score:
+          type: integer
+          maximum: 100
+          minimum: 0
+        band:
+          $ref: '#/components/schemas/Band182Enum'
+        scoring_version:
+          type: string
+        evidence_summary:
+          type: array
+          items:
+            $ref: '#/components/schemas/PropertyMatchEvidenceSummary'
+        claim:
+          oneOf:
+          - $ref: '#/components/schemas/PropertyMatchClaim'
+          - type: 'null'
+        origin:
+          $ref: '#/components/schemas/OriginEnum'
+        snoozed_until:
+          type:
+          - string
+          - 'null'
+          format: date-time
+        first_suggested_at:
+          type: string
+          format: date-time
+        last_evaluated_at:
+          type: string
+          format: date-time
+      required:
+      - band
+      - claim
+      - evidence_summary
+      - first_suggested_at
+      - id
+      - last_evaluated_at
+      - origin
+      - properties
+      - property_ids
+      - score
+      - scoring_version
+      - snoozed_until
+      - state
+    PropertyMatchSuggestionDecisionRequest:
+      type: object
+      properties:
+        revision:
+          type: string
+          maxLength: 64
+        claim_id:
+          type: string
+          format: uuid
+        reason:
+          type: string
+          default: ''
+          maxLength: 4000
+      required:
+      - claim_id
+      - revision
+    PropertyMatchSuggestionDetail:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        property_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+          maxItems: 2
+          minItems: 2
+        properties:
+          type: array
+          items:
+            $ref: '#/components/schemas/CatalogCurationPropertySearch'
+        state:
+          $ref: '#/components/schemas/StateAffEnum'
+        score:
+          type: integer
+          maximum: 100
+          minimum: 0
+        band:
+          $ref: '#/components/schemas/Band182Enum'
+        scoring_version:
+          type: string
+        evidence_summary:
+          type: array
+          items:
+            $ref: '#/components/schemas/PropertyMatchEvidenceSummary'
+        claim:
+          oneOf:
+          - $ref: '#/components/schemas/PropertyMatchClaim'
+          - type: 'null'
+        origin:
+          $ref: '#/components/schemas/OriginEnum'
+        snoozed_until:
+          type:
+          - string
+          - 'null'
+          format: date-time
+        first_suggested_at:
+          type: string
+          format: date-time
+        last_evaluated_at:
+          type: string
+          format: date-time
+        comparison:
+          $ref: '#/components/schemas/PropertyComparison'
+        evaluation_history:
+          type: array
+          items:
+            $ref: '#/components/schemas/PropertyMatchSuggestionEvaluation'
+        decision_history:
+          type: array
+          items:
+            $ref: '#/components/schemas/PropertyMatchDecision'
+      required:
+      - band
+      - claim
+      - comparison
+      - decision_history
+      - evaluation_history
+      - evidence_summary
+      - first_suggested_at
+      - id
+      - last_evaluated_at
+      - origin
+      - properties
+      - property_ids
+      - score
+      - scoring_version
+      - snoozed_until
+      - state
+    PropertyMatchSuggestionEvaluation:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        score:
+          type: integer
+          maximum: 100
+          minimum: 0
+        band:
+          $ref: '#/components/schemas/Band182Enum'
+        scoring_version:
+          type: string
+        evidence_fingerprint:
+          type: string
+        left_revision:
+          type: string
+        right_revision:
+          type: string
+        evidence:
+          type: array
+          items:
+            $ref: '#/components/schemas/MatchSignal'
+        origin:
+          $ref: '#/components/schemas/OriginEnum'
+        created_at:
+          type: string
+          format: date-time
+      required:
+      - band
+      - created_at
+      - evidence
+      - evidence_fingerprint
+      - id
+      - left_revision
+      - origin
+      - right_revision
+      - score
+      - scoring_version
+    PropertyMatchSuggestionFilters:
+      type: object
+      properties:
+        band:
+          type: string
+        claim:
+          type: string
+        ordering:
+          type: string
+      required:
+      - band
+      - claim
+      - ordering
+    PropertyMatchSuggestionPage:
+      type: object
+      properties:
+        count:
+          type: integer
+          minimum: 0
+        next:
+          type:
+          - string
+          - 'null'
+          format: uri
+        previous:
+          type:
+          - string
+          - 'null'
+          format: uri
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/PropertyMatchSuggestion'
+        filters:
+          $ref: '#/components/schemas/PropertyMatchSuggestionFilters'
+      required:
+      - count
+      - filters
+      - next
+      - previous
+      - results
+    PropertyMatchSuggestionSnoozeRequest:
+      type: object
+      properties:
+        revision:
+          type: string
+          maxLength: 64
+        claim_id:
+          type: string
+          format: uuid
+        reason:
+          type: string
+          default: ''
+          maxLength: 4000
+        days:
+          allOf:
+          - $ref: '#/components/schemas/DaysEnum'
+          default: 7
+      required:
+      - claim_id
+      - revision
     PropertySearchPage:
       type: object
       properties:
@@ -9899,6 +10433,20 @@ components:
         * `complete` - پایان یافته
         * `failed` - ناموفق
         * `cancelled` - لغوشده
+    StateAffEnum:
+      enum:
+      - pending
+      - approved
+      - rejected
+      - snoozed
+      - superseded
+      type: string
+      description: |-
+        * `pending` - pending
+        * `approved` - approved
+        * `rejected` - rejected
+        * `snoozed` - snoozed
+        * `superseded` - superseded
     Submission:
       type: object
       properties:
