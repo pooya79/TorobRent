@@ -325,6 +325,7 @@ def _primary_property_image_variant() -> QuerySet[PropertyImageVariant]:
         .filter(
             image__property_id=OuterRef("pk"),
             image__is_primary=True,
+            image__retired_at__isnull=True,
         )
         .annotate(
             card_priority=Case(

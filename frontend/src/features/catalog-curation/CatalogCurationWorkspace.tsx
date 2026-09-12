@@ -1,3 +1,4 @@
+import { PropertyMatchReview } from "./PropertyMatchReview";
 import { useQuery } from "@tanstack/react-query";
 import { GitCompareArrows, Layers3, Search, Sparkles } from "lucide-react";
 import { type FormEvent, useState } from "react";
@@ -316,6 +317,7 @@ function PropertyEvidenceCard({
 }
 
 export function CatalogCurationWorkspace() {
+  const [reviewVersion, setReviewVersion] = useState(0);
   const [draft, setDraft] = useState("");
   const [searchTerm, setSearchTerm] = useState<string | null>(null);
   const [page, setPage] = useState(1);
@@ -354,8 +356,8 @@ export function CatalogCurationWorkspace() {
         </p>
         <h1 className="text-3xl font-semibold">مقایسه هویت ملک‌ها</h1>
         <p className="text-muted-foreground mt-3 max-w-3xl leading-7">
-          شواهد هویتی دو ملک جاری را کنار هم ببینید. این مسیر فقط خواندنی است و
-          هیچ ملکی را گروه‌بندی، جدا یا ویرایش نمی‌کند.
+          شواهد هویتی دو ملک جاری را کنار هم ببینید. باز کردن مقایسه فقط خواندنی
+          است؛ برای گروه‌بندی، بررسی را شروع و تصمیم خود را تأیید کنید.
         </p>
       </header>
 
@@ -521,6 +523,17 @@ export function CatalogCurationWorkspace() {
                 />
               ))}
             </div>
+            {comparison.data.decision_fields && (
+              <PropertyMatchReview
+                key={`${comparison.data.revision}-${reviewVersion}`}
+                comparison={comparison.data}
+                onRefresh={() => {
+                  void comparison
+                    .refetch()
+                    .then(() => setReviewVersion((value) => value + 1));
+                }}
+              />
+            )}
             <Card className="overflow-hidden">
               <CardHeader className="bg-muted/50">
                 <div className="flex flex-wrap items-center justify-between gap-4">

@@ -602,6 +602,40 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/v1/operator/catalog-curation/approve/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Approve an Operator-initiated Property match */
+    post: operations["v1_operator_catalog_curation_approve_create"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/operator/catalog-curation/claim/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Start or renew a manual Property match review */
+    post: operations["v1_operator_catalog_curation_claim_create"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/v1/operator/catalog-curation/comparison/": {
     parameters: {
       query?: never;
@@ -611,6 +645,40 @@ export interface paths {
     };
     /** Compare exactly two current Properties */
     get: operations["v1_operator_catalog_curation_comparison_retrieve"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/operator/catalog-curation/decisions/{decision_id}/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Read a retained Property Match Decision */
+    get: operations["v1_operator_catalog_curation_decisions_retrieve"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/operator/catalog-curation/images/{image_id}/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Read restricted Property review imagery */
+    get: operations["v1_operator_catalog_curation_images_retrieve"];
     put?: never;
     post?: never;
     delete?: never;
@@ -3590,6 +3658,12 @@ export interface components {
       is_calibrated_probability: boolean;
       signals: components["schemas"]["MatchSignal"][];
       properties: components["schemas"]["CatalogCurationPropertyEvidence"][];
+      revision: string;
+      claim: components["schemas"]["PropertyMatchClaim"] | null;
+      /** Format: uuid */
+      suggested_survivor_id: string;
+      decision_fields: components["schemas"]["PropertyMatchFact"][];
+      property_images: components["schemas"]["PropertyMatchImage"][];
     };
     /**
      * @description * `likely` - likely
@@ -3646,6 +3720,76 @@ export interface components {
       url: string;
       width: number;
       height: number;
+    };
+    PropertyMatchApproveRequest: {
+      properties: string[];
+      revision: string;
+      /** Format: uuid */
+      claim_id: string;
+      /** Format: uuid */
+      survivor_id: string;
+      survivor_confirmed: boolean;
+      fact_choices: {
+        [key: string]: string;
+      };
+      image_ids: string[];
+      images_confirmed: boolean;
+      /** @default false */
+      warning_confirmed: boolean;
+      /** @default  */
+      reason: string;
+    };
+    PropertyMatchClaim: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      actor_id: string;
+      /** Format: date-time */
+      expires_at: string;
+    };
+    PropertyMatchClaimRequest: {
+      properties: string[];
+      revision: string;
+    };
+    PropertyMatchDecision: {
+      /** Format: uuid */
+      readonly id: string;
+      /** Format: uuid */
+      actor_id: string;
+      readonly origin: string;
+      /** Format: uuid */
+      survivor_id: string;
+      /** Format: uuid */
+      redundant_id: string;
+      readonly before_revision: string;
+      readonly after_revision: string;
+      readonly evidence: unknown;
+      readonly after_snapshot: unknown;
+      readonly selected_facts: unknown;
+      readonly selected_image_ids: unknown;
+      readonly affected_listing_ids: unknown;
+      readonly grouping_event_ids: string[];
+      readonly reason: string;
+      /** Format: date-time */
+      readonly created_at: string;
+    };
+    PropertyMatchFact: {
+      key: string;
+      label: string;
+      values: {
+        [key: string]: unknown;
+      };
+      display_values: {
+        [key: string]: unknown;
+      };
+      conflicting: boolean;
+    };
+    PropertyMatchImage: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      property_id: string;
+      url: string;
     };
     PropertySearchPage: {
       ignored_preferences?: string[];
@@ -6355,6 +6499,108 @@ export interface operations {
       };
     };
   };
+  v1_operator_catalog_curation_approve_create: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["PropertyMatchApproveRequest"];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PropertyMatchDecision"];
+        };
+      };
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PropertyMatchDecision"];
+        };
+      };
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Problem"];
+        };
+      };
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Problem"];
+        };
+      };
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  v1_operator_catalog_curation_claim_create: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["PropertyMatchClaimRequest"];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PropertyComparison"];
+        };
+      };
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Problem"];
+        };
+      };
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Problem"];
+        };
+      };
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
   v1_operator_catalog_curation_comparison_retrieve: {
     parameters: {
       query: {
@@ -6373,6 +6619,48 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["PropertyComparison"];
+        };
+      };
+    };
+  };
+  v1_operator_catalog_curation_decisions_retrieve: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        decision_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PropertyMatchDecision"];
+        };
+      };
+    };
+  };
+  v1_operator_catalog_curation_images_retrieve: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        image_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "image/webp": string;
         };
       };
     };

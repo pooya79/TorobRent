@@ -462,6 +462,8 @@ class ListingImageVariant(models.Model):
 class PropertyImage(models.Model):
     """An Operator-reviewed image normalized onto a Property."""
 
+    retired_at = models.DateTimeField(null=True, blank=True, editable=False)
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     property = models.ForeignKey(Property, on_delete=models.CASCADE, related_name="images")
     position = models.PositiveSmallIntegerField()
@@ -481,11 +483,12 @@ class PropertyImage(models.Model):
         constraints = [
             models.UniqueConstraint(
                 fields=("property", "position"),
+                condition=Q(retired_at__isnull=True),
                 name="unique_property_image_position",
             ),
             models.UniqueConstraint(
                 fields=("property",),
-                condition=Q(is_primary=True),
+                condition=Q(is_primary=True, retired_at__isnull=True),
                 name="one_primary_image_per_property",
             ),
         ]
@@ -557,6 +560,13 @@ class ListingGroupingAction(models.TextChoices):
 
 
 class ListingGroupingEvent(models.Model):
+    decision = models.ForeignKey(
+        "PropertyMatchDecision",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="grouping_events",
+    )
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     listing = models.ForeignKey(Listing, on_delete=models.PROTECT, related_name="grouping_events")
     from_property = models.ForeignKey(
@@ -589,3 +599,38 @@ class ListingPriceObservation(models.Model):
 
     def __str__(self) -> str:
         return f"{self.listing_id}: {self.recorded_at.isoformat()}"
+
+
+class PropertyMatchClaim(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    left = models.ForeignKey(Property, on_delete=models.PROTECT, related_name="left_match_claims")
+    right = models.ForeignKey(Property, on_delete=models.PROTECT, related_name="right_match_claims")
+    actor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    expires_at = models.DateTimeField()
+
+    def __str__(self) -> str:
+        return f"{self.left_id} / {self.right_id}: {self.actor_id}"
+
+
+class PropertyMatchDecision(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    claim = models.OneToOneField(PropertyMatchClaim, on_delete=models.PROTECT)
+    actor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    origin = models.CharField(max_length=24, default="operator_initiated", editable=False)
+    survivor = models.ForeignKey(Property, on_delete=models.PROTECT, related_name="match_decisions")
+    redundant = models.ForeignKey(
+        Property, on_delete=models.PROTECT, related_name="redundant_decisions"
+    )
+    before_revision = models.CharField(max_length=64)
+    after_revision = models.CharField(max_length=64)
+    evidence = models.JSONField()
+    after_snapshot = models.JSONField()
+    selected_facts = models.JSONField()
+    selected_image_ids = models.JSONField()
+    affected_listing_ids = models.JSONField()
+    request_digest = models.CharField(max_length=64)
+    reason = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self) -> str:
+        return f"{self.redundant_id} → {self.survivor_id}"

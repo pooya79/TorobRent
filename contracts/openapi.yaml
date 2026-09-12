@@ -1381,6 +1381,90 @@ paths:
               schema:
                 $ref: '#/components/schemas/UnreadCount'
           description: ''
+  /api/v1/operator/catalog-curation/approve/:
+    post:
+      operationId: v1_operator_catalog_curation_approve_create
+      summary: Approve an Operator-initiated Property match
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PropertyMatchApproveRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PropertyMatchDecision'
+          description: ''
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PropertyMatchDecision'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: ''
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: ''
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: ''
+  /api/v1/operator/catalog-curation/claim/:
+    post:
+      operationId: v1_operator_catalog_curation_claim_create
+      summary: Start or renew a manual Property match review
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PropertyMatchClaimRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PropertyComparison'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: ''
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: ''
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: ''
   /api/v1/operator/catalog-curation/comparison/:
     get:
       operationId: v1_operator_catalog_curation_comparison_retrieve
@@ -1405,6 +1489,51 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/PropertyComparison'
+          description: ''
+  /api/v1/operator/catalog-curation/decisions/{decision_id}/:
+    get:
+      operationId: v1_operator_catalog_curation_decisions_retrieve
+      summary: Read a retained Property Match Decision
+      parameters:
+      - in: path
+        name: decision_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PropertyMatchDecision'
+          description: ''
+  /api/v1/operator/catalog-curation/images/{image_id}/:
+    get:
+      operationId: v1_operator_catalog_curation_images_retrieve
+      summary: Read restricted Property review imagery
+      parameters:
+      - in: path
+        name: image_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            image/webp:
+              schema:
+                type: string
+                format: binary
           description: ''
   /api/v1/operator/catalog-curation/properties/:
     get:
@@ -7602,13 +7731,35 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/CatalogCurationPropertyEvidence'
+        revision:
+          type: string
+        claim:
+          oneOf:
+          - $ref: '#/components/schemas/PropertyMatchClaim'
+          - type: 'null'
+        suggested_survivor_id:
+          type: string
+          format: uuid
+        decision_fields:
+          type: array
+          items:
+            $ref: '#/components/schemas/PropertyMatchFact'
+        property_images:
+          type: array
+          items:
+            $ref: '#/components/schemas/PropertyMatchImage'
       required:
       - band
+      - claim
+      - decision_fields
       - is_calibrated_probability
       - properties
+      - property_images
+      - revision
       - score
       - scoring_version
       - signals
+      - suggested_survivor_id
     PropertyComparisonBandEnum:
       enum:
       - likely
@@ -7797,6 +7948,188 @@ components:
       - height
       - url
       - width
+    PropertyMatchApproveRequest:
+      type: object
+      properties:
+        properties:
+          type: array
+          items:
+            type: string
+            format: uuid
+          maxItems: 2
+          minItems: 2
+        revision:
+          type: string
+          maxLength: 64
+        claim_id:
+          type: string
+          format: uuid
+        survivor_id:
+          type: string
+          format: uuid
+        survivor_confirmed:
+          type: boolean
+        fact_choices:
+          type: object
+          additionalProperties:
+            type: string
+            format: uuid
+        image_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+          maxItems: 100
+        images_confirmed:
+          type: boolean
+        warning_confirmed:
+          type: boolean
+          default: false
+        reason:
+          type: string
+          default: ''
+          maxLength: 4000
+      required:
+      - claim_id
+      - fact_choices
+      - image_ids
+      - images_confirmed
+      - properties
+      - revision
+      - survivor_confirmed
+      - survivor_id
+    PropertyMatchClaim:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        actor_id:
+          type: string
+          format: uuid
+        expires_at:
+          type: string
+          format: date-time
+      required:
+      - actor_id
+      - expires_at
+      - id
+    PropertyMatchClaimRequest:
+      type: object
+      properties:
+        properties:
+          type: array
+          items:
+            type: string
+            format: uuid
+          maxItems: 2
+          minItems: 2
+        revision:
+          type: string
+          maxLength: 64
+      required:
+      - properties
+      - revision
+    PropertyMatchDecision:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        actor_id:
+          type: string
+          format: uuid
+        origin:
+          type: string
+          readOnly: true
+        survivor_id:
+          type: string
+          format: uuid
+        redundant_id:
+          type: string
+          format: uuid
+        before_revision:
+          type: string
+          readOnly: true
+        after_revision:
+          type: string
+          readOnly: true
+        evidence:
+          readOnly: true
+        after_snapshot:
+          readOnly: true
+        selected_facts:
+          readOnly: true
+        selected_image_ids:
+          readOnly: true
+        affected_listing_ids:
+          readOnly: true
+        grouping_event_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+          readOnly: true
+        reason:
+          type: string
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - actor_id
+      - affected_listing_ids
+      - after_revision
+      - after_snapshot
+      - before_revision
+      - created_at
+      - evidence
+      - grouping_event_ids
+      - id
+      - origin
+      - reason
+      - redundant_id
+      - selected_facts
+      - selected_image_ids
+      - survivor_id
+    PropertyMatchFact:
+      type: object
+      properties:
+        key:
+          type: string
+        label:
+          type: string
+        values:
+          type: object
+          additionalProperties: {}
+        display_values:
+          type: object
+          additionalProperties: {}
+        conflicting:
+          type: boolean
+      required:
+      - conflicting
+      - display_values
+      - key
+      - label
+      - values
+    PropertyMatchImage:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        property_id:
+          type: string
+          format: uuid
+        url:
+          type: string
+      required:
+      - id
+      - property_id
+      - url
     PropertySearchPage:
       type: object
       properties:

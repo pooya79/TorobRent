@@ -286,8 +286,12 @@ class PropertyFavoriteView(APIView):
         responses={204: None},
     )
     def put(self, request: Request, property_id: uuid.UUID) -> Response:
-        property_ = self._active_property(property_id)
-        Favorite.objects.get_or_create(account_id=request.user.pk, property=property_)
+        from .services import save_favorite
+
+        try:
+            save_favorite(account_id=cast(uuid.UUID, request.user.pk), property_id=property_id)
+        except Property.DoesNotExist as exc:
+            raise NotFound("این ملک در دسترس نیست.") from exc
         return Response(status=204)
 
     @extend_schema(
@@ -328,6 +332,25 @@ class PropertyDetailView(APIView):
         },
     )
     def get(self, request: Request, property_id: uuid.UUID) -> Response:
+        try:
+            properties = Property.objects.select_related(
+                "city", "district", "neighborhood"
+            ).prefetch_related(
+                Prefetch(
+                    "images__variants",
+                    queryset=PropertyImageVariant.objects.select_related("asset"),
+                )
+            )
+            property_ = properties.get(id=property_id)
+            visited = {property_id}
+            while property_.merged_into_id is not None:
+                if property_.merged_into_id in visited:
+                    raise NotFound("این ملک در دسترس نیست.")
+                visited.add(property_.merged_into_id)
+                property_ = properties.get(pk=property_.merged_into_id)
+            property_id = property_.pk
+        except Property.DoesNotExist as exc:
+            raise NotFound("این ملک در دسترس نیست.") from exc
         listings = list(
             Listing.objects
             .active()
@@ -342,20 +365,6 @@ class PropertyDetailView(APIView):
         )
         if not listings:
             raise NotFound("این ملک در دسترس نیست.")
-        try:
-            property_ = (
-                Property.objects
-                .select_related("city", "district", "neighborhood")
-                .prefetch_related(
-                    Prefetch(
-                        "images__variants",
-                        queryset=PropertyImageVariant.objects.select_related("asset"),
-                    )
-                )
-                .get(id=property_id)
-            )
-        except Property.DoesNotExist as exc:
-            raise NotFound("این ملک در دسترس نیست.") from exc
         viewer_id = request.user.pk if request.user.is_authenticated else None
         serializer = PropertyDetailSerializer(
             instance=property_detail_data(property_, listings, viewer_id=viewer_id)

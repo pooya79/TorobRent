@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import uuid
-from dataclasses import asdict
 from typing import cast
 
+from django.http import FileResponse
 from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework.exceptions import ValidationError
+from rest_framework.generics import get_object_or_404
 from rest_framework.permissions import BasePermission
 from rest_framework.request import Request
 from rest_framework.response import Response
@@ -14,16 +15,20 @@ from rest_framework.views import APIView
 from apps.accounts.capabilities import OperatorCapability, has_capability
 from apps.accounts.models import User
 from apps.common.pagination import StandardPageNumberPagination
+from apps.common.serializers import ProblemSerializer
 
-from .matching import compare_properties
+from .match_decisions import approve_comparison, claim_comparison, comparison_data
+from .models import PropertyImage, PropertyMatchDecision
 from .operator_serializers import (
     CatalogCurationPropertySearchPageSerializer,
     CatalogCurationPropertySearchSerializer,
     PropertyComparisonSerializer,
-    property_evidence_data,
+    PropertyMatchApproveRequestSerializer,
+    PropertyMatchClaimRequestSerializer,
+    PropertyMatchDecisionSerializer,
     property_search_data,
 )
-from .selectors import current_properties_for_curation, search_current_properties_for_curation
+from .selectors import search_current_properties_for_curation
 
 
 class CanCurateCatalog(BasePermission):
@@ -97,15 +102,81 @@ class PropertyComparisonView(APIView):
             property_ids = [uuid.UUID(value) for value in raw_ids]
         except ValueError as exc:
             raise ValidationError({"property": "شناسه ملک معتبر نیست."}) from exc
-        found = {
-            property_.id: property_
-            for property_ in current_properties_for_curation().filter(id__in=property_ids)
-        }
-        if len(found) != 2:
-            raise ValidationError({"property": "هر دو ملک باید جاری و ادغام‌نشده باشند."})
-        properties = [found[property_id] for property_id in property_ids]
-        payload = {
-            **asdict(compare_properties(*properties)),
-            "properties": [property_evidence_data(property_) for property_ in properties],
-        }
+        payload = comparison_data(property_ids)
         return Response(PropertyComparisonSerializer(payload).data)
+
+
+class PropertyMatchClaimView(APIView):
+    permission_classes = [CanCurateCatalog]
+
+    @extend_schema(
+        summary="Start or renew a manual Property match review",
+        request=PropertyMatchClaimRequestSerializer,
+        responses={
+            200: PropertyComparisonSerializer,
+            400: ProblemSerializer,
+            403: ProblemSerializer,
+            409: ProblemSerializer,
+        },
+    )
+    def post(self, request: Request) -> Response:
+        serializer = PropertyMatchClaimRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        payload = claim_comparison(actor=cast(User, request.user), **serializer.validated_data)
+        return Response(PropertyComparisonSerializer(payload).data)
+
+
+class PropertyMatchApproveView(APIView):
+    permission_classes = [CanCurateCatalog]
+
+    @extend_schema(
+        summary="Approve an Operator-initiated Property match",
+        request=PropertyMatchApproveRequestSerializer,
+        responses={
+            200: PropertyMatchDecisionSerializer,
+            201: PropertyMatchDecisionSerializer,
+            400: ProblemSerializer,
+            403: ProblemSerializer,
+            409: ProblemSerializer,
+        },
+    )
+    def post(self, request: Request) -> Response:
+        serializer = PropertyMatchApproveRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        already_decided = PropertyMatchDecision.objects.filter(
+            claim_id=serializer.validated_data["claim_id"]
+        ).exists()
+        decision = approve_comparison(actor=cast(User, request.user), **serializer.validated_data)
+        return Response(
+            PropertyMatchDecisionSerializer(decision).data, status=200 if already_decided else 201
+        )
+
+
+class PropertyMatchDecisionView(APIView):
+    permission_classes = [CanCurateCatalog]
+
+    @extend_schema(
+        summary="Read a retained Property Match Decision",
+        responses={200: PropertyMatchDecisionSerializer},
+    )
+    def get(self, request: Request, decision_id: uuid.UUID) -> Response:
+        decision = get_object_or_404(PropertyMatchDecision, pk=decision_id)
+        return Response(PropertyMatchDecisionSerializer(decision).data)
+
+
+class PropertyMatchImageView(APIView):
+    permission_classes = [CanCurateCatalog]
+
+    @extend_schema(
+        summary="Read restricted Property review imagery", responses={(200, "image/webp"): bytes}
+    )
+    def get(self, request: Request, image_id: uuid.UUID) -> FileResponse:
+        image = get_object_or_404(PropertyImage, pk=image_id)
+        variant = image.variants.select_related("asset").order_by("kind").first()
+        if variant is None:
+            from rest_framework.exceptions import NotFound
+
+            raise NotFound()
+        response = FileResponse(variant.asset.file.open("rb"), content_type="image/webp")
+        response["Cache-Control"] = "private, no-store"
+        return response

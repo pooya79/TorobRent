@@ -2,7 +2,7 @@ from typing import Any
 
 from rest_framework import serializers
 
-from .models import Listing, Property
+from .models import Listing, Property, PropertyMatchDecision
 
 
 def _source_data(listing: Listing) -> dict[str, object]:
@@ -133,6 +133,31 @@ class MatchSignalSerializer(serializers.Serializer[Any]):
     contribution = serializers.IntegerField()
 
 
+class PropertyMatchClaimSerializer(serializers.Serializer[Any]):
+    id = serializers.UUIDField()
+    actor_id = serializers.UUIDField()
+    expires_at = serializers.DateTimeField()
+
+
+class PropertyMatchClaimRequestSerializer(serializers.Serializer[Any]):
+    properties = serializers.ListField(child=serializers.UUIDField(), min_length=2, max_length=2)
+    revision = serializers.CharField(max_length=64)
+
+
+class PropertyMatchFactSerializer(serializers.Serializer[Any]):
+    key = serializers.CharField()
+    label = serializers.CharField()  # type: ignore[assignment]
+    values = serializers.DictField()
+    display_values = serializers.DictField()
+    conflicting = serializers.BooleanField()
+
+
+class PropertyMatchImageSerializer(serializers.Serializer[Any]):
+    id = serializers.UUIDField()
+    property_id = serializers.UUIDField()
+    url = serializers.CharField()
+
+
 class PropertyComparisonSerializer(serializers.Serializer[Any]):
     scoring_version = serializers.CharField()
     score = serializers.IntegerField(min_value=0, max_value=100)
@@ -140,3 +165,49 @@ class PropertyComparisonSerializer(serializers.Serializer[Any]):
     is_calibrated_probability = serializers.BooleanField()
     signals = MatchSignalSerializer(many=True)
     properties = CatalogCurationPropertyEvidenceSerializer(many=True)
+    revision = serializers.CharField()
+    claim = PropertyMatchClaimSerializer(allow_null=True)
+    suggested_survivor_id = serializers.UUIDField()
+    decision_fields = PropertyMatchFactSerializer(many=True)
+    property_images = PropertyMatchImageSerializer(many=True)
+
+
+class PropertyMatchApproveRequestSerializer(PropertyMatchClaimRequestSerializer):
+    claim_id = serializers.UUIDField()
+    survivor_id = serializers.UUIDField()
+    survivor_confirmed = serializers.BooleanField()
+    fact_choices = serializers.DictField(child=serializers.UUIDField())
+    image_ids = serializers.ListField(child=serializers.UUIDField(), max_length=100)
+    images_confirmed = serializers.BooleanField()
+    warning_confirmed = serializers.BooleanField(default=False)
+    reason = serializers.CharField(required=False, allow_blank=True, max_length=4000, default="")
+
+
+class PropertyMatchDecisionSerializer(serializers.ModelSerializer[PropertyMatchDecision]):
+    actor_id = serializers.UUIDField()
+    survivor_id = serializers.UUIDField()
+    redundant_id = serializers.UUIDField()
+    grouping_event_ids: serializers.PrimaryKeyRelatedField[Any] = (
+        serializers.PrimaryKeyRelatedField(source="grouping_events", many=True, read_only=True)
+    )
+
+    class Meta:
+        model = PropertyMatchDecision
+        fields = (
+            "id",
+            "actor_id",
+            "origin",
+            "survivor_id",
+            "redundant_id",
+            "before_revision",
+            "after_revision",
+            "evidence",
+            "after_snapshot",
+            "selected_facts",
+            "selected_image_ids",
+            "affected_listing_ids",
+            "grouping_event_ids",
+            "reason",
+            "created_at",
+        )
+        read_only_fields = fields

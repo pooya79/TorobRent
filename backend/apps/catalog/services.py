@@ -28,6 +28,7 @@ from .models import (
     Property,
     PropertyImage,
     PropertyImageVariant,
+    PropertyMatchDecision,
     RentalTerms,
     Source,
 )
@@ -185,15 +186,28 @@ def expire_listings() -> int:
     ).update(state=ListingState.EXPIRED)
 
 
+def _lock_existing_listing(*, listing_id: UUID, destination_id: UUID | None = None) -> Listing:
+    original_id = Listing.objects.values_list("property_id", flat=True).get(pk=listing_id)
+    ids = [original_id] + ([destination_id] if destination_id else [])
+    list(Property.objects.select_for_update().filter(pk__in=ids).order_by("pk"))
+    listing = (
+        Listing.objects
+        .select_for_update(of=("self",))
+        .select_related("property", "terms")
+        .get(pk=listing_id)
+    )
+    if listing.property_id != original_id:
+        raise ValidationError("گروه آگهی تغییر کرده است؛ دوباره تلاش کنید.")
+    return listing
+
+
 @transaction.atomic
 def materialize_direct_listing(*, spec: DirectListingSpec) -> Listing:
     existing_listing = None
     if spec.existing_listing_id is not None:
-        existing_listing = (
-            Listing.objects
-            .select_for_update()
-            .select_related("property", "terms")
-            .get(id=spec.existing_listing_id)
+        existing_listing = _lock_existing_listing(
+            listing_id=spec.existing_listing_id,
+            destination_id=spec.property_id,
         )
 
     if spec.property_id is not None:
@@ -243,12 +257,11 @@ def materialize_direct_listing(*, spec: DirectListingSpec) -> Listing:
 def materialize_external_listing(*, spec: ExternalListingSpec) -> Listing:
     # Serialize refreshes and first publication by Source, including absent identities.
     Source.objects.select_for_update().get(pk=spec.source.pk)
-    listing = (
-        Listing.objects
-        .select_for_update()
-        .filter(source=spec.source, external_url=spec.listing_values["external_url"])
-        .first()
-    )
+    listing = Listing.objects.filter(
+        source=spec.source, external_url=spec.listing_values["external_url"]
+    ).first()
+    if listing is not None:
+        listing = _lock_existing_listing(listing_id=listing.pk)
     property_ = listing.property if listing else Property()
     terms = listing.terms if listing else RentalTerms()
     for field, value in spec.property_values.items():
@@ -272,6 +285,7 @@ def materialize_external_listing(*, spec: ExternalListingSpec) -> Listing:
 def replace_listing_images(
     *, listing: Listing, image_specs: Sequence[ReviewedImageSpec]
 ) -> list[ListingImage]:
+    Listing.objects.select_for_update().get(pk=listing.pk)
     ListingImage.objects.filter(listing=listing).delete()
     retained: list[ListingImage] = []
     for image_spec in image_specs:
@@ -308,7 +322,8 @@ def replace_property_images(
 ) -> list[PropertyImage]:
     """Publish the images explicitly accepted in an Operator review onto a Property."""
 
-    PropertyImage.objects.filter(property=property_).delete()
+    Property.objects.select_for_update().get(pk=property_.pk)
+    PropertyImage.objects.filter(property=property_, retired_at__isnull=True).delete()
     reviewed_at = timezone.now()
     retained: list[PropertyImage] = []
     for image_spec in image_specs:
@@ -332,7 +347,13 @@ def replace_property_images(
 
 
 @transaction.atomic
-def merge_properties(*, target: Property, duplicate: Property, reason: str = "") -> Property:
+def merge_properties(
+    *,
+    target: Property,
+    duplicate: Property,
+    reason: str = "",
+    decision: PropertyMatchDecision | None = None,
+) -> Property:
     if target.pk == duplicate.pk:
         raise ValidationError("ملک مقصد و تکراری باید متفاوت باشند.")
 
@@ -368,7 +389,7 @@ def merge_properties(*, target: Property, duplicate: Property, reason: str = "")
             )
         duplicate_favorite.delete()
 
-    for listing in Listing.objects.select_for_update().filter(property=duplicate):
+    for listing in Listing.objects.select_for_update().filter(property=duplicate).order_by("pk"):
         listing.property = target
         listing.save(update_fields=["property", "updated_at"])
         ListingGroupingEvent.objects.create(
@@ -376,6 +397,7 @@ def merge_properties(*, target: Property, duplicate: Property, reason: str = "")
             from_property=duplicate,
             to_property=target,
             action=ListingGroupingAction.MERGE,
+            decision=decision,
             reason=reason,
         )
 
@@ -388,8 +410,8 @@ def merge_properties(*, target: Property, duplicate: Property, reason: str = "")
 def _locked_listing_and_property(
     *, listing: Listing, destination: Property
 ) -> tuple[Listing, Property]:
-    listing = Listing.objects.select_for_update().get(pk=listing.pk)
-    destination = Property.objects.select_for_update().get(pk=destination.pk)
+    listing = _lock_existing_listing(listing_id=listing.pk, destination_id=destination.pk)
+    destination = Property.objects.get(pk=destination.pk)
     if listing.property_id == destination.pk:
         raise ValidationError("آگهی از قبل به این ملک متصل است.")
     return listing, destination
@@ -467,3 +489,38 @@ def regroup_listing(*, listing: Listing, destination: Property, reason: str = ""
     if Listing.objects.filter(property=destination).exists():
         return _attach_locked(listing=listing, destination=destination, reason=reason)
     return _split_locked(listing=listing, destination=destination, reason=reason)
+
+
+def current_property_id(property_id: UUID) -> UUID:
+    """Follow retained merge aliases, detecting corrupt cycles defensively."""
+    visited: set[UUID] = set()
+    while property_id not in visited:
+        visited.add(property_id)
+        parent = Property.objects.values_list("merged_into_id", flat=True).get(pk=property_id)
+        if parent is None:
+            return property_id
+        property_id = parent
+    raise ValidationError("چرخه ادغام ملک معتبر نیست.")
+
+
+@transaction.atomic
+def _save_favorite_at_root(*, account_id: UUID, property_id: UUID) -> bool:
+    property_ = Property.objects.select_for_update().get(pk=property_id)
+    if property_.merged_into_id is not None:
+        return False
+    if not Listing.objects.active().filter(property=property_).exists():
+        from rest_framework.exceptions import NotFound
+
+        raise NotFound("این ملک در دسترس نیست.")
+    Favorite.objects.get_or_create(account_id=account_id, property=property_)
+    return True
+
+
+def save_favorite(*, account_id: UUID, property_id: UUID) -> None:
+    # Release an obsolete root before following its alias. Holding it across the retry
+    # could reverse the UUID lock order used by a concurrent comparison or grouping.
+    while not _save_favorite_at_root(
+        account_id=account_id,
+        property_id=current_property_id(property_id),
+    ):
+        pass

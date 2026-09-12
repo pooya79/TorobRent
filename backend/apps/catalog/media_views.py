@@ -22,7 +22,10 @@ class CatalogMediaView(APIView):
         asset = get_object_or_404(
             MediaAsset.objects.filter(
                 Q(listing_variants__image__listing__in=active)
-                | Q(property_variants__image__property__in=active.values("property_id"))
+                | Q(
+                    property_variants__image__property__in=active.values("property_id"),
+                    property_variants__image__retired_at__isnull=True,
+                )
             ).distinct(),
             pk=asset_id,
         )

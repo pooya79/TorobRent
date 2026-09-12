@@ -440,3 +440,26 @@ once; existing worker request/generation checks fence duplicates if publication 
 process exits before recording it. Existing Source Discovery continuation recovery remains active.
 The responsible Operator can disable a schedule even after its representative or executable
 profile becomes unavailable; starting extraction still requires both.
+
+### Manual Property match approval
+
+Apply catalog migration 0021 before starting the updated application. Existing Properties,
+Listings and images retain their data. Property Images gain a nullable retirement timestamp;
+retired images retain asset references for recovery and remain available only to Catalog Curators.
+Drain older application processes so they cannot publish retired images or bypass grouping locks.
+
+Opening a manual comparison does not claim work. Starting review reserves both Properties for ten
+minutes; the Operator can renew it. Overlapping reviews, expired claims, changed evidence and
+changed grouping require a fresh comparison. An Operator cannot claim or decide their own Direct
+Listing. Evidence revisions are content digests including normalized facts, Listing evidence,
+Rental Terms, image identity and grouping history; they are opaque API tokens, not counters.
+
+Approval accepts choices from the two reviewed Properties, an explicitly confirmed survivor and
+image selection, and a confirmation for low-confidence evidence. The transaction validates facts,
+retains prior Property Images, moves Listings and Favorites, deduplicates Favorites and records a
+Property Match Decision with linked grouping events. Retrying the same claim and payload returns
+the retained decision; a changed payload is rejected. Old public Property routes resolve through
+the retained merge chain. Reasons are optional and the API has no bulk approval operation.
+
+Run `tests/test_property_match_decisions.py` with `TEST_DATABASE_URL` pointing to PostgreSQL to
+exercise competing claims, duplicate approvals, Favorite races and database-failure rollback.

@@ -609,7 +609,11 @@ class ListingMediaSerializer(serializers.Serializer[Any]):
 
 
 def catalog_images(owner: Listing | Property) -> list[dict[str, Any]]:
-    images: list[ListingImage | PropertyImage] = list(owner.images.all())
+    images: list[ListingImage | PropertyImage] = [
+        image
+        for image in owner.images.all()
+        if not isinstance(image, PropertyImage) or image.retired_at is None
+    ]
     return [
         {
             "id": image.pk,
