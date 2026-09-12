@@ -58,7 +58,9 @@ test("groups current problems and requests a bounded retry without fact editing"
   expect(
     screen.getByRole("heading", { name: /بررسی اطلاعات.*۱/ }),
   ).toBeVisible();
-  expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+  expect(
+    screen.getByRole("textbox", { name: "جست‌وجوی نشانی یا خطا" }),
+  ).toBeVisible();
   await user.click(screen.getByRole("button", { name: "استخراج دوباره گروه" }));
   await waitFor(() => expect(body).toEqual({ exception_ids: ["one"] }));
   expect(await screen.findByRole("status")).toHaveTextContent(
@@ -119,4 +121,68 @@ test("representatives can inspect pages without treating failures as action requ
     screen.getByRole("link", { name: exception.canonical_url }),
   ).toBeVisible();
   expect(screen.getByText(/مشکلات باز:.*۱/)).toBeVisible();
+});
+
+test("searches pages and retries only selected visible unblocked pages", async () => {
+  const user = userEvent.setup();
+  let body: unknown;
+  server.use(
+    http.post(
+      "*/api/v1/source-proposals/case/exceptions/retry/",
+      async ({ request }) => {
+        body = await request.json();
+        return HttpResponse.json([]);
+      },
+    ),
+  );
+  renderPanel([
+    exception,
+    {
+      ...exception,
+      id: "two",
+      canonical_url: "https://khaneh.example/listing/2",
+    },
+    {
+      ...exception,
+      id: "blocked",
+      canonical_url: "https://khaneh.example/blocked",
+      state: "excluded",
+      exclusion_reason: "مسدود",
+    },
+  ]);
+  expect(screen.getAllByRole("checkbox")).toHaveLength(2);
+  await user.click(screen.getAllByRole("checkbox")[0]!);
+  await user.type(
+    screen.getByRole("textbox", { name: "جست‌وجوی نشانی یا خطا" }),
+    "/2",
+  );
+  expect(
+    screen.getByRole("button", { name: /استخراج دوباره انتخاب‌شده‌ها/ }),
+  ).toBeDisabled();
+  await user.click(screen.getByRole("checkbox"));
+  await user.click(
+    screen.getByRole("button", { name: /استخراج دوباره انتخاب‌شده‌ها/ }),
+  );
+  await waitFor(() => expect(body).toEqual({ exception_ids: ["two"] }));
+});
+
+test("offers a blocking preview shortcut for the chosen page", async () => {
+  let blockedUrl = "";
+  render(
+    <QueryClientProvider client={new QueryClient()}>
+      <SourceExceptionsPanel
+        exceptions={[exception]}
+        proposalId="case"
+        canRetry={false}
+        operator
+        onBlock={(url) => {
+          blockedUrl = url;
+        }}
+      />
+    </QueryClientProvider>,
+  );
+  await userEvent.click(
+    screen.getByRole("button", { name: "مسدود کردن صفحه" }),
+  );
+  expect(blockedUrl).toBe(exception.canonical_url);
 });

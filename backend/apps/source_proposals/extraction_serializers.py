@@ -84,6 +84,7 @@ class ExtractionRequestSerializer(serializers.ModelSerializer[ExtractionRequest]
             "assignment",
             "requester",
             "profile_version",
+            "delivery_error",
             "submitted_url",
             "canonical_url",
             "max_pages",

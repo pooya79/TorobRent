@@ -1,4 +1,5 @@
-import { Activity, PauseCircle, Workflow } from "lucide-react";
+import type { ReactNode } from "react";
+import { Activity, CalendarClock, PauseCircle, Workflow } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { OperatorSourceProposal } from "./queries";
 
@@ -7,11 +8,13 @@ export function SourceProcessingStatus({
   onResults,
   updatedAt,
   stale,
+  controls,
 }: {
   proposal: OperatorSourceProposal;
   onResults: () => void;
   updatedAt?: number;
   stale?: boolean;
+  controls?: ReactNode;
 }) {
   const assignment = proposal.assignment;
   if (!assignment)
@@ -40,7 +43,7 @@ export function SourceProcessingStatus({
           ? "در صف شروع استخراج"
           : latest?.state === "failed" && latest.is_current !== false
             ? "آخرین استخراج ناموفق بود"
-            : "استخراجی در درخواست‌های اخیر در حال اجرا نیست";
+            : "درخواست اخیر فعالی نیست";
   const description = !active
     ? "برای پردازش به تخصیص فعال و پروفایل تأییدشده نیاز است."
     : paused
@@ -49,10 +52,10 @@ export function SourceProcessingStatus({
         ? "سامانه این درخواست را در حال اجرا گزارش کرده است. شمارنده‌ها با ثبت پیشرفت به‌روز می‌شوند."
         : queued
           ? "درخواست ثبت شده و منتظر شروع است؛ هنوز اجرای آن گزارش نشده است."
-          : "پردازش مجاز است، اما این به معنی اجرای همیشگی نیست. استخراج با ثبت درخواست انجام می‌شود.";
+          : "دریافت تازه را دستی شروع کنید یا برنامه دریافت خودکار را تنظیم کنید.";
   return (
     <section aria-label="وضعیت فعلی پردازش" className="grid gap-4">
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid gap-4 lg:grid-cols-3">
         <div className="bg-muted/30 grid content-start gap-3 rounded-xl border p-4">
           <h3 className="text-muted-foreground flex items-center gap-2 text-sm">
             {paused ? (
@@ -85,6 +88,56 @@ export function SourceProcessingStatus({
             </p>
           )}
         </div>
+        <div className="bg-primary/5 grid content-start gap-3 rounded-xl border p-4">
+          <h3 className="text-muted-foreground flex items-center gap-2 text-sm">
+            <CalendarClock className="size-5" aria-hidden="true" />
+            دریافت بعدی اطلاعات
+          </h3>
+          <p className="text-lg font-semibold">
+            {!active ? (
+              "تخصیص غیرفعال"
+            ) : paused ? (
+              "برنامه در حالت توقف"
+            ) : !assignment.source.crawl_interval_hours ? (
+              "فقط اجرای دستی"
+            ) : assignment.source.next_crawl_at ? (
+              <time dateTime={assignment.source.next_crawl_at}>
+                {new Date(assignment.source.next_crawl_at).toLocaleString(
+                  "fa-IR",
+                )}
+              </time>
+            ) : (
+              "زمانی ثبت نشده است"
+            )}
+          </p>
+          <p className="text-muted-foreground text-sm">
+            {assignment.source.crawl_interval_hours
+              ? `دریافت از نشانی اصلی هر ${assignment.source.crawl_interval_hours.toLocaleString("fa-IR")} ساعت؛ شروع واقعی به صف پردازش وابسته است.`
+              : "دریافت خودکار زمان‌بندی نشده است. اپراتور مسئول می‌تواند برنامه را تنظیم کند یا دریافت را همین حالا شروع کند."}
+          </p>
+          {!!assignment.source.crawl_interval_hours && (
+            <p className="text-muted-foreground text-xs">
+              نوبت‌های سررسیدشده هر دقیقه وارد صف می‌شوند. این زمان دریافت صفحات
+              است؛ انتشار به روش انتخاب‌شده بستگی دارد.
+            </p>
+          )}
+          {active &&
+          !paused &&
+          assignment.source.crawl_interval_hours > 0 &&
+          assignment.source.next_crawl_at &&
+          updatedAt &&
+          Date.parse(assignment.source.next_crawl_at) <= updatedAt ? (
+            <p role="status" className="text-sm">
+              نوبت سررسید شده است؛ در انتظار ثبت درخواست توسط زمان‌بندی. اگر این
+              وضعیت ادامه داشت، اجرای دستی را امتحان کنید.
+            </p>
+          ) : null}
+          {assignment.source.crawl_schedule_error && (
+            <p role="alert" className="text-destructive text-sm">
+              آخرین نوبت وارد صف نشد: {assignment.source.crawl_schedule_error}
+            </p>
+          )}
+        </div>
         <div className="bg-muted/30 grid content-start gap-3 rounded-xl border p-4">
           <h3 className="text-muted-foreground flex items-center gap-2 text-sm">
             <Workflow className="size-5" aria-hidden="true" />
@@ -108,6 +161,7 @@ export function SourceProcessingStatus({
           </p>
         </div>
       </div>
+      {controls}
       {["queued", "running"].includes(proposal.discovery_stage ?? "") && (
         <p className="bg-muted/30 rounded-lg p-3 text-sm">
           کشف صفحات برای بررسی پروفایل هم در جریان است. پیشرفت این مرحله را در
@@ -151,6 +205,11 @@ export function SourceProcessingStatus({
               ? " · مربوط به پردازش قبلی؛ مجوز انتشار ندارد"
               : ""}
           </p>
+          {latest.delivery_error && (
+            <p role="alert" className="text-destructive text-sm">
+              {latest.delivery_error}
+            </p>
+          )}
           {latest.updated_at && (
             <p className="text-muted-foreground text-xs">
               آخرین تغییر درخواست:{" "}
@@ -199,8 +258,8 @@ export function SourceProcessingStatus({
         </div>
       ) : (
         <p className="text-muted-foreground text-sm">
-          هنوز درخواست استخراجی ثبت نشده است. نماینده منبع می‌تواند درخواست
-          استخراج ثبت کند.
+          هنوز درخواست استخراجی ثبت نشده است. از بخش اجرای دستی، دریافت صفحات را
+          شروع کنید.
         </p>
       )}
     </section>

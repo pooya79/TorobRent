@@ -3,9 +3,14 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from .crawl_control import control_crawl
 from .operator_views import CanReviewSourceProposal, _decision_response
 from .processing import change_processing
-from .serializers import OperatorSourceProposalSerializer, SourceProcessingRequestSerializer
+from .serializers import (
+    OperatorSourceProposalSerializer,
+    SourceCrawlControlRequestSerializer,
+    SourceProcessingRequestSerializer,
+)
 
 
 class OperatorSourceProcessingView(APIView):
@@ -22,4 +27,21 @@ class OperatorSourceProcessingView(APIView):
             proposal_id=proposal_id,
             serializer_class=SourceProcessingRequestSerializer,
             transition=change_processing,
+        )
+
+
+class OperatorSourceCrawlControlView(APIView):
+    permission_classes = (CanReviewSourceProposal,)
+
+    @extend_schema(
+        summary="Start a bounded crawl or change its recurring schedule",
+        request=SourceCrawlControlRequestSerializer,
+        responses=OperatorSourceProposalSerializer,
+    )
+    def post(self, request: Request, proposal_id: str) -> Response:
+        return _decision_response(
+            request=request,
+            proposal_id=proposal_id,
+            serializer_class=SourceCrawlControlRequestSerializer,
+            transition=control_crawl,
         )

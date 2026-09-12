@@ -874,6 +874,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/v1/operator/source-proposals/{proposal_id}/crawl/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Start a bounded crawl or change its recurring schedule */
+    post: operations["v1_operator_source_proposals_crawl_create"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/v1/operator/source-proposals/{proposal_id}/exceptions/bulk/apply/": {
     parameters: {
       query?: never;
@@ -2057,6 +2074,11 @@ export interface components {
     AssignmentSource: {
       readonly processing_paused: boolean;
       readonly processing_revision: number;
+      readonly crawl_interval_hours: number;
+      readonly crawl_schedule_revision: number;
+      /** Format: date-time */
+      readonly next_crawl_at: string | null;
+      readonly crawl_schedule_error: string;
       /** Format: uuid */
       id: string;
       display_name: string;
@@ -2617,6 +2639,7 @@ export interface components {
       readonly requester: string | null;
       /** Format: uuid */
       readonly profile_version: string;
+      readonly delivery_error: string;
       /** Format: uri */
       readonly submitted_url: string;
       /** Format: uri */
@@ -2766,6 +2789,17 @@ export interface components {
      * @enum {string}
      */
     IntakeKindEnum: "general" | "account_deletion" | "public_contact_removal";
+    /**
+     * @description * `0` - 0
+     *     * `1` - 1
+     *     * `6` - 6
+     *     * `12` - 12
+     *     * `24` - 24
+     *     * `72` - 72
+     *     * `168` - 168
+     * @enum {integer}
+     */
+    IntervalHoursEnum: 0 | 1 | 6 | 12 | 24 | 72 | 168;
     /**
      * @description * `exact` - exact
      *     * `path_prefix` - path_prefix
@@ -3789,6 +3823,19 @@ export interface components {
       website_name: string;
       operator: boolean;
     };
+    SourceCrawlControlRequest: {
+      action: components["schemas"]["SourceCrawlControlRequestActionEnum"];
+      /** Format: uri */
+      url?: string;
+      interval_hours?: components["schemas"]["IntervalHoursEnum"];
+      reviewed_schedule_revision?: number;
+    };
+    /**
+     * @description * `run` - run
+     *     * `schedule` - schedule
+     * @enum {string}
+     */
+    SourceCrawlControlRequestActionEnum: "run" | "schedule";
     SourceDisagreement: {
       field: string;
       normalized_value: unknown;
@@ -6543,6 +6590,31 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": components["schemas"]["SourceProposalDecision"];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["OperatorSourceProposal"];
+        };
+      };
+    };
+  };
+  v1_operator_source_proposals_crawl_create: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        proposal_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["SourceCrawlControlRequest"];
       };
     };
     responses: {

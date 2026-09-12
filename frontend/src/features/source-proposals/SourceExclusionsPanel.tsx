@@ -59,13 +59,15 @@ export function SourceExclusionsPanel({
   proposalId,
   exclusions,
   onUpdate,
+  initialUrl = "",
 }: {
+  initialUrl?: string;
   proposalId: string;
   exclusions: Exclusion[];
   onUpdate: (proposal: OperatorSourceProposal) => void;
 }) {
   const [kind, setKind] = useState<Rule["kind"]>("exact");
-  const [url, setUrl] = useState("");
+  const [url, setUrl] = useState(initialUrl);
   const [reason, setReason] = useState("");
   const [confirmed, setConfirmed] = useState(false);
   const [selection, setSelection] = useState<{

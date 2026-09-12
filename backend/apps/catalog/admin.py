@@ -173,6 +173,10 @@ class SourceAdmin(ModelAdmin):  # type: ignore[type-arg]
         "responsibility_revision",
         "processing_paused",
         "processing_revision",
+        "crawl_interval_hours",
+        "crawl_schedule_revision",
+        "next_crawl_at",
+        "crawl_schedule_error",
     )
     list_display = (
         "display_name",

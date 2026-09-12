@@ -1,3 +1,4 @@
+import { SourceCrawlPanel } from "./SourceCrawlPanel";
 import { candidateValidationMessages } from "./candidate-validation";
 import { SourceProcessingStatus } from "./SourceProcessingStatus";
 import { caseSections, type CaseSectionId } from "./case-sections";
@@ -87,6 +88,8 @@ export function ProposalReviewCard({
   onDecisionSuccess: (proposal: OperatorSourceProposal) => void;
 }) {
   const [resultView, setResultView] = useState("properties");
+  const [exclusionUrl, setExclusionUrl] = useState("");
+  const [exclusionDraft, setExclusionDraft] = useState(0);
   const [claimed, setClaimed] = useState(false);
   const [claimExpiresAt, setClaimExpiresAt] = useState<string>();
   const [claimExpired, setClaimExpired] = useState(false);
@@ -770,6 +773,19 @@ export function ProposalReviewCard({
               proposal={proposal}
               updatedAt={statusUpdatedAt}
               stale={statusStale}
+              controls={
+                proposal.assignment?.state === "active" &&
+                canDecideSource && (
+                  <SourceCrawlPanel
+                    proposal={proposal}
+                    onUpdate={onDecisionSuccess}
+                    onExclusions={() => {
+                      setResultView("exclusions");
+                      onSectionChange("exceptions");
+                    }}
+                  />
+                )
+              }
               onResults={() => {
                 setResultView("runs");
                 onSectionChange("exceptions");
@@ -878,6 +894,15 @@ export function ProposalReviewCard({
                     exceptions={proposal.assignment.exceptions ?? []}
                     proposalId={proposal.id}
                     operator
+                    onBlock={
+                      proposal.assignment.state === "active" && canDecideSource
+                        ? (url) => {
+                            setExclusionUrl(url);
+                            setExclusionDraft((draft) => draft + 1);
+                            setResultView("exclusions");
+                          }
+                        : undefined
+                    }
                     canRetry={
                       proposal.assignment.state === "active" &&
                       canDecideSource &&
@@ -900,6 +925,8 @@ export function ProposalReviewCard({
                 >
                   {proposal.assignment.state === "active" && canDecideSource ? (
                     <SourceExclusionsPanel
+                      key={exclusionDraft}
+                      initialUrl={exclusionUrl}
                       proposalId={proposal.id}
                       exclusions={proposal.assignment.exclusions ?? []}
                       onUpdate={onDecisionSuccess}

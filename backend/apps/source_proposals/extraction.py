@@ -78,10 +78,11 @@ def submit_request(
         processing_revision=source.processing_revision,
         submitted_url=url,
         canonical_url=canonical,
+        delivery_pending=True,
     )
-    from .tasks import extract_source
+    from .extraction_delivery import deliver_extraction_request
 
-    transaction.on_commit(lambda: extract_source.delay(str(request.pk)))
+    transaction.on_commit(lambda: deliver_extraction_request(str(request.pk)))
     return request
 
 

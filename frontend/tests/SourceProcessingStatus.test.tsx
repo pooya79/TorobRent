@@ -6,17 +6,30 @@ import type { OperatorSourceProposal } from "@/features/source-proposals/queries
 
 function source(
   state?: string,
-  options: { paused?: boolean; current?: boolean } = {},
+  options: {
+    paused?: boolean;
+    current?: boolean;
+    deliveryError?: string;
+    schedule?: {
+      crawl_interval_hours: number;
+      next_crawl_at: string;
+      crawl_schedule_error?: string;
+    };
+  } = {},
 ) {
   return {
     assignment: {
       state: "active",
       review_mode: "approval_required",
-      source: { processing_paused: options.paused ?? false },
+      source: {
+        processing_paused: options.paused ?? false,
+        ...options.schedule,
+      },
       recent_requests: state
         ? [
             {
               id: "request",
+              delivery_error: options.deliveryError ?? "",
               state,
               is_current: options.current ?? true,
               created_at: "2026-09-10T12:00:00Z",
@@ -36,10 +49,10 @@ function source(
 }
 
 test.each([
-  [undefined, "استخراجی در درخواست‌های اخیر در حال اجرا نیست"],
+  [undefined, "درخواست اخیر فعالی نیست"],
   ["queued", "در صف شروع استخراج"],
   ["running", "در حال استخراج"],
-  ["complete", "استخراجی در درخواست‌های اخیر در حال اجرا نیست"],
+  ["complete", "درخواست اخیر فعالی نیست"],
   ["failed", "آخرین استخراج ناموفق بود"],
 ])(
   "distinguishes processing permission from reported %s activity",
@@ -66,7 +79,7 @@ test("pause and superseded requests do not claim extraction is running", () => {
     />,
   );
   expect(screen.getByRole("status")).toHaveTextContent(
-    "استخراجی در درخواست‌های اخیر در حال اجرا نیست",
+    "درخواست اخیر فعالی نیست",
   );
   expect(screen.getByText(/مربوط به پردازش قبلی/)).toBeVisible();
 });
@@ -102,7 +115,100 @@ test("reflects refreshed activity, shows counts, and opens results", async () =>
     />,
   );
   expect(screen.getByRole("status")).toHaveTextContent(
-    "استخراجی در درخواست‌های اخیر در حال اجرا نیست",
+    "درخواست اخیر فعالی نیست",
   );
   expect(screen.getByRole("alert")).toHaveTextContent("ممکن است قدیمی باشد");
+});
+
+test("shows the exact next scheduled fetch timestamp", () => {
+  render(
+    <SourceProcessingStatus
+      proposal={source(undefined, {
+        schedule: {
+          crawl_interval_hours: 6,
+          next_crawl_at: "2026-09-13T12:00:00Z",
+        },
+      })}
+      onResults={() => {}}
+      updatedAt={Date.parse("2026-09-12T06:00:00Z")}
+    />,
+  );
+  const timestamp = screen.getByText(/۱۴۰۵\/۶\/۲۲/);
+  expect(timestamp).toHaveAttribute("datetime", "2026-09-13T12:00:00Z");
+  expect(screen.getByText(/دریافت از نشانی اصلی هر ۶ ساعت/)).toBeVisible();
+  expect(screen.queryByText(/نوبت سررسید شده است/)).not.toBeInTheDocument();
+});
+
+test("reports an overdue schedule as awaiting dispatch rather than running", () => {
+  render(
+    <SourceProcessingStatus
+      proposal={source(undefined, {
+        schedule: {
+          crawl_interval_hours: 6,
+          next_crawl_at: "2026-09-13T12:00:00Z",
+        },
+      })}
+      onResults={() => {}}
+      updatedAt={Date.parse("2026-09-13T12:01:00Z")}
+    />,
+  );
+  expect(
+    screen.getByText(
+      /نوبت سررسید شده است؛ در انتظار ثبت درخواست توسط زمان‌بندی/,
+    ),
+  ).toBeVisible();
+  expect(screen.getByText("درخواست اخیر فعالی نیست")).toBeVisible();
+  expect(screen.queryByText("در حال استخراج")).not.toBeInTheDocument();
+});
+
+test("shows a paused schedule without claiming its overdue slot will dispatch", () => {
+  render(
+    <SourceProcessingStatus
+      proposal={source(undefined, {
+        paused: true,
+        schedule: {
+          crawl_interval_hours: 6,
+          next_crawl_at: "2026-09-13T12:00:00Z",
+        },
+      })}
+      onResults={() => {}}
+      updatedAt={Date.parse("2026-09-13T12:01:00Z")}
+    />,
+  );
+  expect(screen.getByText("برنامه در حالت توقف")).toBeVisible();
+  expect(screen.queryByText(/نوبت سررسید شده است/)).not.toBeInTheDocument();
+});
+
+test("surfaces the scheduler dispatch failure to the operator", () => {
+  render(
+    <SourceProcessingStatus
+      proposal={source(undefined, {
+        schedule: {
+          crawl_interval_hours: 6,
+          next_crawl_at: "2026-09-13T12:00:00Z",
+          crawl_schedule_error: "صف پردازش در دسترس نیست",
+        },
+      })}
+      onResults={() => {}}
+    />,
+  );
+  expect(screen.getByRole("alert")).toHaveTextContent(
+    "آخرین نوبت وارد صف نشد: صف پردازش در دسترس نیست",
+  );
+});
+
+test("shows delivery failure and automatic retry guidance for a queued request", () => {
+  render(
+    <SourceProcessingStatus
+      proposal={source("queued", {
+        deliveryError:
+          "ارسال به صف ممکن نشد؛ سامانه هر دقیقه دوباره تلاش می‌کند.",
+      })}
+      onResults={() => {}}
+    />,
+  );
+  expect(screen.getByRole("status")).toHaveTextContent("در صف شروع استخراج");
+  expect(screen.getByRole("alert")).toHaveTextContent(
+    "ارسال به صف ممکن نشد؛ سامانه هر دقیقه دوباره تلاش می‌کند.",
+  );
 });

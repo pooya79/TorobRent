@@ -393,3 +393,36 @@ out-of-order completions and retries: older candidates remain historical and can
 newer publication or withdrawal outcome. Superseded candidates disappear from the current review
 queue but remain visible in run history. Legacy candidates without an Extraction Request are
 retired from pending review when the processing revision changes.
+
+### Operator crawl controls and schedules
+
+Apply catalog migration 0018 and source-proposal migration 0041 before starting the updated
+application, then restart Celery workers and Beat. `dispatch_scheduled_crawls` checks due Sources every minute, processing at most 100 per
+invocation in due-time order. Existing Sources default to manual-only; no recurring fetch is
+silently enabled. The responsible Operator can choose hourly, 6-hour, 12-hour, daily, 3-day, or
+weekly fetching, or disable the schedule. Schedule changes use a separate revision and retain an
+Operator event; changing a schedule does not invalidate in-flight extraction.
+
+The first due time is one interval after saving. Manual extraction accepts a starting URL on the
+exact assigned domain and leaves the next scheduled time unchanged. Both paths use the current
+approved profile, its crawl limits, current publication mode and exclusions. They retain the
+representative as requester and the current responsible Operator as initiator. Queued/running
+requests with the same entry URL and current processing/profile revision are reused.
+
+Paused Sources keep their schedule but do not dispatch; an overdue schedule becomes eligible on
+resume. Missed intervals produce one request, not a backlog. Inactive Assignments do not dispatch.
+Each dispatch rechecks current authority and profile under the same proposal/Source locks as manual
+controls. A validation failure records a visible scheduling error and moves the next attempt by one
+interval; an Operator can correct the cause and request an immediate run. Due times indicate queue
+submission, not guaranteed worker start or publication. Source scheduling fields are read-only in
+Django admin; use the reasoned, revision-checked Operator workflow to change them.
+
+Initial Extraction Request delivery is durable: the request and its pending-delivery flag commit
+together before broker publication. The same minute task retries up to 100 pending deliveries,
+oldest attempt first, with a one-minute retry interval. Broker failure is retained as a private
+request `delivery_error` visible beside its queued status. Successful delivery clears that error.
+The migration also marks existing queued requests without a run for recovery. Delivery is at least
+once; existing worker request/generation checks fence duplicates if publication succeeds but the
+process exits before recording it. Existing Source Discovery continuation recovery remains active.
+The responsible Operator can disable a schedule even after its representative or executable
+profile becomes unavailable; starting extraction still requires both.

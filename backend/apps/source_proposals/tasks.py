@@ -82,3 +82,12 @@ def deliver_source_exception_summaries() -> int:
     from .exception_notifications import deliver_summaries
 
     return deliver_summaries()
+
+
+@shared_task(soft_time_limit=240, time_limit=300)  # type: ignore[untyped-decorator]
+def dispatch_scheduled_crawls() -> int:
+    from .crawl_control import dispatch_due_crawls
+    from .extraction_delivery import dispatch_pending_extractions
+
+    dispatch_pending_extractions()
+    return dispatch_due_crawls()

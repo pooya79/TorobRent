@@ -239,6 +239,10 @@ CELERY_TASK_SOFT_TIME_LIMIT = 25 * 60
 CELERY_TASK_ACKS_LATE = True
 CELERY_WORKER_PREFETCH_MULTIPLIER = 1
 CELERY_BEAT_SCHEDULE = {
+    "dispatch-scheduled-source-crawls": {
+        "task": "apps.source_proposals.tasks.dispatch_scheduled_crawls",
+        "schedule": 60,
+    },
     "deliver-source-exception-summaries": {
         "task": "apps.source_proposals.tasks.deliver_source_exception_summaries",
         "schedule": 5 * 60,

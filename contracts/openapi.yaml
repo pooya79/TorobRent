@@ -1810,6 +1810,34 @@ paths:
               schema:
                 $ref: '#/components/schemas/OperatorSourceProposal'
           description: ''
+  /api/v1/operator/source-proposals/{proposal_id}/crawl/:
+    post:
+      operationId: v1_operator_source_proposals_crawl_create
+      summary: Start a bounded crawl or change its recurring schedule
+      parameters:
+      - in: path
+        name: proposal_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SourceCrawlControlRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatorSourceProposal'
+          description: ''
   /api/v1/operator/source-proposals/{proposal_id}/exceptions/bulk/apply/:
     post:
       operationId: v1_operator_source_proposals_exceptions_bulk_apply_create
@@ -4037,6 +4065,21 @@ components:
         processing_revision:
           type: integer
           readOnly: true
+        crawl_interval_hours:
+          type: integer
+          readOnly: true
+        crawl_schedule_revision:
+          type: integer
+          readOnly: true
+        next_crawl_at:
+          type:
+          - string
+          - 'null'
+          format: date-time
+          readOnly: true
+        crawl_schedule_error:
+          type: string
+          readOnly: true
         id:
           type: string
           format: uuid
@@ -4045,9 +4088,13 @@ components:
         domain:
           type: string
       required:
+      - crawl_interval_hours
+      - crawl_schedule_error
+      - crawl_schedule_revision
       - display_name
       - domain
       - id
+      - next_crawl_at
       - processing_paused
       - processing_revision
     AuditedFormatting:
@@ -5300,6 +5347,9 @@ components:
           type: string
           format: uuid
           readOnly: true
+        delivery_error:
+          type: string
+          readOnly: true
         submitted_url:
           type: string
           format: uri
@@ -5335,6 +5385,7 @@ components:
       - assignment
       - canonical_url
       - created_at
+      - delivery_error
       - id
       - is_current
       - max_pages
@@ -5704,6 +5755,24 @@ components:
         * `general` - راهنمایی و پرسش
         * `account_deletion` - درخواست حذف حساب
         * `public_contact_removal` - حذف فوری اطلاعات تماس عمومی
+    IntervalHoursEnum:
+      enum:
+      - 0
+      - 1
+      - 6
+      - 12
+      - 24
+      - 72
+      - 168
+      type: integer
+      description: |-
+        * `0` - 0
+        * `1` - 1
+        * `6` - 6
+        * `12` - 12
+        * `24` - 24
+        * `72` - 72
+        * `168` - 168
     Kind472Enum:
       enum:
       - exact
@@ -8104,6 +8173,30 @@ components:
       - operator
       - proposal_id
       - website_name
+    SourceCrawlControlRequest:
+      type: object
+      properties:
+        action:
+          $ref: '#/components/schemas/SourceCrawlControlRequestActionEnum'
+        url:
+          type: string
+          format: uri
+          maxLength: 1000
+        interval_hours:
+          $ref: '#/components/schemas/IntervalHoursEnum'
+        reviewed_schedule_revision:
+          type: integer
+          minimum: 0
+      required:
+      - action
+    SourceCrawlControlRequestActionEnum:
+      enum:
+      - run
+      - schedule
+      type: string
+      description: |-
+        * `run` - run
+        * `schedule` - schedule
     SourceDisagreement:
       type: object
       properties:

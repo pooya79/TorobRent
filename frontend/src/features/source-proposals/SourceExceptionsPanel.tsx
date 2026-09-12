@@ -1,3 +1,6 @@
+import { useState } from "react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api/client";
@@ -24,13 +27,28 @@ export function SourceExceptionsPanel({
   proposalId,
   canRetry,
   operator = false,
+  onBlock,
 }: {
   exceptions: Exception[];
   proposalId: string;
   canRetry: boolean;
   operator?: boolean;
+  onBlock?: (url: string) => void;
 }) {
   const client = useQueryClient();
+  const [search, setSearch] = useState("");
+  const [filter, setFilter] = useState("all");
+  const [selected, setSelected] = useState<string[]>([]);
+  const visible = exceptions.filter(
+    (page) =>
+      (filter === "all" || page.state === filter) &&
+      `${page.canonical_url} ${page.detail} ${page.exclusion_reason ?? ""}`
+        .toLocaleLowerCase()
+        .includes(search.trim().toLocaleLowerCase()),
+  );
+  const retryIds = selected.filter((id) =>
+    visible.some((page) => page.id === id && !page.exclusion_reason),
+  );
   const mutation = useMutation({
     mutationFn: async (ids: string[]) => {
       const { data, error } = await api.POST(
@@ -45,6 +63,7 @@ export function SourceExceptionsPanel({
       if (error || !data) throw apiError(error);
     },
     onSuccess: async () => {
+      setSelected([]);
       await client.invalidateQueries({
         queryKey: operator
           ? operatorSourceProposalsQueryOptions.queryKey
@@ -53,7 +72,7 @@ export function SourceExceptionsPanel({
     },
   });
   const groups = new Map<string, Exception[]>();
-  for (const item of exceptions) {
+  for (const item of visible) {
     const key = item.state === "open" ? item.problem : item.state;
     groups.set(key, [...(groups.get(key) ?? []), item]);
   }
@@ -76,7 +95,66 @@ export function SourceExceptionsPanel({
           ? "خلاصه تغییرات مشکلات حداکثر روزی یک بار ارسال می‌شود. برای درخواست اقدام از نماینده، در گفت‌وگوی منبع پیام بفرستید."
           : "این فهرست برای بررسی صفحه‌های منبع است. درخواست اقدام فقط در گفت‌وگوی منبع و با پیام اپراتور مسئول مطرح می‌شود."}
       </p>
+      <div className="bg-muted/20 grid gap-4 rounded-xl border p-4">
+        <div className="flex flex-wrap gap-2" aria-label="فیلتر وضعیت مشکلات">
+          {[
+            ["all", "همه"],
+            ["open", "نیازمند رسیدگی"],
+            ["excluded", "کنار گذاشته شده"],
+            ["resolved", "رفع شده"],
+          ].map(([value, label]) => (
+            <Button
+              key={value}
+              size="sm"
+              variant={filter === value ? "default" : "outline"}
+              aria-pressed={filter === value}
+              onClick={() => {
+                setFilter(value!);
+                setSelected([]);
+              }}
+            >
+              {label} ·{" "}
+              {(value === "all"
+                ? exceptions.length
+                : exceptions.filter((page) => page.state === value).length
+              ).toLocaleString("fa-IR")}
+            </Button>
+          ))}
+        </div>
+        <div>
+          <Label htmlFor={`exception-search-${proposalId}`}>
+            جست‌وجوی نشانی یا خطا
+          </Label>
+          <Input
+            className="mt-2"
+            id={`exception-search-${proposalId}`}
+            value={search}
+            onChange={(event) => {
+              setSearch(event.target.value);
+              setSelected([]);
+            }}
+            placeholder="نشانی صفحه یا متن مشکل"
+          />
+        </div>
+        {canRetry && (
+          <div className="flex flex-wrap items-center gap-3">
+            <Button
+              disabled={mutation.isPending || !retryIds.length}
+              onClick={() => mutation.mutate(retryIds)}
+            >
+              استخراج دوباره انتخاب‌شده‌ها (
+              {retryIds.length.toLocaleString("fa-IR")})
+            </Button>
+            <span className="text-muted-foreground text-xs">
+              حداکثر ۲۰ صفحه در هر درخواست گروهی
+            </span>
+          </div>
+        )}
+      </div>
       {exceptions.length === 0 && <p>مشکلی ثبت نشده است.</p>}
+      {!!exceptions.length && !visible.length && (
+        <p role="status">صفحه‌ای با این جست‌وجو و فیلتر پیدا نشد.</p>
+      )}
       {[...groups].map(([problem, pages]) => (
         <section key={problem} className="grid gap-2 rounded-lg border p-3">
           <h5 className="font-semibold">
@@ -128,6 +206,28 @@ export function SourceExceptionsPanel({
                       scope="row"
                       className="max-w-72 p-3 text-start font-normal"
                     >
+                      {canRetry && !page.exclusion_reason && (
+                        <label className="mb-3 flex items-center gap-2 text-xs">
+                          <input
+                            type="checkbox"
+                            aria-label={`انتخاب ${page.canonical_url}`}
+                            checked={retryIds.includes(page.id)}
+                            disabled={
+                              mutation.isPending ||
+                              (!retryIds.includes(page.id) &&
+                                retryIds.length >= 20)
+                            }
+                            onChange={(event) =>
+                              setSelected(
+                                event.target.checked
+                                  ? [...retryIds, page.id]
+                                  : retryIds.filter((id) => id !== page.id),
+                              )
+                            }
+                          />
+                          انتخاب صفحه
+                        </label>
+                      )}
                       <a
                         href={page.canonical_url}
                         target="_blank"
@@ -184,6 +284,16 @@ export function SourceExceptionsPanel({
                             ? "خارج از محدوده پردازش"
                             : "فقط مشاهده"}
                         </span>
+                      )}
+                      {onBlock && !page.exclusion_reason && (
+                        <Button
+                          className="mt-2"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => onBlock(page.canonical_url)}
+                        >
+                          مسدود کردن صفحه
+                        </Button>
                       )}
                     </td>
                   </tr>

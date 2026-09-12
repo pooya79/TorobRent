@@ -1827,3 +1827,183 @@ test("shows an expired review reservation and lets the operator claim it again",
     screen.getByRole("button", { name: "تمدید مهلت بررسی" }),
   ).toBeVisible();
 });
+
+function renderCrawlControls(exceptions: unknown[] = []) {
+  const bodies: unknown[] = [];
+  let caseData = {
+    ...proposal,
+    state: "approved",
+    assignment: {
+      id: 8,
+      state: "active",
+      review_operator: "operator",
+      source: {
+        domain: "khaneh.example",
+        display_name: "خانه‌یاب",
+        processing_paused: false,
+        processing_revision: 0,
+        crawl_interval_hours: 0,
+        crawl_schedule_revision: 0,
+        next_crawl_at: null as string | null,
+        crawl_schedule_error: "",
+      },
+      active_profile_version: { id: "version", number: 1 },
+      review_mode: "approval_required",
+      mode_revision: 0,
+      recent_requests: [],
+      exceptions,
+    },
+  };
+  server.use(
+    http.get("*/api/v1/users/me/", () =>
+      HttpResponse.json({
+        id: "operator",
+        operator_capabilities: ["review_source_proposals"],
+      }),
+    ),
+    http.get("*/api/v1/operator/source-proposals/", () =>
+      HttpResponse.json([caseData]),
+    ),
+    http.post(
+      "*/api/v1/operator/source-proposals/:proposalId/crawl/",
+      async ({ request }) => {
+        const body = (await request.json()) as {
+          action: string;
+          interval_hours?: number;
+        };
+        bodies.push(body);
+        if (body.action === "schedule")
+          caseData = {
+            ...caseData,
+            assignment: {
+              ...caseData.assignment,
+              source: {
+                ...caseData.assignment.source,
+                crawl_interval_hours: body.interval_hours!,
+                crawl_schedule_revision: 1,
+                next_crawl_at: "2026-09-13T12:00:00Z",
+              },
+            },
+          };
+        return HttpResponse.json(caseData);
+      },
+    ),
+  );
+  render(
+    <QueryClientProvider
+      client={
+        new QueryClient({ defaultOptions: { queries: { retry: false } } })
+      }
+    >
+      <MemoryRouter initialEntries={["/#processing"]}>
+        <OperatorSourceProposalDetailPage proposalId={proposal.id} />
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+  return bodies;
+}
+
+test("starts a crawl from another page", async () => {
+  const user = userEvent.setup();
+  const bodies = renderCrawlControls();
+  expect(await screen.findByText("فقط اجرای دستی")).toBeVisible();
+  const url = screen.getByRole("textbox", { name: "نشانی شروع دریافت" });
+  await user.clear(url);
+  await user.type(url, "https://khaneh.example/more");
+  await user.click(
+    screen.getByRole("button", { name: "دریافت و به‌روزرسانی اکنون" }),
+  );
+  await waitFor(() =>
+    expect(bodies[0]).toEqual({
+      action: "run",
+      url: "https://khaneh.example/more",
+    }),
+  );
+});
+
+test("saves a revision-checked schedule", async () => {
+  const user = userEvent.setup();
+  const bodies = renderCrawlControls();
+  expect(await screen.findByText("فقط اجرای دستی")).toBeVisible();
+  await user.selectOptions(screen.getByLabelText("فاصله دریافت اطلاعات"), "6");
+  await user.click(screen.getByRole("button", { name: "ذخیره برنامه دریافت" }));
+  await waitFor(() =>
+    expect(bodies[0]).toEqual({
+      action: "schedule",
+      interval_hours: 6,
+      reviewed_schedule_revision: 0,
+    }),
+  );
+  expect(await screen.findByText("برنامه دریافت ذخیره شد.")).toBeVisible();
+  expect(screen.getByText(/دریافت از نشانی اصلی هر ۶ ساعت/)).toBeVisible();
+});
+
+test("opens page exclusions from processing controls", async () => {
+  const user = userEvent.setup();
+  renderCrawlControls();
+  expect(await screen.findByText("فقط اجرای دستی")).toBeVisible();
+  await user.click(screen.getByRole("button", { name: "مدیریت صفحات مسدود" }));
+  expect(
+    screen.getByRole("heading", { name: "مدیریت محدودیت‌ها" }),
+  ).toBeVisible();
+});
+
+test("reopening a page exclusion resets an edited URL and its confirmed preview", async () => {
+  const user = userEvent.setup();
+  renderCrawlControls([
+    {
+      id: "exception",
+      canonical_url: "https://khaneh.example/listing/a",
+      state: "open",
+      problem: "candidate_checks",
+      detail: "اطلاعات نیازمند بررسی است",
+      first_occurrence: "2026-09-06T10:00:00Z",
+      last_attempt_at: "2026-09-06T11:00:00Z",
+      history: [],
+    },
+  ]);
+  server.use(
+    http.post(
+      "*/api/v1/operator/source-proposals/:proposalId/exclusions/preview/",
+      async ({ request }) => {
+        const rule = (await request.json()) as { kind: string; url: string };
+        return HttpResponse.json({
+          ...rule,
+          known_page_count: 0,
+          known_pages: [],
+          published_listing_count: 0,
+          published_listings: [],
+        });
+      },
+    ),
+  );
+  await screen.findByText("فقط اجرای دستی");
+  await user.click(screen.getByRole("tab", { name: "ملک‌ها و نتایج" }));
+  await user.click(screen.getByRole("button", { name: /مشکلات صفحات/ }));
+  await user.click(screen.getByRole("button", { name: "مسدود کردن صفحه" }));
+  const input = screen.getByLabelText("نشانی محدودیت");
+  expect(input).toHaveValue("https://khaneh.example/listing/a");
+  await user.clear(input);
+  await user.type(input, "https://khaneh.example/listing/b");
+  await user.click(screen.getByRole("button", { name: "پیش‌نمایش محدودیت" }));
+  await user.type(
+    await screen.findByLabelText("دلیل تصمیم"),
+    "صفحه مرتبط نیست",
+  );
+  await user.click(screen.getByRole("checkbox", { name: /اعمال محدودیت/ }));
+  expect(screen.getByRole("button", { name: "ثبت محدودیت" })).toBeEnabled();
+  await user.click(screen.getByRole("button", { name: /مشکلات صفحات/ }));
+  await user.click(screen.getByRole("button", { name: "مسدود کردن صفحه" }));
+  expect(screen.getByLabelText("نشانی محدودیت")).toHaveValue(
+    "https://khaneh.example/listing/a",
+  );
+  expect(
+    screen.queryByRole("button", { name: "ثبت محدودیت" }),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole("checkbox", { name: /اعمال محدودیت/ }),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.queryByText("https://khaneh.example/listing/b"),
+  ).not.toBeInTheDocument();
+});

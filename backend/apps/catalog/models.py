@@ -123,6 +123,10 @@ class Neighborhood(ProvenancedLocation):
 class Source(models.Model):
     processing_paused = models.BooleanField(default=False, db_default=False)
     processing_revision = models.PositiveIntegerField(default=0, db_default=0)
+    crawl_interval_hours = models.PositiveIntegerField(default=0, db_default=0)
+    crawl_schedule_revision = models.PositiveIntegerField(default=0, db_default=0)
+    next_crawl_at = models.DateTimeField(null=True, blank=True)
+    crawl_schedule_error = models.TextField(blank=True, default="", db_default="")
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=120, unique=True)
     domain = models.CharField(max_length=253, unique=True)

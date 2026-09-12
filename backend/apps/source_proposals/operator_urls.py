@@ -23,12 +23,15 @@ from .operator_views import (
     OperatorSourcePublicationModeView,
     OperatorSourceResponsibilityView,
 )
-from .processing_views import OperatorSourceProcessingView
+from .processing_views import OperatorSourceCrawlControlView, OperatorSourceProcessingView
 from .run_views import OperatorRunApproveView
 
 app_name = "operator-source-proposals"
 
 urlpatterns = [
+    path(
+        "<uuid:proposal_id>/crawl/", OperatorSourceCrawlControlView.as_view(), name="crawl-control"
+    ),
     path(
         "<uuid:proposal_id>/exceptions/bulk/preview/",
         SourceBulkPreviewView.as_view(),

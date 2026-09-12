@@ -234,6 +234,38 @@ export function OperatorSourceProposalPage() {
                           </time>
                         </dd>
                       </div>
+                      {proposal.assignment?.state === "active" && (
+                        <div className="flex flex-wrap gap-2">
+                          <dt className="text-muted-foreground">دریافت بعدی</dt>
+                          <dd>
+                            <Link
+                              className="text-primary underline underline-offset-4"
+                              to={`/operator/source-proposals/${proposal.id}#processing`}
+                            >
+                              {proposal.assignment.source.processing_paused ? (
+                                "پردازش متوقف است"
+                              ) : proposal.assignment.source
+                                  .crawl_interval_hours &&
+                                proposal.assignment.source.next_crawl_at ? (
+                                <time
+                                  dateTime={
+                                    proposal.assignment.source.next_crawl_at
+                                  }
+                                >
+                                  {new Date(
+                                    proposal.assignment.source.next_crawl_at,
+                                  ).toLocaleString("fa-IR", {
+                                    dateStyle: "short",
+                                    timeStyle: "short",
+                                  })}
+                                </time>
+                              ) : (
+                                "فقط اجرای دستی"
+                              )}
+                            </Link>
+                          </dd>
+                        </div>
+                      )}
                     </dl>
                     <div className="flex flex-col items-start justify-between gap-3">
                       <div>

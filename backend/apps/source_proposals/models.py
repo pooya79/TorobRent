@@ -590,6 +590,9 @@ class ExtractionState(models.TextChoices):
 
 
 class ExtractionRequest(models.Model):
+    delivery_pending = models.BooleanField(default=False, db_default=False)
+    delivery_attempted_at = models.DateTimeField(null=True, blank=True)
+    delivery_error = models.TextField(blank=True, default="", db_default="")
     processing_revision = models.PositiveIntegerField(default=0, db_default=0)
     initiated_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,

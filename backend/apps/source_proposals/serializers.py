@@ -128,6 +128,10 @@ class SourceProposalEventSerializer(serializers.ModelSerializer[SourceProposalEv
 class AssignmentSourceSerializer(serializers.Serializer[Any]):
     processing_paused = serializers.BooleanField(read_only=True)
     processing_revision = serializers.IntegerField(read_only=True)
+    crawl_interval_hours = serializers.IntegerField(read_only=True)
+    crawl_schedule_revision = serializers.IntegerField(read_only=True)
+    next_crawl_at = serializers.DateTimeField(read_only=True, allow_null=True)
+    crawl_schedule_error = serializers.CharField(read_only=True)
     id = serializers.UUIDField()
     display_name = serializers.CharField()
     domain = serializers.CharField()
@@ -804,3 +808,17 @@ class SourceProcessingRequestSerializer(serializers.Serializer[Any]):
     review_mode = serializers.ChoiceField(
         choices=("approval_required", "automatic"), required=False
     )
+
+
+class SourceCrawlControlRequestSerializer(serializers.Serializer[Any]):
+    action = serializers.ChoiceField(choices=("run", "schedule"))
+    url = serializers.URLField(required=False, max_length=1000)
+    interval_hours = serializers.ChoiceField(choices=(0, 1, 6, 12, 24, 72, 168), required=False)
+    reviewed_schedule_revision = serializers.IntegerField(min_value=0, required=False)
+
+    def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
+        if attrs["action"] == "schedule" and (
+            "interval_hours" not in attrs or "reviewed_schedule_revision" not in attrs
+        ):
+            raise serializers.ValidationError("فاصله دریافت و نسخه برنامه لازم است.")
+        return attrs
