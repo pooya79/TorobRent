@@ -1,3 +1,4 @@
+import uuid
 from io import BytesIO
 
 import pytest
@@ -6,6 +7,7 @@ from django.core.files.storage import FileSystemStorage
 from django.utils import timezone
 from PIL import Image
 
+from apps.catalog.image_evidence import backfill_listing_image_hashes
 from apps.catalog.models import (
     Listing,
     ListingImage,
@@ -22,6 +24,7 @@ from apps.common.media import (
     ImageProcessingLimits,
     ImageProcessingStatus,
     MediaVariantKind,
+    compute_image_identity,
     process_first_party_image,
 )
 from apps.common.models import MediaAsset
@@ -35,6 +38,107 @@ def encoded_image(*, image_format: str = "JPEG", size: tuple[int, int] = (1200, 
     exif[315] = "Private photographer metadata"
     image.save(content, format=image_format, exif=exif)
     return content.getvalue()
+
+
+def patterned_image(
+    *,
+    image_format: str = "PNG",
+    size: tuple[int, int] = (96, 72),
+    quality: int = 95,
+) -> bytes:
+    image = Image.new("RGB", size, "white")
+    for x in range(size[0]):
+        for y in range(size[1]):
+            image.putpixel(
+                (x, y),
+                ((x * 7 + y * 3) % 256, (x * 2 + y * 11) % 256, (x * 13 + y) % 256),
+            )
+    content = BytesIO()
+    image.save(content, format=image_format, quality=quality)
+    return content.getvalue()
+
+
+def test_image_identity_distinguishes_encoding_from_visual_similarity():
+    original = patterned_image()
+    byte_identical = bytes(original)
+
+    with Image.open(BytesIO(original)) as image:
+        reencoded_output = BytesIO()
+        image.save(reencoded_output, format="WEBP", lossless=True)
+        reencoded = reencoded_output.getvalue()
+        recompressed_output = BytesIO()
+        image.save(recompressed_output, format="WEBP", quality=76)
+        recompressed = recompressed_output.getvalue()
+        resized_image = image.resize((48, 36), Image.Resampling.LANCZOS)
+        resized = BytesIO()
+        resized_image.save(resized, format="WEBP", quality=76)
+
+    original_hashes = compute_image_identity(original)
+    identical_hashes = compute_image_identity(byte_identical)
+    reencoded_hashes = compute_image_identity(reencoded)
+    recompressed_hashes = compute_image_identity(recompressed)
+    resized_hashes = compute_image_identity(resized.getvalue())
+
+    assert identical_hashes.raw_content_sha256 == original_hashes.raw_content_sha256
+    assert reencoded_hashes.raw_content_sha256 != original_hashes.raw_content_sha256
+    assert reencoded_hashes.normalized_pixel_sha256 == original_hashes.normalized_pixel_sha256
+    assert recompressed_hashes.normalized_pixel_sha256 != original_hashes.normalized_pixel_sha256
+    assert original_hashes.perceptual_distance(recompressed_hashes) <= 10
+    assert original_hashes.perceptual_distance(resized_hashes) <= 10
+
+
+@pytest.mark.django_db(transaction=True)
+def test_listing_image_hash_backfill_is_bounded_and_idempotent():
+    property_ = Property.objects.create()
+    listing = Listing.objects.create(
+        property=property_,
+        source=Source.objects.create(
+            name="hash-backfill",
+            domain="hash-backfill.example",
+            display_name="Hash backfill",
+            outbound_policy=OutboundPolicy.EXTERNAL_LINK,
+        ),
+        terms=RentalTerms.objects.create(deposit_rial=1, monthly_rent_rial=0),
+    )
+    images = []
+    for position in range(3):
+        image = ListingImage.objects.create(
+            id=uuid.UUID(int=position + 1),
+            listing=listing,
+            position=position,
+            is_primary=position == 0,
+            raw_content_sha256="a" * 64 if position == 2 else "",
+            normalized_pixel_sha256="b" * 64 if position == 2 else "",
+            perceptual_dhash="c" * 16 if position == 2 else "",
+        )
+        if position != 0:
+            asset = MediaAsset(width=96, height=72, byte_size=1)
+            asset.file.save(
+                f"hash-backfill/{position}.png",
+                ContentFile(patterned_image()),
+                save=True,
+            )
+            ListingImageVariant.objects.create(
+                image=image,
+                kind=MediaVariantKind.LARGE,
+                asset=asset,
+            )
+        images.append(image)
+
+    first_batch = backfill_listing_image_hashes(limit=1)
+    assert first_batch.inspected == 1
+    assert first_batch.updated == 0
+    assert first_batch.next_cursor == str(images[0].id)
+    second_batch = backfill_listing_image_hashes(limit=1, after_id=first_batch.next_cursor)
+    assert second_batch.updated == 1
+    assert ListingImage.objects.exclude(raw_content_sha256="").count() == 2
+    final_batch = backfill_listing_image_hashes(limit=1, after_id=second_batch.next_cursor)
+    assert final_batch.inspected == 0
+    assert final_batch.updated == 0
+    assert final_batch.next_cursor is None
+
+    preserved = ListingImage.objects.get(id=images[2].id)
+    assert preserved.raw_content_sha256 == "a" * 64
 
 
 def test_non_submission_caller_receives_processed_asset_metadata(tmp_path):

@@ -927,6 +927,10 @@ def test_submitter_uploads_an_image_and_receives_processed_responsive_variants(
         ("medium", 960),
         ("large", 1440),
     ]
+    measured = SubmissionImage.objects.get(id=response.data["id"])
+    assert len(measured.raw_content_sha256) == 64
+    assert len(measured.normalized_pixel_sha256) == 64
+    assert len(measured.perceptual_dhash) == 16
     detail = api_client.get(f"/api/v1/submissions/{submission_id}/")
     assert detail.data["images"] == [response.data]
 
@@ -1266,6 +1270,12 @@ def test_listing_in_published_state_retains_files_after_draft_media_is_removed(
         for image in retained
         for variant in image.variants.select_related("asset")
     ]
+    assert retained[0].raw_content_sha256
+    assert retained[0].raw_content_sha256 == (
+        SubmissionImage.objects.get(id=uploaded["id"]).raw_content_sha256
+    )
+    assert retained[0].normalized_pixel_sha256
+    assert retained[0].perceptual_dhash
     removed = api_client.delete(f"/api/v1/submissions/{submission_id}/images/{uploaded['id']}/")
 
     assert len(retained_names) == 3

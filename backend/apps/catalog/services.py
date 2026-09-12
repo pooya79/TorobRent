@@ -12,6 +12,8 @@ from django.db import transaction
 from django.utils import timezone
 from rest_framework.exceptions import Throttled
 
+from apps.common.media import ImageIdentity
+
 from .locations import derive_public_location
 from .models import (
     Favorite,
@@ -46,6 +48,7 @@ class ReviewedImageSpec:
     position: int
     is_primary: bool
     variants: tuple[ListingImageVariantSpec, ...]
+    identity: ImageIdentity | None = None
 
 
 @dataclass(frozen=True)
@@ -276,6 +279,13 @@ def replace_listing_images(
             listing=listing,
             position=image_spec.position,
             is_primary=image_spec.is_primary,
+            raw_content_sha256=(
+                image_spec.identity.raw_content_sha256 if image_spec.identity else ""
+            ),
+            normalized_pixel_sha256=(
+                image_spec.identity.normalized_pixel_sha256 if image_spec.identity else ""
+            ),
+            perceptual_dhash=image_spec.identity.perceptual_dhash if image_spec.identity else "",
         )
         retained.append(listing_image)
         ListingImageVariant.objects.bulk_create([

@@ -42,6 +42,7 @@ from apps.common.media import (
     ALLOWED_IMAGE_FORMATS,
     PROCESSING_FAILURE_REASON,
     FirstPartyImageInput,
+    ImageIdentity,
     ImageProcessingLimits,
     ImageProcessingStatus,
     process_first_party_image,
@@ -1147,6 +1148,17 @@ def _submission_image_specs(submission: Submission) -> list[ReviewedImageSpec]:
                 position=image.position,
                 is_primary=image.is_primary,
                 variants=tuple(variants),
+                identity=(
+                    ImageIdentity(
+                        raw_content_sha256=image.raw_content_sha256,
+                        normalized_pixel_sha256=image.normalized_pixel_sha256,
+                        perceptual_dhash=image.perceptual_dhash,
+                    )
+                    if image.raw_content_sha256
+                    and image.normalized_pixel_sha256
+                    and image.perceptual_dhash
+                    else None
+                ),
             )
         )
     return specs
@@ -1284,7 +1296,19 @@ def process_image(image_id: str) -> None:
             return
         image.status = SubmissionImageStatus.PROCESSING
         image.failure_reason = ""
-        image.save(update_fields=("status", "failure_reason", "updated_at"))
+        image.raw_content_sha256 = ""
+        image.normalized_pixel_sha256 = ""
+        image.perceptual_dhash = ""
+        image.save(
+            update_fields=(
+                "status",
+                "failure_reason",
+                "raw_content_sha256",
+                "normalized_pixel_sha256",
+                "perceptual_dhash",
+                "updated_at",
+            )
+        )
 
     if not image.source.name:
         _mark_image_failed(image_id)
@@ -1328,11 +1352,25 @@ def process_image(image_id: str) -> None:
                     byte_size=variant.byte_size,
                     asset=asset,
                 )
+            assert result.identity is not None
             image.status = SubmissionImageStatus.READY
             image.processed_at = timezone.now()
+            image.raw_content_sha256 = result.identity.raw_content_sha256
+            image.normalized_pixel_sha256 = result.identity.normalized_pixel_sha256
+            image.perceptual_dhash = result.identity.perceptual_dhash
             cleanup_files = [(image.source.storage, image.source.name)] if image.source.name else []
             image.source = ""
-            image.save(update_fields=("source", "status", "processed_at", "updated_at"))
+            image.save(
+                update_fields=(
+                    "source",
+                    "status",
+                    "processed_at",
+                    "raw_content_sha256",
+                    "normalized_pixel_sha256",
+                    "perceptual_dhash",
+                    "updated_at",
+                )
+            )
             schedule_file_cleanup(cleanup_files)
     except Exception:
         logger.exception("Submission image persistence failed", extra={"image_id": image_id})

@@ -1,3 +1,4 @@
+import hashlib
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -67,10 +68,54 @@ class ProcessedVariantAsset:
 
 
 @dataclass(frozen=True)
+class ImageIdentity:
+    raw_content_sha256: str
+    normalized_pixel_sha256: str
+    perceptual_dhash: str
+
+    def perceptual_distance(self, other: ImageIdentity) -> int:
+        return perceptual_hash_distance(self.perceptual_dhash, other.perceptual_dhash)
+
+
+def perceptual_hash_distance(left: str, right: str) -> int:
+    return (int(left, 16) ^ int(right, 16)).bit_count()
+
+
+@dataclass(frozen=True)
 class ImageProcessingResult:
     status: ImageProcessingStatus
     variants: tuple[ProcessedVariantAsset, ...] = ()
+    identity: ImageIdentity | None = None
     failure_reason: str = ""
+
+
+def _image_identity(encoded: bytes, corrected: Image.Image) -> ImageIdentity:
+    normalized = hashlib.sha256()
+    normalized.update(corrected.width.to_bytes(4, "big"))
+    normalized.update(corrected.height.to_bytes(4, "big"))
+    normalized.update(corrected.tobytes())
+
+    grayscale = corrected.convert("L").resize((9, 8), Image.Resampling.LANCZOS)
+    pixels = grayscale.tobytes()
+    difference_bits = 0
+    for row in range(8):
+        for column in range(8):
+            difference_bits = (difference_bits << 1) | int(
+                pixels[row * 9 + column] > pixels[row * 9 + column + 1]
+            )
+    return ImageIdentity(
+        raw_content_sha256=hashlib.sha256(encoded).hexdigest(),
+        normalized_pixel_sha256=normalized.hexdigest(),
+        perceptual_dhash=f"{difference_bits:016x}",
+    )
+
+
+def compute_image_identity(encoded: bytes) -> ImageIdentity:
+    """Measure encoded and visual identity without external services or mutable state."""
+
+    with Image.open(BytesIO(encoded)) as uploaded:
+        corrected = ImageOps.exif_transpose(uploaded).convert("RGB")
+    return _image_identity(encoded, corrected)
 
 
 def schedule_asset_cleanup(asset_id: UUID) -> None:
@@ -119,8 +164,9 @@ def process_first_party_image(
             raise ValueError("Encoded image exceeds its byte limit.")
         with (
             image_input.storage.open(image_input.input_key, "rb") as input_file,
-            Image.open(input_file) as uploaded,
         ):
+            encoded = input_file.read()
+        with Image.open(BytesIO(encoded)) as uploaded:
             if uploaded.format not in ALLOWED_IMAGE_FORMATS:
                 raise ValueError("Unsupported decoded image format.")
             if (
@@ -129,6 +175,7 @@ def process_first_party_image(
             ):
                 raise ValueError("Decoded image exceeds its pixel limit.")
             corrected = ImageOps.exif_transpose(uploaded).convert("RGB")
+        identity = _image_identity(encoded, corrected)
 
         variants: list[ProcessedVariantAsset] = []
         for kind, width in RESPONSIVE_IMAGE_WIDTHS.items():
@@ -147,6 +194,7 @@ def process_first_party_image(
         return ImageProcessingResult(
             status=ImageProcessingStatus.READY,
             variants=tuple(variants),
+            identity=identity,
         )
     except Exception:
         logger.exception(

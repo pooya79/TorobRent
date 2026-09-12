@@ -69,7 +69,7 @@ test("searches, selects exactly two Properties, and explains Match Confidence", 
           secondId,
         ]);
         return HttpResponse.json({
-          scoring_version: "property-match-v1",
+          scoring_version: "property-match-v2",
           score: 92,
           band: "likely",
           is_calibrated_probability: false,
@@ -80,6 +80,103 @@ test("searches, selects exactly two Properties, and explains Match Confidence", 
               compared_values: { left: 90, right: 92 },
               classification: "support",
               contribution: 15,
+            },
+            {
+              key: "images",
+              label: "تصاویر آگهی",
+              compared_values: {
+                matched_pairs: [
+                  {
+                    left: {
+                      image_id: "image-left-exact",
+                      listing_id: "listing-left-1",
+                      source: "نسخه یکسان یک",
+                      thumbnail_url: null,
+                    },
+                    right: {
+                      image_id: "image-right-exact",
+                      listing_id: "listing-right-1",
+                      source: "نسخه یکسان دو",
+                      thumbnail_url: null,
+                    },
+                    method: "sha256",
+                    perceptual_distance: null,
+                    is_generic: false,
+                  },
+                  {
+                    left: {
+                      image_id: "image-left-reencoded",
+                      listing_id: "listing-left-1",
+                      source: "بازکدگذاری یک",
+                      thumbnail_url: null,
+                    },
+                    right: {
+                      image_id: "image-right-reencoded",
+                      listing_id: "listing-right-1",
+                      source: "بازکدگذاری دو",
+                      thumbnail_url: null,
+                    },
+                    method: "normalized_pixels",
+                    perceptual_distance: null,
+                    is_generic: false,
+                  },
+                  {
+                    left: {
+                      image_id: "image-left-1",
+                      listing_id: "listing-left-1",
+                      source: "منبع یک",
+                      thumbnail_url:
+                        "/api/v1/catalog/media/33333333-3333-4333-8333-333333333333/",
+                    },
+                    right: {
+                      image_id: "image-right-1",
+                      listing_id: "listing-right-1",
+                      source: "منبع دو",
+                      thumbnail_url:
+                        "/api/v1/catalog/media/44444444-4444-4444-8444-444444444444/",
+                    },
+                    method: "dhash",
+                    perceptual_distance: 4,
+                    is_generic: false,
+                  },
+                  {
+                    left: {
+                      image_id: "image-left-generic",
+                      listing_id: "listing-left-1",
+                      source: "تصویر عمومی یک",
+                      thumbnail_url: null,
+                    },
+                    right: {
+                      image_id: "image-right-generic",
+                      listing_id: "listing-right-1",
+                      source: "تصویر عمومی دو",
+                      thumbnail_url: null,
+                    },
+                    method: "sha256",
+                    perceptual_distance: null,
+                    is_generic: true,
+                  },
+                ],
+                contradictions: [
+                  {
+                    left: {
+                      image_id: "image-left-2",
+                      listing_id: "listing-left-1",
+                      source: "منبع یک",
+                      thumbnail_url: null,
+                    },
+                    right: {
+                      image_id: "image-right-2",
+                      listing_id: "listing-right-1",
+                      source: "منبع دو",
+                      thumbnail_url: null,
+                    },
+                    perceptual_distance: 31,
+                  },
+                ],
+              },
+              classification: "support",
+              contribution: 25,
             },
           ],
           properties: [
@@ -159,9 +256,17 @@ test("searches, selects exactly two Properties, and explains Match Confidence", 
 
   expect(await screen.findByText("۹۲ از ۱۰۰")).toBeVisible();
   expect(screen.getByText("احتمال کالیبره‌شده نیست")).toBeVisible();
-  expect(screen.getByText("نسخه امتیازدهی: property-match-v1")).toBeVisible();
+  expect(screen.getByText("نسخه امتیازدهی: property-match-v2")).toBeVisible();
   expect(screen.getByText("متراژ")).toBeVisible();
   expect(screen.getByText("+۱۵")).toBeVisible();
+  expect(screen.getAllByText("SHA-256")).toHaveLength(2);
+  expect(screen.getByText("Normalized pixels")).toBeVisible();
+  expect(screen.getByText("dHash · فاصله ۴")).toBeVisible();
+  expect(screen.getByText("تصویر عمومی؛ تقویت قاطع ندارد")).toBeVisible();
+  expect(screen.getByText("ناسازگاری تصویری · فاصله ۳۱")).toBeVisible();
+  expect(screen.getByAltText("تصویر منبع یک")).toBeVisible();
+  expect(screen.getByAltText("تصویر منبع دو")).toBeVisible();
+  expect(screen.getByText("+۲۵")).toBeVisible();
   expect(screen.getByText("35.774100, 51.356200")).toBeVisible();
   expect(screen.getAllByText("منبع یک · REF-7")).toHaveLength(2);
   expect(

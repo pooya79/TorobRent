@@ -190,7 +190,16 @@ def current_properties_for_curation() -> QuerySet[Property, Property]:
             listings__source__is_active=True,
         )
         .select_related("city", "district", "neighborhood")
-        .prefetch_related(Prefetch("listings", queryset=Listing.objects.select_related("source")))
+        .prefetch_related(
+            Prefetch(
+                "listings",
+                queryset=(
+                    Listing.objects.select_related("source").prefetch_related(
+                        "images__variants__asset"
+                    )
+                ),
+            )
+        )
         .distinct()
         .order_by("id")
     )

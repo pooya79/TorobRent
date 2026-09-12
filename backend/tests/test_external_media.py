@@ -128,6 +128,11 @@ def test_review_reorders_excludes_and_explicitly_accepts_property_media(
     from apps.catalog.models import Listing
 
     listing = Listing.objects.get(pk=approved.data["listing_id"])
+    retained_image = listing.images.get(position=0)
+    external_origin = retained_image.external_origin
+    assert retained_image.raw_content_sha256 == external_origin.content_hash
+    assert retained_image.normalized_pixel_sha256 == external_origin.normalized_pixel_sha256
+    assert retained_image.perceptual_dhash == external_origin.perceptual_dhash
     api_client.force_authenticate(None)
     detail = api_client.get(f"/api/v1/catalog/properties/{listing.property_id}/")
     assert detail.status_code == 200, detail.data

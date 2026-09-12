@@ -723,7 +723,9 @@ class CandidateImage(models.Model):
     excluded = models.BooleanField(default=False)
     state = models.CharField(max_length=16, default="pending")
     failure_code = models.CharField(max_length=64, blank=True)
-    content_hash = models.CharField(max_length=64, blank=True)
+    content_hash = models.CharField(max_length=64, blank=True, db_index=True)
+    normalized_pixel_sha256 = models.CharField(max_length=64, blank=True, db_index=True)
+    perceptual_dhash = models.CharField(max_length=16, blank=True, db_index=True)
     listing_image = models.OneToOneField(
         "catalog.ListingImage", on_delete=models.SET_NULL, null=True, related_name="external_origin"
     )

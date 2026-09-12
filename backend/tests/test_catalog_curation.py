@@ -1,15 +1,21 @@
+import uuid
 from decimal import Decimal
+from io import BytesIO
 
 import pytest
 from django.contrib.auth.models import Permission
+from django.core.files.base import ContentFile
 from django.core.management import call_command
 from django.utils import timezone
+from PIL import Image, ImageOps
 from rest_framework.test import APIClient
 
 from apps.accounts.models import User
 from apps.catalog.models import (
     City,
     Listing,
+    ListingImage,
+    ListingImageVariant,
     ListingState,
     Neighborhood,
     OutboundPolicy,
@@ -18,6 +24,8 @@ from apps.catalog.models import (
     RentalTerms,
     Source,
 )
+from apps.common.media import MediaVariantKind, compute_image_identity
+from apps.common.models import MediaAsset
 
 
 def make_operator(*, email: str, capability: str | None = "curate_catalog") -> User:
@@ -77,6 +85,61 @@ def make_current_property(
         availability_confirmed_at=timezone.now(),
     )
     return property_, listing
+
+
+def image_fixture(*, seed: int = 0, size: tuple[int, int] = (96, 72)) -> bytes:
+    image = Image.new("RGB", size, "white")
+    for x in range(size[0]):
+        for y in range(size[1]):
+            image.putpixel(
+                (x, y),
+                (
+                    (x * (7 + seed) + y * 3) % 256,
+                    (x * 2 + y * (11 + seed)) % 256,
+                    (x * (13 + seed) + y) % 256,
+                ),
+            )
+    output = BytesIO()
+    image.save(output, format="PNG")
+    return output.getvalue()
+
+
+def reencode_losslessly(encoded: bytes) -> bytes:
+    output = BytesIO()
+    with Image.open(BytesIO(encoded)) as image:
+        image.save(output, format="WEBP", lossless=True)
+    return output.getvalue()
+
+
+def resize_and_recompress(encoded: bytes) -> bytes:
+    output = BytesIO()
+    with Image.open(BytesIO(encoded)) as image:
+        image.resize((48, 36), Image.Resampling.LANCZOS).save(output, format="WEBP", quality=76)
+    return output.getvalue()
+
+
+def attach_listing_image(listing: Listing, encoded: bytes, *, position: int) -> ListingImage:
+    identity = compute_image_identity(encoded)
+    listing_image = ListingImage.objects.create(
+        listing=listing,
+        position=position,
+        is_primary=position == 0,
+        raw_content_sha256=identity.raw_content_sha256,
+        normalized_pixel_sha256=identity.normalized_pixel_sha256,
+        perceptual_dhash=identity.perceptual_dhash,
+    )
+    asset = MediaAsset(width=96, height=72, byte_size=len(encoded))
+    asset.file.save(
+        f"catalog-curation/{uuid.uuid4()}.webp",
+        ContentFile(encoded),
+        save=True,
+    )
+    ListingImageVariant.objects.create(
+        image=listing_image,
+        kind=MediaVariantKind.SMALL,
+        asset=asset,
+    )
+    return listing_image
 
 
 @pytest.mark.django_db
@@ -156,7 +219,7 @@ def test_curator_compares_two_properties_with_explainable_versioned_evidence(
     )
 
     assert response.status_code == 200
-    assert response.data["scoring_version"] == "property-match-v1"
+    assert response.data["scoring_version"] == "property-match-v2"
     assert response.data["score"] == 100
     assert response.data["band"] == "likely"
     assert response.data["is_calibrated_probability"] is False
@@ -304,3 +367,123 @@ def test_restricted_identity_evidence_does_not_leak_through_public_property_deta
     assert "restricted source address" not in serialized
     assert "facts normalized during review" not in serialized
     assert "captured from the source page" not in serialized
+
+
+@pytest.mark.django_db
+def test_comparison_pairs_listing_images_by_strongest_available_hash_method(
+    api_client: APIClient,
+):
+    curator = make_operator(email="image-curator@example.com")
+    source = Source.objects.create(
+        name="image-curation-source",
+        domain="images.example",
+        display_name="منبع تصویر",
+        outbound_policy=OutboundPolicy.EXTERNAL_LINK,
+    )
+    left, left_listing = make_current_property(source=source, source_reference="IMAGE-LEFT")
+    right, right_listing = make_current_property(source=source, source_reference="IMAGE-RIGHT")
+    originals = [image_fixture(seed=seed) for seed in range(3)]
+    right_versions = [
+        originals[0],
+        reencode_losslessly(originals[1]),
+        resize_and_recompress(originals[2]),
+    ]
+    for position, encoded in enumerate(originals):
+        attach_listing_image(left_listing, encoded, position=position)
+    for position, encoded in enumerate(right_versions):
+        attach_listing_image(right_listing, encoded, position=position)
+    api_client.force_authenticate(curator)
+
+    response = api_client.get(
+        "/api/v1/operator/catalog-curation/comparison/",
+        {"property": [str(left.id), str(right.id)]},
+    )
+
+    assert response.status_code == 200
+    image_signal = next(signal for signal in response.data["signals"] if signal["key"] == "images")
+    assert image_signal["classification"] == "support"
+    assert image_signal["contribution"] == 30
+    pairs = image_signal["compared_values"]["matched_pairs"]
+    assert [pair["method"] for pair in pairs] == [
+        "sha256",
+        "normalized_pixels",
+        "dhash",
+    ]
+    assert pairs[0]["perceptual_distance"] is None
+    assert pairs[1]["perceptual_distance"] is None
+    assert 0 <= pairs[2]["perceptual_distance"] <= 10
+    assert all(pair["left"]["thumbnail_url"].startswith("/api/v1/catalog/media/") for pair in pairs)
+    assert image_signal["compared_values"]["contradictions"] == []
+
+
+@pytest.mark.django_db
+def test_one_generic_image_supports_but_cannot_create_decisive_image_evidence(
+    api_client: APIClient,
+):
+    curator = make_operator(email="generic-image-curator@example.com")
+    source = Source.objects.create(
+        name="generic-image-source",
+        domain="generic-images.example",
+        display_name="منبع تصویر عمومی",
+        outbound_policy=OutboundPolicy.EXTERNAL_LINK,
+    )
+    left, left_listing = make_current_property(
+        source=source,
+        source_reference="GENERIC-LEFT",
+    )
+    right, right_listing = make_current_property(
+        source=source,
+        source_reference="GENERIC-RIGHT",
+    )
+    _third, third_listing = make_current_property(
+        source=source,
+        source_reference="GENERIC-THIRD",
+    )
+    generic = image_fixture(seed=7)
+    attach_listing_image(left_listing, generic, position=0)
+    attach_listing_image(right_listing, generic, position=0)
+    attach_listing_image(third_listing, generic, position=0)
+    api_client.force_authenticate(curator)
+
+    response = api_client.get(
+        "/api/v1/operator/catalog-curation/comparison/",
+        {"property": [str(left.id), str(right.id)]},
+    )
+
+    image_signal = next(signal for signal in response.data["signals"] if signal["key"] == "images")
+    assert image_signal["classification"] == "support"
+    assert image_signal["contribution"] == 10
+    assert len(image_signal["compared_values"]["matched_pairs"]) == 1
+    assert image_signal["compared_values"]["matched_pairs"][0]["is_generic"] is True
+
+
+@pytest.mark.django_db
+def test_visually_unrelated_listing_images_are_a_contradiction(api_client: APIClient):
+    curator = make_operator(email="unrelated-image-curator@example.com")
+    source = Source.objects.create(
+        name="unrelated-image-source",
+        domain="unrelated-images.example",
+        display_name="منبع تصویر ناسازگار",
+        outbound_policy=OutboundPolicy.EXTERNAL_LINK,
+    )
+    left, left_listing = make_current_property(source=source, source_reference="UNRELATED-LEFT")
+    right, right_listing = make_current_property(source=source, source_reference="UNRELATED-RIGHT")
+    left_image = image_fixture(seed=1)
+    with Image.open(BytesIO(left_image)) as image:
+        mirrored = ImageOps.mirror(image)
+        unrelated = BytesIO()
+        mirrored.save(unrelated, format="PNG")
+    attach_listing_image(left_listing, left_image, position=0)
+    attach_listing_image(right_listing, unrelated.getvalue(), position=0)
+    api_client.force_authenticate(curator)
+
+    response = api_client.get(
+        "/api/v1/operator/catalog-curation/comparison/",
+        {"property": [str(left.id), str(right.id)]},
+    )
+
+    image_signal = next(signal for signal in response.data["signals"] if signal["key"] == "images")
+    assert image_signal["classification"] == "contradiction"
+    assert image_signal["contribution"] == -15
+    assert image_signal["compared_values"]["matched_pairs"] == []
+    assert image_signal["compared_values"]["contradictions"][0]["perceptual_distance"] > 10

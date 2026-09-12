@@ -16,6 +16,7 @@ from django.utils import timezone
 
 from apps.common.media import (
     FirstPartyImageInput,
+    ImageIdentity,
     ImageProcessingLimits,
     process_first_party_image,
     schedule_asset_cleanup,
@@ -29,6 +30,20 @@ from apps.source_extraction.fetching import (
 )
 
 from .models import CandidateImage, CandidateImageVariant, ExternalListingCandidate
+
+
+def _retain_identity(image: CandidateImage, identity: ImageIdentity) -> None:
+    image.content_hash = identity.raw_content_sha256
+    image.normalized_pixel_sha256 = identity.normalized_pixel_sha256
+    image.perceptual_dhash = identity.perceptual_dhash
+
+
+def _retained_identity(image: CandidateImage) -> ImageIdentity:
+    return ImageIdentity(
+        raw_content_sha256=image.content_hash,
+        normalized_pixel_sha256=image.normalized_pixel_sha256,
+        perceptual_dhash=image.perceptual_dhash,
+    )
 
 
 def stage_candidate_images(
@@ -115,6 +130,8 @@ def process_candidate_image(
             if result.status == "failed":
                 image.failure_code = "processing_failed"
             else:
+                assert result.identity is not None
+                _retain_identity(image, result.identity)
                 for variant in result.variants:
                     asset = MediaAsset.objects.create(
                         file=variant.file_name,
@@ -188,8 +205,14 @@ def promote_candidate_images(candidate: ExternalListingCandidate) -> None:
     )
     listing.images.all().delete()
     for position, image in enumerate(candidate.images.filter(state="ready", excluded=False)):
+        identity = _retained_identity(image)
         image.listing_image = ListingImage.objects.create(
-            listing=listing, position=position, is_primary=image.is_primary
+            listing=listing,
+            position=position,
+            is_primary=image.is_primary,
+            raw_content_sha256=identity.raw_content_sha256,
+            normalized_pixel_sha256=identity.normalized_pixel_sha256,
+            perceptual_dhash=identity.perceptual_dhash,
         )
         for variant in image.variants.filter(asset__isnull=False):
             assert variant.asset_id is not None

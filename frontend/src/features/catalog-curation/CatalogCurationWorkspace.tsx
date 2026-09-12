@@ -20,6 +20,27 @@ type MatchSignal = components["schemas"]["MatchSignal"];
 type PropertyEvidence =
   components["schemas"]["CatalogCurationPropertyEvidence"];
 
+type ImageReference = {
+  image_id: string;
+  listing_id: string;
+  source: string;
+  thumbnail_url: string | null;
+};
+
+type ImagePair = {
+  left: ImageReference;
+  right: ImageReference;
+  method?: "sha256" | "normalized_pixels" | "dhash";
+  perceptual_distance: number | null;
+  is_generic?: boolean;
+};
+
+const imageMethodLabels = {
+  sha256: "SHA-256",
+  normalized_pixels: "Normalized pixels",
+  dhash: "dHash",
+} as const;
+
 const classificationLabels: Record<MatchSignal["classification"], string> = {
   support: "همسو",
   contradiction: "ناسازگار",
@@ -90,6 +111,111 @@ function PropertyResult({
   );
 }
 
+function EvidenceThumbnail({ image }: { image: ImageReference }) {
+  return (
+    <figure className="min-w-0">
+      {image.thumbnail_url ? (
+        <img
+          src={image.thumbnail_url}
+          alt={`تصویر ${image.source}`}
+          className="aspect-[4/3] w-full rounded-lg border object-cover"
+        />
+      ) : (
+        <div
+          className="bg-muted aspect-[4/3] rounded-lg border"
+          aria-hidden="true"
+        />
+      )}
+      <figcaption className="text-muted-foreground mt-1 truncate text-xs">
+        {image.source}
+      </figcaption>
+    </figure>
+  );
+}
+
+function ImagePairRow({
+  pair,
+  contradiction = false,
+}: {
+  pair: ImagePair;
+  contradiction?: boolean;
+}) {
+  const label = contradiction
+    ? "ناسازگاری تصویری"
+    : pair.method
+      ? imageMethodLabels[pair.method]
+      : "تطبیق تصویر";
+  const distance =
+    pair.perceptual_distance == null
+      ? ""
+      : ` · فاصله ${pair.perceptual_distance.toLocaleString("fa-IR")}`;
+  return (
+    <li className="rounded-xl border p-3">
+      <p className="mb-3 text-sm font-medium">
+        {label}
+        {distance}
+      </p>
+      {pair.is_generic ? (
+        <p className="text-muted-foreground mb-3 text-xs">
+          تصویر عمومی؛ تقویت قاطع ندارد
+        </p>
+      ) : null}
+      <div className="grid grid-cols-2 gap-3">
+        <EvidenceThumbnail image={pair.left} />
+        <EvidenceThumbnail image={pair.right} />
+      </div>
+    </li>
+  );
+}
+
+function ImageEvidence({ values }: { values: Record<string, unknown> }) {
+  const matchedPairs = Array.isArray(values.matched_pairs)
+    ? (values.matched_pairs as ImagePair[])
+    : [];
+  const contradictions = Array.isArray(values.contradictions)
+    ? (values.contradictions as ImagePair[])
+    : [];
+  return (
+    <div className="mt-3 grid gap-4 lg:grid-cols-2">
+      <div>
+        <p className="mb-2 text-sm font-medium">جفت‌های مشابه</p>
+        {matchedPairs.length ? (
+          <ul className="space-y-3">
+            {matchedPairs.map((pair) => (
+              <ImagePairRow
+                key={`${pair.left.image_id}:${pair.right.image_id}`}
+                pair={pair}
+              />
+            ))}
+          </ul>
+        ) : (
+          <p className="text-muted-foreground text-xs">
+            تصویر مشابهی یافت نشد.
+          </p>
+        )}
+      </div>
+      <div>
+        <p className="mb-2 text-sm font-medium">ناسازگاری‌ها</p>
+        {contradictions.length ? (
+          <ul className="space-y-3">
+            {contradictions.map((pair) => (
+              <ImagePairRow
+                key={`${pair.left.image_id}:${pair.right.image_id}`}
+                pair={pair}
+                contradiction
+              />
+            ))}
+          </ul>
+        ) : (
+          <p className="text-muted-foreground text-xs">
+            ناسازگاری تصویری ثبت نشد.
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function SignalRow({ signal }: { signal: MatchSignal }) {
   const contribution = signal.contribution.toLocaleString("fa-IR");
   return (
@@ -105,9 +231,13 @@ function SignalRow({ signal }: { signal: MatchSignal }) {
             {classificationLabels[signal.classification]}
           </Badge>
         </div>
-        <p className="text-muted-foreground mt-2 text-xs" dir="ltr">
-          {JSON.stringify(signal.compared_values)}
-        </p>
+        {signal.key === "images" ? (
+          <ImageEvidence values={signal.compared_values} />
+        ) : (
+          <p className="text-muted-foreground mt-2 text-xs" dir="ltr">
+            {JSON.stringify(signal.compared_values)}
+          </p>
+        )}
       </div>
       <strong className="tabular-nums" dir="ltr">
         {signal.contribution > 0 ? "+" : ""}

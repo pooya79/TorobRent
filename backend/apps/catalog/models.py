@@ -413,6 +413,9 @@ class ListingImage(models.Model):
     listing = models.ForeignKey(Listing, on_delete=models.CASCADE, related_name="images")
     position = models.PositiveSmallIntegerField()
     is_primary = models.BooleanField(default=False)
+    raw_content_sha256 = models.CharField(max_length=64, blank=True, db_index=True)
+    normalized_pixel_sha256 = models.CharField(max_length=64, blank=True, db_index=True)
+    perceptual_dhash = models.CharField(max_length=16, blank=True, db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
