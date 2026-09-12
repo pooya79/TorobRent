@@ -1,13 +1,21 @@
+import uuid
 from decimal import Decimal
 
 import pytest
+from django.conf import settings
 from django.contrib.auth.models import Permission
 from django.core.cache import cache
 from django.core.management import call_command
+from django.db.models import Q
 from django.utils import timezone
 from rest_framework.test import APIClient
 
 from apps.accounts.models import User
+from apps.catalog.match_suggestion_signals import (
+    FOCUSED_MEASUREMENT_DIRTY_KEY,
+    FOCUSED_MEASUREMENT_KEY,
+    _dispatch_focused_measurement,
+)
 from apps.catalog.match_suggestions import candidate_property_ids
 from apps.catalog.models import (
     Listing,
@@ -25,6 +33,7 @@ from apps.catalog.models import (
 )
 from apps.catalog.tasks import (
     PROPERTY_MATCH_RECONCILIATION_LOCK,
+    PROPERTY_MATCH_RECONCILIATION_TIMEOUT,
     measure_property_match_candidates,
     reconcile_property_match_suggestions,
 )
@@ -48,11 +57,13 @@ def make_property(
     latitude: Decimal | None = Decimal("35.774100"),
     longitude: Decimal | None = Decimal("51.356200"),
     area_sqm: int = 90,
+    property_id: str | None = None,
 ) -> Property:
     if not Neighborhood.objects.exists():
         call_command("loaddata", "catalog_seed", verbosity=0)
     neighborhood = Neighborhood.objects.get(name_fa="سعادت‌آباد")
     property_ = Property.objects.create(
+        id=property_id,
         city=neighborhood.district.city,
         district=neighborhood.district,
         neighborhood=neighborhood,
@@ -172,6 +183,120 @@ def test_candidate_generation_uses_the_bounded_union_of_identity_indexes():
 
 
 @pytest.mark.django_db
+def test_saturated_candidate_union_reserves_space_for_exact_image_matches():
+    source = Source.objects.create(
+        name="saturated-source",
+        domain="saturated.example",
+        display_name="منبع اشباع",
+        outbound_policy=OutboundPolicy.EXTERNAL_LINK,
+    )
+    focus = make_property(source, "FOCUS", property_id="80000000-0000-0000-0000-000000000000")
+    for number in range(8):
+        make_property(
+            source,
+            f"COORDINATE-{number}",
+            area_sqm=300 + number,
+            property_id=f"00000000-0000-0000-0000-{number + 1:012d}",
+        )
+    image_match = make_property(
+        source,
+        "IMAGE",
+        latitude=None,
+        longitude=None,
+        area_sqm=500,
+        property_id="ffffffff-ffff-ffff-ffff-ffffffffffff",
+    )
+    other_neighborhood = Neighborhood.objects.exclude(pk=focus.neighborhood_id).first()
+    assert other_neighborhood is not None
+    image_match.neighborhood = other_neighborhood
+    image_match.district = other_neighborhood.district
+    image_match.property_type = PropertyType.OFFICE
+    image_match.save()
+    ListingImage.objects.create(
+        listing=focus.listings.get(),
+        position=0,
+        raw_content_sha256="a" * 64,
+    )
+    ListingImage.objects.create(
+        listing=image_match.listings.get(),
+        position=0,
+        raw_content_sha256="a" * 64,
+    )
+
+    candidates = candidate_property_ids(focus, limit=4)
+
+    assert len(candidates) == 4
+    assert uuid.UUID(str(image_match.pk)) in candidates
+
+
+@pytest.mark.django_db
+def test_saturated_perceptual_path_ranks_shared_buckets_before_truncation():
+    source = Source.objects.create(
+        name="perceptual-saturation-source",
+        domain="perceptual-saturation.example",
+        display_name="منبع اشباع تصویر",
+        outbound_policy=OutboundPolicy.EXTERNAL_LINK,
+    )
+    focus = make_property(
+        source,
+        "FOCUS",
+        property_id="80000000-0000-0000-0000-000000000000",
+    )
+    ListingImage.objects.create(
+        listing=focus.listings.get(),
+        position=0,
+        perceptual_dhash="0123456789abcdef",
+    )
+    other_neighborhood = Neighborhood.objects.exclude(pk=focus.neighborhood_id).first()
+    assert other_neighborhood is not None
+    for number in range(8):
+        distractor = make_property(
+            source,
+            f"DISTRACTOR-{number}",
+            latitude=None,
+            longitude=None,
+            area_sqm=300 + number,
+            property_id=f"00000000-0000-0000-0000-{number + 1:012d}",
+        )
+        distractor.neighborhood = other_neighborhood
+        distractor.district = other_neighborhood.district
+        distractor.property_type = PropertyType.OFFICE
+        distractor.floor = None
+        distractor.total_floors = None
+        distractor.units_per_floor = None
+        distractor.save()
+        ListingImage.objects.create(
+            listing=distractor.listings.get(),
+            position=0,
+            perceptual_dhash="0fffffffffffffff",
+        )
+    image_match = make_property(
+        source,
+        "IMAGE",
+        latitude=None,
+        longitude=None,
+        area_sqm=500,
+        property_id="ffffffff-ffff-ffff-ffff-ffffffffffff",
+    )
+    image_match.neighborhood = other_neighborhood
+    image_match.district = other_neighborhood.district
+    image_match.property_type = PropertyType.OFFICE
+    image_match.floor = None
+    image_match.total_floors = None
+    image_match.units_per_floor = None
+    image_match.save()
+    ListingImage.objects.create(
+        listing=image_match.listings.get(),
+        position=0,
+        perceptual_dhash="0123457698badcfe",
+    )
+
+    candidates = candidate_property_ids(focus, limit=4)
+
+    assert uuid.UUID(str(image_match.pk)) in candidates
+
+
+@pytest.mark.django_db
 def test_focused_measurement_supersedes_a_pending_pair_that_left_every_candidate_bucket():
     source = Source.objects.create(
         name="stale-source",
@@ -202,6 +327,76 @@ def test_focused_measurement_supersedes_a_pending_pair_that_left_every_candidate
     assert result == {"evaluated": 1, "active": 0}
     assert suggestion.state == PropertyMatchSuggestionState.SUPERSEDED
     assert suggestion.evaluations.count() == 2
+
+
+@pytest.mark.django_db
+def test_repeated_bounded_measurement_reaches_stale_pairs_behind_an_active_pair():
+    source = Source.objects.create(
+        name="stale-page-source",
+        domain="stale-page.example",
+        display_name="منبع صفحه‌بندی شواهد",
+        outbound_policy=OutboundPolicy.EXTERNAL_LINK,
+    )
+    focus = make_property(source, "FOCUS")
+    active = make_property(source, "ACTIVE")
+    stale = [make_property(source, f"STALE-{number}") for number in range(2)]
+    measure_property_match_candidates(property_id=str(focus.pk), limit=10)
+    other_neighborhood = Neighborhood.objects.exclude(pk=focus.neighborhood_id).first()
+    assert other_neighborhood is not None
+    for property_ in stale:
+        property_.neighborhood = other_neighborhood
+        property_.district = other_neighborhood.district
+        property_.property_type = PropertyType.OFFICE
+        property_.area_sqm = 500
+        property_.latitude = None
+        property_.longitude = None
+        property_.floor = None
+        property_.total_floors = None
+        property_.units_per_floor = None
+        property_.save()
+
+    for _ in range(3):
+        measure_property_match_candidates(property_id=str(focus.pk), limit=1)
+
+    assert PropertyMatchSuggestion.objects.filter(
+        Q(left_id=focus.pk, right_id=active.pk) | Q(left_id=active.pk, right_id=focus.pk),
+        state=PropertyMatchSuggestionState.PENDING,
+    ).exists()
+    assert not PropertyMatchSuggestion.objects.filter(
+        Q(left_id=focus.pk, right_id__in=[property_.pk for property_ in stale])
+        | Q(right_id=focus.pk, left_id__in=[property_.pk for property_ in stale]),
+        state=PropertyMatchSuggestionState.PENDING,
+    ).exists()
+
+
+@pytest.mark.django_db
+def test_pending_neighbors_do_not_consume_the_fresh_candidate_budget():
+    source = Source.objects.create(
+        name="discovery-budget-source",
+        domain="discovery-budget.example",
+        display_name="منبع بودجه کشف",
+        outbound_policy=OutboundPolicy.EXTERNAL_LINK,
+    )
+    focus = make_property(source, "FOCUS")
+    existing = make_property(source, "EXISTING")
+    measure_property_match_candidates(property_id=str(focus.pk), limit=1)
+    assert PropertyMatchSuggestion.objects.filter(
+        Q(left_id=focus.pk, right_id=existing.pk) | Q(left_id=existing.pk, right_id=focus.pk)
+    ).exists()
+    discovered = make_property(source, "DISCOVERED")
+    ListingImage.objects.create(
+        listing=focus.listings.get(), position=0, raw_content_sha256="d" * 64
+    )
+    ListingImage.objects.create(
+        listing=discovered.listings.get(), position=0, raw_content_sha256="d" * 64
+    )
+
+    result = measure_property_match_candidates(property_id=str(focus.pk), limit=1)
+
+    assert result["evaluated"] == 2
+    assert PropertyMatchSuggestion.objects.filter(
+        Q(left_id=focus.pk, right_id=discovered.pk) | Q(left_id=discovered.pk, right_id=focus.pk)
+    ).exists()
 
 
 @pytest.mark.django_db
@@ -346,6 +541,37 @@ def test_duplicate_reconciliation_page_delivery_is_fenced(monkeypatch):
         "processed": 0,
         "next_after_id": None,
     }
+
+
+def test_reconciliation_lease_outlives_the_celery_hard_time_limit():
+    assert PROPERTY_MATCH_RECONCILIATION_TIMEOUT > settings.CELERY_TASK_TIME_LIMIT
+
+
+@pytest.mark.django_db
+def test_focused_mutation_during_active_measurement_schedules_a_follow_up(monkeypatch):
+    source = Source.objects.create(
+        name="dirty-source",
+        domain="dirty.example",
+        display_name="منبع تغییر همزمان",
+        outbound_policy=OutboundPolicy.EXTERNAL_LINK,
+    )
+    property_ = make_property(source, "DIRTY")
+    key = FOCUSED_MEASUREMENT_KEY.format(property_id=property_.pk)
+    dirty_key = FOCUSED_MEASUREMENT_DIRTY_KEY.format(property_id=property_.pk)
+    cache.set(key, True, timeout=60)
+    delayed: list[dict[str, object]] = []
+    monkeypatch.setattr(
+        measure_property_match_candidates,
+        "delay",
+        lambda **kwargs: delayed.append(kwargs),
+    )
+
+    _dispatch_focused_measurement(property_.pk)
+    assert cache.get(dirty_key) is True
+
+    measure_property_match_candidates(property_id=str(property_.pk), limit=1)
+
+    assert delayed == [{"property_id": str(property_.pk), "limit": 100}]
 
 
 @pytest.mark.django_db(transaction=True)

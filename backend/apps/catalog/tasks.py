@@ -2,6 +2,7 @@ import uuid
 from dataclasses import asdict
 
 from celery import shared_task
+from django.conf import settings
 from django.core.cache import cache
 from django.db.models import Q
 from django.utils import timezone
@@ -19,7 +20,29 @@ from .models import (
 from .services import expire_listings
 
 PROPERTY_MATCH_RECONCILIATION_LOCK = "catalog:property-match-reconciliation"
-PROPERTY_MATCH_RECONCILIATION_TIMEOUT = 30 * 60
+PROPERTY_MATCH_RECONCILIATION_TIMEOUT = settings.CELERY_TASK_TIME_LIMIT + 5 * 60
+
+
+def _finish_focused_measurement(property_id: uuid.UUID) -> None:
+    from .match_suggestion_signals import (
+        FOCUSED_MEASUREMENT_DIRTY_KEY,
+        FOCUSED_MEASUREMENT_KEY,
+        _dispatch_focused_measurement,
+    )
+
+    cache.delete(FOCUSED_MEASUREMENT_KEY.format(property_id=property_id))
+    dirty_key = FOCUSED_MEASUREMENT_DIRTY_KEY.format(property_id=property_id)
+    if cache.get(dirty_key):
+        cache.delete(dirty_key)
+        _dispatch_focused_measurement(property_id)
+
+
+def _renew_reconciliation_fence(token: str, processing_key: str) -> bool:
+    if cache.get(PROPERTY_MATCH_RECONCILIATION_LOCK) != token:
+        return False
+    cache.touch(PROPERTY_MATCH_RECONCILIATION_LOCK, PROPERTY_MATCH_RECONCILIATION_TIMEOUT)
+    cache.touch(processing_key, PROPERTY_MATCH_RECONCILIATION_TIMEOUT)
+    return True
 
 
 @shared_task  # type: ignore[untyped-decorator]
@@ -36,7 +59,11 @@ def backfill_listing_image_identity(
 
 @shared_task  # type: ignore[untyped-decorator]
 def measure_property_match_candidates(*, property_id: str, limit: int = 100) -> dict[str, int]:
-    return measure_candidates_for_property(uuid.UUID(property_id), limit=limit)
+    parsed_property_id = uuid.UUID(property_id)
+    try:
+        return measure_candidates_for_property(parsed_property_id, limit=limit)
+    finally:
+        _finish_focused_measurement(parsed_property_id)
 
 
 @shared_task  # type: ignore[untyped-decorator]
@@ -79,11 +106,15 @@ def reconcile_property_match_suggestions(
             properties = properties.filter(pk__gt=uuid.UUID(after_id))
         property_ids = list(properties.values_list("pk", flat=True)[:limit])
         for property_id in property_ids:
+            if not _renew_reconciliation_fence(token, processing_key):
+                return {"status": "stale_delivery", "processed": 0, "next_after_id": None}
             measure_candidates_for_property(
                 property_id,
                 limit=limit,
                 origin=PropertyMatchSuggestionOrigin.NIGHTLY,
             )
+        if not _renew_reconciliation_fence(token, processing_key):
+            return {"status": "stale_delivery", "processed": 0, "next_after_id": None}
         next_after_id = str(property_ids[-1]) if len(property_ids) == limit else None
         cache.set(completed_key, True, timeout=24 * 60 * 60)
         cache.delete(processing_key)

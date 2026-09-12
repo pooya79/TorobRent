@@ -9,11 +9,12 @@ from typing import cast
 
 from django.core.serializers.json import DjangoJSONEncoder
 from django.db import transaction
-from django.db.models import Q, QuerySet
+from django.db.models import Count, IntegerField, OuterRef, Q, QuerySet, Subquery
 from django.utils import timezone
 
 from .matching import MatchAssessment, SignalClassification, compare_properties
 from .models import (
+    ListingImage,
     ListingState,
     Property,
     PropertyMatchSuggestion,
@@ -27,10 +28,10 @@ ELIGIBLE_LISTING_STATES = tuple(
     for state in ListingState.values
     if state not in (ListingState.DRAFT, ListingState.REJECTED)
 )
-IDENTITY_PROPERTY_FIELDS = (
-    "city_id",
-    "district_id",
-    "neighborhood_id",
+IDENTITY_PROPERTY_FIELD_NAMES = (
+    "city",
+    "district",
+    "neighborhood",
     "property_type",
     "area_sqm",
     "room_count",
@@ -48,6 +49,10 @@ IDENTITY_PROPERTY_FIELDS = (
     "latitude",
     "longitude",
 )
+IDENTITY_PROPERTY_FIELDS = tuple(
+    f"{field}_id" if field in {"city", "district", "neighborhood"} else field
+    for field in IDENTITY_PROPERTY_FIELD_NAMES
+)
 
 
 def eligible_property_roots() -> QuerySet[Property]:
@@ -61,16 +66,31 @@ def _bounded_ids(queryset: QuerySet[Property], limit: int) -> list[uuid.UUID]:
     return list(queryset.order_by("pk").values_list("pk", flat=True)[:limit])
 
 
+def _fair_bounded_union(paths: list[list[uuid.UUID]], limit: int) -> list[uuid.UUID]:
+    """Take candidates round-robin so no populated evidence path can crowd out another."""
+    result: list[uuid.UUID] = []
+    seen: set[uuid.UUID] = set()
+    for offset in range(limit):
+        for path in paths:
+            if offset >= len(path) or path[offset] in seen:
+                continue
+            seen.add(path[offset])
+            result.append(path[offset])
+            if len(result) == limit:
+                return result
+    return result
+
+
 def candidate_property_ids(property_: Property, *, limit: int) -> list[uuid.UUID]:
     """Return the bounded union of indexed candidate paths for one current Property."""
     if limit < 1:
         return []
     base = eligible_property_roots().exclude(pk=property_.pk)
-    candidates: set[uuid.UUID] = set()
+    paths: list[list[uuid.UUID]] = []
 
     if property_.latitude is not None and property_.longitude is not None:
         coordinate_delta = Decimal("0.005")
-        candidates.update(
+        paths.append(
             _bounded_ids(
                 base.filter(
                     latitude__range=(
@@ -97,7 +117,7 @@ def candidate_property_ids(property_: Property, *, limit: int) -> list[uuid.UUID
             area_sqm__range=(property_.area_sqm - area_delta, property_.area_sqm + area_delta),
         )
     if location_facts:
-        candidates.update(_bounded_ids(base.filter(location_facts), limit))
+        paths.append(_bounded_ids(base.filter(location_facts), limit))
 
     images = property_.listings.filter(state__in=ELIGIBLE_LISTING_STATES).values_list(
         "images__raw_content_sha256",
@@ -114,25 +134,66 @@ def candidate_property_ids(property_: Property, *, limit: int) -> list[uuid.UUID
             normalized_hashes.add(normalized_hash)
         if perceptual_hash:
             perceptual_hashes.add(perceptual_hash)
-    image_query = Q()
+    exact_image_query = Q()
     if raw_hashes:
-        image_query |= Q(listings__images__raw_content_sha256__in=raw_hashes)
+        exact_image_query |= Q(listings__images__raw_content_sha256__in=raw_hashes)
     if normalized_hashes:
-        image_query |= Q(listings__images__normalized_pixel_sha256__in=normalized_hashes)
+        exact_image_query |= Q(listings__images__normalized_pixel_sha256__in=normalized_hashes)
+    perceptual_bucket_query = Q()
     if perceptual_hashes:
-        image_query |= Q(listings__images__perceptual_dhash__in=perceptual_hashes)
+        exact_image_query |= Q(listings__images__perceptual_dhash__in=perceptual_hashes)
         bucket_pairs = property_.listings.filter(state__in=ELIGIBLE_LISTING_STATES).values_list(
             "images__perceptual_buckets__position",
             "images__perceptual_buckets__value",
         )
         for position, value in bucket_pairs:
             if position is not None and value:
-                image_query |= Q(
-                    listings__images__perceptual_buckets__position=position,
-                    listings__images__perceptual_buckets__value=value,
+                perceptual_bucket_query |= Q(
+                    perceptual_buckets__position=position,
+                    perceptual_buckets__value=value,
                 )
-    if image_query:
-        candidates.update(_bounded_ids(base.filter(image_query).distinct(), limit))
+    image_ids: list[uuid.UUID] = []
+    if exact_image_query:
+        eligible_exact_image_query = (
+            Q(listings__state__in=ELIGIBLE_LISTING_STATES) & exact_image_query
+        )
+        image_ids.extend(_bounded_ids(base.filter(eligible_exact_image_query).distinct(), limit))
+    if perceptual_bucket_query and len(image_ids) < limit:
+        matching_image_score = (
+            ListingImage.objects
+            .filter(
+                listing__property_id=OuterRef("pk"),
+                listing__state__in=ELIGIBLE_LISTING_STATES,
+            )
+            .annotate(
+                shared_bucket_count=Count(
+                    "perceptual_buckets",
+                    filter=perceptual_bucket_query,
+                    distinct=True,
+                )
+            )
+            .filter(shared_bucket_count__gte=6)
+            .order_by("-shared_bucket_count", "pk")
+            .values("shared_bucket_count")[:1]
+        )
+        perceptual_ids = list(
+            base
+            .annotate(
+                perceptual_bucket_score=Subquery(
+                    matching_image_score,
+                    output_field=IntegerField(),
+                )
+            )
+            .filter(perceptual_bucket_score__isnull=False)
+            .order_by("-perceptual_bucket_score", "pk")
+            .values_list("pk", flat=True)[:limit]
+        )
+        image_ids.extend(
+            candidate_id for candidate_id in perceptual_ids if candidate_id not in image_ids
+        )
+    if image_ids:
+        # Image evidence is the most selective path, so it gets the first round-robin slot.
+        paths.insert(0, image_ids[:limit])
 
     building_query = Q()
     if property_.total_floors is not None and property_.units_per_floor is not None:
@@ -146,9 +207,9 @@ def candidate_property_ids(property_: Property, *, limit: int) -> list[uuid.UUID
             construction_year=property_.construction_year,
         )
     if building_query:
-        candidates.update(_bounded_ids(base.filter(building_query), limit))
+        paths.append(_bounded_ids(base.filter(building_query), limit))
 
-    return sorted(candidates)[:limit]
+    return _fair_bounded_union(paths, limit)
 
 
 def property_identity_revision(property_: Property) -> str:
@@ -262,20 +323,23 @@ def measure_candidates_for_property(
     property_ = eligible_property_roots().filter(pk=property_id).first()
     if property_ is None:
         return {"evaluated": 0, "active": 0}
-    pending_neighbors = PropertyMatchSuggestion.objects.filter(
-        Q(left_id=property_.pk) | Q(right_id=property_.pk),
-        state=PropertyMatchSuggestionState.PENDING,
-    ).values_list("left_id", "right_id")[:limit]
+    pending_neighbors = (
+        PropertyMatchSuggestion.objects
+        .filter(
+            Q(left_id=property_.pk) | Q(right_id=property_.pk),
+            state=PropertyMatchSuggestionState.PENDING,
+        )
+        .order_by("last_evaluated_at", "pk")
+        .values_list("left_id", "right_id")[:limit]
+    )
     candidate_ids = [
         right_id if left_id == property_.pk else left_id for left_id, right_id in pending_neighbors
     ]
-    if len(candidate_ids) < limit:
-        candidate_ids.extend(
-            candidate_id
-            for candidate_id in candidate_property_ids(property_, limit=limit)
-            if candidate_id not in candidate_ids
-        )
-        candidate_ids = candidate_ids[:limit]
+    candidate_ids.extend(
+        candidate_id
+        for candidate_id in candidate_property_ids(property_, limit=limit)
+        if candidate_id not in candidate_ids
+    )
     evaluations = [
         evaluate_property_pair(property_.pk, candidate_id, origin=origin)
         for candidate_id in candidate_ids
