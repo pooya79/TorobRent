@@ -40,6 +40,11 @@ An independently grantable operational responsibility. An account holder is an O
 hold at least one Operator Capability; access to Django administration is separate.
 _Avoid_: Operator type, Django staff status
 
+**Catalog Curation**:
+The Operator Capability to evaluate Property Match Suggestions and correct how Listings are grouped
+under Properties, including access to restricted identity evidence needed for those decisions.
+_Avoid_: Submission Review, Source Proposal Review
+
 ## Rental catalog
 
 **Property**:
@@ -75,6 +80,22 @@ _Avoid_: Property Image, hotlinked image
 One source's advertisement of a Property, including source-specific rental terms and a route to
 continue with that source. Several Listings can refer to the same Property.
 _Avoid_: Property, search result
+
+**Property Match Suggestion**:
+An explainable, system-generated assessment that two Properties may represent the same real-world
+space, awaiting a Catalog Curation decision.
+_Avoid_: Duplicate Listing, automatic merge
+
+**Match Confidence**:
+A versioned score from 0 to 100 expressing the strength of current evidence behind a Property Match
+Suggestion. It is not a calibrated probability or a Catalog Curation decision.
+_Avoid_: Match probability, automatic approval
+
+**Property Match Decision**:
+A recorded judgment by an Operator with Catalog Curation to group two Properties, keep them
+separate, or defer that judgment, whether prompted by a Property Match Suggestion or initiated
+manually.
+_Avoid_: Automatic match, Submission Review decision
 
 **Direct Listing**:
 A Listing whose continuation route is a verified contact number approved for public display by the
