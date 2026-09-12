@@ -1,4 +1,3 @@
-import logging
 import uuid
 
 from django.db import transaction
@@ -9,129 +8,12 @@ from apps.common.media import schedule_asset_cleanup
 
 from .models import (
     Listing,
-    ListingImage,
     ListingImageVariant,
     ListingPriceObservation,
     ListingState,
-    Property,
     PropertyImageVariant,
     RentalTerms,
 )
-
-logger = logging.getLogger(__name__)
-
-PROPERTY_IDENTITY_UPDATE_FIELDS = {
-    "city",
-    "district",
-    "neighborhood",
-    "property_type",
-    "area_sqm",
-    "room_count",
-    "construction_year",
-    "floor",
-    "total_floors",
-    "units_per_floor",
-    "parking",
-    "elevator",
-    "storage",
-    "balcony",
-    "furnished",
-    "heating",
-    "cooling",
-    "latitude",
-    "longitude",
-    "merged_into",
-}
-LISTING_IDENTITY_UPDATE_FIELDS = {
-    "property",
-    "source",
-    "state",
-    "source_reference",
-    "source_claims",
-}
-
-
-def _dispatch_focused_measurement(property_id: uuid.UUID) -> None:
-    from .tasks import measure_property_match_candidates
-
-    try:
-        measure_property_match_candidates.delay(property_id=str(property_id), limit=100)
-    except Exception:
-        logger.exception("Could not enqueue a focused Property match measurement")
-
-
-def _enqueue_focused_measurement(property_id: uuid.UUID) -> None:
-    transaction.on_commit(lambda: _dispatch_focused_measurement(property_id))
-
-
-@receiver(post_save, sender=Property)
-def enqueue_property_identity_measurement(
-    sender: type[Property],
-    instance: Property,
-    created: bool,
-    update_fields: frozenset[str] | None = None,
-    raw: bool = False,
-    **_kwargs: object,
-) -> None:
-    del sender
-    if raw or (
-        not created
-        and update_fields is not None
-        and not PROPERTY_IDENTITY_UPDATE_FIELDS.intersection(update_fields)
-    ):
-        return
-    _enqueue_focused_measurement(instance.pk)
-
-
-@receiver(post_save, sender=Listing)
-def enqueue_listing_identity_measurement(
-    sender: type[Listing],
-    instance: Listing,
-    created: bool,
-    update_fields: frozenset[str] | None = None,
-    raw: bool = False,
-    **_kwargs: object,
-) -> None:
-    del sender
-    if raw or (
-        not created
-        and update_fields is not None
-        and not LISTING_IDENTITY_UPDATE_FIELDS.intersection(update_fields)
-    ):
-        return
-    _enqueue_focused_measurement(instance.property_id)
-
-
-@receiver(post_save, sender=ListingImage)
-def enqueue_listing_image_measurement(
-    sender: type[ListingImage],
-    instance: ListingImage,
-    raw: bool = False,
-    **_kwargs: object,
-) -> None:
-    del sender
-    if not raw:
-        _enqueue_focused_measurement(instance.listing.property_id)
-
-
-@receiver(post_delete, sender=ListingImage)
-def enqueue_deleted_listing_image_measurement(
-    sender: type[ListingImage],
-    instance: ListingImage,
-    **_kwargs: object,
-) -> None:
-    del sender
-    _enqueue_focused_measurement(instance.listing.property_id)
-
-
-@receiver(post_delete, sender=Listing)
-def enqueue_deleted_listing_measurement(
-    sender: type[Listing],
-    instance: Listing,
-    **_kwargs: object,
-) -> None:
-    del sender
-    _enqueue_focused_measurement(instance.property_id)
 
 
 @receiver(post_delete, sender=ListingImageVariant)

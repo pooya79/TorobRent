@@ -212,6 +212,25 @@ class Property(models.Model):
 
     class Meta:
         permissions = (("curate_catalog", "Can curate the Property catalog"),)
+        indexes = [
+            models.Index(fields=("latitude", "longitude"), name="catalog_prop_coords"),
+            models.Index(
+                fields=("city", "property_type", "area_sqm"),
+                name="catalog_prop_city_facts",
+            ),
+            models.Index(
+                fields=("neighborhood", "property_type", "area_sqm"),
+                name="catalog_prop_neigh_facts",
+            ),
+            models.Index(
+                fields=("total_floors", "units_per_floor"),
+                name="catalog_prop_build_facts",
+            ),
+            models.Index(
+                fields=("floor", "construction_year"),
+                name="catalog_prop_floor_year",
+            ),
+        ]
 
     def __str__(self) -> str:
         if self.property_type and self.neighborhood_id:
@@ -434,6 +453,33 @@ class ListingImage(models.Model):
 
     def __str__(self) -> str:
         return f"{self.listing_id}: {self.position}"
+
+
+class ListingImagePerceptualBucket(models.Model):
+    image = models.ForeignKey(
+        ListingImage,
+        on_delete=models.CASCADE,
+        related_name="perceptual_buckets",
+    )
+    position = models.PositiveSmallIntegerField()
+    value = models.CharField(max_length=1)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=("image", "position"),
+                name="catalog_unique_listing_image_dhash_bucket",
+            )
+        ]
+        indexes = [
+            models.Index(
+                fields=("position", "value"),
+                name="catalog_dhash_bucket_lookup",
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.image_id}: {self.position}={self.value}"
 
 
 class ListingImageVariant(models.Model):

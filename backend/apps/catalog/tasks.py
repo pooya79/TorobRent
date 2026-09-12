@@ -19,6 +19,7 @@ from .models import (
 from .services import expire_listings
 
 PROPERTY_MATCH_RECONCILIATION_LOCK = "catalog:property-match-reconciliation"
+PROPERTY_MATCH_RECONCILIATION_TIMEOUT = 30 * 60
 
 
 @shared_task  # type: ignore[untyped-decorator]
@@ -49,10 +50,23 @@ def reconcile_property_match_suggestions(
         raise ValueError("limit must be between 1 and 500")
     token = run_token or str(uuid.uuid4())
     if run_token is None:
-        if not cache.add(PROPERTY_MATCH_RECONCILIATION_LOCK, token, timeout=30 * 60):
+        if not cache.add(
+            PROPERTY_MATCH_RECONCILIATION_LOCK,
+            token,
+            timeout=PROPERTY_MATCH_RECONCILIATION_TIMEOUT,
+        ):
             return {"status": "already_running", "processed": 0, "next_after_id": None}
     elif cache.get(PROPERTY_MATCH_RECONCILIATION_LOCK) != token:
         return {"status": "stale_delivery", "processed": 0, "next_after_id": None}
+    page_identity = after_id or "root"
+    processing_key = f"{PROPERTY_MATCH_RECONCILIATION_LOCK}:processing:{token}:{page_identity}"
+    completed_key = f"{PROPERTY_MATCH_RECONCILIATION_LOCK}:completed:{token}:{page_identity}"
+    if cache.get(completed_key) or not cache.add(
+        processing_key,
+        True,
+        timeout=PROPERTY_MATCH_RECONCILIATION_TIMEOUT,
+    ):
+        return {"status": "duplicate_delivery", "processed": 0, "next_after_id": None}
     try:
         PropertyMatchSuggestion.objects.filter(state=PropertyMatchSuggestionState.PENDING).filter(
             Q(left__merged_into__isnull=False) | Q(right__merged_into__isnull=False)
@@ -71,6 +85,8 @@ def reconcile_property_match_suggestions(
                 origin=PropertyMatchSuggestionOrigin.NIGHTLY,
             )
         next_after_id = str(property_ids[-1]) if len(property_ids) == limit else None
+        cache.set(completed_key, True, timeout=24 * 60 * 60)
+        cache.delete(processing_key)
         if next_after_id is not None:
             reconcile_property_match_suggestions.delay(
                 limit=limit,
@@ -85,6 +101,7 @@ def reconcile_property_match_suggestions(
             "next_after_id": next_after_id,
         }
     except Exception:
+        cache.delete(processing_key)
         if cache.get(PROPERTY_MATCH_RECONCILIATION_LOCK) == token:
             cache.delete(PROPERTY_MATCH_RECONCILIATION_LOCK)
         raise

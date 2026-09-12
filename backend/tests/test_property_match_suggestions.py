@@ -12,6 +12,7 @@ from apps.catalog.match_suggestions import candidate_property_ids
 from apps.catalog.models import (
     Listing,
     ListingImage,
+    ListingImagePerceptualBucket,
     ListingState,
     Neighborhood,
     OutboundPolicy,
@@ -160,13 +161,47 @@ def test_candidate_generation_uses_the_bounded_union_of_identity_indexes():
         position=0,
         raw_content_sha256="c" * 64,
         normalized_pixel_sha256="d" * 64,
-        perceptual_dhash="1234567890abcdee",
+        perceptual_dhash="0234567890abcdef",
     )
 
     candidates = candidate_property_ids(focus, limit=10)
 
     assert set(candidates) == {coordinate.pk, fact_bucket.pk, image_hash.pk, building.pk}
     assert unrelated.pk not in candidates
+    assert ListingImagePerceptualBucket.objects.count() == 32
+
+
+@pytest.mark.django_db
+def test_focused_measurement_supersedes_a_pending_pair_that_left_every_candidate_bucket():
+    source = Source.objects.create(
+        name="stale-source",
+        domain="stale.example",
+        display_name="منبع شواهد قدیمی",
+        outbound_policy=OutboundPolicy.EXTERNAL_LINK,
+    )
+    left = make_property(source, "LEFT")
+    right = make_property(source, "RIGHT")
+    measure_property_match_candidates(property_id=str(left.pk), limit=25)
+    suggestion = PropertyMatchSuggestion.objects.get()
+    other_neighborhood = Neighborhood.objects.exclude(pk=left.neighborhood_id).first()
+    assert other_neighborhood is not None
+    right.neighborhood = other_neighborhood
+    right.district = other_neighborhood.district
+    right.property_type = PropertyType.OFFICE
+    right.area_sqm = 500
+    right.latitude = None
+    right.longitude = None
+    right.floor = None
+    right.total_floors = None
+    right.units_per_floor = None
+    right.save()
+
+    result = measure_property_match_candidates(property_id=str(right.pk), limit=25)
+
+    suggestion.refresh_from_db()
+    assert result == {"evaluated": 1, "active": 0}
+    assert suggestion.state == PropertyMatchSuggestionState.SUPERSEDED
+    assert suggestion.evaluations.count() == 2
 
 
 @pytest.mark.django_db
@@ -287,6 +322,32 @@ def test_nightly_reconciliation_is_bounded_retry_safe_and_fenced():
     }
 
 
+@pytest.mark.django_db
+def test_duplicate_reconciliation_page_delivery_is_fenced(monkeypatch):
+    source = Source.objects.create(
+        name="delivery-source",
+        domain="delivery.example",
+        display_name="منبع تحویل",
+        outbound_policy=OutboundPolicy.EXTERNAL_LINK,
+    )
+    for number in range(3):
+        make_property(source, f"DELIVERY-{number}")
+    token = "same-run-token"
+    cache.set(PROPERTY_MATCH_RECONCILIATION_LOCK, token, timeout=60)
+    monkeypatch.setattr(reconcile_property_match_suggestions, "delay", lambda **_kwargs: None)
+    try:
+        first = reconcile_property_match_suggestions(limit=2, run_token=token)
+        duplicate = reconcile_property_match_suggestions(limit=2, run_token=token)
+    finally:
+        cache.delete(PROPERTY_MATCH_RECONCILIATION_LOCK)
+    assert first["status"] == "completed"
+    assert duplicate == {
+        "status": "duplicate_delivery",
+        "processed": 0,
+        "next_after_id": None,
+    }
+
+
 @pytest.mark.django_db(transaction=True)
 def test_listing_publication_enqueues_focused_measurement_without_delaying_publication(
     django_capture_on_commit_callbacks,
@@ -304,7 +365,8 @@ def test_listing_publication_enqueues_focused_measurement_without_delaying_publi
 
     second_listing = second.listings.get()
     assert second_listing.state == ListingState.PUBLISHED
-    assert PropertyMatchSuggestion.objects.filter(
+    suggestion = PropertyMatchSuggestion.objects.get(
         left_id=min(second.pk, Property.objects.exclude(pk=second.pk).get().pk),
         right_id=max(second.pk, Property.objects.exclude(pk=second.pk).get().pk),
-    ).exists()
+    )
+    assert suggestion.evaluations.count() == 1

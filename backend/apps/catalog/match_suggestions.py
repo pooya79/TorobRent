@@ -121,8 +121,16 @@ def candidate_property_ids(property_: Property, *, limit: int) -> list[uuid.UUID
         image_query |= Q(listings__images__normalized_pixel_sha256__in=normalized_hashes)
     if perceptual_hashes:
         image_query |= Q(listings__images__perceptual_dhash__in=perceptual_hashes)
-        for perceptual_hash in perceptual_hashes:
-            image_query |= Q(listings__images__perceptual_dhash__startswith=perceptual_hash[:4])
+        bucket_pairs = property_.listings.filter(state__in=ELIGIBLE_LISTING_STATES).values_list(
+            "images__perceptual_buckets__position",
+            "images__perceptual_buckets__value",
+        )
+        for position, value in bucket_pairs:
+            if position is not None and value:
+                image_query |= Q(
+                    listings__images__perceptual_buckets__position=position,
+                    listings__images__perceptual_buckets__value=value,
+                )
     if image_query:
         candidates.update(_bounded_ids(base.filter(image_query).distinct(), limit))
 
@@ -254,9 +262,26 @@ def measure_candidates_for_property(
     property_ = eligible_property_roots().filter(pk=property_id).first()
     if property_ is None:
         return {"evaluated": 0, "active": 0}
-    candidates = candidate_property_ids(property_, limit=limit)
-    active = sum(
-        evaluate_property_pair(property_.pk, candidate_id, origin=origin) is not None
-        for candidate_id in candidates
+    pending_neighbors = PropertyMatchSuggestion.objects.filter(
+        Q(left_id=property_.pk) | Q(right_id=property_.pk),
+        state=PropertyMatchSuggestionState.PENDING,
+    ).values_list("left_id", "right_id")[:limit]
+    candidate_ids = [
+        right_id if left_id == property_.pk else left_id for left_id, right_id in pending_neighbors
+    ]
+    if len(candidate_ids) < limit:
+        candidate_ids.extend(
+            candidate_id
+            for candidate_id in candidate_property_ids(property_, limit=limit)
+            if candidate_id not in candidate_ids
+        )
+        candidate_ids = candidate_ids[:limit]
+    evaluations = [
+        evaluate_property_pair(property_.pk, candidate_id, origin=origin)
+        for candidate_id in candidate_ids
+    ]
+    active_count = sum(
+        suggestion is not None and suggestion.state == PropertyMatchSuggestionState.PENDING
+        for suggestion in evaluations
     )
-    return {"evaluated": len(candidates), "active": active}
+    return {"evaluated": len(candidate_ids), "active": active_count}
