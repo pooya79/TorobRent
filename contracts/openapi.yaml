@@ -5462,6 +5462,10 @@ components:
         published:
           type: integer
           readOnly: true
+        publication_outcomes:
+          allOf:
+          - $ref: '#/components/schemas/PublicationOutcomes'
+          readOnly: true
         needs_attention:
           type: integer
           readOnly: true
@@ -5498,6 +5502,7 @@ components:
       - needs_attention
       - pipeline_version
       - profile_version
+      - publication_outcomes
       - published
       - rejected
       - revision
@@ -7645,6 +7650,26 @@ components:
         * `discovery` - Discovery
         * `manual` - Manual
         * `llm` - LLM repair
+    PublicationOutcomes:
+      type: object
+      properties:
+        new:
+          type: integer
+          minimum: 0
+        updated:
+          type: integer
+          minimum: 0
+        unchanged:
+          type: integer
+          minimum: 0
+        unclassified:
+          type: integer
+          minimum: 0
+      required:
+      - new
+      - unchanged
+      - unclassified
+      - updated
     PublicationResultAudit:
       type: object
       properties:

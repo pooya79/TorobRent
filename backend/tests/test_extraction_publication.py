@@ -121,11 +121,37 @@ def test_later_run_refreshes_identity_and_preserves_old_evidence(
         )
 
     original = approve(first).json()
+    assert first["publication_outcomes"] == {
+        "new": 0,
+        "updated": 0,
+        "unchanged": 0,
+        "unclassified": 0,
+    }
+    assert original["publication_outcomes"] == {
+        "new": 10,
+        "updated": 0,
+        "unchanged": 0,
+        "unclassified": 0,
+    }
     url = "https://khaneh.example/listing/10000"
     assigned_case[4].pages[url] = assigned_case[4].pages[url].replace("۲۰ میلیون", "۲۵ میلیون")
     second = execute_run(api_client, assigned_case, monkeypatch, django_capture_on_commit_callbacks)
     refreshed = approve(second)
     assert refreshed.status_code == 200
+    assert refreshed.json()["publication_outcomes"] == {
+        "new": 0,
+        "updated": 1,
+        "unchanged": 9,
+        "unclassified": 0,
+    }
+    from apps.source_proposals.extraction_serializers import ExtractionRunSerializer
+
+    assert (
+        ExtractionRunSerializer(ExtractionRun.objects.get(pk=first["id"])).data[
+            "publication_outcomes"
+        ]
+        == original["publication_outcomes"]
+    )
     assert (
         refreshed.json()["candidates"][0]["listing_id"] == original["candidates"][0]["listing_id"]
     )

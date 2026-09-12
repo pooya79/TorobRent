@@ -1,3 +1,4 @@
+import { PublicationOutcomes } from "./PublicationOutcomes";
 import type { ReactNode } from "react";
 import { Activity, CalendarClock, PauseCircle, Workflow } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -236,7 +237,7 @@ export function SourceProcessingStatus({
                 [
                   ["صفحه بررسی‌شده", latest.run.attempted_pages],
                   ["آگهی استخراج‌شده", latest.run.extracted],
-                  ["منتشرشده", latest.run.published],
+                  ["انتشار موفق", latest.run.published],
                   ["نیازمند رسیدگی", latest.run.needs_attention],
                 ] as const
               ).map(([label, value]) => (
@@ -248,6 +249,16 @@ export function SourceProcessingStatus({
                 </div>
               ))}
             </dl>
+          )}
+          {latest.run && (
+            <div className="grid gap-2 rounded-lg border p-3">
+              <PublicationOutcomes run={latest.run} />
+              <p className="text-muted-foreground text-xs">
+                نتیجه انتشار با اطلاعات قبلی آگهی مقایسه می‌شود. تمدید اعتبار
+                آگهی به‌تنهایی تغییر اطلاعات محسوب نمی‌شود. نتایج در انتظار
+                تأیید پس از انتشار در این آمار می‌آیند.
+              </p>
+            </div>
           )}
           {latest.run?.errors?.length ? (
             <p className="text-destructive text-sm">

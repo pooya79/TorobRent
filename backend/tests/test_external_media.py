@@ -331,7 +331,8 @@ def test_image_fetch_limits_bytes_and_the_entire_redirect_deadline(monkeypatch):
         approved_hosts=["source.example"], transport=transport, resolver=public_resolver
     )
     assert fetcher.fetch([url]).records[0].failure.code == "response_too_large"
-    clock = [100.0]
+    # Preserve the pacing clock baseline established by the first fetch.
+    clock = [fetching.time.monotonic()]
     monkeypatch.setattr(fetching.time, "monotonic", lambda: clock[0])
     requests = []
 
@@ -416,3 +417,40 @@ def test_discovery_media_redelivery_is_idempotent_and_new_versions_keep_new_evid
         == "https://khaneh.example/old.png"
     )
     assert len(downloads) == count * 2
+
+
+@pytest.mark.django_db
+def test_publication_outcomes_compare_image_content_across_runs(
+    api_client, assigned_case, monkeypatch, django_capture_on_commit_callbacks
+):
+    from apps.source_proposals.external_media import stage_candidate_images
+    from apps.source_proposals.models import ExternalListingCandidate
+    from tests.test_extraction_publication import execute_run
+
+    image_url = "https://khaneh.example/photo.png"
+    blue = BytesIO()
+    Image.new("RGB", (40, 30), "blue").save(blue, format="PNG")
+    for payload, expected in [
+        (image_bytes(), {"new": 10, "updated": 0, "unchanged": 0, "unclassified": 0}),
+        (image_bytes(), {"new": 0, "updated": 0, "unchanged": 10, "unclassified": 0}),
+        (blue.getvalue(), {"new": 0, "updated": 1, "unchanged": 9, "unclassified": 0}),
+        (None, {"new": 0, "updated": 1, "unchanged": 9, "unclassified": 0}),
+    ]:
+        run = execute_run(
+            api_client, assigned_case, monkeypatch, django_capture_on_commit_callbacks
+        )
+        candidate = ExternalListingCandidate.objects.get(pk=run["candidates"][0]["id"])
+        if payload is not None:
+            stage_candidate_images(
+                candidate,
+                [image_url],
+                transport=FakeTransport({image_url: RawResponse(200, {}, payload)}),
+                resolver=public_resolver,
+            )
+        response = api_client.post(
+            f"/api/v1/operator/source-proposals/{assigned_case[0].pk}/runs/{run['id']}/approve/",
+            {"reviewed_revision": run["revision"], "confirmed": True},
+            format="json",
+        )
+        assert response.status_code == 200, response.data
+        assert response.json()["publication_outcomes"] == expected

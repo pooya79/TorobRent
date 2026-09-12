@@ -238,7 +238,16 @@ class ExternalListingCandidateState(models.TextChoices):
     CANCELLED = "cancelled", "لغوشده"
 
 
+class PublicationOutcome(models.TextChoices):
+    NEW = "new", "آگهی جدید"
+    UPDATED = "updated", "به‌روزرسانی‌شده"
+    UNCHANGED = "unchanged", "بدون تغییر"
+
+
 class ExternalListingCandidate(models.Model):
+    publication_outcome = models.CharField(
+        max_length=16, choices=PublicationOutcome, blank=True, default="", db_default=""
+    )
     superseded = models.BooleanField(default=False, db_default=False)
     exclusion_hold = models.ForeignKey(
         "SourceExclusion", on_delete=models.PROTECT, null=True, related_name="held_candidates"

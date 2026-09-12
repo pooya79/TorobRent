@@ -10,6 +10,12 @@ def test_valid_results_publish_automatically_and_reuse_canonical_identity(
 ):
     first = execute_run(api_client, assigned_case, monkeypatch, django_capture_on_commit_callbacks)
     assert first["published"] == 10
+    assert first["publication_outcomes"] == {
+        "new": 10,
+        "updated": 0,
+        "unchanged": 0,
+        "unclassified": 0,
+    }
     assert first["needs_attention"] == 0
     assert first["decisions"] == []
     assert all(candidate["state"] == "published" for candidate in first["candidates"])
@@ -20,10 +26,39 @@ def test_valid_results_publish_automatically_and_reuse_canonical_identity(
     )
     second = execute_run(api_client, assigned_case, monkeypatch, django_capture_on_commit_callbacks)
     assert second["published"] == 10
+    assert second["publication_outcomes"] == {
+        "new": 0,
+        "updated": 1,
+        "unchanged": 9,
+        "unclassified": 0,
+    }
     assert [c["listing_id"] for c in second["candidates"]] == [
         c["listing_id"] for c in first["candidates"]
     ]
     assert second["candidates"][0]["monthly_rent_rial"] == 250_000_000
+
+    third = execute_run(api_client, assigned_case, monkeypatch, django_capture_on_commit_callbacks)
+    assert third["publication_outcomes"] == {
+        "new": 0,
+        "updated": 0,
+        "unchanged": 10,
+        "unclassified": 0,
+    }
+
+    # Historical publications have no recorded comparison; never guess from today's catalog.
+    from apps.source_proposals.extraction_serializers import ExtractionRunSerializer
+    from apps.source_proposals.models import ExternalListingCandidate, ExtractionRun
+
+    ExternalListingCandidate.objects.filter(extraction_run_id=first["id"]).update(
+        publication_outcome=""
+    )
+    historical = ExtractionRunSerializer(ExtractionRun.objects.get(pk=first["id"])).data
+    assert historical["publication_outcomes"] == {
+        "new": 0,
+        "updated": 0,
+        "unchanged": 0,
+        "unclassified": 10,
+    }
 
 
 @pytest.mark.django_db

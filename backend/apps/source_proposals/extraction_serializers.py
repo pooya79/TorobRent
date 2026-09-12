@@ -1,9 +1,10 @@
 from typing import Any
 
+from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
 from .candidate_serializers import ExternalListingCandidateSerializer
-from .models import ExtractionRequest, ExtractionRun, ExtractionRunDecision
+from .models import ExtractionRequest, ExtractionRun, ExtractionRunDecision, PublicationOutcome
 
 
 class ExtractionErrorSerializer(serializers.Serializer[Any]):
@@ -25,7 +26,24 @@ class ExcludedPageSerializer(serializers.Serializer[Any]):
     reason = serializers.CharField()
 
 
+class PublicationOutcomesSerializer(serializers.Serializer[Any]):
+    new = serializers.IntegerField(min_value=0)
+    updated = serializers.IntegerField(min_value=0)
+    unchanged = serializers.IntegerField(min_value=0)
+    unclassified = serializers.IntegerField(min_value=0)
+
+
 class ExtractionRunSerializer(serializers.ModelSerializer[ExtractionRun]):
+    publication_outcomes = serializers.SerializerMethodField()
+
+    @extend_schema_field(PublicationOutcomesSerializer)
+    def get_publication_outcomes(self, run: ExtractionRun) -> dict[str, int]:
+        counts = {**dict.fromkeys(PublicationOutcome.values, 0), "unclassified": 0}
+        for candidate in run.candidates.all():
+            if candidate.state == "published":
+                counts[candidate.publication_outcome or "unclassified"] += 1
+        return counts
+
     skipped_pages = ExcludedPageSerializer(many=True, read_only=True)
     candidates = ExternalListingCandidateSerializer(many=True, read_only=True)
     decisions = ExtractionRunDecisionSerializer(many=True, read_only=True)
@@ -50,6 +68,7 @@ class ExtractionRunSerializer(serializers.ModelSerializer[ExtractionRun]):
             "discovered",
             "extracted",
             "published",
+            "publication_outcomes",
             "needs_attention",
             "rejected",
             "failed",

@@ -2674,6 +2674,7 @@ export interface components {
       readonly discovered: number;
       readonly extracted: number;
       readonly published: number;
+      readonly publication_outcomes: components["schemas"]["PublicationOutcomes"];
       readonly needs_attention: number;
       readonly rejected: number;
       readonly failed: number;
@@ -3582,6 +3583,12 @@ export interface components {
      * @enum {string}
      */
     ProvenanceEnum: "discovery" | "manual" | "llm";
+    PublicationOutcomes: {
+      new: number;
+      updated: number;
+      unchanged: number;
+      unclassified: number;
+    };
     PublicationResultAudit: {
       /** Format: uuid */
       listing_id?: string;

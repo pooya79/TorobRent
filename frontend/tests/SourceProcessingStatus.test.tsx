@@ -1,3 +1,4 @@
+import type { components } from "@/lib/api/schema";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { expect, test, vi } from "vitest";
@@ -7,6 +8,7 @@ import type { OperatorSourceProposal } from "@/features/source-proposals/queries
 function source(
   state?: string,
   options: {
+    run?: Partial<components["schemas"]["ExtractionRun"]>;
     paused?: boolean;
     current?: boolean;
     deliveryError?: string;
@@ -40,6 +42,7 @@ function source(
                 published: 0,
                 needs_attention: 2,
                 errors: [],
+                ...options.run,
               },
             },
           ]
@@ -211,4 +214,46 @@ test("shows delivery failure and automatic retry guidance for a queued request",
   expect(screen.getByRole("alert")).toHaveTextContent(
     "ارسال به صف ممکن نشد؛ سامانه هر دقیقه دوباره تلاش می‌کند.",
   );
+});
+
+test("reports publication changes separately from successful publications", () => {
+  const proposal = source("complete", {
+    run: {
+      published: 8,
+      publication_outcomes: {
+        new: 2,
+        updated: 1,
+        unchanged: 5,
+        unclassified: 0,
+      },
+    },
+  });
+  render(<SourceProcessingStatus proposal={proposal} onResults={() => {}} />);
+  for (const [label, count] of [
+    ["آگهی جدید", "۲"],
+    ["به‌روزرسانی‌شده", "۱"],
+    ["بدون تغییر", "۵"],
+  ]) {
+    expect(screen.getByText(label!).parentElement).toHaveTextContent(count!);
+  }
+  expect(screen.queryByText(/انتشار قدیمی/)).not.toBeInTheDocument();
+});
+
+test("does not invent a breakdown for historical publications", () => {
+  const proposal = source("complete", {
+    run: {
+      published: 8,
+      publication_outcomes: {
+        new: 0,
+        updated: 0,
+        unchanged: 0,
+        unclassified: 8,
+      },
+    },
+  });
+  render(<SourceProcessingStatus proposal={proposal} onResults={() => {}} />);
+  expect(
+    screen.getByText(/تفکیک نتیجه برای ۸ انتشار قدیمی ثبت نشده است/),
+  ).toBeInTheDocument();
+  expect(screen.getByText("آگهی جدید").parentElement).toHaveTextContent("—");
 });

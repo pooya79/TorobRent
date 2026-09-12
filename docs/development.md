@@ -138,6 +138,20 @@ metadata-free responsive WebP variants, while Celery beat removes temporary uplo
 more than 24 hours. Media is served only through authenticated application endpoints, never as a
 public media directory.
 
+## Extraction publication reports
+
+Each published External Listing candidate records whether publication created a new Listing,
+updated an existing Listing, or refreshed unchanged content. The comparison uses the catalog
+content immediately before publication: Property facts, Rental Terms, description, Source claims,
+publication state, and ordered image content hashes and primary-image selection. Run provenance
+and renewed availability timestamps do not count as content changes. Publication outcomes are
+recorded inside the publication transaction, so approval-required runs receive their counts only
+when approved, and later runs do not rewrite earlier outcomes.
+
+The latest extraction report and extraction history show this breakdown alongside total successful
+publications. Publications predating this change remain explicitly unclassified; the migration
+does not infer historical outcomes from the current catalog.
+
 ## Source Discovery limits
 
 URL approval and explicit profile re-review require the Operator to choose `max_pages` and

@@ -1,3 +1,4 @@
+import { PublicationOutcomes } from "./PublicationOutcomes";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -68,7 +69,8 @@ export function ExtractionHistory({
                   "نشانی و زمان",
                   "وضعیت اجرا",
                   "آگهی استخراج‌شده",
-                  "منتشرشده",
+                  "انتشار موفق",
+                  "نتیجه انتشار",
                   "آماده تأیید",
                   "بررسی",
                 ].map((label) => (
@@ -90,7 +92,7 @@ export function ExtractionHistory({
                 >
                   <th
                     scope="row"
-                    className="max-w-80 p-3 text-start font-normal"
+                    className="max-w-80 min-w-56 p-3 text-start font-normal"
                   >
                     <p dir="ltr" className="break-all">
                       {request.canonical_url}
@@ -121,6 +123,13 @@ export function ExtractionHistory({
                   </td>
                   <td className="p-3 tabular-nums">
                     {number(request.run?.published)}
+                  </td>
+                  <td className="min-w-64 p-3">
+                    {request.run ? (
+                      <PublicationOutcomes run={request.run} />
+                    ) : (
+                      "—"
+                    )}
                   </td>
                   <td className="p-3 tabular-nums">
                     {request.is_current === false

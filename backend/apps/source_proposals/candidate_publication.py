@@ -3,20 +3,23 @@
 from typing import Any
 
 from django.core.exceptions import ValidationError
+from django.db import transaction
 
 from apps.catalog.models import (
     City,
     District,
+    Listing,
     Neighborhood,
     Property,
     PropertyType,
     RentalTerms,
+    Source,
     property_type_requires_room_count,
 )
 from apps.catalog.services import ExternalListingSpec, materialize_external_listing
 from apps.source_extraction.normalization import DIGIT_TRANSLATION, normalize_text
 
-from .models import ExternalListingCandidate, ExtractionRun
+from .models import ExternalListingCandidate, ExtractionRun, PublicationOutcome
 
 FIELD_NAMES = {"floor_area_sqm": "area_sqm", "bedroom_count": "room_count"}
 PROPERTY_FIELDS = ("city", "district", "neighborhood", "property_type", "area_sqm", "room_count")
@@ -65,8 +68,6 @@ def _bounded_integer(value: Any, maximum: int) -> int | None:
 
 
 def create_run_candidates(run: ExtractionRun) -> None:
-    from django.db import transaction
-
     from apps.source_extraction.fetching import MAX_SOURCE_IMAGES
 
     from .models import CandidateImage
@@ -148,6 +149,21 @@ def create_run_candidates(run: ExtractionRun) -> None:
     run.save(update_fields=("needs_attention", "errors"))
 
 
+def _published_content(listing: Listing) -> tuple[object, ...]:
+    """Compare published content, excluding run provenance and availability refresh timestamps."""
+    return (
+        tuple(getattr(listing.property, name) for name in PROPERTY_FIELDS),
+        tuple(getattr(listing.terms, name) for name in TERMS_FIELDS),
+        listing.description,
+        listing.source_claims,
+        listing.external_media_url,
+        listing.direct_phone,
+        listing.state,
+        tuple(listing.images.values_list("external_origin__content_hash", "is_primary")),
+    )
+
+
+@transaction.atomic
 def publish_candidate(candidate: ExternalListingCandidate) -> None:
     from .exclusions import blocking_exclusion
 
@@ -168,6 +184,17 @@ def publish_candidate(candidate: ExternalListingCandidate) -> None:
         if candidate.extraction_run_id
         else f"Source Proposal {candidate.source_proposal_id}"
     )
+    # Use the same Source lock as materialization so concurrent runs compare against
+    # the content they actually replace, including when this URL has no Listing yet.
+    Source.objects.select_for_update().get(pk=candidate.source_id)
+    previous = (
+        Listing.objects
+        .select_for_update(of=("self",))
+        .select_related("property", "terms")
+        .filter(source=candidate.source, external_url=candidate.external_url)
+        .first()
+    )
+    before = _published_content(previous) if previous is not None else None
     listing = materialize_external_listing(
         spec=ExternalListingSpec(
             source=candidate.source,
@@ -185,10 +212,17 @@ def publish_candidate(candidate: ExternalListingCandidate) -> None:
         )
     )
     candidate.listing = listing
-    candidate.save(update_fields=("listing", "updated_at"))
     from .external_media import promote_candidate_images
 
     promote_candidate_images(candidate)
+    candidate.publication_outcome = (
+        PublicationOutcome.NEW
+        if before is None
+        else PublicationOutcome.UNCHANGED
+        if before == _published_content(listing)
+        else PublicationOutcome.UPDATED
+    )
+    candidate.save(update_fields=("listing", "publication_outcome", "updated_at"))
 
 
 def publish_automatic_candidates(run: ExtractionRun) -> None:

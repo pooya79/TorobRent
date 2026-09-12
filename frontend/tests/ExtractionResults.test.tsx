@@ -141,3 +141,51 @@ test("selects a current run awaiting review and prevents publication of historic
     screen.queryByRole("button", { name: "انتشار همه نتایج معتبر" }),
   ).not.toBeInTheDocument();
 });
+
+test("history keeps each run's publication breakdown separate", () => {
+  const requests = [
+    {
+      id: "first",
+      canonical_url: "https://example.com/first",
+      created_at: "2026-09-11T12:00:00Z",
+      state: "complete",
+      run: {
+        ...run,
+        published: 10,
+        publication_outcomes: {
+          new: 10,
+          updated: 0,
+          unchanged: 0,
+          unclassified: 0,
+        },
+      },
+    },
+    {
+      id: "second",
+      canonical_url: "https://example.com/second",
+      created_at: "2026-09-12T12:00:00Z",
+      state: "complete",
+      run: {
+        ...run,
+        published: 10,
+        publication_outcomes: {
+          new: 0,
+          updated: 1,
+          unchanged: 9,
+          unclassified: 0,
+        },
+      },
+    },
+  ] as unknown as Request[];
+  render(<ExtractionHistory requests={requests} />);
+  const first = within(screen.getByRole("row", { name: /example.com\/first/ }));
+  const second = within(
+    screen.getByRole("row", { name: /example.com\/second/ }),
+  );
+  expect(first.getByText("آگهی جدید").parentElement).toHaveTextContent("۱۰");
+  expect(second.getByText("آگهی جدید").parentElement).toHaveTextContent("۰");
+  expect(second.getByText("به‌روزرسانی‌شده").parentElement).toHaveTextContent(
+    "۱",
+  );
+  expect(second.getByText("بدون تغییر").parentElement).toHaveTextContent("۹");
+});
