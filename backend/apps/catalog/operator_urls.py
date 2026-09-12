@@ -7,11 +7,19 @@ from .operator_views import (
     PropertyMatchClaimView,
     PropertyMatchDecisionView,
     PropertyMatchImageView,
+    PropertyMatchSuggestionDetailView,
+    PropertyMatchSuggestionListView,
 )
 
 app_name = "operator-catalog-curation"
 
 urlpatterns = [
+    path("suggestions/", PropertyMatchSuggestionListView.as_view(), name="suggestions"),
+    path(
+        "suggestions/<uuid:suggestion_id>/",
+        PropertyMatchSuggestionDetailView.as_view(),
+        name="suggestion-detail",
+    ),
     path("approve/", PropertyMatchApproveView.as_view(), name="approve"),
     path("decisions/<uuid:decision_id>/", PropertyMatchDecisionView.as_view(), name="decision"),
     path("images/<uuid:image_id>/", PropertyMatchImageView.as_view(), name="image"),

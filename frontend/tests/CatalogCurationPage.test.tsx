@@ -11,6 +11,126 @@ import { server } from "./server";
 const firstId = "11111111-1111-4111-8111-111111111111";
 const secondId = "22222222-2222-4222-8222-222222222222";
 
+test("browses the default Likely suggestion queue and opens current evidence", async () => {
+  const user = userEvent.setup();
+  const suggestion = {
+    id: "33333333-3333-4333-8333-333333333333",
+    property_ids: [firstId, secondId],
+    properties: [
+      {
+        id: firstId,
+        title: "آپارتمان اول",
+        property_type: "apartment",
+        area_sqm: 90,
+        room_count: 2,
+        city: "تهران",
+        neighborhood: "سعادت‌آباد",
+        listings: [],
+      },
+      {
+        id: secondId,
+        title: "آپارتمان دوم",
+        property_type: "apartment",
+        area_sqm: 92,
+        room_count: 2,
+        city: "تهران",
+        neighborhood: "سعادت‌آباد",
+        listings: [],
+      },
+    ],
+    state: "pending",
+    score: 92,
+    band: "likely",
+    scoring_version: "property-match-v2",
+    evidence_summary: [
+      { label: "فاصله مکان دقیق", classification: "support", contribution: 35 },
+    ],
+    claim: null,
+    origin: "nightly",
+    first_suggested_at: "2026-09-10T08:00:00Z",
+    last_evaluated_at: "2026-09-12T01:30:00Z",
+  };
+  server.use(
+    http.get(
+      "*/api/v1/operator/catalog-curation/suggestions/",
+      ({ request }) => {
+        const params = new URL(request.url).searchParams;
+        expect(params.get("band")).toBe("likely");
+        expect(params.get("claim")).toBe("unclaimed");
+        expect(params.get("ordering")).toBe("confidence");
+        return HttpResponse.json({
+          count: 1,
+          next: null,
+          previous: null,
+          results: [suggestion],
+          filters: {
+            band: "likely",
+            claim: "unclaimed",
+            ordering: "confidence",
+          },
+        });
+      },
+    ),
+    http.get(
+      `*/api/v1/operator/catalog-curation/suggestions/${suggestion.id}/`,
+      () =>
+        HttpResponse.json({
+          ...suggestion,
+          comparison: {
+            revision: "current-revision",
+            claim: null,
+            suggested_survivor_id: secondId,
+            score: 92,
+            band: "likely",
+            scoring_version: "property-match-v2",
+            is_calibrated_probability: false,
+            signals: [
+              {
+                key: "exact_location",
+                label: "فاصله مکان دقیق",
+                compared_values: { distance_meters: 4 },
+                classification: "support",
+                contribution: 35,
+              },
+            ],
+            properties: [firstId, secondId].map((id) => ({
+              id,
+              normalized_facts: {},
+              provenance_note: "",
+              exact_location: {
+                latitude: "35.774100",
+                longitude: "51.356200",
+                operator_notes: "",
+              },
+              listings: [],
+            })),
+            decision_fields: [],
+            property_images: [],
+          },
+        }),
+    ),
+  );
+  render(
+    <QueryClientProvider
+      client={
+        new QueryClient({ defaultOptions: { queries: { retry: false } } })
+      }
+    >
+      <MemoryRouter>
+        <CatalogCurationPage />
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+
+  expect(await screen.findByText("آپارتمان اول")).toBeVisible();
+  expect(screen.getByText("۹۲ از ۱۰۰")).toBeVisible();
+  await user.click(screen.getByRole("button", { name: "مشاهده جزئیات" }));
+  expect(
+    await screen.findByRole("button", { name: "شروع بررسی" }),
+  ).toBeVisible();
+  expect(screen.getByText("فاصله مکان دقیق")).toBeVisible();
+});
+
 test("searches, selects exactly two Properties, and explains Match Confidence", async () => {
   const user = userEvent.setup();
   const requestedPages: string[] = [];
@@ -234,7 +354,7 @@ test("searches, selects exactly two Properties, and explains Match Confidence", 
   expect(
     screen.getByRole("link", { name: "ملک‌های گروه‌بندی‌شده" }),
   ).toBeVisible();
-  expect(screen.getAllByText("به‌زودی")).toHaveLength(2);
+  expect(screen.getAllByText("به‌زودی")).toHaveLength(1);
   expect(
     screen.getByRole("heading", { name: "مقایسه دستی ملک‌ها" }),
   ).toBeVisible();

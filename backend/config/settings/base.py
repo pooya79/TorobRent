@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import environ
+from celery.schedules import crontab
 
 BACKEND_DIR = Path(__file__).resolve().parents[2]
 ROOT_DIR = BACKEND_DIR.parent
@@ -270,6 +271,10 @@ CELERY_BEAT_SCHEDULE = {
     "expire-due-listings": {
         "task": "apps.catalog.tasks.expire_due_listings",
         "schedule": 60 * 60,
+    },
+    "reconcile-property-match-suggestions": {
+        "task": "apps.catalog.tasks.reconcile_property_match_suggestions",
+        "schedule": crontab(hour=1, minute=30),
     },
 }
 

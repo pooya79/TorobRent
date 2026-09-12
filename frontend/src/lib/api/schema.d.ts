@@ -704,6 +704,40 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/v1/operator/catalog-curation/suggestions/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Browse persisted Property Match Suggestions */
+    get: operations["v1_operator_catalog_curation_suggestions_retrieve"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/operator/catalog-curation/suggestions/{suggestion_id}/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Inspect one Property Match Suggestion and its current evidence */
+    get: operations["v1_operator_catalog_curation_suggestions_retrieve_2"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/v1/operator/conversation-reports/": {
     parameters: {
       query?: never;
@@ -2229,6 +2263,13 @@ export interface components {
       available_until: string | null;
       expiring_soon: boolean;
     };
+    /**
+     * @description * `likely` - likely
+     *     * `possible` - possible
+     *     * `below_threshold` - below_threshold
+     * @enum {string}
+     */
+    Band182Enum: "likely" | "possible" | "below_threshold";
     /** @enum {unknown} */
     BlankEnum: "";
     CandidateCorrection: {
@@ -3310,6 +3351,13 @@ export interface components {
       readonly claim: components["schemas"]["ReviewClaim"] | null;
     };
     /**
+     * @description * `focused` - focused
+     *     * `nightly` - nightly
+     *     * `rescore` - rescore
+     * @enum {string}
+     */
+    OriginEnum: "focused" | "nightly" | "rescore";
+    /**
      * @description * `direct_contact` - تماس مستقیم
      *     * `external_link` - پیوند منبع
      *     * `disabled` - غیرفعال
@@ -3654,7 +3702,7 @@ export interface components {
     PropertyComparison: {
       scoring_version: string;
       score: number;
-      band: components["schemas"]["PropertyComparisonBandEnum"];
+      band: components["schemas"]["Band182Enum"];
       is_calibrated_probability: boolean;
       signals: components["schemas"]["MatchSignal"][];
       properties: components["schemas"]["CatalogCurationPropertyEvidence"][];
@@ -3665,13 +3713,6 @@ export interface components {
       decision_fields: components["schemas"]["PropertyMatchFact"][];
       property_images: components["schemas"]["PropertyMatchImage"][];
     };
-    /**
-     * @description * `likely` - likely
-     *     * `possible` - possible
-     *     * `below_threshold` - below_threshold
-     * @enum {string}
-     */
-    PropertyComparisonBandEnum: "likely" | "possible" | "below_threshold";
     PropertyDetail: {
       /** Format: uuid */
       id: string;
@@ -3773,6 +3814,19 @@ export interface components {
       /** Format: date-time */
       readonly created_at: string;
     };
+    PropertyMatchEvidenceSummary: {
+      label: string;
+      classification: components["schemas"]["PropertyMatchEvidenceSummaryClassificationEnum"];
+      contribution: number;
+    };
+    /**
+     * @description * `support` - support
+     *     * `contradiction` - contradiction
+     *     * `blocker` - blocker
+     * @enum {string}
+     */
+    PropertyMatchEvidenceSummaryClassificationEnum:
+      "support" | "contradiction" | "blocker";
     PropertyMatchFact: {
       key: string;
       label: string;
@@ -3790,6 +3844,55 @@ export interface components {
       /** Format: uuid */
       property_id: string;
       url: string;
+    };
+    PropertyMatchSuggestion: {
+      /** Format: uuid */
+      id: string;
+      property_ids: string[];
+      properties: components["schemas"]["CatalogCurationPropertySearch"][];
+      state: components["schemas"]["State093Enum"];
+      score: number;
+      band: components["schemas"]["Band182Enum"];
+      scoring_version: string;
+      evidence_summary: components["schemas"]["PropertyMatchEvidenceSummary"][];
+      claim: components["schemas"]["PropertyMatchClaim"] | null;
+      origin: components["schemas"]["OriginEnum"];
+      /** Format: date-time */
+      first_suggested_at: string;
+      /** Format: date-time */
+      last_evaluated_at: string;
+    };
+    PropertyMatchSuggestionDetail: {
+      /** Format: uuid */
+      id: string;
+      property_ids: string[];
+      properties: components["schemas"]["CatalogCurationPropertySearch"][];
+      state: components["schemas"]["State093Enum"];
+      score: number;
+      band: components["schemas"]["Band182Enum"];
+      scoring_version: string;
+      evidence_summary: components["schemas"]["PropertyMatchEvidenceSummary"][];
+      claim: components["schemas"]["PropertyMatchClaim"] | null;
+      origin: components["schemas"]["OriginEnum"];
+      /** Format: date-time */
+      first_suggested_at: string;
+      /** Format: date-time */
+      last_evaluated_at: string;
+      comparison: components["schemas"]["PropertyComparison"];
+    };
+    PropertyMatchSuggestionFilters: {
+      band: string;
+      claim: string;
+      ordering: string;
+    };
+    PropertyMatchSuggestionPage: {
+      count: number;
+      /** Format: uri */
+      next: string | null;
+      /** Format: uri */
+      previous: string | null;
+      results: components["schemas"]["PropertyMatchSuggestion"][];
+      filters: components["schemas"]["PropertyMatchSuggestionFilters"];
     };
     PropertySearchPage: {
       ignored_preferences?: string[];
@@ -4514,6 +4617,12 @@ export interface components {
      * @enum {string}
      */
     SplitEnum: "training" | "held_out";
+    /**
+     * @description * `pending` - pending
+     *     * `superseded` - superseded
+     * @enum {string}
+     */
+    State093Enum: "pending" | "superseded";
     /**
      * @description * `queued` - در صف
      *     * `running` - در حال استخراج
@@ -6687,6 +6796,53 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["CatalogCurationPropertySearchPage"];
+        };
+      };
+    };
+  };
+  v1_operator_catalog_curation_suggestions_retrieve: {
+    parameters: {
+      query?: {
+        band?: string;
+        claim?: string;
+        ordering?: string;
+        page?: number;
+        page_size?: number;
+        state?: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PropertyMatchSuggestionPage"];
+        };
+      };
+    };
+  };
+  v1_operator_catalog_curation_suggestions_retrieve_2: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        suggestion_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PropertyMatchSuggestionDetail"];
         };
       };
     };

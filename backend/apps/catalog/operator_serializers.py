@@ -1,8 +1,15 @@
 from typing import Any
 
+from django.utils import timezone
 from rest_framework import serializers
 
-from .models import Listing, Property, PropertyMatchDecision
+from .models import (
+    Listing,
+    Property,
+    PropertyMatchClaim,
+    PropertyMatchDecision,
+    PropertyMatchSuggestion,
+)
 
 
 def _source_data(listing: Listing) -> dict[str, object]:
@@ -170,6 +177,91 @@ class PropertyComparisonSerializer(serializers.Serializer[Any]):
     suggested_survivor_id = serializers.UUIDField()
     decision_fields = PropertyMatchFactSerializer(many=True)
     property_images = PropertyMatchImageSerializer(many=True)
+
+
+def suggestion_data(suggestion: PropertyMatchSuggestion) -> dict[str, object]:
+    claim = (
+        PropertyMatchClaim.objects
+        .filter(
+            left_id=suggestion.left_id,
+            right_id=suggestion.right_id,
+            expires_at__gt=timezone.now(),
+        )
+        .order_by("-expires_at")
+        .first()
+    )
+    return {
+        "id": suggestion.pk,
+        "property_ids": [suggestion.left_id, suggestion.right_id],
+        "properties": [
+            property_search_data(suggestion.left),
+            property_search_data(suggestion.right),
+        ],
+        "state": suggestion.state,
+        "score": suggestion.score,
+        "band": suggestion.band,
+        "scoring_version": suggestion.scoring_version,
+        "evidence_summary": [
+            {
+                "label": signal["label"],
+                "classification": signal["classification"],
+                "contribution": signal["contribution"],
+            }
+            for signal in suggestion.evidence
+            if signal["classification"] != "neutral"
+        ],
+        "claim": (
+            {
+                "id": claim.pk,
+                "actor_id": claim.actor_id,
+                "expires_at": claim.expires_at,
+            }
+            if claim is not None
+            else None
+        ),
+        "origin": suggestion.origin,
+        "first_suggested_at": suggestion.first_suggested_at,
+        "last_evaluated_at": suggestion.last_evaluated_at,
+    }
+
+
+class PropertyMatchEvidenceSummarySerializer(serializers.Serializer[Any]):
+    label = serializers.CharField()  # type: ignore[assignment]
+    classification = serializers.ChoiceField(choices=("support", "contradiction", "blocker"))
+    contribution = serializers.IntegerField()
+
+
+class PropertyMatchSuggestionSerializer(serializers.Serializer[Any]):
+    id = serializers.UUIDField()
+    property_ids = serializers.ListField(child=serializers.UUIDField(), min_length=2, max_length=2)
+    properties = CatalogCurationPropertySearchSerializer(many=True)
+    state = serializers.ChoiceField(choices=("pending", "superseded"))
+    score = serializers.IntegerField(min_value=0, max_value=100)
+    band = serializers.ChoiceField(choices=("likely", "possible", "below_threshold"))
+    scoring_version = serializers.CharField()
+    evidence_summary = PropertyMatchEvidenceSummarySerializer(many=True)
+    claim = PropertyMatchClaimSerializer(allow_null=True)
+    origin = serializers.ChoiceField(choices=("focused", "nightly", "rescore"))
+    first_suggested_at = serializers.DateTimeField()
+    last_evaluated_at = serializers.DateTimeField()
+
+
+class PropertyMatchSuggestionFiltersSerializer(serializers.Serializer[Any]):
+    band = serializers.CharField()
+    claim = serializers.CharField()
+    ordering = serializers.CharField()
+
+
+class PropertyMatchSuggestionPageSerializer(serializers.Serializer[Any]):
+    count = serializers.IntegerField(min_value=0)
+    next = serializers.URLField(allow_null=True)
+    previous = serializers.URLField(allow_null=True)
+    results = PropertyMatchSuggestionSerializer(many=True)
+    filters = PropertyMatchSuggestionFiltersSerializer()
+
+
+class PropertyMatchSuggestionDetailSerializer(PropertyMatchSuggestionSerializer):
+    comparison = PropertyComparisonSerializer()
 
 
 class PropertyMatchApproveRequestSerializer(PropertyMatchClaimRequestSerializer):

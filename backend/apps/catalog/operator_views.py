@@ -3,7 +3,9 @@ from __future__ import annotations
 import uuid
 from typing import cast
 
+from django.db.models import Exists, OuterRef
 from django.http import FileResponse
+from django.utils import timezone
 from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework.exceptions import ValidationError
 from rest_framework.generics import get_object_or_404
@@ -18,7 +20,13 @@ from apps.common.pagination import StandardPageNumberPagination
 from apps.common.serializers import ProblemSerializer
 
 from .match_decisions import approve_comparison, claim_comparison, comparison_data
-from .models import PropertyImage, PropertyMatchDecision
+from .models import (
+    PropertyImage,
+    PropertyMatchClaim,
+    PropertyMatchDecision,
+    PropertyMatchSuggestion,
+    PropertyMatchSuggestionState,
+)
 from .operator_serializers import (
     CatalogCurationPropertySearchPageSerializer,
     CatalogCurationPropertySearchSerializer,
@@ -26,7 +34,11 @@ from .operator_serializers import (
     PropertyMatchApproveRequestSerializer,
     PropertyMatchClaimRequestSerializer,
     PropertyMatchDecisionSerializer,
+    PropertyMatchSuggestionDetailSerializer,
+    PropertyMatchSuggestionPageSerializer,
+    PropertyMatchSuggestionSerializer,
     property_search_data,
+    suggestion_data,
 )
 from .selectors import search_current_properties_for_curation
 
@@ -104,6 +116,103 @@ class PropertyComparisonView(APIView):
             raise ValidationError({"property": "شناسه ملک معتبر نیست."}) from exc
         payload = comparison_data(property_ids)
         return Response(PropertyComparisonSerializer(payload).data)
+
+
+class PropertyMatchSuggestionListView(APIView):
+    permission_classes = [CanCurateCatalog]
+
+    @extend_schema(
+        summary="Browse persisted Property Match Suggestions",
+        parameters=[
+            OpenApiParameter(name="band", type=str, location="query"),
+            OpenApiParameter(name="claim", type=str, location="query"),
+            OpenApiParameter(name="ordering", type=str, location="query"),
+            OpenApiParameter(name="state", type=str, location="query"),
+            OpenApiParameter(name="page", type=int, location="query"),
+            OpenApiParameter(name="page_size", type=int, location="query"),
+        ],
+        responses={200: PropertyMatchSuggestionPageSerializer},
+    )
+    def get(self, request: Request) -> Response:
+        band = request.query_params.get("band", "likely")
+        claim_filter = request.query_params.get("claim", "unclaimed")
+        ordering = request.query_params.get("ordering", "confidence")
+        state = request.query_params.get("state", PropertyMatchSuggestionState.PENDING)
+        active_claims = PropertyMatchClaim.objects.filter(
+            left_id=OuterRef("left_id"),
+            right_id=OuterRef("right_id"),
+            expires_at__gt=timezone.now(),
+        )
+        suggestions = (
+            PropertyMatchSuggestion.objects
+            .select_related(
+                "left__city",
+                "left__neighborhood",
+                "right__city",
+                "right__neighborhood",
+            )
+            .prefetch_related(
+                "left__listings__source",
+                "right__listings__source",
+            )
+            .filter(
+                left__merged_into__isnull=True,
+                right__merged_into__isnull=True,
+            )
+            .annotate(has_active_claim=Exists(active_claims))
+        )
+        if state != "all":
+            suggestions = suggestions.filter(state=state)
+        if band != "all":
+            suggestions = suggestions.filter(band=band)
+        if claim_filter == "unclaimed":
+            suggestions = suggestions.filter(has_active_claim=False)
+        elif claim_filter == "claimed":
+            suggestions = suggestions.filter(has_active_claim=True)
+        orderings = {
+            "confidence": ("-score", "first_suggested_at", "id"),
+            "oldest": ("first_suggested_at", "id"),
+            "newest_evidence": ("-last_evaluated_at", "id"),
+        }
+        suggestions = suggestions.order_by(*orderings.get(ordering, orderings["confidence"]))
+        paginator = StandardPageNumberPagination()
+        selected = paginator.paginate_queryset(suggestions, request, view=self)
+        assert selected is not None
+        results = PropertyMatchSuggestionSerializer(
+            [suggestion_data(suggestion) for suggestion in selected], many=True
+        ).data
+        payload = paginator.get_paginated_response(results).data
+        payload["filters"] = {
+            "band": band,
+            "claim": claim_filter,
+            "ordering": ordering,
+        }
+        return Response(payload)
+
+
+class PropertyMatchSuggestionDetailView(APIView):
+    permission_classes = [CanCurateCatalog]
+
+    @extend_schema(
+        summary="Inspect one Property Match Suggestion and its current evidence",
+        responses={200: PropertyMatchSuggestionDetailSerializer},
+    )
+    def get(self, request: Request, suggestion_id: uuid.UUID) -> Response:
+        suggestion = get_object_or_404(
+            PropertyMatchSuggestion.objects
+            .select_related(
+                "left__city",
+                "left__neighborhood",
+                "right__city",
+                "right__neighborhood",
+            )
+            .prefetch_related("left__listings__source", "right__listings__source")
+            .filter(left__merged_into__isnull=True, right__merged_into__isnull=True),
+            pk=suggestion_id,
+        )
+        payload = suggestion_data(suggestion)
+        payload["comparison"] = comparison_data([suggestion.left_id, suggestion.right_id])
+        return Response(PropertyMatchSuggestionDetailSerializer(payload).data)
 
 
 class PropertyMatchClaimView(APIView):

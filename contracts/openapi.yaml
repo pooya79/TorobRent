@@ -1568,6 +1568,68 @@ paths:
               schema:
                 $ref: '#/components/schemas/CatalogCurationPropertySearchPage'
           description: ''
+  /api/v1/operator/catalog-curation/suggestions/:
+    get:
+      operationId: v1_operator_catalog_curation_suggestions_retrieve
+      summary: Browse persisted Property Match Suggestions
+      parameters:
+      - in: query
+        name: band
+        schema:
+          type: string
+      - in: query
+        name: claim
+        schema:
+          type: string
+      - in: query
+        name: ordering
+        schema:
+          type: string
+      - in: query
+        name: page
+        schema:
+          type: integer
+      - in: query
+        name: page_size
+        schema:
+          type: integer
+      - in: query
+        name: state
+        schema:
+          type: string
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PropertyMatchSuggestionPage'
+          description: ''
+  /api/v1/operator/catalog-curation/suggestions/{suggestion_id}/:
+    get:
+      operationId: v1_operator_catalog_curation_suggestions_retrieve_2
+      summary: Inspect one Property Match Suggestion and its current evidence
+      parameters:
+      - in: path
+        name: suggestion_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PropertyMatchSuggestionDetail'
+          description: ''
   /api/v1/operator/conversation-reports/:
     get:
       operationId: v1_operator_conversation_reports_list
@@ -4373,6 +4435,16 @@ components:
       - confirmed_at
       - expiring_soon
       - state
+    Band182Enum:
+      enum:
+      - likely
+      - possible
+      - below_threshold
+      type: string
+      description: |-
+        * `likely` - likely
+        * `possible` - possible
+        * `below_threshold` - below_threshold
     BlankEnum:
       enum:
       - ''
@@ -7005,6 +7077,16 @@ components:
       - revision
       - role
       - source_id
+    OriginEnum:
+      enum:
+      - focused
+      - nightly
+      - rescore
+      type: string
+      description: |-
+        * `focused` - focused
+        * `nightly` - nightly
+        * `rescore` - rescore
     OutboundPolicyEnum:
       enum:
       - direct_contact
@@ -7720,7 +7802,7 @@ components:
           maximum: 100
           minimum: 0
         band:
-          $ref: '#/components/schemas/PropertyComparisonBandEnum'
+          $ref: '#/components/schemas/Band182Enum'
         is_calibrated_probability:
           type: boolean
         signals:
@@ -7760,16 +7842,6 @@ components:
       - scoring_version
       - signals
       - suggested_survivor_id
-    PropertyComparisonBandEnum:
-      enum:
-      - likely
-      - possible
-      - below_threshold
-      type: string
-      description: |-
-        * `likely` - likely
-        * `possible` - possible
-        * `below_threshold` - below_threshold
     PropertyDetail:
       type: object
       properties:
@@ -8094,6 +8166,29 @@ components:
       - selected_facts
       - selected_image_ids
       - survivor_id
+    PropertyMatchEvidenceSummary:
+      type: object
+      properties:
+        label:
+          type: string
+        classification:
+          $ref: '#/components/schemas/PropertyMatchEvidenceSummaryClassificationEnum'
+        contribution:
+          type: integer
+      required:
+      - classification
+      - contribution
+      - label
+    PropertyMatchEvidenceSummaryClassificationEnum:
+      enum:
+      - support
+      - contradiction
+      - blocker
+      type: string
+      description: |-
+        * `support` - support
+        * `contradiction` - contradiction
+        * `blocker` - blocker
     PropertyMatchFact:
       type: object
       properties:
@@ -8130,6 +8225,162 @@ components:
       - id
       - property_id
       - url
+    PropertyMatchSuggestion:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        property_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+          maxItems: 2
+          minItems: 2
+        properties:
+          type: array
+          items:
+            $ref: '#/components/schemas/CatalogCurationPropertySearch'
+        state:
+          $ref: '#/components/schemas/State093Enum'
+        score:
+          type: integer
+          maximum: 100
+          minimum: 0
+        band:
+          $ref: '#/components/schemas/Band182Enum'
+        scoring_version:
+          type: string
+        evidence_summary:
+          type: array
+          items:
+            $ref: '#/components/schemas/PropertyMatchEvidenceSummary'
+        claim:
+          oneOf:
+          - $ref: '#/components/schemas/PropertyMatchClaim'
+          - type: 'null'
+        origin:
+          $ref: '#/components/schemas/OriginEnum'
+        first_suggested_at:
+          type: string
+          format: date-time
+        last_evaluated_at:
+          type: string
+          format: date-time
+      required:
+      - band
+      - claim
+      - evidence_summary
+      - first_suggested_at
+      - id
+      - last_evaluated_at
+      - origin
+      - properties
+      - property_ids
+      - score
+      - scoring_version
+      - state
+    PropertyMatchSuggestionDetail:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        property_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+          maxItems: 2
+          minItems: 2
+        properties:
+          type: array
+          items:
+            $ref: '#/components/schemas/CatalogCurationPropertySearch'
+        state:
+          $ref: '#/components/schemas/State093Enum'
+        score:
+          type: integer
+          maximum: 100
+          minimum: 0
+        band:
+          $ref: '#/components/schemas/Band182Enum'
+        scoring_version:
+          type: string
+        evidence_summary:
+          type: array
+          items:
+            $ref: '#/components/schemas/PropertyMatchEvidenceSummary'
+        claim:
+          oneOf:
+          - $ref: '#/components/schemas/PropertyMatchClaim'
+          - type: 'null'
+        origin:
+          $ref: '#/components/schemas/OriginEnum'
+        first_suggested_at:
+          type: string
+          format: date-time
+        last_evaluated_at:
+          type: string
+          format: date-time
+        comparison:
+          $ref: '#/components/schemas/PropertyComparison'
+      required:
+      - band
+      - claim
+      - comparison
+      - evidence_summary
+      - first_suggested_at
+      - id
+      - last_evaluated_at
+      - origin
+      - properties
+      - property_ids
+      - score
+      - scoring_version
+      - state
+    PropertyMatchSuggestionFilters:
+      type: object
+      properties:
+        band:
+          type: string
+        claim:
+          type: string
+        ordering:
+          type: string
+      required:
+      - band
+      - claim
+      - ordering
+    PropertyMatchSuggestionPage:
+      type: object
+      properties:
+        count:
+          type: integer
+          minimum: 0
+        next:
+          type:
+          - string
+          - 'null'
+          format: uri
+        previous:
+          type:
+          - string
+          - 'null'
+          format: uri
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/PropertyMatchSuggestion'
+        filters:
+          $ref: '#/components/schemas/PropertyMatchSuggestionFilters'
+      required:
+      - count
+      - filters
+      - next
+      - previous
+      - results
     PropertySearchPage:
       type: object
       properties:
@@ -9885,6 +10136,14 @@ components:
       description: |-
         * `training` - training
         * `held_out` - held_out
+    State093Enum:
+      enum:
+      - pending
+      - superseded
+      type: string
+      description: |-
+        * `pending` - pending
+        * `superseded` - superseded
     State299Enum:
       enum:
       - queued

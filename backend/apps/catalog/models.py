@@ -634,3 +634,79 @@ class PropertyMatchDecision(models.Model):
 
     def __str__(self) -> str:
         return f"{self.redundant_id} → {self.survivor_id}"
+
+
+class PropertyMatchSuggestionState(models.TextChoices):
+    PENDING = "pending", "در انتظار بررسی"
+    SUPERSEDED = "superseded", "جایگزین‌شده"
+
+
+class PropertyMatchSuggestionOrigin(models.TextChoices):
+    FOCUSED = "focused", "سنجش متمرکز"
+    NIGHTLY = "nightly", "آشتی شبانه"
+    RESCORE = "rescore", "امتیازدهی دوباره"
+
+
+class PropertyMatchSuggestion(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    left = models.ForeignKey(
+        Property, on_delete=models.PROTECT, related_name="left_match_suggestions"
+    )
+    right = models.ForeignKey(
+        Property, on_delete=models.PROTECT, related_name="right_match_suggestions"
+    )
+    state = models.CharField(
+        max_length=16,
+        choices=PropertyMatchSuggestionState,
+        default=PropertyMatchSuggestionState.PENDING,
+    )
+    score = models.PositiveSmallIntegerField()
+    band = models.CharField(max_length=16)
+    scoring_version = models.CharField(max_length=64)
+    evidence_fingerprint = models.CharField(max_length=64)
+    left_revision = models.CharField(max_length=64)
+    right_revision = models.CharField(max_length=64)
+    evidence = models.JSONField()
+    origin = models.CharField(max_length=16, choices=PropertyMatchSuggestionOrigin)
+    first_suggested_at = models.DateTimeField(default=timezone.now)
+    last_evaluated_at = models.DateTimeField(default=timezone.now)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ("-score", "first_suggested_at", "id")
+        constraints = [
+            models.CheckConstraint(
+                condition=Q(left_id__lt=models.F("right_id")),
+                name="catalog_match_suggestion_ordered_pair",
+            ),
+            models.UniqueConstraint(
+                fields=("left", "right"),
+                name="catalog_unique_match_suggestion_pair",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.left_id} / {self.right_id}: {self.score}"
+
+
+class PropertyMatchSuggestionEvaluation(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    suggestion = models.ForeignKey(
+        PropertyMatchSuggestion, on_delete=models.PROTECT, related_name="evaluations"
+    )
+    score = models.PositiveSmallIntegerField()
+    band = models.CharField(max_length=16)
+    scoring_version = models.CharField(max_length=64)
+    evidence_fingerprint = models.CharField(max_length=64)
+    left_revision = models.CharField(max_length=64)
+    right_revision = models.CharField(max_length=64)
+    evidence = models.JSONField()
+    origin = models.CharField(max_length=16, choices=PropertyMatchSuggestionOrigin)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ("created_at", "id")
+
+    def __str__(self) -> str:
+        return f"{self.suggestion_id}: {self.score}"
