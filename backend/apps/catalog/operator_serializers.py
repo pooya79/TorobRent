@@ -166,6 +166,12 @@ class PropertyMatchImageSerializer(serializers.Serializer[Any]):
     url = serializers.CharField()
 
 
+class PropertyMatchApprovedConnectionSerializer(serializers.Serializer[Any]):
+    decision_id = serializers.UUIDField()
+    left_property_id = serializers.UUIDField()
+    right_property_id = serializers.UUIDField()
+
+
 class PropertyComparisonSerializer(serializers.Serializer[Any]):
     scoring_version = serializers.CharField()
     score = serializers.IntegerField(min_value=0, max_value=100)
@@ -178,6 +184,8 @@ class PropertyComparisonSerializer(serializers.Serializer[Any]):
     suggested_survivor_id = serializers.UUIDField()
     decision_fields = PropertyMatchFactSerializer(many=True)
     property_images = PropertyMatchImageSerializer(many=True)
+    approved_connections = PropertyMatchApprovedConnectionSerializer(many=True)
+    indirect_listing_ids = serializers.ListField(child=serializers.UUIDField())
 
 
 def suggestion_data(

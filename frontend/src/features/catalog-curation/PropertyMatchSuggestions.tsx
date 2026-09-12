@@ -18,6 +18,44 @@ const bandLabels = {
   below_threshold: "زیر آستانه",
 };
 
+type ListingPair = {
+  left: { listing_id: string; source: string };
+  right: { listing_id: string; source: string };
+};
+
+function isListingReference(
+  value: unknown,
+): value is { listing_id: string; source: string } {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "listing_id" in value &&
+    typeof value.listing_id === "string" &&
+    "source" in value &&
+    typeof value.source === "string"
+  );
+}
+
+function isListingPair(value: unknown): value is ListingPair {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "left" in value &&
+    isListingReference(value.left) &&
+    "right" in value &&
+    isListingReference(value.right)
+  );
+}
+
+function listingPairs(comparison: {
+  signals: Array<{ key: string; compared_values: Record<string, unknown> }>;
+}): ListingPair[] {
+  const pairs = comparison.signals.find((signal) => signal.key === "images")
+    ?.compared_values.matched_pairs;
+  if (!Array.isArray(pairs)) return [];
+  return (pairs as unknown[]).filter(isListingPair);
+}
+
 function SuggestionDetail({
   suggestionId,
   onBack,
@@ -26,6 +64,20 @@ function SuggestionDetail({
   onBack: () => void;
 }) {
   const detail = useQuery(propertyMatchSuggestionDetailQuery(suggestionId));
+  const matchedListingPairs = detail.data
+    ? listingPairs(detail.data.comparison)
+    : [];
+  const contradictions =
+    detail.data?.comparison.signals.filter((signal) =>
+      ["contradiction", "blocker"].includes(signal.classification),
+    ) ?? [];
+  const indirectListingIds = new Set(
+    detail.data?.comparison.indirect_listing_ids ?? [],
+  );
+  const indirectListings =
+    detail.data?.comparison.properties
+      .flatMap((property) => property.listings)
+      .filter((listing) => indirectListingIds.has(listing.id)) ?? [];
   return (
     <div className="space-y-4">
       <Button type="button" variant="ghost" onClick={onBack}>
@@ -80,9 +132,70 @@ function SuggestionDetail({
               </ul>
             </CardContent>
           </Card>
+          {matchedListingPairs.length > 0 ||
+          contradictions.length > 0 ||
+          detail.data.comparison.approved_connections.length > 0 ||
+          detail.data.comparison.indirect_listing_ids.length > 0 ? (
+            <Card className="shadow-none">
+              <CardHeader>
+                <CardTitle>شواهد ترکیبی گروه‌ها</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4 text-sm">
+                {matchedListingPairs.length > 0 ? (
+                  <div>
+                    <p className="font-medium">قوی‌ترین جفت‌های پشتیبان</p>
+                    <ul className="mt-2 space-y-1">
+                      {matchedListingPairs.map((pair) => (
+                        <li
+                          key={`${pair.left.listing_id}:${pair.right.listing_id}`}
+                        >
+                          {pair.left.source} و {pair.right.source}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+                {contradictions.length > 0 ? (
+                  <div>
+                    <p className="font-medium">تناقض‌های مرتبط</p>
+                    <ul className="mt-2 space-y-1">
+                      {contradictions.map((signal) => (
+                        <li key={signal.key}>{signal.label}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+                {detail.data.comparison.approved_connections.length > 0 ? (
+                  <p>
+                    پیوندهای تأییدشده:{" "}
+                    {detail.data.comparison.approved_connections.length.toLocaleString(
+                      "fa-IR",
+                    )}
+                  </p>
+                ) : null}
+                {indirectListings.length > 0 ? (
+                  <div>
+                    <p className="font-medium">آگهی‌های متصل غیرمستقیم</p>
+                    <ul className="mt-2 space-y-1">
+                      {indirectListings.map((listing) => (
+                        <li key={listing.id}>
+                          {listing.source.name} · {listing.source_reference}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+                <p className="text-muted-foreground">
+                  نبود شواهد مستقیم به معنی تناقض نیست و هیچ پیوندی بدون تصمیم
+                  اپراتور تأیید نمی‌شود.
+                </p>
+              </CardContent>
+            </Card>
+          ) : null}
           <PropertyMatchReview
+            key={`${detail.data.id}:${detail.data.comparison.revision}`}
             comparison={detail.data.comparison}
-            suggestionId={suggestionId}
+            suggestionId={detail.data.id}
             onRefresh={() => void detail.refetch()}
           />
         </>

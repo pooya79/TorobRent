@@ -40,6 +40,8 @@ const comparison = {
     { id: "image-left", property_id: left, url: "/left.webp" },
     { id: "image-right", property_id: right, url: "/right.webp" },
   ],
+  approved_connections: [],
+  indirect_listing_ids: [],
 };
 
 test("searches for two Properties and completes the manual approval path", async () => {
@@ -167,8 +169,9 @@ test("another Operator's claim stays read-only and offers refresh", async () => 
   expect(
     screen.getByRole("button", { name: "تأیید و گروه‌بندی" }),
   ).toBeDisabled();
-  await user.click(screen.getByRole("button", { name: "تازه‌سازی مقایسه" }));
   expect(refresh).toHaveBeenCalledOnce();
+  await user.click(screen.getByRole("button", { name: "تازه‌سازی مقایسه" }));
+  expect(refresh).toHaveBeenCalledTimes(2);
 });
 
 test("approves a scheduled suggestion with its review identity", async () => {
@@ -282,6 +285,7 @@ test("snoozes a scheduled suggestion for a supported duration", async () => {
 
 test("shows a stale-review conflict and requires a fresh claim", async () => {
   const user = userEvent.setup();
+  const refresh = vi.fn();
   server.use(
     http.post("*/api/v1/operator/catalog-curation/claim/", () =>
       HttpResponse.json({
@@ -303,7 +307,7 @@ test("shows a stale-review conflict and requires a fresh claim", async () => {
       <PropertyMatchReview
         comparison={comparison}
         suggestionId="suggestion-one"
-        onRefresh={vi.fn()}
+        onRefresh={refresh}
       />
     </QueryClientProvider>,
   );
@@ -318,5 +322,6 @@ test("shows a stale-review conflict and requires a fresh claim", async () => {
       "شواهد یا مسئول بررسی تغییر کرده است. پیشنهاد را تازه کنید.",
     ),
   ).toBeVisible();
+  expect(refresh).toHaveBeenCalledOnce();
   expect(screen.getByRole("button", { name: "شروع بررسی" })).toBeVisible();
 });

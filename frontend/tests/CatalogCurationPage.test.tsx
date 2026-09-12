@@ -13,6 +13,7 @@ const secondId = "22222222-2222-4222-8222-222222222222";
 
 test("browses the default Likely suggestion queue and opens current evidence", async () => {
   const user = userEvent.setup();
+  const replacementId = "99999999-9999-4999-8999-999999999999";
   const suggestion = {
     id: "33333333-3333-4333-8333-333333333333",
     property_ids: [firstId, secondId],
@@ -66,8 +67,31 @@ test("browses the default Likely suggestion queue and opens current evidence", a
         classification: "support",
         contribution: 35,
       },
+      {
+        key: "images",
+        label: "تصاویر آگهی",
+        compared_values: {
+          matched_pairs: [
+            {
+              left: { listing_id: "listing-from-b", source: "منبع ب" },
+              right: { listing_id: "listing-from-c", source: "منبع ج" },
+              method: "sha256",
+            },
+          ],
+          contradictions: [],
+        },
+        classification: "support",
+        contribution: 30,
+      },
+      {
+        key: "area_sqm",
+        label: "متراژ متناقض",
+        compared_values: { left: 90, right: 120 },
+        classification: "contradiction",
+        contribution: -15,
+      },
     ],
-    properties: [firstId, secondId].map((id) => ({
+    properties: [firstId, secondId].map((id, index) => ({
       id,
       normalized_facts: {},
       provenance_note: "",
@@ -76,10 +100,31 @@ test("browses the default Likely suggestion queue and opens current evidence", a
         longitude: "51.356200",
         operator_notes: "",
       },
-      listings: [],
+      listings:
+        index === 0
+          ? [
+              {
+                id: "listing-from-b",
+                source: {
+                  id: "aaaaaaaa-bbbb-4aaa-8aaa-aaaaaaaaaaaa",
+                  name: "منبع ب",
+                  domain: "b.example",
+                },
+                source_reference: "REF-B",
+              },
+            ]
+          : [],
     })),
     decision_fields: [],
     property_images: [],
+    approved_connections: [
+      {
+        decision_id: "77777777-7777-4777-8777-777777777777",
+        left_property_id: "88888888-8888-4888-8888-888888888888",
+        right_property_id: firstId,
+      },
+    ],
+    indirect_listing_ids: ["listing-from-b"],
   };
   server.use(
     http.get(
@@ -107,6 +152,7 @@ test("browses the default Likely suggestion queue and opens current evidence", a
       () =>
         HttpResponse.json({
           ...suggestion,
+          id: replacementId,
           comparison,
         }),
     ),
@@ -114,7 +160,7 @@ test("browses the default Likely suggestion queue and opens current evidence", a
       "*/api/v1/operator/catalog-curation/claim/",
       async ({ request }) => {
         expect(await request.json()).toMatchObject({
-          suggestion_id: suggestion.id,
+          suggestion_id: replacementId,
           revision: comparison.revision,
         });
         return HttpResponse.json({
@@ -128,7 +174,7 @@ test("browses the default Likely suggestion queue and opens current evidence", a
       },
     ),
     http.post(
-      `*/api/v1/operator/catalog-curation/suggestions/${suggestion.id}/reject/`,
+      `*/api/v1/operator/catalog-curation/suggestions/${replacementId}/reject/`,
       async ({ request }) => {
         expect(await request.json()).toEqual({
           revision: comparison.revision,
@@ -164,6 +210,14 @@ test("browses the default Likely suggestion queue and opens current evidence", a
     await screen.findByRole("button", { name: "شروع بررسی" }),
   ).toBeVisible();
   expect(screen.getByText("فاصله مکان دقیق")).toBeVisible();
+  expect(screen.getByText("شواهد ترکیبی گروه‌ها")).toBeVisible();
+  expect(screen.getByText(/منبع ب.*منبع ج/)).toBeVisible();
+  expect(screen.getByText("متراژ متناقض")).toBeVisible();
+  expect(screen.getByText(/آگهی‌های متصل غیرمستقیم/)).toBeVisible();
+  expect(screen.getByText(/منبع ب.*REF-B/)).toBeVisible();
+  expect(
+    screen.getByText(/نبود شواهد مستقیم به معنی تناقض نیست/),
+  ).toBeVisible();
   await user.click(screen.getByRole("button", { name: "شروع بررسی" }));
   await user.click(
     await screen.findByRole("button", { name: "این دو ملک متفاوت‌اند" }),

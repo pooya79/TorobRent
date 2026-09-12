@@ -205,6 +205,19 @@ class PropertyMatchSuggestionDetailView(APIView):
         responses={200: PropertyMatchSuggestionDetailSerializer},
     )
     def get(self, request: Request, suggestion_id: uuid.UUID) -> Response:
+        lineage = get_object_or_404(
+            PropertyMatchSuggestion.objects.only("pk", "rebased_to_id"),
+            pk=suggestion_id,
+        )
+        visited: set[uuid.UUID] = set()
+        while lineage.rebased_to_id is not None:
+            if lineage.pk in visited:
+                raise ValidationError("زنجیره بازپایه پیشنهاد نامعتبر است.")
+            visited.add(lineage.pk)
+            lineage = get_object_or_404(
+                PropertyMatchSuggestion.objects.only("pk", "rebased_to_id"),
+                pk=lineage.rebased_to_id,
+            )
         suggestion = get_object_or_404(
             PropertyMatchSuggestion.objects
             .select_related(
@@ -215,7 +228,7 @@ class PropertyMatchSuggestionDetailView(APIView):
             )
             .prefetch_related("left__listings__source", "right__listings__source")
             .filter(left__merged_into__isnull=True, right__merged_into__isnull=True),
-            pk=suggestion_id,
+            pk=lineage.pk,
         )
         payload = suggestion_data(suggestion, include_history=True)
         payload["comparison"] = comparison_data([suggestion.left_id, suggestion.right_id])

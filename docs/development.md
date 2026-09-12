@@ -466,9 +466,9 @@ exercise competing claims, duplicate approvals, Favorite races and database-fail
 
 ### Scheduled Property match review
 
-Apply catalog migration 0025 after the suggestion migrations. Scheduled suggestions reuse the
-manual comparison claim and approval boundary, while also allowing an Operator to record that the
-Properties differ or to snooze the pair for 1, 7, or 30 days. Seven days is the API default.
+Apply catalog migrations 0025 and 0026 after the suggestion migrations. Scheduled suggestions reuse
+the manual comparison claim and approval boundary, while also allowing an Operator to record that
+the Properties differ or to snooze the pair for 1, 7, or 30 days. Seven days is the API default.
 
 Negative decisions and snoozes retain the scheduler evaluation used by the Operator. Availability,
 Rental Terms, phone and description changes do not change the identity fingerprint. Exact location,
@@ -476,3 +476,12 @@ structured Property facts, Listing image hashes, source claims and Listing membe
 changes expire an active pair claim and reopen a rejected or snoozed suggestion. A scoring-version
 change updates the evaluation history without clearing an otherwise unchanged negative decision.
 Decision and evaluation history is available only through the Catalog Curation Operator API.
+
+Every comparison resolves retained Property aliases to current roots. Approval locks the reviewed
+roots and all roots in adjacent suggestions in UUID order, then rebases adjacent work inside the
+same transaction. The historical suggestion is retained and points to the deduplicated current-root
+replacement; that replacement is rescored from every Listing now in each group. A grouping-membership
+change may therefore reopen rejected or snoozed neighboring work, while ordinary Listing changes
+retain the suppression rules above. Stale mutations return a review conflict, and refreshing the UI
+loads the current-root comparison with its approved connection graph and indirectly connected
+Listings.

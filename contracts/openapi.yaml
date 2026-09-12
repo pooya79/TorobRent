@@ -7954,10 +7954,21 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/PropertyMatchImage'
+        approved_connections:
+          type: array
+          items:
+            $ref: '#/components/schemas/PropertyMatchApprovedConnection'
+        indirect_listing_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
       required:
+      - approved_connections
       - band
       - claim
       - decision_fields
+      - indirect_listing_ids
       - is_calibrated_probability
       - properties
       - property_images
@@ -8199,6 +8210,22 @@ components:
       - revision
       - survivor_confirmed
       - survivor_id
+    PropertyMatchApprovedConnection:
+      type: object
+      properties:
+        decision_id:
+          type: string
+          format: uuid
+        left_property_id:
+          type: string
+          format: uuid
+        right_property_id:
+          type: string
+          format: uuid
+      required:
+      - decision_id
+      - left_property_id
+      - right_property_id
     PropertyMatchClaim:
       type: object
       properties:

@@ -54,9 +54,12 @@ export function PropertyMatchReview({
   const warning =
     comparison.band === "below_threshold" ||
     comparison.signals.some((signal) => signal.classification === "blocker");
+  const refreshCurrentRootsOnConflict = (status: number) => {
+    if (status === 409) onRefresh();
+  };
   const claim = useMutation({
     mutationFn: async () => {
-      const { data, error } = await api.POST(
+      const { data, error, response } = await api.POST(
         "/api/v1/operator/catalog-curation/claim/",
         {
           body: {
@@ -66,10 +69,12 @@ export function PropertyMatchReview({
           },
         },
       );
-      if (error || !data?.claim)
+      if (error || !data?.claim) {
+        refreshCurrentRootsOnConflict(response.status);
         throw new Error(
           "بررسی در اختیار شما نیست یا شواهد تغییر کرده است. مقایسه را تازه کنید.",
         );
+      }
       return data.claim;
     },
     onSuccess: (data) => {
@@ -104,6 +109,7 @@ export function PropertyMatchReview({
         },
       );
       if (error || !data) {
+        refreshCurrentRootsOnConflict(response.status);
         throw new Error(
           response.status === 409
             ? "شواهد یا مسئول بررسی تغییر کرده است. مقایسه را تازه کنید و دوباره تأیید کنید."
@@ -143,6 +149,7 @@ export function PropertyMatchReview({
         },
       );
       if (error || !data) {
+        refreshCurrentRootsOnConflict(response.status);
         throw new Error(
           response.status === 409
             ? "شواهد یا مسئول بررسی تغییر کرده است. پیشنهاد را تازه کنید."
@@ -181,6 +188,7 @@ export function PropertyMatchReview({
         },
       );
       if (error || !data) {
+        refreshCurrentRootsOnConflict(response.status);
         throw new Error(
           response.status === 409
             ? "شواهد یا مسئول بررسی تغییر کرده است. پیشنهاد را تازه کنید."

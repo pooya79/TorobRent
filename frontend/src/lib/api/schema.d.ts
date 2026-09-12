@@ -3760,6 +3760,8 @@ export interface components {
       suggested_survivor_id: string;
       decision_fields: components["schemas"]["PropertyMatchFact"][];
       property_images: components["schemas"]["PropertyMatchImage"][];
+      approved_connections: components["schemas"]["PropertyMatchApprovedConnection"][];
+      indirect_listing_ids: string[];
     };
     PropertyDetail: {
       /** Format: uuid */
@@ -3829,6 +3831,14 @@ export interface components {
       warning_confirmed: boolean;
       /** @default  */
       reason: string;
+    };
+    PropertyMatchApprovedConnection: {
+      /** Format: uuid */
+      decision_id: string;
+      /** Format: uuid */
+      left_property_id: string;
+      /** Format: uuid */
+      right_property_id: string;
     };
     PropertyMatchClaim: {
       /** Format: uuid */

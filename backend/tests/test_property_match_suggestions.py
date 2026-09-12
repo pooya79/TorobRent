@@ -16,7 +16,7 @@ from apps.catalog.match_suggestion_signals import (
     FOCUSED_MEASUREMENT_KEY,
     _dispatch_focused_measurement,
 )
-from apps.catalog.match_suggestions import candidate_property_ids
+from apps.catalog.match_suggestions import candidate_property_ids, evaluate_property_pair
 from apps.catalog.models import (
     Listing,
     ListingImage,
@@ -616,6 +616,341 @@ def claim_suggestion(api_client: APIClient, suggestion: PropertyMatchSuggestion)
         "revision": comparison["revision"],
         "claim_id": response.data["claim"]["id"],
     }
+
+
+def approve_suggestion(
+    api_client: APIClient,
+    suggestion: PropertyMatchSuggestion,
+    *,
+    survivor: Property,
+) -> dict:
+    detail = api_client.get(f"/api/v1/operator/catalog-curation/suggestions/{suggestion.pk}/")
+    assert detail.status_code == 200
+    comparison = detail.data["comparison"]
+    claim = api_client.post(
+        "/api/v1/operator/catalog-curation/claim/",
+        {
+            "properties": detail.data["property_ids"],
+            "revision": comparison["revision"],
+            "suggestion_id": str(suggestion.pk),
+        },
+        format="json",
+    )
+    assert claim.status_code == 200, claim.data
+    response = api_client.post(
+        "/api/v1/operator/catalog-curation/approve/",
+        {
+            "properties": detail.data["property_ids"],
+            "revision": comparison["revision"],
+            "suggestion_id": str(suggestion.pk),
+            "claim_id": claim.data["claim"]["id"],
+            "survivor_id": str(survivor.pk),
+            "survivor_confirmed": True,
+            "fact_choices": {
+                field["key"]: str(survivor.pk) for field in comparison["decision_fields"]
+            },
+            "image_ids": [],
+            "images_confirmed": True,
+            "warning_confirmed": True,
+        },
+        format="json",
+    )
+    assert response.status_code == 201, response.data
+    return response.data
+
+
+@pytest.mark.django_db
+def test_connected_approvals_rebase_to_current_roots_with_combined_evidence(
+    api_client: APIClient,
+):
+    source = Source.objects.create(
+        name="connected-source",
+        domain="connected.example",
+        display_name="منبع پیوندها",
+        outbound_policy=OutboundPolicy.EXTERNAL_LINK,
+    )
+    property_a = make_property(
+        source,
+        "A",
+        property_id="10000000-0000-0000-0000-000000000000",
+    )
+    property_b = make_property(
+        source,
+        "B",
+        property_id="20000000-0000-0000-0000-000000000000",
+    )
+    property_c = make_property(
+        source,
+        "C",
+        area_sqm=120,
+        property_id="30000000-0000-0000-0000-000000000000",
+    )
+    b_listing = property_b.listings.get()
+    c_listing = property_c.listings.get()
+    for listing in (b_listing, c_listing):
+        ListingImage.objects.create(
+            listing=listing,
+            position=0,
+            raw_content_sha256="a" * 64,
+            normalized_pixel_sha256="b" * 64,
+            perceptual_dhash="0123456789abcdef",
+        )
+    suggestion_ab = evaluate_property_pair(
+        property_a.pk,
+        property_b.pk,
+        origin="focused",
+    )
+    suggestion_bc = evaluate_property_pair(
+        property_b.pk,
+        property_c.pk,
+        origin="focused",
+    )
+    assert suggestion_ab is not None
+    assert suggestion_bc is not None
+    api_client.force_authenticate(make_operator())
+
+    first_decision = approve_suggestion(api_client, suggestion_ab, survivor=property_a)
+
+    property_b.refresh_from_db()
+    suggestion_bc.refresh_from_db()
+    assert property_b.merged_into_id == uuid.UUID(str(property_a.pk))
+    assert suggestion_bc.state == PropertyMatchSuggestionState.SUPERSEDED
+    replacement = suggestion_bc.rebased_to
+    assert replacement is not None
+    assert [replacement.left_id, replacement.right_id] == [
+        uuid.UUID(str(property_a.pk)),
+        uuid.UUID(str(property_c.pk)),
+    ]
+    assert replacement.state == PropertyMatchSuggestionState.PENDING
+    assert replacement.evaluations.count() == 1
+    assert (
+        PropertyMatchSuggestion.objects.filter(
+            Q(left=property_a, right=property_c) | Q(left=property_c, right=property_a),
+            state=PropertyMatchSuggestionState.PENDING,
+        ).count()
+        == 1
+    )
+    assert first_decision["survivor_id"] == str(property_a.pk)
+    assert PropertyMatchSuggestion.objects.filter(state="approved").count() == 1
+
+    refreshed_stale_detail = api_client.get(
+        f"/api/v1/operator/catalog-curation/suggestions/{suggestion_bc.pk}/"
+    )
+    assert refreshed_stale_detail.status_code == 200
+    assert refreshed_stale_detail.data["id"] == str(replacement.pk)
+    assert refreshed_stale_detail.data["property_ids"] == [
+        str(property_a.pk),
+        str(property_c.pk),
+    ]
+
+    detail = api_client.get(f"/api/v1/operator/catalog-curation/suggestions/{replacement.pk}/")
+
+    assert detail.status_code == 200
+    assert detail.data["property_ids"] == [str(property_a.pk), str(property_c.pk)]
+    assert len(detail.data["comparison"]["properties"][0]["listings"]) == 2
+    assert detail.data["comparison"]["approved_connections"] == [
+        {
+            "decision_id": first_decision["id"],
+            "left_property_id": str(property_b.pk),
+            "right_property_id": str(property_a.pk),
+        }
+    ]
+    assert detail.data["comparison"]["indirect_listing_ids"] == [str(b_listing.pk)]
+    image_signal = next(
+        signal for signal in detail.data["comparison"]["signals"] if signal["key"] == "images"
+    )
+    assert image_signal["classification"] == "support"
+    assert image_signal["compared_values"]["matched_pairs"][0]["left"]["listing_id"] == str(
+        b_listing.pk
+    )
+    assert image_signal["compared_values"]["matched_pairs"][0]["right"]["listing_id"] == str(
+        c_listing.pk
+    )
+    area_signal = next(
+        signal for signal in detail.data["comparison"]["signals"] if signal["key"] == "area_sqm"
+    )
+    assert area_signal["classification"] == "contradiction"
+    assert PropertyMatchSuggestion.objects.filter(state="approved").count() == 1
+
+    approve_suggestion(api_client, replacement, survivor=property_a)
+
+    property_c.refresh_from_db()
+    assert property_c.merged_into_id == uuid.UUID(str(property_a.pk))
+    assert PropertyMatchSuggestion.objects.filter(state="approved").count() == 2
+
+
+@pytest.mark.django_db
+def test_below_threshold_rebase_retains_the_current_pair_evaluation(
+    api_client: APIClient,
+    monkeypatch,
+):
+    from dataclasses import replace
+
+    from apps.catalog import match_suggestions
+
+    source = Source.objects.create(
+        name="inactive-rebase-source",
+        domain="inactive-rebase.example",
+        display_name="منبع بازپایه غیرفعال",
+        outbound_policy=OutboundPolicy.EXTERNAL_LINK,
+    )
+    property_a = make_property(source, "A")
+    property_b = make_property(source, "B")
+    property_c = make_property(source, "C")
+    suggestion_ab = evaluate_property_pair(property_a.pk, property_b.pk, origin="focused")
+    suggestion_bc = evaluate_property_pair(property_b.pk, property_c.pk, origin="focused")
+    assert suggestion_ab is not None
+    assert suggestion_bc is not None
+    original_compare = match_suggestions.compare_properties
+
+    def combined_group_assessment(left: Property, right: Property):
+        assessment = original_compare(left, right)
+        if left.listings.count() > 1 or right.listings.count() > 1:
+            return replace(assessment, score=0, band="below_threshold")
+        return assessment
+
+    monkeypatch.setattr(match_suggestions, "compare_properties", combined_group_assessment)
+    api_client.force_authenticate(make_operator())
+
+    approve_suggestion(api_client, suggestion_ab, survivor=property_a)
+
+    suggestion_bc.refresh_from_db()
+    replacement = suggestion_bc.rebased_to
+    assert replacement is not None
+    assert replacement.state == PropertyMatchSuggestionState.SUPERSEDED
+    assert [replacement.left_id, replacement.right_id] == sorted((property_a.pk, property_c.pk))
+    evaluation = replacement.evaluations.get()
+    assert evaluation.score == 0
+    assert evaluation.band == "below_threshold"
+
+
+@pytest.mark.django_db
+def test_comparison_refresh_resolves_merged_aliases_to_current_roots(api_client: APIClient):
+    source = Source.objects.create(
+        name="current-root-source",
+        domain="current-roots.example",
+        display_name="منبع ریشه جاری",
+        outbound_policy=OutboundPolicy.EXTERNAL_LINK,
+    )
+    property_a = make_property(source, "A")
+    property_b = make_property(source, "B")
+    property_c = make_property(source, "C")
+    suggestion_ab = evaluate_property_pair(property_a.pk, property_b.pk, origin="focused")
+    assert suggestion_ab is not None
+    api_client.force_authenticate(make_operator())
+    approve_suggestion(api_client, suggestion_ab, survivor=property_a)
+
+    response = api_client.get(
+        "/api/v1/operator/catalog-curation/comparison/",
+        {"property": [str(property_b.pk), str(property_c.pk)]},
+    )
+
+    assert response.status_code == 200
+    assert [item["id"] for item in response.data["properties"]] == [
+        str(property_a.pk),
+        str(property_c.pk),
+    ]
+    claim = api_client.post(
+        "/api/v1/operator/catalog-curation/claim/",
+        {
+            "properties": [str(property_b.pk), str(property_c.pk)],
+            "revision": response.data["revision"],
+        },
+        format="json",
+    )
+    assert claim.status_code == 200, claim.data
+
+    decision = api_client.post(
+        "/api/v1/operator/catalog-curation/approve/",
+        {
+            "properties": [str(property_b.pk), str(property_c.pk)],
+            "revision": response.data["revision"],
+            "claim_id": claim.data["claim"]["id"],
+            "survivor_id": str(property_b.pk),
+            "survivor_confirmed": True,
+            "fact_choices": {
+                field["key"]: str(property_b.pk) for field in response.data["decision_fields"]
+            },
+            "image_ids": [],
+            "images_confirmed": True,
+            "warning_confirmed": True,
+        },
+        format="json",
+    )
+    assert decision.status_code == 201, decision.data
+    assert decision.data["survivor_id"] == str(property_a.pk)
+
+
+@pytest.mark.django_db
+def test_rebasing_deduplicates_an_existing_current_root_pair(api_client: APIClient):
+    source = Source.objects.create(
+        name="deduplicated-root-source",
+        domain="deduplicated-roots.example",
+        display_name="منبع ریشه یکتا",
+        outbound_policy=OutboundPolicy.EXTERNAL_LINK,
+    )
+    property_a = make_property(source, "A")
+    property_b = make_property(source, "B")
+    property_c = make_property(source, "C")
+    suggestion_ab = evaluate_property_pair(property_a.pk, property_b.pk, origin="focused")
+    suggestion_bc = evaluate_property_pair(property_b.pk, property_c.pk, origin="focused")
+    suggestion_ac = evaluate_property_pair(property_a.pk, property_c.pk, origin="focused")
+    assert suggestion_ab is not None
+    assert suggestion_bc is not None
+    assert suggestion_ac is not None
+    api_client.force_authenticate(make_operator())
+
+    approve_suggestion(api_client, suggestion_ab, survivor=property_a)
+
+    suggestion_bc.refresh_from_db()
+    suggestion_ac.refresh_from_db()
+    assert suggestion_bc.rebased_to_id == suggestion_ac.pk
+    assert suggestion_bc.state == PropertyMatchSuggestionState.SUPERSEDED
+    assert suggestion_ac.state == PropertyMatchSuggestionState.PENDING
+    assert suggestion_ac.evaluations.count() == 2
+    assert (
+        PropertyMatchSuggestion.objects.filter(
+            Q(left=property_a, right=property_c) | Q(left=property_c, right=property_a),
+            state=PropertyMatchSuggestionState.PENDING,
+        ).count()
+        == 1
+    )
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("decision_path", ("reject", "snooze"))
+def test_grouping_membership_reevaluates_negative_and_snoozed_neighbors(
+    api_client: APIClient,
+    decision_path: str,
+):
+    source = Source.objects.create(
+        name=f"membership-{decision_path}-source",
+        domain=f"membership-{decision_path}.example",
+        display_name="منبع تغییر عضویت",
+        outbound_policy=OutboundPolicy.EXTERNAL_LINK,
+    )
+    property_a = make_property(source, "A")
+    property_b = make_property(source, "B")
+    property_c = make_property(source, "C")
+    suggestion_ab = evaluate_property_pair(property_a.pk, property_b.pk, origin="focused")
+    suggestion_bc = evaluate_property_pair(property_b.pk, property_c.pk, origin="focused")
+    assert suggestion_ab is not None
+    assert suggestion_bc is not None
+    api_client.force_authenticate(make_operator())
+    review = claim_suggestion(api_client, suggestion_bc)
+    decision = api_client.post(
+        f"/api/v1/operator/catalog-curation/suggestions/{suggestion_bc.pk}/{decision_path}/",
+        review,
+        format="json",
+    )
+    assert decision.status_code == 201, decision.data
+
+    approve_suggestion(api_client, suggestion_ab, survivor=property_a)
+
+    suggestion_bc.refresh_from_db()
+    assert suggestion_bc.state == PropertyMatchSuggestionState.SUPERSEDED
+    assert suggestion_bc.rebased_to is not None
+    assert suggestion_bc.rebased_to.state == PropertyMatchSuggestionState.PENDING
 
 
 @pytest.mark.django_db

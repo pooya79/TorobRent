@@ -262,6 +262,7 @@ def evaluate_property_pair(
     right_id: uuid.UUID,
     *,
     origin: str,
+    persist_inactive: bool = False,
 ) -> PropertyMatchSuggestion | None:
     ordered_ids = sorted((left_id, right_id))
     # Lock plain parent rows before applying the DISTINCT eligibility query; PostgreSQL
@@ -284,7 +285,7 @@ def evaluate_property_pair(
     suggestion = (
         PropertyMatchSuggestion.objects.select_for_update().filter(left=left, right=right).first()
     )
-    if suggestion is None and not active:
+    if suggestion is None and not active and not persist_inactive:
         return None
     values = {
         "score": assessment.score,
@@ -367,6 +368,71 @@ def evaluate_property_pair(
         origin=origin,
     )
     return suggestion
+
+
+def rebase_suggestions_after_merge(
+    *,
+    survivor_id: uuid.UUID,
+    redundant_id: uuid.UUID,
+) -> None:
+    """Replace adjacent historical pairs with one evaluation per unordered current-root pair."""
+    from .services import current_property_id
+
+    now = timezone.now()
+    adjacent = list(
+        PropertyMatchSuggestion.objects
+        .select_for_update()
+        .filter(
+            Q(left_id__in=(survivor_id, redundant_id)) | Q(right_id__in=(survivor_id, redundant_id))
+        )
+        .exclude(
+            state__in=(
+                PropertyMatchSuggestionState.APPROVED,
+                PropertyMatchSuggestionState.SUPERSEDED,
+            )
+        )
+        .order_by("pk")
+    )
+    by_current_pair: dict[tuple[uuid.UUID, uuid.UUID], list[PropertyMatchSuggestion]] = {}
+    collapsed: list[PropertyMatchSuggestion] = []
+    for suggestion in adjacent:
+        left_root = current_property_id(suggestion.left_id)
+        right_root = current_property_id(suggestion.right_id)
+        if left_root == right_root:
+            collapsed.append(suggestion)
+            continue
+        ordered_roots = sorted((left_root, right_root))
+        pair = (ordered_roots[0], ordered_roots[1])
+        by_current_pair.setdefault(pair, []).append(suggestion)
+
+    for suggestion in collapsed:
+        suggestion.state = PropertyMatchSuggestionState.SUPERSEDED
+        suggestion.rebased_to = None
+        suggestion.last_evaluated_at = now
+        suggestion.save(update_fields=("state", "rebased_to", "last_evaluated_at", "updated_at"))
+        PropertyMatchClaim.objects.filter(suggestion=suggestion, expires_at__gt=now).update(
+            expires_at=now
+        )
+
+    for pair in sorted(by_current_pair):
+        replacement = evaluate_property_pair(
+            pair[0],
+            pair[1],
+            origin=PropertyMatchSuggestionOrigin.RESCORE,
+            persist_inactive=True,
+        )
+        for suggestion in by_current_pair[pair]:
+            if replacement is not None and suggestion.pk == replacement.pk:
+                continue
+            suggestion.state = PropertyMatchSuggestionState.SUPERSEDED
+            suggestion.rebased_to = replacement
+            suggestion.last_evaluated_at = now
+            suggestion.save(
+                update_fields=("state", "rebased_to", "last_evaluated_at", "updated_at")
+            )
+            PropertyMatchClaim.objects.filter(suggestion=suggestion, expires_at__gt=now).update(
+                expires_at=now
+            )
 
 
 def measure_candidates_for_property(
