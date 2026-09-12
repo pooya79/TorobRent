@@ -1381,6 +1381,64 @@ paths:
               schema:
                 $ref: '#/components/schemas/UnreadCount'
           description: ''
+  /api/v1/operator/catalog-curation/comparison/:
+    get:
+      operationId: v1_operator_catalog_curation_comparison_retrieve
+      summary: Compare exactly two current Properties
+      parameters:
+      - in: query
+        name: property
+        schema:
+          type: array
+          items:
+            type: string
+            format: uuid
+        description: Exactly two different current, non-merged Property IDs.
+        required: true
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PropertyComparison'
+          description: ''
+  /api/v1/operator/catalog-curation/properties/:
+    get:
+      operationId: v1_operator_catalog_curation_properties_retrieve
+      summary: Search current Properties for manual Catalog Curation comparison
+      parameters:
+      - in: query
+        name: page
+        schema:
+          type: integer
+        description: Page number.
+      - in: query
+        name: page_size
+        schema:
+          type: integer
+        description: Results per page; defaults to 25 and is capped at 100.
+      - in: query
+        name: q
+        schema:
+          type: string
+        description: Optional Property ID, Listing ID, Source display name, neighborhood,
+          or source reference. Persian characters and spacing are normalized. An empty
+          query lists current non-merged Properties.
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CatalogCurationPropertySearchPage'
+          description: ''
   /api/v1/operator/conversation-reports/:
     get:
       operationId: v1_operator_conversation_reports_list
@@ -4186,16 +4244,6 @@ components:
       - confirmed_at
       - expiring_soon
       - state
-    BandEnum:
-      enum:
-      - high
-      - reasonable
-      - weak
-      type: string
-      description: |-
-        * `high` - high
-        * `reasonable` - reasonable
-        * `weak` - weak
     BlankEnum:
       enum:
       - ''
@@ -4381,6 +4429,161 @@ components:
         for_correction:
           type: boolean
           default: false
+    CatalogCurationExactLocation:
+      type: object
+      properties:
+        latitude:
+          type:
+          - string
+          - 'null'
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,6})?$
+        longitude:
+          type:
+          - string
+          - 'null'
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,6})?$
+        operator_notes:
+          type: string
+      required:
+      - latitude
+      - longitude
+      - operator_notes
+    CatalogCurationListingEvidence:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        source:
+          $ref: '#/components/schemas/CatalogCurationSource'
+        source_reference:
+          type: string
+        source_claims: {}
+        provenance_note:
+          type: string
+      required:
+      - id
+      - provenance_note
+      - source
+      - source_claims
+      - source_reference
+    CatalogCurationListingSummary:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        source:
+          $ref: '#/components/schemas/CatalogCurationSource'
+        source_reference:
+          type: string
+      required:
+      - id
+      - source
+      - source_reference
+    CatalogCurationPropertyEvidence:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        normalized_facts:
+          type: object
+          additionalProperties: {}
+        provenance_note:
+          type: string
+        exact_location:
+          $ref: '#/components/schemas/CatalogCurationExactLocation'
+        listings:
+          type: array
+          items:
+            $ref: '#/components/schemas/CatalogCurationListingEvidence'
+      required:
+      - exact_location
+      - id
+      - listings
+      - normalized_facts
+      - provenance_note
+    CatalogCurationPropertySearch:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        property_type:
+          type: string
+        area_sqm:
+          type:
+          - integer
+          - 'null'
+        room_count:
+          type:
+          - integer
+          - 'null'
+        city:
+          type:
+          - string
+          - 'null'
+        neighborhood:
+          type:
+          - string
+          - 'null'
+        listings:
+          type: array
+          items:
+            $ref: '#/components/schemas/CatalogCurationListingSummary'
+      required:
+      - area_sqm
+      - city
+      - id
+      - listings
+      - neighborhood
+      - property_type
+      - room_count
+      - title
+    CatalogCurationPropertySearchPage:
+      type: object
+      properties:
+        count:
+          type: integer
+          minimum: 0
+        next:
+          type:
+          - string
+          - 'null'
+          format: uri
+        previous:
+          type:
+          - string
+          - 'null'
+          format: uri
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/CatalogCurationPropertySearch'
+      required:
+      - count
+      - next
+      - previous
+      - results
+    CatalogCurationSource:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        domain:
+          type: string
+      required:
+      - domain
+      - id
+      - name
     CatalogFacets:
       type: object
       properties:
@@ -6184,6 +6387,38 @@ components:
       - property_ids
       - south
       - west
+    MatchSignal:
+      type: object
+      properties:
+        key:
+          type: string
+        label:
+          type: string
+        compared_values:
+          type: object
+          additionalProperties: {}
+        classification:
+          $ref: '#/components/schemas/MatchSignalClassificationEnum'
+        contribution:
+          type: integer
+      required:
+      - classification
+      - compared_values
+      - contribution
+      - key
+      - label
+    MatchSignalClassificationEnum:
+      enum:
+      - support
+      - contradiction
+      - neutral
+      - blocker
+      type: string
+      description: |-
+        * `support` - support
+        * `contradiction` - contradiction
+        * `neutral` - neutral
+        * `blocker` - blocker
     MessageBody:
       type: object
       properties:
@@ -6422,6 +6657,7 @@ components:
       type: 'null'
     OperatorCapabilitiesEnum:
       enum:
+      - curate_catalog
       - moderate_conversations
       - handle_privacy_requests
       - handle_support
@@ -6430,6 +6666,7 @@ components:
       - review_source_proposals
       type: string
       description: |-
+        * `curate_catalog` - Catalog Curation
         * `moderate_conversations` - Conversation moderation
         * `handle_privacy_requests` - Privacy Support handling
         * `handle_support` - General Support handling
@@ -6970,7 +7207,7 @@ components:
           type: string
         band:
           oneOf:
-          - $ref: '#/components/schemas/BandEnum'
+          - $ref: '#/components/schemas/PreferenceAssessmentBandEnum'
           - $ref: '#/components/schemas/NullEnum'
         satisfied:
           type: array
@@ -6994,6 +7231,16 @@ components:
       - trade_offs
       - unknown
       - version
+    PreferenceAssessmentBandEnum:
+      enum:
+      - high
+      - reasonable
+      - weak
+      type: string
+      description: |-
+        * `high` - high
+        * `reasonable` - reasonable
+        * `weak` - weak
     PreferenceIdentifierEnum:
       enum:
       - property_type
@@ -7334,6 +7581,44 @@ components:
       description: |-
         * `residential` - مسکونی
         * `commercial` - تجاری
+    PropertyComparison:
+      type: object
+      properties:
+        scoring_version:
+          type: string
+        score:
+          type: integer
+          maximum: 100
+          minimum: 0
+        band:
+          $ref: '#/components/schemas/PropertyComparisonBandEnum'
+        is_calibrated_probability:
+          type: boolean
+        signals:
+          type: array
+          items:
+            $ref: '#/components/schemas/MatchSignal'
+        properties:
+          type: array
+          items:
+            $ref: '#/components/schemas/CatalogCurationPropertyEvidence'
+      required:
+      - band
+      - is_calibrated_probability
+      - properties
+      - score
+      - scoring_version
+      - signals
+    PropertyComparisonBandEnum:
+      enum:
+      - likely
+      - possible
+      - below_threshold
+      type: string
+      description: |-
+        * `likely` - likely
+        * `possible` - possible
+        * `below_threshold` - below_threshold
     PropertyDetail:
       type: object
       properties:

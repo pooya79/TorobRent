@@ -13,6 +13,7 @@ import { loader as compatibilityRedirect } from "@/routes/operator-review-redire
 import { server } from "./server";
 
 type Capability =
+  | "curate_catalog"
   | "handle_privacy_requests"
   | "handle_support"
   | "manage_operator_queues"
@@ -56,6 +57,14 @@ function renderWorkspace(
           <Routes>
             <Route element={<OperatorWorkspace />}>
               <Route index element={<h1>نمای کلی</h1>} />
+              <Route
+                path="operator/catalog-curation"
+                element={
+                  <OperatorCapabilityRoute capability="curate_catalog">
+                    <h1>مقایسه هویت ملک‌ها</h1>
+                  </OperatorCapabilityRoute>
+                }
+              />
               <Route
                 path="operator/source-proposals"
                 element={
@@ -158,6 +167,18 @@ test("shows Source Proposal validation only for its dedicated capability", async
     }),
   ).toBeVisible();
   expect(screen.getByRole("link", { name: "مدیریت منابع" })).toBeVisible();
+  expect(
+    screen.queryByRole("link", { name: "بررسی درخواست‌های ثبت آگهی" }),
+  ).not.toBeInTheDocument();
+});
+
+test("shows Catalog Curation only for its independent capability", async () => {
+  renderWorkspace("/operator/catalog-curation", ["curate_catalog"]);
+
+  expect(
+    await screen.findByRole("heading", { name: "مقایسه هویت ملک‌ها" }),
+  ).toBeVisible();
+  expect(screen.getByRole("link", { name: "ساماندهی کاتالوگ" })).toBeVisible();
   expect(
     screen.queryByRole("link", { name: "بررسی درخواست‌های ثبت آگهی" }),
   ).not.toBeInTheDocument();

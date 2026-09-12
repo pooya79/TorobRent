@@ -742,6 +742,13 @@ def source_disagreements(
     return disagreements
 
 
+def public_source_claims(source_claims: dict[str, Any]) -> dict[str, Any]:
+    """Expose normalized catalog facts, never restricted identity evidence."""
+    return {
+        field: source_claims[field] for field in COMPARABLE_SOURCE_CLAIMS if field in source_claims
+    }
+
+
 def phone_reveal_unavailable_reason(
     listing: Listing,
     *,
@@ -837,7 +844,7 @@ def property_detail_data(
                 ],
                 "description": listing.description,
                 "source_reference": listing.source_reference,
-                "source_claims": listing.source_claims,
+                "source_claims": public_source_claims(listing.source_claims),
                 "disagreements": source_disagreements(property_, listing.source_claims),
                 "continuation_url": (
                     listing.external_url

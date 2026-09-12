@@ -15,6 +15,7 @@ from django.db.models import (
     F,
     IntegerField,
     OuterRef,
+    Prefetch,
     Q,
     QuerySet,
     Subquery,
@@ -31,6 +32,7 @@ from .models import (
     District,
     Favorite,
     Listing,
+    ListingState,
     Neighborhood,
     Property,
     PropertyCategory,
@@ -163,13 +165,64 @@ def normalize_persian_search(value: str) -> str:
 
 
 def _with_normalized_name(queryset: QuerySet[Any, Any]) -> QuerySet[Any, Any]:
+    return cast(
+        QuerySet[Any, Any], queryset.annotate(search_name=_normalized_search_expression("name_fa"))
+    )
+
+
+def _normalized_search_expression(field: str) -> Any:
     source, replacement = PERSIAN_SEARCH_REPLACEMENTS[0]
-    expression = Replace("name_fa", Value(source), Value(replacement), output_field=CharField())
+    expression = Replace(field, Value(source), Value(replacement), output_field=CharField())
     for source, replacement in PERSIAN_SEARCH_REPLACEMENTS[1:]:
         expression = Replace(expression, Value(source), Value(replacement))
     expression = Replace(expression, Value(" "), Value(""))
     expression = Replace(expression, Value("\u200c"), Value(""))
-    return cast(QuerySet[Any, Any], queryset.annotate(search_name=expression))
+    return expression
+
+
+def current_properties_for_curation() -> QuerySet[Property, Property]:
+    return (
+        Property.objects
+        .filter(
+            merged_into__isnull=True,
+            listings__state=ListingState.PUBLISHED,
+            listings__available_until__gt=timezone.now(),
+            listings__source__is_active=True,
+        )
+        .select_related("city", "district", "neighborhood")
+        .prefetch_related(Prefetch("listings", queryset=Listing.objects.select_related("source")))
+        .distinct()
+        .order_by("id")
+    )
+
+
+def search_current_properties_for_curation(query: str) -> QuerySet[Property, Property]:
+    properties = current_properties_for_curation()
+    try:
+        query_uuid = uuid.UUID(query)
+    except ValueError:
+        query_uuid = None
+    if query_uuid:
+        return properties.filter(Q(id=query_uuid) | Q(listings__id=query_uuid)).distinct()
+    if not query:
+        return properties
+    normalized_query = normalize_persian_search(query)
+    return (
+        properties
+        .annotate(
+            normalized_city=_normalized_search_expression("city__name_fa"),
+            normalized_neighborhood=_normalized_search_expression("neighborhood__name_fa"),
+            normalized_source=_normalized_search_expression("listings__source__display_name"),
+            normalized_reference=_normalized_search_expression("listings__source_reference"),
+        )
+        .filter(
+            Q(normalized_city__icontains=normalized_query)
+            | Q(normalized_neighborhood__icontains=normalized_query)
+            | Q(normalized_source__icontains=normalized_query)
+            | Q(normalized_reference__icontains=normalized_query)
+        )
+        .distinct()
+    )
 
 
 def autocomplete_locations(query: str, *, limit: int = 10) -> list[LocationSuggestion]:

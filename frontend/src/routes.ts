@@ -26,6 +26,7 @@ export default [
   route("dashboard", "routes/protected-dashboard.tsx"),
   route("operator", "routes/operator-layout.tsx", [
     index("pages/OperatorOverviewPage.tsx"),
+    route("catalog-curation", "routes/operator-catalog-curation.tsx"),
     route("submissions", "routes/operator-submissions.tsx"),
     route("source-proposals", "routes/operator-source-proposals.tsx"),
     route(

@@ -13,6 +13,10 @@ urlpatterns = [
     path("api/v1/submissions/", include("apps.submissions.urls")),
     path("api/v1/operator/submissions/", include("apps.submissions.operator_urls")),
     path(
+        "api/v1/operator/catalog-curation/",
+        include("apps.catalog.operator_urls"),
+    ),
+    path(
         "api/v1/operator/source-proposals/",
         include("apps.source_proposals.operator_urls"),
     ),

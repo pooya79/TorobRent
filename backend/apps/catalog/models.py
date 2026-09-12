@@ -210,6 +210,9 @@ class Property(models.Model):
     )
     merged_at = models.DateTimeField(null=True, blank=True, editable=False)
 
+    class Meta:
+        permissions = (("curate_catalog", "Can curate the Property catalog"),)
+
     def __str__(self) -> str:
         if self.property_type and self.neighborhood_id:
             return self.title

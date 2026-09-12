@@ -602,6 +602,40 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/v1/operator/catalog-curation/comparison/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Compare exactly two current Properties */
+    get: operations["v1_operator_catalog_curation_comparison_retrieve"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/operator/catalog-curation/properties/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Search current Properties for manual Catalog Curation comparison */
+    get: operations["v1_operator_catalog_curation_properties_retrieve"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/v1/operator/conversation-reports/": {
     parameters: {
       query?: never;
@@ -2127,13 +2161,6 @@ export interface components {
       available_until: string | null;
       expiring_soon: boolean;
     };
-    /**
-     * @description * `high` - high
-     *     * `reasonable` - reasonable
-     *     * `weak` - weak
-     * @enum {string}
-     */
-    BandEnum: "high" | "reasonable" | "weak";
     /** @enum {unknown} */
     BlankEnum: "";
     CandidateCorrection: {
@@ -2202,6 +2229,62 @@ export interface components {
     CandidateReviewClaimRequest: {
       /** @default false */
       for_correction: boolean;
+    };
+    CatalogCurationExactLocation: {
+      /** Format: decimal */
+      latitude: string | null;
+      /** Format: decimal */
+      longitude: string | null;
+      operator_notes: string;
+    };
+    CatalogCurationListingEvidence: {
+      /** Format: uuid */
+      id: string;
+      source: components["schemas"]["CatalogCurationSource"];
+      source_reference: string;
+      source_claims: unknown;
+      provenance_note: string;
+    };
+    CatalogCurationListingSummary: {
+      /** Format: uuid */
+      id: string;
+      source: components["schemas"]["CatalogCurationSource"];
+      source_reference: string;
+    };
+    CatalogCurationPropertyEvidence: {
+      /** Format: uuid */
+      id: string;
+      normalized_facts: {
+        [key: string]: unknown;
+      };
+      provenance_note: string;
+      exact_location: components["schemas"]["CatalogCurationExactLocation"];
+      listings: components["schemas"]["CatalogCurationListingEvidence"][];
+    };
+    CatalogCurationPropertySearch: {
+      /** Format: uuid */
+      id: string;
+      title: string;
+      property_type: string;
+      area_sqm: number | null;
+      room_count: number | null;
+      city: string | null;
+      neighborhood: string | null;
+      listings: components["schemas"]["CatalogCurationListingSummary"][];
+    };
+    CatalogCurationPropertySearchPage: {
+      count: number;
+      /** Format: uri */
+      next: string | null;
+      /** Format: uri */
+      previous: string | null;
+      results: components["schemas"]["CatalogCurationPropertySearch"][];
+    };
+    CatalogCurationSource: {
+      /** Format: uuid */
+      id: string;
+      name: string;
+      domain: string;
     };
     CatalogFacets: {
       property_types: components["schemas"]["FacetCount"][];
@@ -2968,6 +3051,24 @@ export interface components {
       property_count: number;
       property_ids: string[];
     };
+    MatchSignal: {
+      key: string;
+      label: string;
+      compared_values: {
+        [key: string]: unknown;
+      };
+      classification: components["schemas"]["MatchSignalClassificationEnum"];
+      contribution: number;
+    };
+    /**
+     * @description * `support` - support
+     *     * `contradiction` - contradiction
+     *     * `neutral` - neutral
+     *     * `blocker` - blocker
+     * @enum {string}
+     */
+    MatchSignalClassificationEnum:
+      "support" | "contradiction" | "neutral" | "blocker";
     MessageBody: {
       body: string;
     };
@@ -3065,7 +3166,8 @@ export interface components {
     };
     NullEnum: null;
     /**
-     * @description * `moderate_conversations` - Conversation moderation
+     * @description * `curate_catalog` - Catalog Curation
+     *     * `moderate_conversations` - Conversation moderation
      *     * `handle_privacy_requests` - Privacy Support handling
      *     * `handle_support` - General Support handling
      *     * `manage_operator_queues` - Operator queue management
@@ -3074,6 +3176,7 @@ export interface components {
      * @enum {string}
      */
     OperatorCapabilitiesEnum:
+      | "curate_catalog"
       | "moderate_conversations"
       | "handle_privacy_requests"
       | "handle_support"
@@ -3312,13 +3415,21 @@ export interface components {
     PreferenceAssessment: {
       version: string;
       band:
-        components["schemas"]["BandEnum"] | components["schemas"]["NullEnum"];
+        | components["schemas"]["PreferenceAssessmentBandEnum"]
+        | components["schemas"]["NullEnum"];
       satisfied: components["schemas"]["PreferenceIdentifierEnum"][];
       trade_offs: components["schemas"]["PreferenceIdentifierEnum"][];
       unknown: components["schemas"]["PreferenceIdentifierEnum"][];
       /** Format: uuid */
       selected_listing_id: string;
     };
+    /**
+     * @description * `high` - high
+     *     * `reasonable` - reasonable
+     *     * `weak` - weak
+     * @enum {string}
+     */
+    PreferenceAssessmentBandEnum: "high" | "reasonable" | "weak";
     /**
      * @description * `property_type` - property_type
      *     * `district` - district
@@ -3472,6 +3583,21 @@ export interface components {
      * @enum {string}
      */
     PropertyCategoryEnum: "residential" | "commercial";
+    PropertyComparison: {
+      scoring_version: string;
+      score: number;
+      band: components["schemas"]["PropertyComparisonBandEnum"];
+      is_calibrated_probability: boolean;
+      signals: components["schemas"]["MatchSignal"][];
+      properties: components["schemas"]["CatalogCurationPropertyEvidence"][];
+    };
+    /**
+     * @description * `likely` - likely
+     *     * `possible` - possible
+     *     * `below_threshold` - below_threshold
+     * @enum {string}
+     */
+    PropertyComparisonBandEnum: "likely" | "possible" | "below_threshold";
     PropertyDetail: {
       /** Format: uuid */
       id: string;
@@ -6225,6 +6351,54 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["UnreadCount"];
+        };
+      };
+    };
+  };
+  v1_operator_catalog_curation_comparison_retrieve: {
+    parameters: {
+      query: {
+        /** @description Exactly two different current, non-merged Property IDs. */
+        property: string[];
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PropertyComparison"];
+        };
+      };
+    };
+  };
+  v1_operator_catalog_curation_properties_retrieve: {
+    parameters: {
+      query?: {
+        /** @description Page number. */
+        page?: number;
+        /** @description Results per page; defaults to 25 and is capped at 100. */
+        page_size?: number;
+        /** @description Optional Property ID, Listing ID, Source display name, neighborhood, or source reference. Persian characters and spacing are normalized. An empty query lists current non-merged Properties. */
+        q?: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["CatalogCurationPropertySearchPage"];
         };
       };
     };

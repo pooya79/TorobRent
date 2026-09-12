@@ -2,6 +2,7 @@ import {
   ClipboardCheck,
   Globe2,
   Headphones,
+  Layers3,
   MessageSquareWarning,
   type LucideIcon,
 } from "lucide-react";
@@ -20,6 +21,13 @@ export type OperatorModule = {
 };
 
 export const operatorModules = [
+  {
+    capabilities: ["curate_catalog"],
+    description: "مقایسه شواهد هویتی و ساماندهی گروه‌های ملک",
+    icon: Layers3,
+    label: "ساماندهی کاتالوگ",
+    to: "/operator/catalog-curation",
+  },
   {
     capabilities: ["moderate_conversations"],
     description: "بررسی شواهد فقط از مسیر گزارش و ثبت اقدام‌های نظارتی",
