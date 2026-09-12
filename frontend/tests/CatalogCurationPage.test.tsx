@@ -50,6 +50,37 @@ test("browses the default Likely suggestion queue and opens current evidence", a
     first_suggested_at: "2026-09-10T08:00:00Z",
     last_evaluated_at: "2026-09-12T01:30:00Z",
   };
+  const comparison = {
+    revision: "current-revision",
+    claim: null,
+    suggested_survivor_id: secondId,
+    score: 92,
+    band: "likely",
+    scoring_version: "property-match-v2",
+    is_calibrated_probability: false,
+    signals: [
+      {
+        key: "exact_location",
+        label: "فاصله مکان دقیق",
+        compared_values: { distance_meters: 4 },
+        classification: "support",
+        contribution: 35,
+      },
+    ],
+    properties: [firstId, secondId].map((id) => ({
+      id,
+      normalized_facts: {},
+      provenance_note: "",
+      exact_location: {
+        latitude: "35.774100",
+        longitude: "51.356200",
+        operator_notes: "",
+      },
+      listings: [],
+    })),
+    decision_fields: [],
+    property_images: [],
+  };
   server.use(
     http.get(
       "*/api/v1/operator/catalog-curation/suggestions/",
@@ -76,38 +107,42 @@ test("browses the default Likely suggestion queue and opens current evidence", a
       () =>
         HttpResponse.json({
           ...suggestion,
-          comparison: {
-            revision: "current-revision",
-            claim: null,
-            suggested_survivor_id: secondId,
-            score: 92,
-            band: "likely",
-            scoring_version: "property-match-v2",
-            is_calibrated_probability: false,
-            signals: [
-              {
-                key: "exact_location",
-                label: "فاصله مکان دقیق",
-                compared_values: { distance_meters: 4 },
-                classification: "support",
-                contribution: 35,
-              },
-            ],
-            properties: [firstId, secondId].map((id) => ({
-              id,
-              normalized_facts: {},
-              provenance_note: "",
-              exact_location: {
-                latitude: "35.774100",
-                longitude: "51.356200",
-                operator_notes: "",
-              },
-              listings: [],
-            })),
-            decision_fields: [],
-            property_images: [],
-          },
+          comparison,
         }),
+    ),
+    http.post(
+      "*/api/v1/operator/catalog-curation/claim/",
+      async ({ request }) => {
+        expect(await request.json()).toMatchObject({
+          suggestion_id: suggestion.id,
+          revision: comparison.revision,
+        });
+        return HttpResponse.json({
+          ...comparison,
+          claim: {
+            id: "44444444-4444-4444-8444-444444444444",
+            actor_id: "55555555-5555-4555-8555-555555555555",
+            expires_at: "2026-09-12T02:00:00Z",
+          },
+        });
+      },
+    ),
+    http.post(
+      `*/api/v1/operator/catalog-curation/suggestions/${suggestion.id}/reject/`,
+      async ({ request }) => {
+        expect(await request.json()).toEqual({
+          revision: comparison.revision,
+          claim_id: "44444444-4444-4444-8444-444444444444",
+          reason: "",
+        });
+        return HttpResponse.json(
+          {
+            id: "66666666-6666-4666-8666-666666666666",
+            outcome: "not_same_property",
+          },
+          { status: 201 },
+        );
+      },
     ),
   );
   render(
@@ -129,6 +164,11 @@ test("browses the default Likely suggestion queue and opens current evidence", a
     await screen.findByRole("button", { name: "شروع بررسی" }),
   ).toBeVisible();
   expect(screen.getByText("فاصله مکان دقیق")).toBeVisible();
+  await user.click(screen.getByRole("button", { name: "شروع بررسی" }));
+  await user.click(
+    await screen.findByRole("button", { name: "این دو ملک متفاوت‌اند" }),
+  );
+  expect(await screen.findByText("تصمیم متفاوت بودن ثبت شد.")).toBeVisible();
 });
 
 test("searches, selects exactly two Properties, and explains Match Confidence", async () => {

@@ -463,3 +463,16 @@ the retained merge chain. Reasons are optional and the API has no bulk approval 
 
 Run `tests/test_property_match_decisions.py` with `TEST_DATABASE_URL` pointing to PostgreSQL to
 exercise competing claims, duplicate approvals, Favorite races and database-failure rollback.
+
+### Scheduled Property match review
+
+Apply catalog migration 0025 after the suggestion migrations. Scheduled suggestions reuse the
+manual comparison claim and approval boundary, while also allowing an Operator to record that the
+Properties differ or to snooze the pair for 1, 7, or 30 days. Seven days is the API default.
+
+Negative decisions and snoozes retain the scheduler evaluation used by the Operator. Availability,
+Rental Terms, phone and description changes do not change the identity fingerprint. Exact location,
+structured Property facts, Listing image hashes, source claims and Listing membership do; those
+changes expire an active pair claim and reopen a rejected or snoozed suggestion. A scoring-version
+change updates the evaluation history without clearing an otherwise unchanged negative decision.
+Decision and evaluation history is available only through the Catalog Curation Operator API.

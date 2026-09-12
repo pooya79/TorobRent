@@ -149,6 +149,7 @@ class PropertyMatchClaimSerializer(serializers.Serializer[Any]):
 class PropertyMatchClaimRequestSerializer(serializers.Serializer[Any]):
     properties = serializers.ListField(child=serializers.UUIDField(), min_length=2, max_length=2)
     revision = serializers.CharField(max_length=64)
+    suggestion_id = serializers.UUIDField(required=False, allow_null=True, default=None)
 
 
 class PropertyMatchFactSerializer(serializers.Serializer[Any]):
@@ -179,7 +180,9 @@ class PropertyComparisonSerializer(serializers.Serializer[Any]):
     property_images = PropertyMatchImageSerializer(many=True)
 
 
-def suggestion_data(suggestion: PropertyMatchSuggestion) -> dict[str, object]:
+def suggestion_data(
+    suggestion: PropertyMatchSuggestion, *, include_history: bool = False
+) -> dict[str, object]:
     claim = (
         PropertyMatchClaim.objects
         .filter(
@@ -190,7 +193,7 @@ def suggestion_data(suggestion: PropertyMatchSuggestion) -> dict[str, object]:
         .order_by("-expires_at")
         .first()
     )
-    return {
+    payload: dict[str, object] = {
         "id": suggestion.pk,
         "property_ids": [suggestion.left_id, suggestion.right_id],
         "properties": [
@@ -220,9 +223,30 @@ def suggestion_data(suggestion: PropertyMatchSuggestion) -> dict[str, object]:
             else None
         ),
         "origin": suggestion.origin,
+        "snoozed_until": suggestion.snoozed_until,
         "first_suggested_at": suggestion.first_suggested_at,
         "last_evaluated_at": suggestion.last_evaluated_at,
     }
+    if include_history:
+        payload["evaluation_history"] = [
+            {
+                "id": evaluation.pk,
+                "score": evaluation.score,
+                "band": evaluation.band,
+                "scoring_version": evaluation.scoring_version,
+                "evidence_fingerprint": evaluation.evidence_fingerprint,
+                "left_revision": evaluation.left_revision,
+                "right_revision": evaluation.right_revision,
+                "evidence": evaluation.evidence,
+                "origin": evaluation.origin,
+                "created_at": evaluation.created_at,
+            }
+            for evaluation in suggestion.evaluations.all()
+        ]
+        payload["decision_history"] = list(
+            PropertyMatchDecisionSerializer(suggestion.decisions.all(), many=True).data
+        )
+    return payload
 
 
 class PropertyMatchEvidenceSummarySerializer(serializers.Serializer[Any]):
@@ -235,13 +259,16 @@ class PropertyMatchSuggestionSerializer(serializers.Serializer[Any]):
     id = serializers.UUIDField()
     property_ids = serializers.ListField(child=serializers.UUIDField(), min_length=2, max_length=2)
     properties = CatalogCurationPropertySearchSerializer(many=True)
-    state = serializers.ChoiceField(choices=("pending", "superseded"))
+    state = serializers.ChoiceField(
+        choices=("pending", "approved", "rejected", "snoozed", "superseded")
+    )
     score = serializers.IntegerField(min_value=0, max_value=100)
     band = serializers.ChoiceField(choices=("likely", "possible", "below_threshold"))
     scoring_version = serializers.CharField()
     evidence_summary = PropertyMatchEvidenceSummarySerializer(many=True)
     claim = PropertyMatchClaimSerializer(allow_null=True)
     origin = serializers.ChoiceField(choices=("focused", "nightly", "rescore"))
+    snoozed_until = serializers.DateTimeField(allow_null=True)
     first_suggested_at = serializers.DateTimeField()
     last_evaluated_at = serializers.DateTimeField()
 
@@ -260,10 +287,6 @@ class PropertyMatchSuggestionPageSerializer(serializers.Serializer[Any]):
     filters = PropertyMatchSuggestionFiltersSerializer()
 
 
-class PropertyMatchSuggestionDetailSerializer(PropertyMatchSuggestionSerializer):
-    comparison = PropertyComparisonSerializer()
-
-
 class PropertyMatchApproveRequestSerializer(PropertyMatchClaimRequestSerializer):
     claim_id = serializers.UUIDField()
     survivor_id = serializers.UUIDField()
@@ -275,10 +298,24 @@ class PropertyMatchApproveRequestSerializer(PropertyMatchClaimRequestSerializer)
     reason = serializers.CharField(required=False, allow_blank=True, max_length=4000, default="")
 
 
+class PropertyMatchSuggestionDecisionRequestSerializer(serializers.Serializer[Any]):
+    revision = serializers.CharField(max_length=64)
+    claim_id = serializers.UUIDField()
+    reason = serializers.CharField(required=False, allow_blank=True, max_length=4000, default="")
+
+
+class PropertyMatchSuggestionSnoozeRequestSerializer(
+    PropertyMatchSuggestionDecisionRequestSerializer
+):
+    days = serializers.ChoiceField(choices=(1, 7, 30), required=False, default=7)
+
+
 class PropertyMatchDecisionSerializer(serializers.ModelSerializer[PropertyMatchDecision]):
     actor_id = serializers.UUIDField()
-    survivor_id = serializers.UUIDField()
-    redundant_id = serializers.UUIDField()
+    survivor_id = serializers.UUIDField(allow_null=True)
+    redundant_id = serializers.UUIDField(allow_null=True)
+    suggestion_id = serializers.UUIDField(allow_null=True)
+    evaluation_id = serializers.UUIDField(allow_null=True)
     grouping_event_ids: serializers.PrimaryKeyRelatedField[Any] = (
         serializers.PrimaryKeyRelatedField(source="grouping_events", many=True, read_only=True)
     )
@@ -289,6 +326,10 @@ class PropertyMatchDecisionSerializer(serializers.ModelSerializer[PropertyMatchD
             "id",
             "actor_id",
             "origin",
+            "outcome",
+            "suggestion_id",
+            "evaluation_id",
+            "evaluation_snapshot",
             "survivor_id",
             "redundant_id",
             "before_revision",
@@ -303,3 +344,22 @@ class PropertyMatchDecisionSerializer(serializers.ModelSerializer[PropertyMatchD
             "created_at",
         )
         read_only_fields = fields
+
+
+class PropertyMatchSuggestionEvaluationSerializer(serializers.Serializer[Any]):
+    id = serializers.UUIDField()
+    score = serializers.IntegerField(min_value=0, max_value=100)
+    band = serializers.ChoiceField(choices=("likely", "possible", "below_threshold"))
+    scoring_version = serializers.CharField()
+    evidence_fingerprint = serializers.CharField()
+    left_revision = serializers.CharField()
+    right_revision = serializers.CharField()
+    evidence = MatchSignalSerializer(many=True)
+    origin = serializers.ChoiceField(choices=("focused", "nightly", "rescore"))
+    created_at = serializers.DateTimeField()
+
+
+class PropertyMatchSuggestionDetailSerializer(PropertyMatchSuggestionSerializer):
+    comparison = PropertyComparisonSerializer()
+    evaluation_history = PropertyMatchSuggestionEvaluationSerializer(many=True)
+    decision_history = PropertyMatchDecisionSerializer(many=True)

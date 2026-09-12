@@ -170,3 +170,153 @@ test("another Operator's claim stays read-only and offers refresh", async () => 
   await user.click(screen.getByRole("button", { name: "تازه‌سازی مقایسه" }));
   expect(refresh).toHaveBeenCalledOnce();
 });
+
+test("approves a scheduled suggestion with its review identity", async () => {
+  const user = userEvent.setup();
+  let claimBody: unknown;
+  let approvalBody: unknown;
+  const scheduledComparison = {
+    ...comparison,
+    band: "likely" as const,
+    decision_fields: [],
+    property_images: [],
+  };
+  server.use(
+    http.post(
+      "*/api/v1/operator/catalog-curation/claim/",
+      async ({ request }) => {
+        claimBody = await request.json();
+        return HttpResponse.json({
+          ...scheduledComparison,
+          claim: {
+            id: "claim-approval",
+            actor_id: "operator",
+            expires_at: "2099-01-01T00:00:00Z",
+          },
+        });
+      },
+    ),
+    http.post(
+      "*/api/v1/operator/catalog-curation/approve/",
+      async ({ request }) => {
+        approvalBody = await request.json();
+        return HttpResponse.json(
+          { id: "decision-approval", survivor_id: right },
+          { status: 201 },
+        );
+      },
+    ),
+  );
+  render(
+    <QueryClientProvider client={new QueryClient()}>
+      <PropertyMatchReview
+        comparison={scheduledComparison}
+        suggestionId="suggestion-one"
+        onRefresh={vi.fn()}
+      />
+    </QueryClientProvider>,
+  );
+
+  await user.click(screen.getByRole("button", { name: "شروع بررسی" }));
+  await user.click(screen.getByLabelText("ملک باقی‌مانده را تأیید می‌کنم"));
+  await user.click(screen.getByLabelText("انتخاب تصاویر را تأیید می‌کنم"));
+  await user.click(screen.getByRole("button", { name: "تأیید و گروه‌بندی" }));
+
+  expect(await screen.findByText("گروه‌بندی ثبت شد.")).toBeVisible();
+  expect(claimBody).toMatchObject({ suggestion_id: "suggestion-one" });
+  expect(approvalBody).toMatchObject({
+    suggestion_id: "suggestion-one",
+    claim_id: "claim-approval",
+  });
+});
+
+test("snoozes a scheduled suggestion for a supported duration", async () => {
+  const user = userEvent.setup();
+  let submitted: unknown;
+  server.use(
+    http.post("*/api/v1/operator/catalog-curation/claim/", () =>
+      HttpResponse.json({
+        ...comparison,
+        claim: {
+          id: "claim-snooze",
+          actor_id: "operator",
+          expires_at: "2099-01-01T00:00:00Z",
+        },
+      }),
+    ),
+    http.post(
+      "*/api/v1/operator/catalog-curation/suggestions/suggestion-one/snooze/",
+      async ({ request }) => {
+        submitted = await request.json();
+        return HttpResponse.json(
+          { id: "decision-snooze", outcome: "snoozed" },
+          { status: 201 },
+        );
+      },
+    ),
+  );
+  render(
+    <QueryClientProvider client={new QueryClient()}>
+      <PropertyMatchReview
+        comparison={comparison}
+        suggestionId="suggestion-one"
+        onRefresh={vi.fn()}
+      />
+    </QueryClientProvider>,
+  );
+
+  expect(screen.getByLabelText("مدت تعویق")).toHaveValue("7");
+  await user.click(screen.getByRole("button", { name: "شروع بررسی" }));
+  await user.selectOptions(screen.getByLabelText("مدت تعویق"), "30");
+  await user.type(screen.getByLabelText("دلیل (اختیاری)"), "بررسی بعدی");
+  await user.click(screen.getByRole("button", { name: "تعویق پیشنهاد" }));
+
+  expect(await screen.findByText("پیشنهاد به تعویق افتاد.")).toBeVisible();
+  expect(submitted).toEqual({
+    revision: "review-one",
+    claim_id: "claim-snooze",
+    reason: "بررسی بعدی",
+    days: 30,
+  });
+});
+
+test("shows a stale-review conflict and requires a fresh claim", async () => {
+  const user = userEvent.setup();
+  server.use(
+    http.post("*/api/v1/operator/catalog-curation/claim/", () =>
+      HttpResponse.json({
+        ...comparison,
+        claim: {
+          id: "claim-stale",
+          actor_id: "operator",
+          expires_at: "2099-01-01T00:00:00Z",
+        },
+      }),
+    ),
+    http.post(
+      "*/api/v1/operator/catalog-curation/suggestions/suggestion-one/reject/",
+      () => HttpResponse.json({ detail: "stale" }, { status: 409 }),
+    ),
+  );
+  render(
+    <QueryClientProvider client={new QueryClient()}>
+      <PropertyMatchReview
+        comparison={comparison}
+        suggestionId="suggestion-one"
+        onRefresh={vi.fn()}
+      />
+    </QueryClientProvider>,
+  );
+
+  await user.click(screen.getByRole("button", { name: "شروع بررسی" }));
+  await user.click(
+    screen.getByRole("button", { name: "این دو ملک متفاوت‌اند" }),
+  );
+
+  expect(
+    await screen.findByText(
+      "شواهد یا مسئول بررسی تغییر کرده است. پیشنهاد را تازه کنید.",
+    ),
+  ).toBeVisible();
+  expect(screen.getByRole("button", { name: "شروع بررسی" })).toBeVisible();
+});

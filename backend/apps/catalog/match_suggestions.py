@@ -17,6 +17,7 @@ from .models import (
     ListingImage,
     ListingState,
     Property,
+    PropertyMatchClaim,
     PropertyMatchSuggestion,
     PropertyMatchSuggestionEvaluation,
     PropertyMatchSuggestionOrigin,
@@ -52,6 +53,13 @@ IDENTITY_PROPERTY_FIELD_NAMES = (
 IDENTITY_PROPERTY_FIELDS = tuple(
     f"{field}_id" if field in {"city", "district", "neighborhood"} else field
     for field in IDENTITY_PROPERTY_FIELD_NAMES
+)
+IDENTITY_SOURCE_CLAIM_FIELDS = (
+    *IDENTITY_PROPERTY_FIELD_NAMES,
+    "floor_area_sqm",
+    "bedroom_count",
+    "address",
+    "source_location_text",
 )
 
 
@@ -219,7 +227,11 @@ def property_identity_revision(property_: Property) -> str:
             "id": listing.pk,
             "source_id": listing.source_id,
             "source_reference": listing.source_reference,
-            "source_claims": listing.source_claims,
+            "source_claims": {
+                field: listing.source_claims[field]
+                for field in IDENTITY_SOURCE_CLAIM_FIELDS
+                if field in listing.source_claims
+            },
             "images": list(
                 listing.images.order_by("pk").values(
                     "raw_content_sha256",
@@ -252,9 +264,10 @@ def evaluate_property_pair(
     origin: str,
 ) -> PropertyMatchSuggestion | None:
     ordered_ids = sorted((left_id, right_id))
-    properties = list(
-        eligible_property_roots().select_for_update().filter(pk__in=ordered_ids).order_by("pk")
-    )
+    # Lock plain parent rows before applying the DISTINCT eligibility query; PostgreSQL
+    # cannot combine SELECT FOR UPDATE with DISTINCT.
+    list(Property.objects.select_for_update().filter(pk__in=ordered_ids).order_by("pk"))
+    properties = list(eligible_property_roots().filter(pk__in=ordered_ids).order_by("pk"))
     if len(properties) != 2:
         return None
     left, right = properties
@@ -274,11 +287,6 @@ def evaluate_property_pair(
     if suggestion is None and not active:
         return None
     values = {
-        "state": (
-            PropertyMatchSuggestionState.PENDING
-            if active
-            else PropertyMatchSuggestionState.SUPERSEDED
-        ),
         "score": assessment.score,
         "band": assessment.band,
         "scoring_version": assessment.scoring_version,
@@ -294,12 +302,59 @@ def evaluate_property_pair(
             left=left,
             right=right,
             first_suggested_at=now,
+            state=(
+                PropertyMatchSuggestionState.PENDING
+                if active
+                else PropertyMatchSuggestionState.SUPERSEDED
+            ),
             **values,
         )
     else:
+        previous_fingerprint = suggestion.evidence_fingerprint
+        material_evidence_changed = previous_fingerprint != evidence_fingerprint
+        review_evidence_changed = material_evidence_changed or any((
+            suggestion.score != assessment.score,
+            suggestion.band != assessment.band,
+            suggestion.scoring_version != assessment.scoring_version,
+            suggestion.evidence != evidence,
+        ))
+        if (
+            suggestion.state == PropertyMatchSuggestionState.REJECTED
+            and suggestion.suppressed_evidence_fingerprint == evidence_fingerprint
+        ):
+            suggestion.state = PropertyMatchSuggestionState.REJECTED
+        elif (
+            suggestion.state == PropertyMatchSuggestionState.SNOOZED
+            and suggestion.suppressed_evidence_fingerprint == evidence_fingerprint
+            and suggestion.snoozed_until is not None
+            and suggestion.snoozed_until > now
+        ):
+            suggestion.state = PropertyMatchSuggestionState.SNOOZED
+        elif active:
+            suggestion.state = PropertyMatchSuggestionState.PENDING
+            suggestion.suppressed_evidence_fingerprint = ""
+            suggestion.snoozed_until = None
+        else:
+            suggestion.state = PropertyMatchSuggestionState.SUPERSEDED
+            suggestion.suppressed_evidence_fingerprint = ""
+            suggestion.snoozed_until = None
+        if review_evidence_changed:
+            PropertyMatchClaim.objects.filter(
+                left=left,
+                right=right,
+                expires_at__gt=now,
+            ).update(expires_at=now)
         for field, value in values.items():
             setattr(suggestion, field, value)
-        suggestion.save(update_fields=(*values, "updated_at"))
+        suggestion.save(
+            update_fields=(
+                "state",
+                "suppressed_evidence_fingerprint",
+                "snoozed_until",
+                *values,
+                "updated_at",
+            )
+        )
     PropertyMatchSuggestionEvaluation.objects.create(
         suggestion=suggestion,
         score=assessment.score,
@@ -323,17 +378,21 @@ def measure_candidates_for_property(
     property_ = eligible_property_roots().filter(pk=property_id).first()
     if property_ is None:
         return {"evaluated": 0, "active": 0}
-    pending_neighbors = (
+    tracked_neighbors = (
         PropertyMatchSuggestion.objects
         .filter(
             Q(left_id=property_.pk) | Q(right_id=property_.pk),
-            state=PropertyMatchSuggestionState.PENDING,
+            state__in=(
+                PropertyMatchSuggestionState.PENDING,
+                PropertyMatchSuggestionState.REJECTED,
+                PropertyMatchSuggestionState.SNOOZED,
+            ),
         )
         .order_by("last_evaluated_at", "pk")
         .values_list("left_id", "right_id")[:limit]
     )
     candidate_ids = [
-        right_id if left_id == property_.pk else left_id for left_id, right_id in pending_neighbors
+        right_id if left_id == property_.pk else left_id for left_id, right_id in tracked_neighbors
     ]
     candidate_ids.extend(
         candidate_id

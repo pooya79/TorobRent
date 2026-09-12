@@ -738,6 +738,40 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/v1/operator/catalog-curation/suggestions/{suggestion_id}/reject/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Record that a scheduled Property Match Suggestion is not the same Property */
+    post: operations["v1_operator_catalog_curation_suggestions_reject_create"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/operator/catalog-curation/suggestions/{suggestion_id}/snooze/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Snooze a scheduled Property Match Suggestion */
+    post: operations["v1_operator_catalog_curation_suggestions_snooze_create"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/v1/operator/conversation-reports/": {
     parameters: {
       query?: never;
@@ -2598,6 +2632,13 @@ export interface components {
     CurrentWebsiteConflict: {
       detail: string;
     };
+    /**
+     * @description * `1` - 1
+     *     * `7` - 7
+     *     * `30` - 30
+     * @enum {integer}
+     */
+    DaysEnum: 1 | 7 | 30;
     DecisionCorrectionAudit: {
       internal_note?: string;
       normalized_corrections?: components["schemas"]["NormalizedCorrectionsAudit"];
@@ -3364,6 +3405,13 @@ export interface components {
      * @enum {string}
      */
     OutboundPolicyEnum: "direct_contact" | "external_link" | "disabled";
+    /**
+     * @description * `same_property` - یک ملک
+     *     * `not_same_property` - دو ملک متفاوت
+     *     * `snoozed` - تعویق
+     * @enum {string}
+     */
+    OutcomeEnum: "same_property" | "not_same_property" | "snoozed";
     PaginatedConversationReportQueueList: {
       /** @example 123 */
       count: number;
@@ -3766,6 +3814,8 @@ export interface components {
       properties: string[];
       revision: string;
       /** Format: uuid */
+      suggestion_id?: string | null;
+      /** Format: uuid */
       claim_id: string;
       /** Format: uuid */
       survivor_id: string;
@@ -3791,6 +3841,8 @@ export interface components {
     PropertyMatchClaimRequest: {
       properties: string[];
       revision: string;
+      /** Format: uuid */
+      suggestion_id?: string | null;
     };
     PropertyMatchDecision: {
       /** Format: uuid */
@@ -3798,10 +3850,16 @@ export interface components {
       /** Format: uuid */
       actor_id: string;
       readonly origin: string;
+      readonly outcome: components["schemas"]["OutcomeEnum"];
       /** Format: uuid */
-      survivor_id: string;
+      suggestion_id: string | null;
       /** Format: uuid */
-      redundant_id: string;
+      evaluation_id: string | null;
+      readonly evaluation_snapshot: unknown;
+      /** Format: uuid */
+      survivor_id: string | null;
+      /** Format: uuid */
+      redundant_id: string | null;
       readonly before_revision: string;
       readonly after_revision: string;
       readonly evidence: unknown;
@@ -3850,7 +3908,7 @@ export interface components {
       id: string;
       property_ids: string[];
       properties: components["schemas"]["CatalogCurationPropertySearch"][];
-      state: components["schemas"]["State093Enum"];
+      state: components["schemas"]["StateAffEnum"];
       score: number;
       band: components["schemas"]["Band182Enum"];
       scoring_version: string;
@@ -3858,16 +3916,25 @@ export interface components {
       claim: components["schemas"]["PropertyMatchClaim"] | null;
       origin: components["schemas"]["OriginEnum"];
       /** Format: date-time */
+      snoozed_until: string | null;
+      /** Format: date-time */
       first_suggested_at: string;
       /** Format: date-time */
       last_evaluated_at: string;
+    };
+    PropertyMatchSuggestionDecisionRequest: {
+      revision: string;
+      /** Format: uuid */
+      claim_id: string;
+      /** @default  */
+      reason: string;
     };
     PropertyMatchSuggestionDetail: {
       /** Format: uuid */
       id: string;
       property_ids: string[];
       properties: components["schemas"]["CatalogCurationPropertySearch"][];
-      state: components["schemas"]["State093Enum"];
+      state: components["schemas"]["StateAffEnum"];
       score: number;
       band: components["schemas"]["Band182Enum"];
       scoring_version: string;
@@ -3875,10 +3942,28 @@ export interface components {
       claim: components["schemas"]["PropertyMatchClaim"] | null;
       origin: components["schemas"]["OriginEnum"];
       /** Format: date-time */
+      snoozed_until: string | null;
+      /** Format: date-time */
       first_suggested_at: string;
       /** Format: date-time */
       last_evaluated_at: string;
       comparison: components["schemas"]["PropertyComparison"];
+      evaluation_history: components["schemas"]["PropertyMatchSuggestionEvaluation"][];
+      decision_history: components["schemas"]["PropertyMatchDecision"][];
+    };
+    PropertyMatchSuggestionEvaluation: {
+      /** Format: uuid */
+      id: string;
+      score: number;
+      band: components["schemas"]["Band182Enum"];
+      scoring_version: string;
+      evidence_fingerprint: string;
+      left_revision: string;
+      right_revision: string;
+      evidence: components["schemas"]["MatchSignal"][];
+      origin: components["schemas"]["OriginEnum"];
+      /** Format: date-time */
+      created_at: string;
     };
     PropertyMatchSuggestionFilters: {
       band: string;
@@ -3893,6 +3978,15 @@ export interface components {
       previous: string | null;
       results: components["schemas"]["PropertyMatchSuggestion"][];
       filters: components["schemas"]["PropertyMatchSuggestionFilters"];
+    };
+    PropertyMatchSuggestionSnoozeRequest: {
+      revision: string;
+      /** Format: uuid */
+      claim_id: string;
+      /** @default  */
+      reason: string;
+      /** @default 7 */
+      days: components["schemas"]["DaysEnum"];
     };
     PropertySearchPage: {
       ignored_preferences?: string[];
@@ -4618,12 +4712,6 @@ export interface components {
      */
     SplitEnum: "training" | "held_out";
     /**
-     * @description * `pending` - pending
-     *     * `superseded` - superseded
-     * @enum {string}
-     */
-    State093Enum: "pending" | "superseded";
-    /**
      * @description * `queued` - در صف
      *     * `running` - در حال استخراج
      *     * `complete` - پایان یافته
@@ -4632,6 +4720,16 @@ export interface components {
      * @enum {string}
      */
     State299Enum: "queued" | "running" | "complete" | "failed" | "cancelled";
+    /**
+     * @description * `pending` - pending
+     *     * `approved` - approved
+     *     * `rejected` - rejected
+     *     * `snoozed` - snoozed
+     *     * `superseded` - superseded
+     * @enum {string}
+     */
+    StateAffEnum:
+      "pending" | "approved" | "rejected" | "snoozed" | "superseded";
     Submission: {
       /** Format: uuid */
       readonly id: string;
@@ -6843,6 +6941,120 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["PropertyMatchSuggestionDetail"];
+        };
+      };
+    };
+  };
+  v1_operator_catalog_curation_suggestions_reject_create: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        suggestion_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["PropertyMatchSuggestionDecisionRequest"];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PropertyMatchDecision"];
+        };
+      };
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PropertyMatchDecision"];
+        };
+      };
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Problem"];
+        };
+      };
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Problem"];
+        };
+      };
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  v1_operator_catalog_curation_suggestions_snooze_create: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        suggestion_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["PropertyMatchSuggestionSnoozeRequest"];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PropertyMatchDecision"];
+        };
+      };
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PropertyMatchDecision"];
+        };
+      };
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Problem"];
+        };
+      };
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Problem"];
+        };
+      };
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Problem"];
         };
       };
     };

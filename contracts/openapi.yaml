@@ -1630,6 +1630,110 @@ paths:
               schema:
                 $ref: '#/components/schemas/PropertyMatchSuggestionDetail'
           description: ''
+  /api/v1/operator/catalog-curation/suggestions/{suggestion_id}/reject/:
+    post:
+      operationId: v1_operator_catalog_curation_suggestions_reject_create
+      summary: Record that a scheduled Property Match Suggestion is not the same Property
+      parameters:
+      - in: path
+        name: suggestion_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PropertyMatchSuggestionDecisionRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PropertyMatchDecision'
+          description: ''
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PropertyMatchDecision'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: ''
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: ''
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: ''
+  /api/v1/operator/catalog-curation/suggestions/{suggestion_id}/snooze/:
+    post:
+      operationId: v1_operator_catalog_curation_suggestions_snooze_create
+      summary: Snooze a scheduled Property Match Suggestion
+      parameters:
+      - in: path
+        name: suggestion_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PropertyMatchSuggestionSnoozeRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PropertyMatchDecision'
+          description: ''
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PropertyMatchDecision'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: ''
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: ''
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: ''
   /api/v1/operator/conversation-reports/:
     get:
       operationId: v1_operator_conversation_reports_list
@@ -5240,6 +5344,16 @@ components:
           type: string
       required:
       - detail
+    DaysEnum:
+      enum:
+      - 1
+      - 7
+      - 30
+      type: integer
+      description: |-
+        * `1` - 1
+        * `7` - 7
+        * `30` - 30
     DecisionCorrectionAudit:
       type: object
       properties:
@@ -7097,6 +7211,16 @@ components:
         * `direct_contact` - تماس مستقیم
         * `external_link` - پیوند منبع
         * `disabled` - غیرفعال
+    OutcomeEnum:
+      enum:
+      - same_property
+      - not_same_property
+      - snoozed
+      type: string
+      description: |-
+        * `same_property` - یک ملک
+        * `not_same_property` - دو ملک متفاوت
+        * `snoozed` - تعویق
     PaginatedConversationReportQueueList:
       type: object
       required:
@@ -8033,6 +8157,11 @@ components:
         revision:
           type: string
           maxLength: 64
+        suggestion_id:
+          type:
+          - string
+          - 'null'
+          format: uuid
         claim_id:
           type: string
           format: uuid
@@ -8099,6 +8228,11 @@ components:
         revision:
           type: string
           maxLength: 64
+        suggestion_id:
+          type:
+          - string
+          - 'null'
+          format: uuid
       required:
       - properties
       - revision
@@ -8115,11 +8249,31 @@ components:
         origin:
           type: string
           readOnly: true
+        outcome:
+          allOf:
+          - $ref: '#/components/schemas/OutcomeEnum'
+          readOnly: true
+        suggestion_id:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        evaluation_id:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        evaluation_snapshot:
+          readOnly: true
         survivor_id:
-          type: string
+          type:
+          - string
+          - 'null'
           format: uuid
         redundant_id:
-          type: string
+          type:
+          - string
+          - 'null'
           format: uuid
         before_revision:
           type: string
@@ -8157,14 +8311,18 @@ components:
       - after_snapshot
       - before_revision
       - created_at
+      - evaluation_id
+      - evaluation_snapshot
       - evidence
       - grouping_event_ids
       - id
       - origin
+      - outcome
       - reason
       - redundant_id
       - selected_facts
       - selected_image_ids
+      - suggestion_id
       - survivor_id
     PropertyMatchEvidenceSummary:
       type: object
@@ -8243,7 +8401,7 @@ components:
           items:
             $ref: '#/components/schemas/CatalogCurationPropertySearch'
         state:
-          $ref: '#/components/schemas/State093Enum'
+          $ref: '#/components/schemas/StateAffEnum'
         score:
           type: integer
           maximum: 100
@@ -8262,6 +8420,11 @@ components:
           - type: 'null'
         origin:
           $ref: '#/components/schemas/OriginEnum'
+        snoozed_until:
+          type:
+          - string
+          - 'null'
+          format: date-time
         first_suggested_at:
           type: string
           format: date-time
@@ -8280,7 +8443,24 @@ components:
       - property_ids
       - score
       - scoring_version
+      - snoozed_until
       - state
+    PropertyMatchSuggestionDecisionRequest:
+      type: object
+      properties:
+        revision:
+          type: string
+          maxLength: 64
+        claim_id:
+          type: string
+          format: uuid
+        reason:
+          type: string
+          default: ''
+          maxLength: 4000
+      required:
+      - claim_id
+      - revision
     PropertyMatchSuggestionDetail:
       type: object
       properties:
@@ -8299,7 +8479,7 @@ components:
           items:
             $ref: '#/components/schemas/CatalogCurationPropertySearch'
         state:
-          $ref: '#/components/schemas/State093Enum'
+          $ref: '#/components/schemas/StateAffEnum'
         score:
           type: integer
           maximum: 100
@@ -8318,6 +8498,11 @@ components:
           - type: 'null'
         origin:
           $ref: '#/components/schemas/OriginEnum'
+        snoozed_until:
+          type:
+          - string
+          - 'null'
+          format: date-time
         first_suggested_at:
           type: string
           format: date-time
@@ -8326,10 +8511,20 @@ components:
           format: date-time
         comparison:
           $ref: '#/components/schemas/PropertyComparison'
+        evaluation_history:
+          type: array
+          items:
+            $ref: '#/components/schemas/PropertyMatchSuggestionEvaluation'
+        decision_history:
+          type: array
+          items:
+            $ref: '#/components/schemas/PropertyMatchDecision'
       required:
       - band
       - claim
       - comparison
+      - decision_history
+      - evaluation_history
       - evidence_summary
       - first_suggested_at
       - id
@@ -8339,7 +8534,48 @@ components:
       - property_ids
       - score
       - scoring_version
+      - snoozed_until
       - state
+    PropertyMatchSuggestionEvaluation:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        score:
+          type: integer
+          maximum: 100
+          minimum: 0
+        band:
+          $ref: '#/components/schemas/Band182Enum'
+        scoring_version:
+          type: string
+        evidence_fingerprint:
+          type: string
+        left_revision:
+          type: string
+        right_revision:
+          type: string
+        evidence:
+          type: array
+          items:
+            $ref: '#/components/schemas/MatchSignal'
+        origin:
+          $ref: '#/components/schemas/OriginEnum'
+        created_at:
+          type: string
+          format: date-time
+      required:
+      - band
+      - created_at
+      - evidence
+      - evidence_fingerprint
+      - id
+      - left_revision
+      - origin
+      - right_revision
+      - score
+      - scoring_version
     PropertyMatchSuggestionFilters:
       type: object
       properties:
@@ -8381,6 +8617,26 @@ components:
       - next
       - previous
       - results
+    PropertyMatchSuggestionSnoozeRequest:
+      type: object
+      properties:
+        revision:
+          type: string
+          maxLength: 64
+        claim_id:
+          type: string
+          format: uuid
+        reason:
+          type: string
+          default: ''
+          maxLength: 4000
+        days:
+          allOf:
+          - $ref: '#/components/schemas/DaysEnum'
+          default: 7
+      required:
+      - claim_id
+      - revision
     PropertySearchPage:
       type: object
       properties:
@@ -10136,14 +10392,6 @@ components:
       description: |-
         * `training` - training
         * `held_out` - held_out
-    State093Enum:
-      enum:
-      - pending
-      - superseded
-      type: string
-      description: |-
-        * `pending` - pending
-        * `superseded` - superseded
     State299Enum:
       enum:
       - queued
@@ -10158,6 +10406,20 @@ components:
         * `complete` - پایان یافته
         * `failed` - ناموفق
         * `cancelled` - لغوشده
+    StateAffEnum:
+      enum:
+      - pending
+      - approved
+      - rejected
+      - snoozed
+      - superseded
+      type: string
+      description: |-
+        * `pending` - pending
+        * `approved` - approved
+        * `rejected` - rejected
+        * `snoozed` - snoozed
+        * `superseded` - superseded
     Submission:
       type: object
       properties:

@@ -82,6 +82,7 @@ function SuggestionDetail({
           </Card>
           <PropertyMatchReview
             comparison={detail.data.comparison}
+            suggestionId={suggestionId}
             onRefresh={() => void detail.refetch()}
           />
         </>

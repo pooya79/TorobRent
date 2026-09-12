@@ -652,6 +652,13 @@ class PropertyMatchClaim(models.Model):
     left = models.ForeignKey(Property, on_delete=models.PROTECT, related_name="left_match_claims")
     right = models.ForeignKey(Property, on_delete=models.PROTECT, related_name="right_match_claims")
     actor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    suggestion = models.ForeignKey(
+        "PropertyMatchSuggestion",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="claims",
+    )
     expires_at = models.DateTimeField()
 
     def __str__(self) -> str:
@@ -659,13 +666,48 @@ class PropertyMatchClaim(models.Model):
 
 
 class PropertyMatchDecision(models.Model):
+    class Outcome(models.TextChoices):
+        SAME_PROPERTY = "same_property", "یک ملک"
+        NOT_SAME_PROPERTY = "not_same_property", "دو ملک متفاوت"
+        SNOOZED = "snoozed", "تعویق"
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     claim = models.OneToOneField(PropertyMatchClaim, on_delete=models.PROTECT)
     actor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
     origin = models.CharField(max_length=24, default="operator_initiated", editable=False)
-    survivor = models.ForeignKey(Property, on_delete=models.PROTECT, related_name="match_decisions")
+    outcome = models.CharField(
+        max_length=24,
+        choices=Outcome,
+        default=Outcome.SAME_PROPERTY,
+    )
+    suggestion = models.ForeignKey(
+        "PropertyMatchSuggestion",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="decisions",
+    )
+    evaluation = models.ForeignKey(
+        "PropertyMatchSuggestionEvaluation",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="decisions",
+    )
+    evaluation_snapshot = models.JSONField(default=dict, blank=True)
+    survivor = models.ForeignKey(
+        Property,
+        on_delete=models.PROTECT,
+        related_name="match_decisions",
+        null=True,
+        blank=True,
+    )
     redundant = models.ForeignKey(
-        Property, on_delete=models.PROTECT, related_name="redundant_decisions"
+        Property,
+        on_delete=models.PROTECT,
+        related_name="redundant_decisions",
+        null=True,
+        blank=True,
     )
     before_revision = models.CharField(max_length=64)
     after_revision = models.CharField(max_length=64)
@@ -679,11 +721,16 @@ class PropertyMatchDecision(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self) -> str:
+        if self.survivor_id is None or self.redundant_id is None:
+            return f"{self.get_outcome_display()}: {self.suggestion_id}"
         return f"{self.redundant_id} → {self.survivor_id}"
 
 
 class PropertyMatchSuggestionState(models.TextChoices):
     PENDING = "pending", "در انتظار بررسی"
+    APPROVED = "approved", "تأییدشده"
+    REJECTED = "rejected", "ردشده"
+    SNOOZED = "snoozed", "به تعویق افتاده"
     SUPERSEDED = "superseded", "جایگزین‌شده"
 
 
@@ -714,6 +761,8 @@ class PropertyMatchSuggestion(models.Model):
     right_revision = models.CharField(max_length=64)
     evidence = models.JSONField()
     origin = models.CharField(max_length=16, choices=PropertyMatchSuggestionOrigin)
+    suppressed_evidence_fingerprint = models.CharField(max_length=64, blank=True)
+    snoozed_until = models.DateTimeField(null=True, blank=True)
     first_suggested_at = models.DateTimeField(default=timezone.now)
     last_evaluated_at = models.DateTimeField(default=timezone.now)
     created_at = models.DateTimeField(auto_now_add=True)

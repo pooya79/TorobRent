@@ -596,3 +596,542 @@ def test_listing_publication_enqueues_focused_measurement_without_delaying_publi
         right_id=max(second.pk, Property.objects.exclude(pk=second.pk).get().pk),
     )
     assert suggestion.evaluations.count() == 1
+
+
+def claim_suggestion(api_client: APIClient, suggestion: PropertyMatchSuggestion) -> dict:
+    detail = api_client.get(f"/api/v1/operator/catalog-curation/suggestions/{suggestion.pk}/")
+    assert detail.status_code == 200
+    comparison = detail.data["comparison"]
+    response = api_client.post(
+        "/api/v1/operator/catalog-curation/claim/",
+        {
+            "properties": [item["id"] for item in comparison["properties"]],
+            "revision": comparison["revision"],
+            "suggestion_id": str(suggestion.pk),
+        },
+        format="json",
+    )
+    assert response.status_code == 200, response.data
+    return {
+        "revision": comparison["revision"],
+        "claim_id": response.data["claim"]["id"],
+    }
+
+
+@pytest.mark.django_db
+def test_rejecting_a_suggestion_records_scheduler_evaluation_and_suppresses_unchanged_pair(
+    api_client: APIClient,
+):
+    source = Source.objects.create(
+        name="negative-source",
+        domain="negative.example",
+        display_name="منبع تصمیم منفی",
+        outbound_policy=OutboundPolicy.EXTERNAL_LINK,
+    )
+    left = make_property(source, "LEFT")
+    right = make_property(source, "RIGHT")
+    measure_property_match_candidates(property_id=str(left.pk), limit=25)
+    suggestion = PropertyMatchSuggestion.objects.get()
+    evaluation = suggestion.evaluations.get()
+    api_client.force_authenticate(make_operator())
+    review = claim_suggestion(api_client, suggestion)
+
+    response = api_client.post(
+        f"/api/v1/operator/catalog-curation/suggestions/{suggestion.pk}/reject/",
+        review,
+        format="json",
+    )
+
+    assert response.status_code == 201, response.data
+    assert response.data["outcome"] == "not_same_property"
+    assert response.data["origin"] == "focused"
+    assert response.data["suggestion_id"] == str(suggestion.pk)
+    assert response.data["evaluation_id"] == str(evaluation.pk)
+    assert response.data["evaluation_snapshot"] == {
+        "score": evaluation.score,
+        "band": evaluation.band,
+        "scoring_version": evaluation.scoring_version,
+        "evidence_fingerprint": evaluation.evidence_fingerprint,
+        "left_revision": evaluation.left_revision,
+        "right_revision": evaluation.right_revision,
+        "evidence": evaluation.evidence,
+        "origin": evaluation.origin,
+    }
+    suggestion.refresh_from_db()
+    assert suggestion.state == PropertyMatchSuggestionState.REJECTED
+
+    listing = right.listings.get()
+    listing.description = "توضیح تازه"
+    listing.direct_phone = "09120000000"
+    listing.available_until = timezone.now() + timezone.timedelta(days=30)
+    listing.save(update_fields=["description", "direct_phone", "available_until"])
+    listing.terms.monthly_rent_rial += 1_000_000
+    listing.terms.save(update_fields=["monthly_rent_rial"])
+    measure_property_match_candidates(property_id=str(left.pk), limit=25)
+
+    suggestion.refresh_from_db()
+    assert suggestion.state == PropertyMatchSuggestionState.REJECTED
+    assert suggestion.evaluations.count() == 2
+    history = api_client.get(f"/api/v1/operator/catalog-curation/suggestions/{suggestion.pk}/")
+    assert len(history.data["evaluation_history"]) == 2
+    assert history.data["decision_history"][0]["id"] == response.data["id"]
+    api_client.force_authenticate(
+        User.objects.create_user(
+            email="no-history@example.com",
+            password="password",
+            email_verified_at=timezone.now(),
+        )
+    )
+    assert (
+        api_client.get(
+            f"/api/v1/operator/catalog-curation/suggestions/{suggestion.pk}/"
+        ).status_code
+        == 403
+    )
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    "change",
+    ("property_fact", "exact_location", "image_hash", "source_claim", "grouping_membership"),
+)
+def test_material_identity_change_reopens_a_negative_suggestion(api_client: APIClient, change: str):
+    source = Source.objects.create(
+        name="reopen-source",
+        domain="reopen.example",
+        display_name="منبع بازگشایی",
+        outbound_policy=OutboundPolicy.EXTERNAL_LINK,
+    )
+    left = make_property(source, "LEFT")
+    right = make_property(source, "RIGHT")
+    measure_property_match_candidates(property_id=str(left.pk), limit=25)
+    suggestion = PropertyMatchSuggestion.objects.get()
+    api_client.force_authenticate(make_operator())
+    review = claim_suggestion(api_client, suggestion)
+    assert (
+        api_client.post(
+            f"/api/v1/operator/catalog-curation/suggestions/{suggestion.pk}/reject/",
+            review,
+            format="json",
+        ).status_code
+        == 201
+    )
+
+    listing = right.listings.get()
+    if change == "property_fact":
+        right.area_sqm += 1
+        right.save(update_fields=["area_sqm"])
+    elif change == "exact_location":
+        assert right.latitude is not None
+        right.latitude += Decimal("0.000001")
+        right.save(update_fields=["latitude"])
+    elif change == "image_hash":
+        ListingImage.objects.create(
+            listing=listing,
+            position=0,
+            raw_content_sha256="a" * 64,
+            normalized_pixel_sha256="b" * 64,
+            perceptual_dhash="0123456789abcdef",
+        )
+    elif change == "source_claim":
+        listing.source_claims = {"source_location_text": "برج سرو"}
+        listing.save(update_fields=["source_claims"])
+    else:
+        extra = make_property(
+            source,
+            "EXTRA",
+            latitude=Decimal("35.790000"),
+            longitude=Decimal("51.390000"),
+        )
+        moved_listing = extra.listings.get()
+        moved_listing.property = right
+        moved_listing.save(update_fields=["property"])
+    measure_property_match_candidates(property_id=str(left.pk), limit=25)
+
+    suggestion.refresh_from_db()
+    assert suggestion.state == PropertyMatchSuggestionState.PENDING
+    assert suggestion.suppressed_evidence_fingerprint == ""
+
+
+@pytest.mark.django_db
+def test_non_identity_source_claims_do_not_reopen_a_negative_suggestion(
+    api_client: APIClient,
+):
+    source = Source.objects.create(
+        name="non-identity-claims-source",
+        domain="non-identity-claims.example",
+        display_name="منبع ادعاهای غیرهویتی",
+        outbound_policy=OutboundPolicy.EXTERNAL_LINK,
+    )
+    left = make_property(source, "LEFT")
+    right = make_property(source, "RIGHT")
+    measure_property_match_candidates(property_id=str(left.pk), limit=25)
+    suggestion = PropertyMatchSuggestion.objects.get()
+    api_client.force_authenticate(make_operator())
+    review = claim_suggestion(api_client, suggestion)
+    assert (
+        api_client.post(
+            f"/api/v1/operator/catalog-curation/suggestions/{suggestion.pk}/reject/",
+            review,
+            format="json",
+        ).status_code
+        == 201
+    )
+
+    listing = right.listings.get()
+    listing.source_claims = {
+        "deposit_rial": ["۲ میلیارد"],
+        "monthly_rent_rial": ["۲۰ میلیون"],
+        "title": ["عنوان تازه"],
+        "description": ["توضیحات تازه"],
+    }
+    listing.save(update_fields=["source_claims"])
+    measure_property_match_candidates(property_id=str(left.pk), limit=25)
+
+    suggestion.refresh_from_db()
+    assert suggestion.state == PropertyMatchSuggestionState.REJECTED
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("claim_field", ("area_sqm", "room_count", "address"))
+def test_supported_identity_source_claims_reopen_a_negative_suggestion(
+    api_client: APIClient,
+    claim_field: str,
+):
+    source = Source.objects.create(
+        name=f"identity-claim-{claim_field}",
+        domain=f"identity-claim-{claim_field}.example",
+        display_name="منبع ادعای هویتی",
+        outbound_policy=OutboundPolicy.EXTERNAL_LINK,
+    )
+    left = make_property(source, "LEFT")
+    right = make_property(source, "RIGHT")
+    measure_property_match_candidates(property_id=str(left.pk), limit=25)
+    suggestion = PropertyMatchSuggestion.objects.get()
+    api_client.force_authenticate(make_operator())
+    review = claim_suggestion(api_client, suggestion)
+    assert (
+        api_client.post(
+            f"/api/v1/operator/catalog-curation/suggestions/{suggestion.pk}/reject/",
+            review,
+            format="json",
+        ).status_code
+        == 201
+    )
+
+    listing = right.listings.get()
+    listing.source_claims = {claim_field: ["هویت تازه"]}
+    listing.save(update_fields=["source_claims"])
+    measure_property_match_candidates(property_id=str(left.pk), limit=25)
+
+    suggestion.refresh_from_db()
+    assert suggestion.state == PropertyMatchSuggestionState.PENDING
+
+
+@pytest.mark.django_db
+def test_removing_a_new_blocker_reopens_the_negative_suggestion(api_client: APIClient):
+    source = Source.objects.create(
+        name="blocker-source",
+        domain="blocker.example",
+        display_name="منبع مانع",
+        outbound_policy=OutboundPolicy.EXTERNAL_LINK,
+    )
+    left = make_property(source, "LEFT")
+    right = make_property(source, "RIGHT")
+    measure_property_match_candidates(property_id=str(left.pk), limit=25)
+    suggestion = PropertyMatchSuggestion.objects.get()
+    api_client.force_authenticate(make_operator())
+    review = claim_suggestion(api_client, suggestion)
+    assert (
+        api_client.post(
+            f"/api/v1/operator/catalog-curation/suggestions/{suggestion.pk}/reject/",
+            review,
+            format="json",
+        ).status_code
+        == 201
+    )
+
+    original_latitude = right.latitude
+    original_longitude = right.longitude
+    right.latitude = Decimal("35.790000")
+    right.longitude = Decimal("51.390000")
+    right.save(update_fields=["latitude", "longitude"])
+    measure_property_match_candidates(property_id=str(left.pk), limit=25)
+    suggestion.refresh_from_db()
+    assert suggestion.state == PropertyMatchSuggestionState.SUPERSEDED
+
+    right.latitude = original_latitude
+    right.longitude = original_longitude
+    right.save(update_fields=["latitude", "longitude"])
+    measure_property_match_candidates(property_id=str(left.pk), limit=25)
+    suggestion.refresh_from_db()
+    assert suggestion.state == PropertyMatchSuggestionState.PENDING
+
+
+@pytest.mark.django_db
+def test_scoring_version_change_does_not_reopen_negative_suppression(
+    api_client: APIClient, monkeypatch
+):
+    from dataclasses import replace
+
+    from apps.catalog import match_suggestions
+
+    source = Source.objects.create(
+        name="rescore-source",
+        domain="rescore.example",
+        display_name="منبع امتیازدهی",
+        outbound_policy=OutboundPolicy.EXTERNAL_LINK,
+    )
+    left = make_property(source, "LEFT")
+    make_property(source, "RIGHT")
+    measure_property_match_candidates(property_id=str(left.pk), limit=25)
+    suggestion = PropertyMatchSuggestion.objects.get()
+    api_client.force_authenticate(make_operator())
+    review = claim_suggestion(api_client, suggestion)
+    assert (
+        api_client.post(
+            f"/api/v1/operator/catalog-curation/suggestions/{suggestion.pk}/reject/",
+            review,
+            format="json",
+        ).status_code
+        == 201
+    )
+    original_compare = match_suggestions.compare_properties
+    monkeypatch.setattr(
+        match_suggestions,
+        "compare_properties",
+        lambda *properties: replace(
+            original_compare(*properties), scoring_version="property-match-v3"
+        ),
+    )
+
+    measure_property_match_candidates(property_id=str(left.pk), limit=25)
+
+    suggestion.refresh_from_db()
+    assert suggestion.scoring_version == "property-match-v3"
+    assert suggestion.state == PropertyMatchSuggestionState.REJECTED
+
+
+@pytest.mark.django_db
+def test_snooze_defaults_to_seven_days_expires_and_material_change_wakes_early(
+    api_client: APIClient, monkeypatch
+):
+    source = Source.objects.create(
+        name="snooze-source",
+        domain="snooze.example",
+        display_name="منبع تعویق",
+        outbound_policy=OutboundPolicy.EXTERNAL_LINK,
+    )
+    left = make_property(source, "LEFT")
+    right = make_property(source, "RIGHT")
+    measure_property_match_candidates(property_id=str(left.pk), limit=25)
+    suggestion = PropertyMatchSuggestion.objects.get()
+    api_client.force_authenticate(make_operator())
+    review = claim_suggestion(api_client, suggestion)
+    before = timezone.now()
+
+    response = api_client.post(
+        f"/api/v1/operator/catalog-curation/suggestions/{suggestion.pk}/snooze/",
+        review,
+        format="json",
+    )
+
+    assert response.status_code == 201, response.data
+    assert response.data["outcome"] == "snoozed"
+    suggestion.refresh_from_db()
+    assert suggestion.state == PropertyMatchSuggestionState.SNOOZED
+    assert before + timezone.timedelta(days=7) <= suggestion.snoozed_until
+    assert suggestion.snoozed_until <= timezone.now() + timezone.timedelta(days=7)
+
+    suggestion.snoozed_until = timezone.now() - timezone.timedelta(seconds=1)
+    suggestion.save(update_fields=["snoozed_until"])
+    measure_property_match_candidates(property_id=str(left.pk), limit=25)
+    suggestion.refresh_from_db()
+    assert suggestion.state == PropertyMatchSuggestionState.PENDING
+
+    review = claim_suggestion(api_client, suggestion)
+    assert (
+        api_client.post(
+            f"/api/v1/operator/catalog-curation/suggestions/{suggestion.pk}/snooze/",
+            {**review, "days": 30},
+            format="json",
+        ).status_code
+        == 201
+    )
+    right.area_sqm += 1
+    right.save(update_fields=["area_sqm"])
+    measure_property_match_candidates(property_id=str(left.pk), limit=25)
+    suggestion.refresh_from_db()
+    assert suggestion.state == PropertyMatchSuggestionState.PENDING
+    assert suggestion.snoozed_until is None
+
+
+@pytest.mark.django_db
+def test_suggestion_mutation_rejects_stale_review_and_expires_claim(api_client: APIClient):
+    source = Source.objects.create(
+        name="stale-source",
+        domain="stale.example",
+        display_name="منبع بازبینی قدیمی",
+        outbound_policy=OutboundPolicy.EXTERNAL_LINK,
+    )
+    left = make_property(source, "LEFT")
+    right = make_property(source, "RIGHT")
+    measure_property_match_candidates(property_id=str(left.pk), limit=25)
+    suggestion = PropertyMatchSuggestion.objects.get()
+    api_client.force_authenticate(make_operator())
+    review = claim_suggestion(api_client, suggestion)
+    right.area_sqm += 1
+    right.save(update_fields=["area_sqm"])
+    measure_property_match_candidates(property_id=str(left.pk), limit=25)
+
+    response = api_client.post(
+        f"/api/v1/operator/catalog-curation/suggestions/{suggestion.pk}/reject/",
+        review,
+        format="json",
+    )
+
+    assert response.status_code == 409
+    suggestion.refresh_from_db()
+    assert not suggestion.claims.filter(expires_at__gt=timezone.now()).exists()
+
+
+@pytest.mark.django_db
+def test_scoring_evidence_change_invalidates_an_active_suggestion_claim(
+    api_client: APIClient, monkeypatch
+):
+    from dataclasses import replace
+
+    from apps.catalog import match_suggestions
+
+    source = Source.objects.create(
+        name="claim-rescore-source",
+        domain="claim-rescore.example",
+        display_name="منبع بازامتیازدهی ادعا",
+        outbound_policy=OutboundPolicy.EXTERNAL_LINK,
+    )
+    left = make_property(source, "LEFT")
+    make_property(source, "RIGHT")
+    measure_property_match_candidates(property_id=str(left.pk), limit=25)
+    suggestion = PropertyMatchSuggestion.objects.get()
+    api_client.force_authenticate(make_operator())
+    review = claim_suggestion(api_client, suggestion)
+    original_compare = match_suggestions.compare_properties
+    monkeypatch.setattr(
+        match_suggestions,
+        "compare_properties",
+        lambda *properties: replace(
+            original_compare(*properties), scoring_version="property-match-v3"
+        ),
+    )
+
+    measure_property_match_candidates(property_id=str(left.pk), limit=25)
+    response = api_client.post(
+        f"/api/v1/operator/catalog-curation/suggestions/{suggestion.pk}/reject/",
+        review,
+        format="json",
+    )
+
+    assert response.status_code == 409
+    assert not suggestion.claims.filter(expires_at__gt=timezone.now()).exists()
+
+
+@pytest.mark.django_db
+def test_approving_a_suggestion_uses_manual_grouping_with_scheduler_audit(
+    api_client: APIClient,
+):
+    source = Source.objects.create(
+        name="approval-source",
+        domain="approval.example",
+        display_name="منبع تأیید",
+        outbound_policy=OutboundPolicy.EXTERNAL_LINK,
+    )
+    left = make_property(source, "LEFT")
+    right = make_property(source, "RIGHT")
+    measure_property_match_candidates(property_id=str(left.pk), limit=25)
+    suggestion = PropertyMatchSuggestion.objects.get()
+    evaluation = suggestion.evaluations.get()
+    api_client.force_authenticate(make_operator())
+    detail = api_client.get(f"/api/v1/operator/catalog-curation/suggestions/{suggestion.pk}/").data
+    comparison = detail["comparison"]
+    claim = api_client.post(
+        "/api/v1/operator/catalog-curation/claim/",
+        {
+            "properties": detail["property_ids"],
+            "revision": comparison["revision"],
+            "suggestion_id": str(suggestion.pk),
+        },
+        format="json",
+    ).data["claim"]
+
+    response = api_client.post(
+        "/api/v1/operator/catalog-curation/approve/",
+        {
+            "properties": detail["property_ids"],
+            "revision": comparison["revision"],
+            "suggestion_id": str(suggestion.pk),
+            "claim_id": claim["id"],
+            "survivor_id": str(left.pk),
+            "survivor_confirmed": True,
+            "fact_choices": {field["key"]: str(left.pk) for field in comparison["decision_fields"]},
+            "image_ids": [],
+            "images_confirmed": True,
+            "warning_confirmed": True,
+        },
+        format="json",
+    )
+
+    assert response.status_code == 201, response.data
+    assert response.data["outcome"] == "same_property"
+    assert response.data["origin"] == evaluation.origin
+    assert response.data["suggestion_id"] == str(suggestion.pk)
+    assert response.data["evaluation_id"] == str(evaluation.pk)
+    assert response.data["evaluation_snapshot"]["evidence"] == evaluation.evidence
+    right.refresh_from_db()
+    assert right.merged_into_id == left.pk
+
+
+@pytest.mark.django_db(transaction=True)
+def test_duplicate_suggestion_decisions_are_safe_under_postgresql_concurrency(api_client):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Barrier
+
+    from django.db import close_old_connections, connection
+
+    from apps.catalog.match_decisions import decide_suggestion
+
+    if connection.vendor != "postgresql":
+        pytest.skip("PostgreSQL row-lock contract")
+    source = Source.objects.create(
+        name="concurrent-decision-source",
+        domain="concurrent-decision.example",
+        display_name="منبع تصمیم همزمان",
+        outbound_policy=OutboundPolicy.EXTERNAL_LINK,
+    )
+    left = make_property(source, "LEFT")
+    make_property(source, "RIGHT")
+    measure_property_match_candidates(property_id=str(left.pk), limit=25)
+    suggestion = PropertyMatchSuggestion.objects.get()
+    operator = make_operator()
+    api_client.force_authenticate(operator)
+    review = claim_suggestion(api_client, suggestion)
+    barrier = Barrier(2)
+
+    def reject(_index):
+        close_old_connections()
+        try:
+            barrier.wait(timeout=10)
+            return decide_suggestion(
+                actor=operator,
+                suggestion_id=suggestion.pk,
+                revision=review["revision"],
+                claim_id=review["claim_id"],
+                outcome="not_same_property",
+            ).pk
+        finally:
+            close_old_connections()
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        decisions = list(pool.map(reject, range(2)))
+
+    assert decisions[0] == decisions[1]
+    assert suggestion.decisions.count() == 1

@@ -19,7 +19,12 @@ from apps.accounts.models import User
 from apps.common.pagination import StandardPageNumberPagination
 from apps.common.serializers import ProblemSerializer
 
-from .match_decisions import approve_comparison, claim_comparison, comparison_data
+from .match_decisions import (
+    approve_comparison,
+    claim_comparison,
+    comparison_data,
+    decide_suggestion,
+)
 from .models import (
     PropertyImage,
     PropertyMatchClaim,
@@ -34,9 +39,11 @@ from .operator_serializers import (
     PropertyMatchApproveRequestSerializer,
     PropertyMatchClaimRequestSerializer,
     PropertyMatchDecisionSerializer,
+    PropertyMatchSuggestionDecisionRequestSerializer,
     PropertyMatchSuggestionDetailSerializer,
     PropertyMatchSuggestionPageSerializer,
     PropertyMatchSuggestionSerializer,
+    PropertyMatchSuggestionSnoozeRequestSerializer,
     property_search_data,
     suggestion_data,
 )
@@ -210,7 +217,7 @@ class PropertyMatchSuggestionDetailView(APIView):
             .filter(left__merged_into__isnull=True, right__merged_into__isnull=True),
             pk=suggestion_id,
         )
-        payload = suggestion_data(suggestion)
+        payload = suggestion_data(suggestion, include_history=True)
         payload["comparison"] = comparison_data([suggestion.left_id, suggestion.right_id])
         return Response(PropertyMatchSuggestionDetailSerializer(payload).data)
 
@@ -258,6 +265,71 @@ class PropertyMatchApproveView(APIView):
         decision = approve_comparison(actor=cast(User, request.user), **serializer.validated_data)
         return Response(
             PropertyMatchDecisionSerializer(decision).data, status=200 if already_decided else 201
+        )
+
+
+class PropertyMatchSuggestionRejectView(APIView):
+    permission_classes = [CanCurateCatalog]
+
+    @extend_schema(
+        summary="Record that a scheduled Property Match Suggestion is not the same Property",
+        request=PropertyMatchSuggestionDecisionRequestSerializer,
+        responses={
+            200: PropertyMatchDecisionSerializer,
+            201: PropertyMatchDecisionSerializer,
+            400: ProblemSerializer,
+            403: ProblemSerializer,
+            409: ProblemSerializer,
+        },
+    )
+    def post(self, request: Request, suggestion_id: uuid.UUID) -> Response:
+        serializer = PropertyMatchSuggestionDecisionRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        already_decided = PropertyMatchDecision.objects.filter(
+            claim_id=serializer.validated_data["claim_id"]
+        ).exists()
+        decision = decide_suggestion(
+            actor=cast(User, request.user),
+            suggestion_id=suggestion_id,
+            outcome=PropertyMatchDecision.Outcome.NOT_SAME_PROPERTY,
+            **serializer.validated_data,
+        )
+        return Response(
+            PropertyMatchDecisionSerializer(decision).data,
+            status=200 if already_decided else 201,
+        )
+
+
+class PropertyMatchSuggestionSnoozeView(APIView):
+    permission_classes = [CanCurateCatalog]
+
+    @extend_schema(
+        summary="Snooze a scheduled Property Match Suggestion",
+        request=PropertyMatchSuggestionSnoozeRequestSerializer,
+        responses={
+            200: PropertyMatchDecisionSerializer,
+            201: PropertyMatchDecisionSerializer,
+            400: ProblemSerializer,
+            403: ProblemSerializer,
+            409: ProblemSerializer,
+        },
+    )
+    def post(self, request: Request, suggestion_id: uuid.UUID) -> Response:
+        serializer = PropertyMatchSuggestionSnoozeRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = dict(serializer.validated_data)
+        days = data.pop("days")
+        already_decided = PropertyMatchDecision.objects.filter(claim_id=data["claim_id"]).exists()
+        decision = decide_suggestion(
+            actor=cast(User, request.user),
+            suggestion_id=suggestion_id,
+            outcome=PropertyMatchDecision.Outcome.SNOOZED,
+            snooze_days=days,
+            **data,
+        )
+        return Response(
+            PropertyMatchDecisionSerializer(decision).data,
+            status=200 if already_decided else 201,
         )
 
 
