@@ -372,11 +372,15 @@ test("shows a low-weight contradiction without calling it reliable", async () =>
   expect(screen.queryByText("نیازمند توجه")).not.toBeInTheDocument();
 });
 
-test("previews, claims, and confirms a single Listing partition", async () => {
+test.each([
+  ["restores a historical Property", "restore"],
+  ["creates a Property with edited facts", "new"],
+] as const)("previews evidence and %s", async (_label, mode) => {
   const user = userEvent.setup();
   const listingC = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
   const historicalId = "22222222-2222-4222-8222-222222222222";
   const claimId = "55555555-5555-4555-8555-555555555555";
+  const imageId = "88888888-8888-4888-8888-888888888888";
   let confirmedBody: unknown;
   const summary = {
     id: propertyId,
@@ -410,11 +414,44 @@ test("previews, claims, and confirms a single Listing partition", async () => {
         rental_terms: { deposit_rial: 1, monthly_rent_rial: 2 },
       },
     ],
-    remaining_listings: [],
-    grouping_history: [],
-    approved_connections: [],
+    remaining_listings: [
+      {
+        ...listing(listingA, "منبع الف", "A-1"),
+        state: "published",
+        external_url: "https://a.example/A-1",
+        direct_phone: "02100000000",
+        rental_terms: { deposit_rial: 3, monthly_rent_rial: 4 },
+      },
+    ],
+    grouping_history: [
+      {
+        id: "99999999-9999-4999-8999-999999999999",
+        listing_id: listingB,
+        from_property_id: historicalId,
+        to_property_id: propertyId,
+        action: "merge",
+        reason: "گروه‌بندی پیشین",
+        decision_id: null,
+        partition_decision_id: null,
+        created_at: "2026-09-12T08:00:00Z",
+      },
+    ],
+    approved_connections: [
+      {
+        decision_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        left_property_id: propertyId,
+        right_property_id: historicalId,
+        created_at: "2026-09-12T08:00:00Z",
+      },
+    ],
     pending_suggestions: [{ id: "suggestion" }],
-    property_images: [],
+    property_images: [
+      {
+        id: imageId,
+        property_id: propertyId,
+        url: `/api/v1/operator/catalog-curation/images/${imageId}/`,
+      },
+    ],
     favorites: { surviving_count: 2, copied_count: 0 },
     restoration_options: [
       {
@@ -530,6 +567,21 @@ test("previews, claims, and confirms a single Listing partition", async () => {
     await screen.findByText("۲ علاقه‌مندی روی ملک باقی می‌ماند."),
   ).toBeVisible();
   expect(screen.getByText("۱ پیشنهاد در انتظار تحت تاثیر است.")).toBeVisible();
+  expect(screen.getByText("https://b.example/B-1")).toBeVisible();
+  expect(screen.getByText("گروه‌بندی پیشین", { exact: false })).toBeVisible();
+  expect(screen.getByText(/suggestion/)).toBeVisible();
+  expect(
+    screen.getByRole("img", { name: `تصویر پیشنهادی ملک ${imageId}` }),
+  ).toBeVisible();
+  await user.click(screen.getByLabelText(`انتخاب تصویر ملک ${imageId}`));
+  if (mode === "new") {
+    await user.click(
+      screen.getByLabelText("ساخت ملک تازه با واقعیت‌های نمایش‌داده‌شده"),
+    );
+    const area = screen.getByLabelText("متراژ");
+    await user.clear(area);
+    await user.type(area, "130");
+  }
   await user.click(screen.getByRole("button", { name: "شروع بررسی تفکیک" }));
   await user.click(
     screen.getByLabelText("واقعیت‌های ملک جداشده را تأیید می‌کنم"),
@@ -540,8 +592,10 @@ test("previews, claims, and confirms a single Listing partition", async () => {
   expect(confirmedBody).toMatchObject({
     listing_ids: [listingB],
     claim_id: claimId,
-    destination_mode: "restore",
-    destination_property_id: historicalId,
+    destination_mode: mode,
+    destination_property_id: mode === "restore" ? historicalId : null,
+    normalized_facts: mode === "restore" ? {} : { area_sqm: "130" },
+    image_ids: [imageId],
     facts_confirmed: true,
     images_confirmed: true,
   });

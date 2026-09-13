@@ -1,6 +1,7 @@
 from copy import deepcopy
 
 import pytest
+from django.utils import timezone
 from rest_framework.test import APIClient
 
 from apps.catalog.match_suggestions import evaluate_property_pair
@@ -10,10 +11,13 @@ from apps.catalog.models import (
     ListingState,
     OutboundPolicy,
     Property,
+    PropertyImage,
+    PropertyImageVariant,
     PropertyMatchSuggestion,
     Source,
 )
 from apps.catalog.services import merge_properties
+from tests.test_catalog_curation import attach_listing_image, image_fixture
 from tests.test_grouped_property_consistency import make_operator, make_property
 
 BASE = "/api/v1/operator/catalog-curation/grouped-properties/"
@@ -65,6 +69,20 @@ def test_partition_restores_historical_property_and_preserves_listing_bound_data
 ):
     operator, survivor, survivor_listing, historical, moved, remaining = partition_case
     Favorite.objects.create(account=operator, property=survivor)
+    listing_image = attach_listing_image(moved, image_fixture(), position=0)
+    listing_variant = listing_image.variants.get()
+    property_image = PropertyImage.objects.create(
+        property=survivor,
+        position=0,
+        is_primary=True,
+        reviewed_at=timezone.now(),
+        reviewed_by=operator,
+    )
+    PropertyImageVariant.objects.create(
+        image=property_image,
+        kind=listing_variant.kind,
+        asset=listing_variant.asset,
+    )
     original = {
         "terms_id": moved.terms_id,
         "source_claims": deepcopy(moved.source_claims),
@@ -81,6 +99,13 @@ def test_partition_restores_historical_property_and_preserves_listing_bound_data
     }
     assert opened.data["restoration_options"][0]["id"] == str(historical.pk)
     assert opened.data["favorites"]["surviving_count"] == 1
+    assert opened.data["property_images"] == [
+        {
+            "id": str(property_image.pk),
+            "property_id": str(survivor.pk),
+            "url": f"/api/v1/operator/catalog-curation/images/{property_image.pk}/",
+        }
+    ]
     assert "grouping_history" in opened.data
     assert "normalized_facts" in opened.data["resulting_properties"][0]
 
@@ -95,7 +120,7 @@ def test_partition_restores_historical_property_and_preserves_listing_bound_data
             "destination_mode": "restore",
             "destination_property_id": str(historical.pk),
             "normalized_facts": {},
-            "image_ids": [],
+            "image_ids": [str(property_image.pk)],
             "facts_confirmed": True,
             "images_confirmed": True,
             "reason": "آگهی به واحد دیگری مربوط است",
@@ -111,6 +136,9 @@ def test_partition_restores_historical_property_and_preserves_listing_bound_data
     assert {field: getattr(moved, field) for field in original} == original
     assert Favorite.objects.filter(property=survivor).count() == 1
     assert Favorite.objects.filter(property=historical).count() == 0
+    assert survivor.images.filter(retired_at__isnull=True).count() == 1
+    copied_image = historical.images.get(retired_at__isnull=True)
+    assert copied_image.variants.get().asset_id == listing_variant.asset_id
     surviving_public = api_client.get(f"/api/v1/catalog/properties/{survivor.pk}/")
     restored_public = api_client.get(f"/api/v1/catalog/properties/{historical.pk}/")
     assert surviving_public.status_code == restored_public.status_code == 200
@@ -126,6 +154,9 @@ def test_partition_restores_historical_property_and_preserves_listing_bound_data
     )
     assert audit.status_code == 200
     assert audit.data["evidence"]["favorites"][0]["property_id"] == str(survivor.pk)
+    assert audit.data["after_snapshot"]["separated"]["property_images"][0]["property_id"] == str(
+        historical.pk
+    )
     suppression = PropertyMatchSuggestion.objects.get(
         left_id=min(survivor.pk, historical.pk), right_id=max(survivor.pk, historical.pk)
     )
@@ -138,6 +169,13 @@ def test_partition_creates_confirmed_property_for_subgroup_and_rejects_stale_rev
     api_client: APIClient, partition_case
 ):
     _, survivor, _, _, historical_listing, third_listing = partition_case
+    third_listing_bound = {
+        "terms_id": third_listing.terms_id,
+        "source_claims": deepcopy(third_listing.source_claims),
+        "state": third_listing.state,
+        "available_until": third_listing.available_until,
+        "external_url": third_listing.external_url,
+    }
     selected = [str(historical_listing.pk), str(third_listing.pk)]
     opened = preview(api_client, survivor, selected)
     assert opened.status_code == 200, opened.data
@@ -171,6 +209,10 @@ def test_partition_creates_confirmed_property_for_subgroup_and_rejects_stale_rev
     assert Listing.objects.filter(pk__in=selected).values("property_id").distinct().count() == 1
     assert Listing.objects.filter(property=survivor).count() == 1
     destination = Property.objects.get(pk=result.data["separated_property_id"])
+    third_listing.refresh_from_db()
+    assert {
+        field: getattr(third_listing, field) for field in third_listing_bound
+    } == third_listing_bound
     repeated = evaluate_property_pair(survivor.pk, destination.pk, origin="focused")
     assert repeated is not None
     assert repeated.state == "rejected"

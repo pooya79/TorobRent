@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
@@ -19,6 +20,31 @@ import { api } from "@/lib/api/client";
 type GroupSummary = components["schemas"]["GroupedPropertySummary"];
 type GroupPair = components["schemas"]["GroupConsistencyPair"];
 type PartitionPreview = components["schemas"]["PropertyPartitionPreview"];
+type PartitionListing = components["schemas"]["PropertyPartitionListing"];
+
+const factLabels: Record<string, string> = {
+  city_id: "شهر",
+  district_id: "منطقه",
+  neighborhood_id: "محله",
+  property_type: "نوع ملک",
+  area_sqm: "متراژ",
+  room_count: "تعداد اتاق",
+  construction_year: "سال ساخت",
+  floor: "طبقه",
+  total_floors: "تعداد طبقات",
+  units_per_floor: "واحد در طبقه",
+  parking: "پارکینگ",
+  elevator: "آسانسور",
+  storage: "انباری",
+  balcony: "بالکن",
+  furnished: "مبله",
+  heating: "گرمایش",
+  cooling: "سرمایش",
+  latitude: "عرض جغرافیایی دقیق",
+  longitude: "طول جغرافیایی دقیق",
+  operator_location_notes: "یادداشت مکان",
+  provenance_note: "یادداشت شواهد",
+};
 
 const attentionLabels: Record<GroupSummary["attention_status"], string> = {
   needs_attention: "نیازمند توجه",
@@ -32,6 +58,40 @@ function displayFact(value: unknown) {
   if (typeof value === "string" || typeof value === "number") return value;
   if (typeof value === "boolean") return value ? "بله" : "خیر";
   return JSON.stringify(value);
+}
+
+function editableFact(value: unknown) {
+  if (value == null) return "";
+  if (["string", "number", "boolean"].includes(typeof value)) {
+    return `${value as string | number | boolean}`;
+  }
+  return JSON.stringify(value);
+}
+
+function ListingEvidence({ listing }: { listing: PartitionListing }) {
+  return (
+    <article className="space-y-2 rounded-md border p-2 text-sm">
+      <p className="font-medium">
+        {listing.source.name} · {listing.source_reference || "بدون شناسه"}
+      </p>
+      <dl className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
+        <dt className="text-muted-foreground">وضعیت</dt>
+        <dd>{listing.state}</dd>
+        <dt className="text-muted-foreground">مسیر منبع</dt>
+        <dd className="break-all" dir="ltr">
+          {listing.external_url || "—"}
+        </dd>
+        <dt className="text-muted-foreground">تماس مستقیم</dt>
+        <dd dir="ltr">{listing.direct_phone || "—"}</dd>
+        <dt className="text-muted-foreground">شرایط اجاره</dt>
+        <dd>{displayFact(listing.rental_terms)}</dd>
+        <dt className="text-muted-foreground">ادعاهای منبع</dt>
+        <dd>{displayFact(listing.source_claims)}</dd>
+        <dt className="text-muted-foreground">منشا شواهد</dt>
+        <dd>{listing.provenance_note || "—"}</dd>
+      </dl>
+    </article>
+  );
 }
 
 function PairSummary({
@@ -74,6 +134,7 @@ function PartitionPanel({
   );
   const [destinationId, setDestinationId] = useState<string | null>(null);
   const [imageIds, setImageIds] = useState<string[]>([]);
+  const [newFacts, setNewFacts] = useState<Record<string, unknown>>({});
   const [factsConfirmed, setFactsConfirmed] = useState(false);
   const [imagesConfirmed, setImagesConfirmed] = useState(false);
   const [reason, setReason] = useState("");
@@ -98,6 +159,7 @@ function PartitionPanel({
       setDestinationMode(restored ? "restore" : "new");
       setDestinationId(restored);
       setImageIds([]);
+      setNewFacts({ ...data.new_property_defaults });
       setFactsConfirmed(false);
       setImagesConfirmed(false);
       setCompleted(false);
@@ -138,8 +200,7 @@ function PartitionPanel({
             destination_mode: destinationMode,
             destination_property_id:
               destinationMode === "restore" ? destinationId : null,
-            normalized_facts:
-              destinationMode === "new" ? preview.new_property_defaults : {},
+            normalized_facts: destinationMode === "new" ? newFacts : {},
             image_ids: imageIds,
             facts_confirmed: factsConfirmed,
             images_confirmed: imagesConfirmed,
@@ -251,20 +312,59 @@ function PartitionPanel({
               <div className="rounded-lg border p-3">
                 <p className="mb-2 text-sm font-medium">آگهی‌های جداشونده</p>
                 {preview.selected_listings.map((listing) => (
-                  <p key={listing.id} className="text-muted-foreground text-sm">
-                    {listing.source.name} ·{" "}
-                    {listing.source_reference || "بدون شناسه"} · {listing.state}
-                  </p>
+                  <ListingEvidence key={listing.id} listing={listing} />
                 ))}
               </div>
               <div className="rounded-lg border p-3">
                 <p className="mb-2 text-sm font-medium">آگهی‌های باقی‌مانده</p>
                 {preview.remaining_listings.map((listing) => (
-                  <p key={listing.id} className="text-muted-foreground text-sm">
-                    {listing.source.name} ·{" "}
-                    {listing.source_reference || "بدون شناسه"} · {listing.state}
-                  </p>
+                  <ListingEvidence key={listing.id} listing={listing} />
                 ))}
+              </div>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div className="rounded-lg border p-3">
+                <p className="mb-2 text-sm font-medium">گراف اتصال</p>
+                {preview.approved_connections.length ? (
+                  preview.approved_connections.map((connection) => (
+                    <p
+                      key={connection.decision_id}
+                      className="text-xs break-all"
+                      dir="ltr"
+                    >
+                      {connection.left_property_id} →{" "}
+                      {connection.right_property_id}
+                    </p>
+                  ))
+                ) : (
+                  <p className="text-muted-foreground text-xs">
+                    بدون پیوند تاییدشده
+                  </p>
+                )}
+              </div>
+              <div className="rounded-lg border p-3">
+                <p className="mb-2 text-sm font-medium">سابقه گروه‌بندی</p>
+                {preview.grouping_history.length ? (
+                  preview.grouping_history.map((event) => (
+                    <p key={event.id} className="text-xs">
+                      {event.action} · {event.reason || "بدون دلیل"}
+                    </p>
+                  ))
+                ) : (
+                  <p className="text-muted-foreground text-xs">بدون سابقه</p>
+                )}
+              </div>
+              <div className="rounded-lg border p-3">
+                <p className="mb-2 text-sm font-medium">پیشنهادهای در انتظار</p>
+                {preview.pending_suggestions.length ? (
+                  preview.pending_suggestions.map((suggestion, index) => (
+                    <p key={index} className="text-xs break-all" dir="ltr">
+                      {JSON.stringify(suggestion)}
+                    </p>
+                  ))
+                ) : (
+                  <p className="text-muted-foreground text-xs">بدون پیشنهاد</p>
+                )}
               </div>
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
@@ -319,8 +419,35 @@ function PartitionPanel({
                 </Label>
               </div>
             </RadioGroup>
+            {destinationMode === "new" ? (
+              <div className="rounded-lg border p-3">
+                <p className="mb-3 text-sm font-medium">واقعیت‌های ملک تازه</p>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {Object.entries(newFacts).map(([key, value]) => (
+                    <div key={key} className="space-y-1">
+                      <Label htmlFor={`partition-fact-${key}`}>
+                        {factLabels[key] ?? key}
+                      </Label>
+                      <Input
+                        id={`partition-fact-${key}`}
+                        value={editableFact(value)}
+                        onChange={(event) =>
+                          setNewFacts((current) => ({
+                            ...current,
+                            [key]: event.target.value || null,
+                          }))
+                        }
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
             {preview.property_images.map((item) => (
-              <div key={item.id} className="flex items-center gap-2">
+              <div
+                key={item.id}
+                className="flex items-center gap-3 rounded-lg border p-2"
+              >
                 <Checkbox
                   id={`partition-image-${item.id}`}
                   checked={imageIds.includes(item.id)}
@@ -332,8 +459,13 @@ function PartitionPanel({
                     )
                   }
                 />
+                <img
+                  src={item.url}
+                  alt={`تصویر پیشنهادی ملک ${item.id}`}
+                  className="h-20 w-28 rounded-md object-cover"
+                />
                 <Label htmlFor={`partition-image-${item.id}`}>
-                  انتخاب تصویر ملک
+                  انتخاب تصویر ملک {item.id}
                 </Label>
               </div>
             ))}

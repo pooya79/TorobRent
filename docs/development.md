@@ -501,7 +501,7 @@ and Property Match Decisions remain the source of audit history and approved gra
 
 ### Grouped Property partitioning
 
-Apply catalog migration 0028 before enabling partition decisions. A Catalog Curator starts from a
+Apply catalog migration 0028 before enabling partition decisions. An Operator with Catalog Curation starts from a
 Grouped Property, selects a non-empty proper subset of its Listings, reviews the retained evidence
 and resulting groups, then takes a renewable ten-minute claim before confirmation. The preview and
 confirmation revision includes normalized facts, Listings and Rental Terms, Listing and Property

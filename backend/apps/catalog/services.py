@@ -512,6 +512,19 @@ def current_property_id(property_id: UUID) -> UUID:
     raise ValidationError("چرخه ادغام ملک معتبر نیست.")
 
 
+def property_component_ids(root_id: UUID) -> set[UUID]:
+    """Return one current root and every retained Property merged beneath it."""
+    component_ids = {root_id}
+    frontier = {root_id}
+    while frontier:
+        children = set(
+            Property.objects.filter(merged_into_id__in=frontier).values_list("pk", flat=True)
+        )
+        frontier = children - component_ids
+        component_ids.update(frontier)
+    return component_ids
+
+
 @transaction.atomic
 def _save_favorite_at_root(*, account_id: UUID, property_id: UUID) -> bool:
     property_ = Property.objects.select_for_update().get(pk=property_id)

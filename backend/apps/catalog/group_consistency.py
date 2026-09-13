@@ -22,6 +22,7 @@ from .models import (
     PropertyGroupConsistencyMeasurement,
     PropertyMatchDecision,
 )
+from .services import property_component_ids
 
 RELIABLE_CONTRADICTION_CONTRIBUTION = -10
 LISTING_SCORING_CLAIM_FIELDS = (
@@ -59,20 +60,8 @@ def grouped_property_queryset() -> QuerySet[Property]:
     )
 
 
-def _property_component_ids(property_: Property) -> set[uuid.UUID]:
-    component_ids = {property_.pk}
-    frontier = {property_.pk}
-    while frontier:
-        children = set(
-            Property.objects.filter(merged_into_id__in=frontier).values_list("pk", flat=True)
-        )
-        frontier = children - component_ids
-        component_ids.update(frontier)
-    return component_ids
-
-
 def _grouping_events(property_: Property) -> QuerySet[ListingGroupingEvent]:
-    component_ids = _property_component_ids(property_)
+    component_ids = property_component_ids(property_.pk)
     return ListingGroupingEvent.objects.filter(
         Q(from_property_id__in=component_ids) | Q(to_property_id__in=component_ids)
     )
@@ -358,7 +347,7 @@ def current_group_measurement(
 
 
 def approved_connection_graph(property_: Property) -> list[dict[str, Any]]:
-    component_ids = _property_component_ids(property_)
+    component_ids = property_component_ids(property_.pk)
     decisions = PropertyMatchDecision.objects.filter(
         outcome=PropertyMatchDecision.Outcome.SAME_PROPERTY,
         survivor_id__in=component_ids,

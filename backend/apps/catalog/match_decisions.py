@@ -38,7 +38,7 @@ from .models import (
 )
 from .operator_serializers import property_evidence_data
 from .selectors import current_properties_for_curation
-from .services import merge_properties
+from .services import merge_properties, property_component_ids
 
 CLAIM_LIFETIME = timedelta(minutes=10)
 
@@ -161,21 +161,9 @@ def _revision(snapshot: dict[str, Any]) -> str:
     return hashlib.sha256(json.dumps(snapshot, sort_keys=True).encode()).hexdigest()
 
 
-def _component_property_ids(root_ids: list[UUID]) -> set[UUID]:
-    component_ids = set(root_ids)
-    frontier = set(root_ids)
-    while frontier:
-        children = set(
-            Property.objects.filter(merged_into_id__in=frontier).values_list("pk", flat=True)
-        )
-        frontier = children - component_ids
-        component_ids.update(frontier)
-    return component_ids
-
-
 def _approved_connection_data(properties: list[Property]) -> dict[str, list[Any]]:
     root_ids = [property_.pk for property_ in properties]
-    component_ids = _component_property_ids(root_ids)
+    component_ids = set().union(*(property_component_ids(root_id) for root_id in root_ids))
     decisions = PropertyMatchDecision.objects.filter(
         outcome=PropertyMatchDecision.Outcome.SAME_PROPERTY,
         survivor_id__in=component_ids,

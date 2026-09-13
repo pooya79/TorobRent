@@ -35,6 +35,7 @@ from .models import (
     RentalTerms,
 )
 from .operator_serializers import property_evidence_data
+from .services import property_component_ids
 
 
 def _json[T](value: T) -> T:
@@ -46,18 +47,6 @@ def _digest(value: Any) -> str:
     return hashlib.sha256(encoded.encode()).hexdigest()
 
 
-def _component_ids(root_id: UUID) -> set[UUID]:
-    result = {root_id}
-    frontier = {root_id}
-    while frontier:
-        children = set(
-            Property.objects.filter(merged_into_id__in=frontier).values_list("pk", flat=True)
-        )
-        frontier = children - result
-        result.update(frontier)
-    return result
-
-
 def _lock_group(property_id: UUID) -> Property:
     property_ = (
         Property.objects
@@ -67,7 +56,7 @@ def _lock_group(property_id: UUID) -> Property:
     )
     if property_ is None:
         raise ReviewConflict()
-    component_ids = _component_ids(property_id)
+    component_ids = property_component_ids(property_id)
     list(Property.objects.select_for_update().filter(pk__in=component_ids).order_by("pk"))
     listings = Listing.objects.filter(property=property_)
     list(listings.select_for_update().order_by("pk"))
@@ -126,7 +115,7 @@ def _historical_options(property_: Property, selected: list[Listing]) -> list[Pr
 
 
 def _snapshot(property_: Property) -> dict[str, Any]:
-    component_ids = _component_ids(property_.pk)
+    component_ids = property_component_ids(property_.pk)
     listings = Listing.objects.filter(property=property_).order_by("pk")
     return _json({
         "properties": list(Property.objects.filter(pk__in=component_ids).order_by("pk").values()),
@@ -458,7 +447,7 @@ def confirm_partition(
         )
     after = _json({
         "surviving": _snapshot(source),
-        "separated": property_evidence_data(destination),
+        "separated": _snapshot(destination),
     })
     decision.after_snapshot = after
     decision.after_revision = _digest(after)
