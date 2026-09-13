@@ -485,3 +485,16 @@ change may therefore reopen rejected or snoozed neighboring work, while ordinary
 retain the suppression rules above. Stale mutations return a review conflict, and refreshing the UI
 loads the current-root comparison with its approved connection graph and indirectly connected
 Listings.
+
+### Grouped Property consistency
+
+Apply catalog migration 0027 before enabling the grouped-Property reconciliation schedule. The
+nightly task walks current Properties with more than one Listing in deterministic UUID pages and
+stores one idempotent measurement per group revision and scoring version. It includes every Listing
+state because identity audit history is independent of publication activity.
+
+The Catalog Curation API exposes current measurements only to Catalog Curators. A missing or stale
+current-version measurement is shown as not yet measured and does not imply inconsistency. Only
+reliable deterministic contradiction or blocker signals mark a group Needs Attention. Measurements
+are advisory: the task and read APIs never group or separate Listings, and existing grouping events
+and Property Match Decisions remain the source of audit history and approved graph edges.

@@ -1512,6 +1512,56 @@ paths:
               schema:
                 $ref: '#/components/schemas/PropertyMatchDecision'
           description: ''
+  /api/v1/operator/catalog-curation/grouped-properties/:
+    get:
+      operationId: v1_operator_catalog_curation_grouped_properties_list
+      summary: Inspect every current Property containing multiple Listings
+      parameters:
+      - in: query
+        name: page
+        schema:
+          type: integer
+      - in: query
+        name: page_size
+        schema:
+          type: integer
+      - in: query
+        name: q
+        schema:
+          type: string
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GroupedPropertyPage'
+          description: ''
+  /api/v1/operator/catalog-curation/grouped-properties/{property_id}/:
+    get:
+      operationId: v1_operator_catalog_curation_grouped_properties_detail
+      summary: Inspect one grouped Property's consistency evidence and history
+      parameters:
+      - in: path
+        name: property_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GroupedPropertyDetail'
+          description: ''
   /api/v1/operator/catalog-curation/images/{image_id}/:
     get:
       operationId: v1_operator_catalog_curation_images_retrieve
@@ -4450,6 +4500,18 @@ components:
       - next_crawl_at
       - processing_paused
       - processing_revision
+    AttentionStatusEnum:
+      enum:
+      - needs_attention
+      - recent_change
+      - stable
+      - not_measured
+      type: string
+      description: |-
+        * `needs_attention` - needs_attention
+        * `recent_change` - recent_change
+        * `stable` - stable
+        * `not_measured` - not_measured
     AuditedFormatting:
       type: object
       properties:
@@ -6248,6 +6310,351 @@ components:
       required:
       - renter_id
       - submitter_id
+    GroupApprovedConnection:
+      type: object
+      properties:
+        decision_id:
+          type: string
+          format: uuid
+        left_property_id:
+          type: string
+          format: uuid
+        right_property_id:
+          type: string
+          format: uuid
+        created_at:
+          type: string
+          format: date-time
+      required:
+      - created_at
+      - decision_id
+      - left_property_id
+      - right_property_id
+    GroupConsistencyMeasurement:
+      type: object
+      properties:
+        scoring_version:
+          type: string
+        group_revision:
+          type: string
+        listing_count:
+          type: integer
+          minimum: 2
+        pair_measurements:
+          type: array
+          items:
+            $ref: '#/components/schemas/GroupConsistencyPair'
+        strongest_pair:
+          oneOf:
+          - $ref: '#/components/schemas/GroupConsistencyPair'
+          - type: 'null'
+        weakest_pair:
+          oneOf:
+          - $ref: '#/components/schemas/GroupConsistencyPair'
+          - type: 'null'
+        explicit_contradictions:
+          type: array
+          items:
+            $ref: '#/components/schemas/GroupExplicitContradiction'
+        needs_attention:
+          type: boolean
+        measured_at:
+          type: string
+          format: date-time
+      required:
+      - explicit_contradictions
+      - group_revision
+      - listing_count
+      - measured_at
+      - needs_attention
+      - pair_measurements
+      - scoring_version
+      - strongest_pair
+      - weakest_pair
+    GroupConsistencyPair:
+      type: object
+      properties:
+        listing_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+          maxItems: 2
+          minItems: 2
+        status:
+          $ref: '#/components/schemas/GroupConsistencyPairStatusEnum'
+        score:
+          type:
+          - integer
+          - 'null'
+          maximum: 100
+          minimum: 0
+        band:
+          type:
+          - string
+          - 'null'
+        signals:
+          type: array
+          items:
+            $ref: '#/components/schemas/MatchSignal'
+        contradictions:
+          type: array
+          items:
+            $ref: '#/components/schemas/MatchSignal'
+        reliable_contradictions:
+          type: array
+          items:
+            $ref: '#/components/schemas/MatchSignal'
+      required:
+      - band
+      - contradictions
+      - listing_ids
+      - reliable_contradictions
+      - score
+      - signals
+      - status
+    GroupConsistencyPairStatusEnum:
+      enum:
+      - measured
+      - missing_evidence
+      type: string
+      description: |-
+        * `measured` - measured
+        * `missing_evidence` - missing_evidence
+    GroupExplicitContradiction:
+      type: object
+      properties:
+        key:
+          type: string
+        label:
+          type: string
+        compared_values:
+          type: object
+          additionalProperties: {}
+        classification:
+          $ref: '#/components/schemas/MatchSignalClassificationEnum'
+        contribution:
+          type: integer
+        listing_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+          maxItems: 2
+          minItems: 2
+      required:
+      - classification
+      - compared_values
+      - contribution
+      - key
+      - label
+      - listing_ids
+    GroupIndirectConnection:
+      type: object
+      properties:
+        listing_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+          maxItems: 2
+          minItems: 2
+        property_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+          maxItems: 2
+          minItems: 2
+      required:
+      - listing_ids
+      - property_ids
+    GroupedPropertyDetail:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        listing_count:
+          type: integer
+          minimum: 2
+        listing_states:
+          type: array
+          items:
+            type: string
+        measurement_status:
+          $ref: '#/components/schemas/MeasurementStatusEnum'
+        attention_status:
+          $ref: '#/components/schemas/AttentionStatusEnum'
+        needs_attention:
+          type: boolean
+        scoring_version:
+          type:
+          - string
+          - 'null'
+        measured_at:
+          type:
+          - string
+          - 'null'
+          format: date-time
+        last_grouping_change:
+          type:
+          - string
+          - 'null'
+          format: date-time
+        property:
+          $ref: '#/components/schemas/CatalogCurationPropertyEvidence'
+        grouping_history:
+          type: array
+          items:
+            $ref: '#/components/schemas/GroupingHistory'
+        approved_connections:
+          type: array
+          items:
+            $ref: '#/components/schemas/GroupApprovedConnection'
+        indirect_only_connections:
+          type: array
+          items:
+            $ref: '#/components/schemas/GroupIndirectConnection'
+        measurement:
+          oneOf:
+          - $ref: '#/components/schemas/GroupConsistencyMeasurement'
+          - type: 'null'
+      required:
+      - approved_connections
+      - attention_status
+      - grouping_history
+      - id
+      - indirect_only_connections
+      - last_grouping_change
+      - listing_count
+      - listing_states
+      - measured_at
+      - measurement
+      - measurement_status
+      - needs_attention
+      - property
+      - scoring_version
+      - title
+    GroupedPropertyPage:
+      type: object
+      properties:
+        count:
+          type: integer
+          minimum: 0
+        next:
+          type:
+          - string
+          - 'null'
+          format: uri
+        previous:
+          type:
+          - string
+          - 'null'
+          format: uri
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/GroupedPropertySummary'
+      required:
+      - count
+      - next
+      - previous
+      - results
+    GroupedPropertySummary:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        listing_count:
+          type: integer
+          minimum: 2
+        listing_states:
+          type: array
+          items:
+            type: string
+        measurement_status:
+          $ref: '#/components/schemas/MeasurementStatusEnum'
+        attention_status:
+          $ref: '#/components/schemas/AttentionStatusEnum'
+        needs_attention:
+          type: boolean
+        scoring_version:
+          type:
+          - string
+          - 'null'
+        measured_at:
+          type:
+          - string
+          - 'null'
+          format: date-time
+        last_grouping_change:
+          type:
+          - string
+          - 'null'
+          format: date-time
+      required:
+      - attention_status
+      - id
+      - last_grouping_change
+      - listing_count
+      - listing_states
+      - measured_at
+      - measurement_status
+      - needs_attention
+      - scoring_version
+      - title
+    GroupingHistory:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        listing_id:
+          type: string
+          format: uuid
+        from_property_id:
+          type: string
+          format: uuid
+        to_property_id:
+          type: string
+          format: uuid
+        action:
+          $ref: '#/components/schemas/GroupingHistoryActionEnum'
+        reason:
+          type: string
+        decision_id:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        created_at:
+          type: string
+          format: date-time
+      required:
+      - action
+      - created_at
+      - decision_id
+      - from_property_id
+      - id
+      - listing_id
+      - reason
+      - to_property_id
+    GroupingHistoryActionEnum:
+      enum:
+      - attach
+      - split
+      - merge
+      type: string
+      description: |-
+        * `attach` - attach
+        * `split` - split
+        * `merge` - merge
     Health:
       type: object
       properties:
@@ -6734,6 +7141,16 @@ components:
         * `contradiction` - contradiction
         * `neutral` - neutral
         * `blocker` - blocker
+    MeasurementStatusEnum:
+      enum:
+      - measured
+      - stale
+      - not_measured
+      type: string
+      description: |-
+        * `measured` - measured
+        * `stale` - stale
+        * `not_measured` - not_measured
     MessageBody:
       type: object
       properties:

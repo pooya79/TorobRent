@@ -448,7 +448,9 @@ test("searches, selects exactly two Properties, and explains Match Confidence", 
   expect(
     screen.getByRole("link", { name: "ملک‌های گروه‌بندی‌شده" }),
   ).toBeVisible();
-  expect(screen.getAllByText("به‌زودی")).toHaveLength(1);
+  expect(
+    await screen.findByRole("heading", { name: "ملک‌های گروه‌بندی‌شده" }),
+  ).toBeVisible();
   expect(
     screen.getByRole("heading", { name: "مقایسه دستی ملک‌ها" }),
   ).toBeVisible();

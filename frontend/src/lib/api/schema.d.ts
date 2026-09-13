@@ -670,6 +670,40 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/v1/operator/catalog-curation/grouped-properties/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Inspect every current Property containing multiple Listings */
+    get: operations["v1_operator_catalog_curation_grouped_properties_list"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/operator/catalog-curation/grouped-properties/{property_id}/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Inspect one grouped Property's consistency evidence and history */
+    get: operations["v1_operator_catalog_curation_grouped_properties_detail"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/v1/operator/catalog-curation/images/{image_id}/": {
     parameters: {
       query?: never;
@@ -2254,6 +2288,15 @@ export interface components {
       display_name: string;
       domain: string;
     };
+    /**
+     * @description * `needs_attention` - needs_attention
+     *     * `recent_change` - recent_change
+     *     * `stable` - stable
+     *     * `not_measured` - not_measured
+     * @enum {string}
+     */
+    AttentionStatusEnum:
+      "needs_attention" | "recent_change" | "stable" | "not_measured";
     AuditedFormatting: {
       description?: string;
     };
@@ -3002,6 +3045,123 @@ export interface components {
       /** Format: uuid */
       submitter_id: string;
     };
+    GroupApprovedConnection: {
+      /** Format: uuid */
+      decision_id: string;
+      /** Format: uuid */
+      left_property_id: string;
+      /** Format: uuid */
+      right_property_id: string;
+      /** Format: date-time */
+      created_at: string;
+    };
+    GroupConsistencyMeasurement: {
+      scoring_version: string;
+      group_revision: string;
+      listing_count: number;
+      pair_measurements: components["schemas"]["GroupConsistencyPair"][];
+      strongest_pair: components["schemas"]["GroupConsistencyPair"] | null;
+      weakest_pair: components["schemas"]["GroupConsistencyPair"] | null;
+      explicit_contradictions: components["schemas"]["GroupExplicitContradiction"][];
+      needs_attention: boolean;
+      /** Format: date-time */
+      measured_at: string;
+    };
+    GroupConsistencyPair: {
+      listing_ids: string[];
+      status: components["schemas"]["GroupConsistencyPairStatusEnum"];
+      score: number | null;
+      band: string | null;
+      signals: components["schemas"]["MatchSignal"][];
+      contradictions: components["schemas"]["MatchSignal"][];
+      reliable_contradictions: components["schemas"]["MatchSignal"][];
+    };
+    /**
+     * @description * `measured` - measured
+     *     * `missing_evidence` - missing_evidence
+     * @enum {string}
+     */
+    GroupConsistencyPairStatusEnum: "measured" | "missing_evidence";
+    GroupExplicitContradiction: {
+      key: string;
+      label: string;
+      compared_values: {
+        [key: string]: unknown;
+      };
+      classification: components["schemas"]["MatchSignalClassificationEnum"];
+      contribution: number;
+      listing_ids: string[];
+    };
+    GroupIndirectConnection: {
+      listing_ids: string[];
+      property_ids: string[];
+    };
+    GroupedPropertyDetail: {
+      /** Format: uuid */
+      id: string;
+      title: string;
+      listing_count: number;
+      listing_states: string[];
+      measurement_status: components["schemas"]["MeasurementStatusEnum"];
+      attention_status: components["schemas"]["AttentionStatusEnum"];
+      needs_attention: boolean;
+      scoring_version: string | null;
+      /** Format: date-time */
+      measured_at: string | null;
+      /** Format: date-time */
+      last_grouping_change: string | null;
+      property: components["schemas"]["CatalogCurationPropertyEvidence"];
+      grouping_history: components["schemas"]["GroupingHistory"][];
+      approved_connections: components["schemas"]["GroupApprovedConnection"][];
+      indirect_only_connections: components["schemas"]["GroupIndirectConnection"][];
+      measurement: components["schemas"]["GroupConsistencyMeasurement"] | null;
+    };
+    GroupedPropertyPage: {
+      count: number;
+      /** Format: uri */
+      next: string | null;
+      /** Format: uri */
+      previous: string | null;
+      results: components["schemas"]["GroupedPropertySummary"][];
+    };
+    GroupedPropertySummary: {
+      /** Format: uuid */
+      id: string;
+      title: string;
+      listing_count: number;
+      listing_states: string[];
+      measurement_status: components["schemas"]["MeasurementStatusEnum"];
+      attention_status: components["schemas"]["AttentionStatusEnum"];
+      needs_attention: boolean;
+      scoring_version: string | null;
+      /** Format: date-time */
+      measured_at: string | null;
+      /** Format: date-time */
+      last_grouping_change: string | null;
+    };
+    GroupingHistory: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      listing_id: string;
+      /** Format: uuid */
+      from_property_id: string;
+      /** Format: uuid */
+      to_property_id: string;
+      action: components["schemas"]["GroupingHistoryActionEnum"];
+      reason: string;
+      /** Format: uuid */
+      decision_id: string | null;
+      /** Format: date-time */
+      created_at: string;
+    };
+    /**
+     * @description * `attach` - attach
+     *     * `split` - split
+     *     * `merge` - merge
+     * @enum {string}
+     */
+    GroupingHistoryActionEnum: "attach" | "split" | "merge";
     Health: {
       status: components["schemas"]["HealthStatusEnum"];
     };
@@ -3219,6 +3379,13 @@ export interface components {
      */
     MatchSignalClassificationEnum:
       "support" | "contradiction" | "neutral" | "blocker";
+    /**
+     * @description * `measured` - measured
+     *     * `stale` - stale
+     *     * `not_measured` - not_measured
+     * @enum {string}
+     */
+    MeasurementStatusEnum: "measured" | "stale" | "not_measured";
     MessageBody: {
       body: string;
     };
@@ -6857,6 +7024,50 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["PropertyMatchDecision"];
+        };
+      };
+    };
+  };
+  v1_operator_catalog_curation_grouped_properties_list: {
+    parameters: {
+      query?: {
+        page?: number;
+        page_size?: number;
+        q?: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["GroupedPropertyPage"];
+        };
+      };
+    };
+  };
+  v1_operator_catalog_curation_grouped_properties_detail: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        property_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["GroupedPropertyDetail"];
         };
       };
     };

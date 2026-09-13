@@ -207,6 +207,12 @@ SPECTACULAR_SETTINGS = {
         ),
         "IntakeKindEnum": "apps.contact.models.IntakeKind.choices",
         "MessageKindEnum": "apps.communications.models.MessageKind.choices",
+        "MatchSignalClassificationEnum": (
+            "support",
+            "contradiction",
+            "neutral",
+            "blocker",
+        ),
         "OutboundPolicyEnum": "apps.catalog.models.OutboundPolicy.choices",
         "PropertyTypeEnum": "apps.catalog.models.PropertyType.choices",
         "PrivacyActionTypeEnum": "apps.contact.models.PrivacyActionType.choices",
@@ -275,6 +281,10 @@ CELERY_BEAT_SCHEDULE = {
     "reconcile-property-match-suggestions": {
         "task": "apps.catalog.tasks.reconcile_property_match_suggestions",
         "schedule": crontab(hour=1, minute=30),
+    },
+    "reconcile-grouped-property-consistency": {
+        "task": "apps.catalog.tasks.reconcile_grouped_property_consistency",
+        "schedule": crontab(hour=2, minute=0),
     },
 }
 

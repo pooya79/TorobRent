@@ -1,5 +1,6 @@
 import { PropertyMatchReview } from "./PropertyMatchReview";
 import { PropertyMatchSuggestions } from "./PropertyMatchSuggestions";
+import { GroupedProperties } from "./GroupedProperties";
 import { useQuery } from "@tanstack/react-query";
 import { GitCompareArrows, Layers3, Search, Sparkles } from "lucide-react";
 import { type FormEvent, useState } from "react";
@@ -393,18 +394,12 @@ export function CatalogCurationWorkspace() {
         <PropertyMatchSuggestions />
       </section>
 
-      <div className="mb-8" aria-label="مسیرهای آینده">
+      <div className="mb-8">
         <section
           id="grouped-properties"
-          className="scroll-mt-24 rounded-2xl border p-4"
+          className="scroll-mt-24 rounded-2xl border p-5"
         >
-          <div className="flex items-center justify-between gap-3">
-            <h2 className="font-semibold">ملک‌های گروه‌بندی‌شده</h2>
-            <Badge variant="secondary">به‌زودی</Badge>
-          </div>
-          <p className="text-muted-foreground mt-2 text-sm">
-            مرور گروه‌های فعلی در نسخه بعدی فعال می‌شود.
-          </p>
+          <GroupedProperties />
         </section>
       </div>
 

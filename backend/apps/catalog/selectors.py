@@ -234,6 +234,42 @@ def search_current_properties_for_curation(query: str) -> QuerySet[Property, Pro
     )
 
 
+def search_grouped_properties_for_curation(query: str) -> QuerySet[Property, Property]:
+    properties = (
+        Property.objects
+        .filter(merged_into__isnull=True)
+        .annotate(listing_count_value=Count("listings", distinct=True))
+        .filter(listing_count_value__gt=1)
+        .select_related("city", "district", "neighborhood")
+        .prefetch_related("listings__source", "listings__images", "consistency_measurements")
+    )
+    try:
+        query_uuid = uuid.UUID(query)
+    except ValueError:
+        query_uuid = None
+    if query_uuid:
+        return properties.filter(Q(id=query_uuid) | Q(listings__id=query_uuid)).distinct()
+    if not query:
+        return properties.distinct()
+    normalized_query = normalize_persian_search(query)
+    return (
+        properties
+        .annotate(
+            normalized_city=_normalized_search_expression("city__name_fa"),
+            normalized_neighborhood=_normalized_search_expression("neighborhood__name_fa"),
+            normalized_source=_normalized_search_expression("listings__source__display_name"),
+            normalized_reference=_normalized_search_expression("listings__source_reference"),
+        )
+        .filter(
+            Q(normalized_city__icontains=normalized_query)
+            | Q(normalized_neighborhood__icontains=normalized_query)
+            | Q(normalized_source__icontains=normalized_query)
+            | Q(normalized_reference__icontains=normalized_query)
+        )
+        .distinct()
+    )
+
+
 def autocomplete_locations(query: str, *, limit: int = 10) -> list[LocationSuggestion]:
     normalized_query = normalize_persian_search(query)
     neighborhoods = _with_normalized_name(

@@ -812,3 +812,34 @@ class PropertyMatchSuggestionEvaluation(models.Model):
 
     def __str__(self) -> str:
         return f"{self.suggestion_id}: {self.score}"
+
+
+class PropertyGroupConsistencyMeasurement(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    property = models.ForeignKey(
+        Property,
+        on_delete=models.PROTECT,
+        related_name="consistency_measurements",
+    )
+    group_revision = models.CharField(max_length=64)
+    scoring_version = models.CharField(max_length=64)
+    listing_count = models.PositiveIntegerField()
+    pair_measurements = models.JSONField(default=list)
+    strongest_pair = models.JSONField(null=True, blank=True)
+    weakest_pair = models.JSONField(null=True, blank=True)
+    explicit_contradictions = models.JSONField(default=list)
+    needs_attention = models.BooleanField(default=False)
+    measured_at = models.DateTimeField(default=timezone.now)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ("-measured_at", "-id")
+        constraints = [
+            models.UniqueConstraint(
+                fields=("property", "group_revision", "scoring_version"),
+                name="catalog_unique_group_consistency_measurement",
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.property_id}: {self.scoring_version}"

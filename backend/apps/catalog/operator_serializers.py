@@ -1,14 +1,22 @@
+from datetime import timedelta
 from typing import Any
 
 from django.utils import timezone
 from rest_framework import serializers
 
+from .group_consistency import (
+    approved_connection_graph,
+    current_group_measurement,
+    grouping_history,
+    indirect_only_connections,
+)
 from .models import (
     Listing,
     Property,
     PropertyMatchClaim,
     PropertyMatchDecision,
     PropertyMatchSuggestion,
+    PropertyType,
 )
 
 
@@ -111,6 +119,98 @@ class CatalogCurationPropertySearchPageSerializer(serializers.Serializer[Any]):
     results = CatalogCurationPropertySearchSerializer(many=True)
 
 
+def grouped_property_data(
+    property_: Property, *, include_detail: bool = False
+) -> dict[str, object]:
+    measurement_status, measurement = current_group_measurement(property_)
+    history = grouping_history(property_)
+    last_grouping_change = history[-1]["created_at"] if history else None
+    if measurement_status != "measured":
+        attention_status = "not_measured"
+    elif measurement is not None and measurement.needs_attention:
+        attention_status = "needs_attention"
+    elif last_grouping_change is not None and last_grouping_change >= timezone.now() - timedelta(
+        days=30
+    ):
+        attention_status = "recent_change"
+    else:
+        attention_status = "stable"
+    listings = list(property_.listings.all())
+    title = (
+        property_.title if property_.property_type in PropertyType.values else "ملک بدون نوع ثبت‌شده"
+    )
+    payload: dict[str, object] = {
+        "id": property_.pk,
+        "title": title,
+        "listing_count": len(listings),
+        "listing_states": sorted({listing.state for listing in listings}),
+        "measurement_status": measurement_status,
+        "attention_status": attention_status,
+        "needs_attention": bool(
+            measurement_status == "measured" and measurement and measurement.needs_attention
+        ),
+        "scoring_version": measurement.scoring_version if measurement else None,
+        "measured_at": measurement.measured_at if measurement else None,
+        "last_grouping_change": last_grouping_change,
+    }
+    if include_detail:
+        payload.update({
+            "property": property_evidence_data(property_),
+            "grouping_history": history,
+            "approved_connections": approved_connection_graph(property_),
+            "indirect_only_connections": indirect_only_connections(property_),
+            "measurement": (
+                {
+                    "scoring_version": measurement.scoring_version,
+                    "group_revision": measurement.group_revision,
+                    "listing_count": measurement.listing_count,
+                    "pair_measurements": measurement.pair_measurements,
+                    "strongest_pair": measurement.strongest_pair,
+                    "weakest_pair": measurement.weakest_pair,
+                    "explicit_contradictions": measurement.explicit_contradictions,
+                    "needs_attention": measurement.needs_attention,
+                    "measured_at": measurement.measured_at,
+                }
+                if measurement_status == "measured" and measurement is not None
+                else None
+            ),
+        })
+    return payload
+
+
+class GroupedPropertySummarySerializer(serializers.Serializer[Any]):
+    id = serializers.UUIDField()
+    title = serializers.CharField()
+    listing_count = serializers.IntegerField(min_value=2)
+    listing_states = serializers.ListField(child=serializers.CharField())
+    measurement_status = serializers.ChoiceField(choices=("measured", "stale", "not_measured"))
+    attention_status = serializers.ChoiceField(
+        choices=("needs_attention", "recent_change", "stable", "not_measured")
+    )
+    needs_attention = serializers.BooleanField()
+    scoring_version = serializers.CharField(allow_null=True)
+    measured_at = serializers.DateTimeField(allow_null=True)
+    last_grouping_change = serializers.DateTimeField(allow_null=True)
+
+
+class GroupedPropertyPageSerializer(serializers.Serializer[Any]):
+    count = serializers.IntegerField(min_value=0)
+    next = serializers.URLField(allow_null=True)
+    previous = serializers.URLField(allow_null=True)
+    results = GroupedPropertySummarySerializer(many=True)
+
+
+class GroupingHistorySerializer(serializers.Serializer[Any]):
+    id = serializers.UUIDField()
+    listing_id = serializers.UUIDField()
+    from_property_id = serializers.UUIDField()
+    to_property_id = serializers.UUIDField()
+    action = serializers.ChoiceField(choices=("attach", "split", "merge"))
+    reason = serializers.CharField()
+    decision_id = serializers.UUIDField(allow_null=True)
+    created_at = serializers.DateTimeField()
+
+
 class CatalogCurationExactLocationSerializer(serializers.Serializer[Any]):
     latitude = serializers.DecimalField(max_digits=9, decimal_places=6, allow_null=True)
     longitude = serializers.DecimalField(max_digits=9, decimal_places=6, allow_null=True)
@@ -138,6 +238,52 @@ class MatchSignalSerializer(serializers.Serializer[Any]):
         choices=("support", "contradiction", "neutral", "blocker")
     )
     contribution = serializers.IntegerField()
+
+
+class GroupConsistencyPairSerializer(serializers.Serializer[Any]):
+    listing_ids = serializers.ListField(child=serializers.UUIDField(), min_length=2, max_length=2)
+    status = serializers.ChoiceField(choices=("measured", "missing_evidence"))
+    score = serializers.IntegerField(allow_null=True, min_value=0, max_value=100)
+    band = serializers.CharField(allow_null=True)
+    signals = MatchSignalSerializer(many=True)
+    contradictions = MatchSignalSerializer(many=True)
+    reliable_contradictions = MatchSignalSerializer(many=True)
+
+
+class GroupExplicitContradictionSerializer(MatchSignalSerializer):
+    listing_ids = serializers.ListField(child=serializers.UUIDField(), min_length=2, max_length=2)
+
+
+class GroupConsistencyMeasurementSerializer(serializers.Serializer[Any]):
+    scoring_version = serializers.CharField()
+    group_revision = serializers.CharField()
+    listing_count = serializers.IntegerField(min_value=2)
+    pair_measurements = GroupConsistencyPairSerializer(many=True)
+    strongest_pair = GroupConsistencyPairSerializer(allow_null=True)
+    weakest_pair = GroupConsistencyPairSerializer(allow_null=True)
+    explicit_contradictions = GroupExplicitContradictionSerializer(many=True)
+    needs_attention = serializers.BooleanField()
+    measured_at = serializers.DateTimeField()
+
+
+class GroupApprovedConnectionSerializer(serializers.Serializer[Any]):
+    decision_id = serializers.UUIDField()
+    left_property_id = serializers.UUIDField()
+    right_property_id = serializers.UUIDField()
+    created_at = serializers.DateTimeField()
+
+
+class GroupIndirectConnectionSerializer(serializers.Serializer[Any]):
+    listing_ids = serializers.ListField(child=serializers.UUIDField(), min_length=2, max_length=2)
+    property_ids = serializers.ListField(child=serializers.UUIDField(), min_length=2, max_length=2)
+
+
+class GroupedPropertyDetailSerializer(GroupedPropertySummarySerializer):
+    property = CatalogCurationPropertyEvidenceSerializer()
+    grouping_history = GroupingHistorySerializer(many=True)
+    approved_connections = GroupApprovedConnectionSerializer(many=True)
+    indirect_only_connections = GroupIndirectConnectionSerializer(many=True)
+    measurement = GroupConsistencyMeasurementSerializer(allow_null=True)
 
 
 class PropertyMatchClaimSerializer(serializers.Serializer[Any]):

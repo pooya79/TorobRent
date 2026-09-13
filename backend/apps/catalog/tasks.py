@@ -7,6 +7,7 @@ from django.core.cache import cache
 from django.db.models import Q
 from django.utils import timezone
 
+from .group_consistency import grouped_property_queryset, measure_group_consistency
 from .image_evidence import backfill_listing_image_hashes
 from .match_suggestions import (
     eligible_property_roots,
@@ -21,6 +22,8 @@ from .services import expire_listings
 
 PROPERTY_MATCH_RECONCILIATION_LOCK = "catalog:property-match-reconciliation"
 PROPERTY_MATCH_RECONCILIATION_TIMEOUT = settings.CELERY_TASK_TIME_LIMIT + 5 * 60
+GROUP_CONSISTENCY_RECONCILIATION_LOCK = "catalog:group-consistency-reconciliation"
+GROUP_CONSISTENCY_RECONCILIATION_TIMEOUT = settings.CELERY_TASK_TIME_LIMIT + 5 * 60
 
 
 def _finish_focused_measurement(property_id: uuid.UUID) -> None:
@@ -135,4 +138,70 @@ def reconcile_property_match_suggestions(
         cache.delete(processing_key)
         if cache.get(PROPERTY_MATCH_RECONCILIATION_LOCK) == token:
             cache.delete(PROPERTY_MATCH_RECONCILIATION_LOCK)
+        raise
+
+
+@shared_task  # type: ignore[untyped-decorator]
+def reconcile_grouped_property_consistency(
+    *,
+    limit: int = 100,
+    after_id: str | None = None,
+    run_token: str | None = None,
+) -> dict[str, int | str | None]:
+    if limit < 1 or limit > 500:
+        raise ValueError("limit must be between 1 and 500")
+    token = run_token or str(uuid.uuid4())
+    if run_token is None:
+        acquired = cache.add(
+            GROUP_CONSISTENCY_RECONCILIATION_LOCK,
+            token,
+            timeout=GROUP_CONSISTENCY_RECONCILIATION_TIMEOUT,
+        )
+        if not acquired:
+            return {"status": "already_running", "processed": 0, "next_after_id": None}
+    elif cache.get(GROUP_CONSISTENCY_RECONCILIATION_LOCK) != token:
+        return {"status": "stale_delivery", "processed": 0, "next_after_id": None}
+    page_identity = after_id or "root"
+    processing_key = f"{GROUP_CONSISTENCY_RECONCILIATION_LOCK}:processing:{token}:{page_identity}"
+    completed_key = f"{GROUP_CONSISTENCY_RECONCILIATION_LOCK}:completed:{token}:{page_identity}"
+    if cache.get(completed_key) or not cache.add(
+        processing_key,
+        True,
+        timeout=GROUP_CONSISTENCY_RECONCILIATION_TIMEOUT,
+    ):
+        return {"status": "duplicate_delivery", "processed": 0, "next_after_id": None}
+    try:
+        properties = grouped_property_queryset().order_by("pk")
+        if after_id is not None:
+            properties = properties.filter(pk__gt=uuid.UUID(after_id))
+        property_ids = list(properties.values_list("pk", flat=True)[:limit])
+        for property_id in property_ids:
+            if cache.get(GROUP_CONSISTENCY_RECONCILIATION_LOCK) != token:
+                return {"status": "stale_delivery", "processed": 0, "next_after_id": None}
+            cache.touch(
+                GROUP_CONSISTENCY_RECONCILIATION_LOCK,
+                GROUP_CONSISTENCY_RECONCILIATION_TIMEOUT,
+            )
+            cache.touch(processing_key, GROUP_CONSISTENCY_RECONCILIATION_TIMEOUT)
+            measure_group_consistency(property_id)
+        next_after_id = str(property_ids[-1]) if len(property_ids) == limit else None
+        cache.set(completed_key, True, timeout=24 * 60 * 60)
+        cache.delete(processing_key)
+        if next_after_id is not None:
+            reconcile_grouped_property_consistency.delay(
+                limit=limit,
+                after_id=next_after_id,
+                run_token=token,
+            )
+        elif cache.get(GROUP_CONSISTENCY_RECONCILIATION_LOCK) == token:
+            cache.delete(GROUP_CONSISTENCY_RECONCILIATION_LOCK)
+        return {
+            "status": "completed",
+            "processed": len(property_ids),
+            "next_after_id": next_after_id,
+        }
+    except Exception:
+        cache.delete(processing_key)
+        if cache.get(GROUP_CONSISTENCY_RECONCILIATION_LOCK) == token:
+            cache.delete(GROUP_CONSISTENCY_RECONCILIATION_LOCK)
         raise

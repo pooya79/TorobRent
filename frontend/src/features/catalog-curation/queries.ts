@@ -84,3 +84,33 @@ export function propertyMatchSuggestionDetailQuery(
     },
   });
 }
+
+export function groupedPropertiesQuery(page: number) {
+  return queryOptions({
+    queryKey: ["catalog-curation", "grouped-properties", page],
+    queryFn: async () => {
+      const { data, error } = await api.GET(
+        "/api/v1/operator/catalog-curation/grouped-properties/",
+        { params: { query: { page } } },
+      );
+      if (error || !data) throw new Error("Could not load grouped Properties");
+      return data;
+    },
+  });
+}
+
+export function groupedPropertyDetailQuery(propertyId: string | null) {
+  return queryOptions({
+    queryKey: ["catalog-curation", "grouped-properties", propertyId],
+    enabled: propertyId !== null,
+    queryFn: async () => {
+      if (!propertyId) throw new Error("A grouped Property is required");
+      const { data, error } = await api.GET(
+        "/api/v1/operator/catalog-curation/grouped-properties/{property_id}/",
+        { params: { path: { property_id: propertyId } } },
+      );
+      if (error || !data) throw new Error("Could not load grouped Property");
+      return data;
+    },
+  });
+}

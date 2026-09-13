@@ -35,6 +35,9 @@ from .models import (
 from .operator_serializers import (
     CatalogCurationPropertySearchPageSerializer,
     CatalogCurationPropertySearchSerializer,
+    GroupedPropertyDetailSerializer,
+    GroupedPropertyPageSerializer,
+    GroupedPropertySummarySerializer,
     PropertyComparisonSerializer,
     PropertyMatchApproveRequestSerializer,
     PropertyMatchClaimRequestSerializer,
@@ -44,10 +47,14 @@ from .operator_serializers import (
     PropertyMatchSuggestionPageSerializer,
     PropertyMatchSuggestionSerializer,
     PropertyMatchSuggestionSnoozeRequestSerializer,
+    grouped_property_data,
     property_search_data,
     suggestion_data,
 )
-from .selectors import search_current_properties_for_curation
+from .selectors import (
+    search_current_properties_for_curation,
+    search_grouped_properties_for_curation,
+)
 
 
 class CanCurateCatalog(BasePermission):
@@ -123,6 +130,60 @@ class PropertyComparisonView(APIView):
             raise ValidationError({"property": "شناسه ملک معتبر نیست."}) from exc
         payload = comparison_data(property_ids)
         return Response(PropertyComparisonSerializer(payload).data)
+
+
+class GroupedPropertyListView(APIView):
+    permission_classes = [CanCurateCatalog]
+
+    @extend_schema(
+        operation_id="v1_operator_catalog_curation_grouped_properties_list",
+        summary="Inspect every current Property containing multiple Listings",
+        parameters=[
+            OpenApiParameter(name="q", type=str, location="query"),
+            OpenApiParameter(name="page", type=int, location="query"),
+            OpenApiParameter(name="page_size", type=int, location="query"),
+        ],
+        responses={200: GroupedPropertyPageSerializer},
+    )
+    def get(self, request: Request) -> Response:
+        properties = list(
+            search_grouped_properties_for_curation(request.query_params.get("q", "").strip())
+        )
+        results = [grouped_property_data(property_) for property_ in properties]
+        priority = {
+            "needs_attention": 0,
+            "recent_change": 1,
+            "stable": 2,
+            "not_measured": 3,
+        }
+        results.sort(
+            key=lambda item: (
+                priority[cast(str, item["attention_status"])],
+                str(item["id"]),
+            )
+        )
+        paginator = StandardPageNumberPagination()
+        selected = paginator.paginate_queryset(results, request, view=self)
+        assert selected is not None
+        data = GroupedPropertySummarySerializer(selected, many=True).data
+        return paginator.get_paginated_response(data)
+
+
+class GroupedPropertyDetailView(APIView):
+    permission_classes = [CanCurateCatalog]
+
+    @extend_schema(
+        operation_id="v1_operator_catalog_curation_grouped_properties_detail",
+        summary="Inspect one grouped Property's consistency evidence and history",
+        responses={200: GroupedPropertyDetailSerializer},
+    )
+    def get(self, request: Request, property_id: uuid.UUID) -> Response:
+        property_ = get_object_or_404(
+            search_grouped_properties_for_curation(""),
+            pk=property_id,
+        )
+        payload = grouped_property_data(property_, include_detail=True)
+        return Response(GroupedPropertyDetailSerializer(payload).data)
 
 
 class PropertyMatchSuggestionListView(APIView):

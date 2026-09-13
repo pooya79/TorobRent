@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 from decimal import Decimal
 from enum import StrEnum
@@ -8,7 +9,7 @@ from typing import Any, Literal
 
 from apps.common.media import perceptual_hash_distance
 
-from .models import FeatureState, ListingImage, ListingState, Property
+from .models import FeatureState, Listing, ListingImage, ListingState, Property
 
 SCORING_VERSION = "property-match-v2"
 MAX_PERCEPTUAL_DISTANCE = 10
@@ -205,14 +206,25 @@ def _image_reference(image: ListingImage) -> dict[str, Any]:
     }
 
 
-def _property_listing_images(property_: Property) -> list[ListingImage]:
-    return [
-        image
-        for listing in property_.listings.all()
-        if listing.state not in (ListingState.DRAFT, ListingState.REJECTED)
-        for image in listing.images.all()
-        if image.raw_content_sha256 and image.normalized_pixel_sha256 and image.perceptual_dhash
-    ]
+def _property_listing_images(
+    property_: Property, listings: Iterable[Listing] | None = None
+) -> list[ListingImage]:
+    return (
+        [
+            image
+            for listing in listings
+            for image in listing.images.all()
+            if image.raw_content_sha256 and image.normalized_pixel_sha256 and image.perceptual_dhash
+        ]
+        if listings is not None
+        else [
+            image
+            for listing in property_.listings.all()
+            if listing.state not in (ListingState.DRAFT, ListingState.REJECTED)
+            for image in listing.images.all()
+            if image.raw_content_sha256 and image.normalized_pixel_sha256 and image.perceptual_dhash
+        ]
+    )
 
 
 def _candidate_image_match(
@@ -236,6 +248,7 @@ def _catalog_repeated_dhashes(
     hashes = {image.perceptual_dhash for image in images}
     if not hashes:
         return set()
+    excluded_property_ids = {left.id, right.id} | {image.listing.property_id for image in images}
     return set(
         ListingImage.objects
         .filter(
@@ -243,7 +256,7 @@ def _catalog_repeated_dhashes(
             listing__property__merged_into__isnull=True,
         )
         .exclude(listing__state__in=(ListingState.DRAFT, ListingState.REJECTED))
-        .exclude(listing__property_id__in=(left.id, right.id))
+        .exclude(listing__property_id__in=excluded_property_ids)
         .values_list("perceptual_dhash", flat=True)
     )
 
@@ -253,10 +266,15 @@ def _is_generic_image(image: ListingImage, *, repeated_dhashes: set[str]) -> boo
 
 
 def _image_signal(
-    left: Property, right: Property, *, independently_corroborated: bool
+    left: Property,
+    right: Property,
+    *,
+    independently_corroborated: bool,
+    left_listings: Iterable[Listing] | None = None,
+    right_listings: Iterable[Listing] | None = None,
 ) -> MatchSignal:
-    left_images = _property_listing_images(left)
-    right_images = _property_listing_images(right)
+    left_images = _property_listing_images(left, left_listings)
+    right_images = _property_listing_images(right, right_listings)
     repeated_dhashes = _catalog_repeated_dhashes(left, right, left_images + right_images)
     values: dict[str, Any] = {"matched_pairs": [], "contradictions": []}
     if not left_images or not right_images:
@@ -357,7 +375,13 @@ def _image_signal(
     )
 
 
-def compare_properties(left: Property, right: Property) -> MatchAssessment:
+def compare_properties(
+    left: Property,
+    right: Property,
+    *,
+    left_listings: Iterable[Listing] | None = None,
+    right_listings: Iterable[Listing] | None = None,
+) -> MatchAssessment:
     city_signal = _equality_signal(
         key="city",
         label="شهر",
@@ -412,6 +436,8 @@ def compare_properties(left: Property, right: Property) -> MatchAssessment:
             independently_corroborated=(
                 location_signal.classification == SignalClassification.SUPPORT
             ),
+            left_listings=left_listings,
+            right_listings=right_listings,
         ),
     )
     blocked = any(signal.classification == SignalClassification.BLOCKER for signal in signals)
