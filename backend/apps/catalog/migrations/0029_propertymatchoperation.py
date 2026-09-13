@@ -55,7 +55,7 @@ class Migration(migrations.Migration):
                 ),
                 ("scoring_version", models.CharField(max_length=64)),
                 ("cursor", models.UUIDField(blank=True, null=True)),
-                ("secondary_cursor", models.UUIDField(blank=True, null=True)),
+                ("candidate_cursor", models.UUIDField(blank=True, null=True)),
                 ("generation", models.PositiveIntegerField(default=0)),
                 ("processed_targets", models.PositiveIntegerField(default=0)),
                 ("evaluated_pairs", models.PositiveIntegerField(default=0)),

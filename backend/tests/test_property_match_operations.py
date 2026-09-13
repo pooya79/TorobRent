@@ -342,6 +342,44 @@ def test_indexed_candidate_pages_cover_candidates_beyond_the_first_page():
 
 
 @pytest.mark.django_db
+def test_indexed_candidate_pages_cover_reverse_area_window_for_canonical_pair_owner():
+    source = Source.objects.create(
+        name="candidate-area-source",
+        domain="candidate-area.example",
+        display_name="منبع بازه متقارن مساحت",
+        outbound_policy=OutboundPolicy.EXTERNAL_LINK,
+    )
+    focus = make_property(
+        source,
+        "LOWER-AREA",
+        property_id="10000000-0000-0000-0000-000000000000",
+        latitude=None,
+        longitude=None,
+        area_sqm=100,
+    )
+    candidate = make_property(
+        source,
+        "HIGHER-AREA",
+        property_id="20000000-0000-0000-0000-000000000000",
+        latitude=None,
+        longitude=None,
+        area_sqm=116,
+    )
+    focus.neighborhood = None
+    focus.total_floors = 6
+    focus.units_per_floor = 2
+    focus.save(update_fields=("neighborhood", "total_floors", "units_per_floor"))
+    candidate.neighborhood = None
+    candidate.total_floors = 20
+    candidate.units_per_floor = 8
+    candidate.save(update_fields=("neighborhood", "total_floors", "units_per_floor"))
+
+    assert candidate_property_ids(focus, limit=2, after_id=focus.pk) == [
+        uuid.UUID(str(candidate.pk))
+    ]
+
+
+@pytest.mark.django_db
 def test_interrupted_backfill_records_safe_failure_and_resumes_same_checkpoint(monkeypatch):
     source = Source.objects.create(
         name="retry-backfill-source",

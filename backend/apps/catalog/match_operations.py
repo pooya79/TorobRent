@@ -93,12 +93,12 @@ def process_property_match_operation_page(
             if property_id is None:
                 operation.phase = PropertyMatchOperation.Phase.GROUPS
                 operation.cursor = None
-                operation.secondary_cursor = None
+                operation.candidate_cursor = None
                 continue
             counts = measure_indexed_candidate_page(
                 property_id,
                 limit=page_size,
-                after_id=operation.secondary_cursor,
+                after_id=operation.candidate_cursor,
                 origin=PropertyMatchSuggestionOrigin.BACKFILL,
                 persist_inactive=True,
             )
@@ -106,10 +106,10 @@ def process_property_match_operation_page(
             operation.active_suggestions += counts["active"]
             if counts["next_after_id"] is None:
                 operation.cursor = property_id
-                operation.secondary_cursor = None
+                operation.candidate_cursor = None
                 operation.processed_targets += 1
             else:
-                operation.secondary_cursor = uuid.UUID(counts["next_after_id"])
+                operation.candidate_cursor = uuid.UUID(counts["next_after_id"])
             break
 
         if operation.phase == PropertyMatchOperation.Phase.SUGGESTIONS:
@@ -169,7 +169,7 @@ def process_property_match_operation_page(
             "status",
             "phase",
             "cursor",
-            "secondary_cursor",
+            "candidate_cursor",
             "generation",
             "processed_targets",
             "evaluated_pairs",

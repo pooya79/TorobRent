@@ -5,6 +5,7 @@ import json
 import uuid
 from dataclasses import asdict
 from decimal import Decimal
+from math import ceil
 from typing import TypedDict, cast
 
 from django.core.serializers.json import DjangoJSONEncoder
@@ -133,10 +134,17 @@ def candidate_property_ids(
         location_facts |= Q(neighborhood_id=property_.neighborhood_id)
     if property_.city_id is not None and property_.property_type and property_.area_sqm:
         area_delta = max(5, round(property_.area_sqm * 0.15))
+        reverse_area_delta = max(
+            5,
+            ceil(Decimal(property_.area_sqm) / Decimal("0.85")) - property_.area_sqm,
+        )
         location_facts |= Q(
             city_id=property_.city_id,
             property_type=property_.property_type,
-            area_sqm__range=(property_.area_sqm - area_delta, property_.area_sqm + area_delta),
+            area_sqm__range=(
+                property_.area_sqm - area_delta,
+                property_.area_sqm + max(area_delta, reverse_area_delta),
+            ),
         )
     if location_facts:
         paths.append(_bounded_ids(base.filter(location_facts), limit))

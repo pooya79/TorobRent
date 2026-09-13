@@ -473,7 +473,7 @@ class PropertyMatchOperationAdmin(ModelAdmin):  # type: ignore[type-arg]
         "phase",
         "scoring_version",
         "cursor",
-        "secondary_cursor",
+        "candidate_cursor",
         "generation",
         "processed_targets",
         "evaluated_pairs",
