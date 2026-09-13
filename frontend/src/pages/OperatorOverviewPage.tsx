@@ -10,6 +10,7 @@ import {
   type WorkloadQueue,
 } from "@/features/operator/WorkloadDashboard";
 import { operatorModules } from "@/features/operator/modules";
+import { catalogCurationSummaryQuery } from "@/features/catalog-curation/queries";
 import { currentUserQuery } from "@/features/session/queries";
 import {
   submissionWorkloadSummaryQueryOptions,
@@ -88,6 +89,7 @@ export function OperatorOverviewPage() {
       required.some((capability) => capabilities.includes(capability)),
   );
   const mayReviewSubmissions = capabilities.includes("review_submissions");
+  const mayCurateCatalog = capabilities.includes("curate_catalog");
   const mayHandleSupport = capabilities.some(
     (capability) =>
       capability === "handle_support" ||
@@ -98,6 +100,9 @@ export function OperatorOverviewPage() {
   );
   const supportSummary = useQuery(
     supportWorkloadSummaryQueryOptions(mayHandleSupport),
+  );
+  const catalogSummary = useQuery(
+    catalogCurationSummaryQuery(mayCurateCatalog),
   );
 
   const queues: WorkloadQueue[] = [
@@ -197,7 +202,29 @@ export function OperatorOverviewPage() {
                 <p className="text-muted-foreground mb-4 leading-7">
                   {description}
                 </p>
-                {hasSummary ? (
+                {to === "/operator/catalog-curation" ? (
+                  catalogSummary.isPending ? (
+                    <p
+                      className="text-muted-foreground mb-5 text-sm"
+                      role="status"
+                    >
+                      در حال دریافت شمار کارها…
+                    </p>
+                  ) : catalogSummary.data ? (
+                    <p className="text-muted-foreground mb-5 text-sm">
+                      <strong className="text-foreground text-2xl tabular-nums">
+                        {catalogSummary.data.total_count.toLocaleString(
+                          "fa-IR",
+                        )}
+                      </strong>{" "}
+                      مورد نیازمند رسیدگی
+                    </p>
+                  ) : (
+                    <p className="text-destructive mb-5 text-sm" role="alert">
+                      شمار این صف فعلاً در دسترس نیست.
+                    </p>
+                  )
+                ) : hasSummary ? (
                   <SummaryState
                     summary={query.data}
                     isPending={query.isPending}

@@ -1518,6 +1518,22 @@ paths:
       summary: Inspect every current Property containing multiple Listings
       parameters:
       - in: query
+        name: attention
+        schema:
+          type: string
+      - in: query
+        name: changed
+        schema:
+          type: string
+      - in: query
+        name: measurement_status
+        schema:
+          type: string
+      - in: query
+        name: ordering
+        schema:
+          type: string
+      - in: query
         name: page
         schema:
           type: integer
@@ -1527,6 +1543,14 @@ paths:
           type: integer
       - in: query
         name: q
+        schema:
+          type: string
+      - in: query
+        name: scoring_version
+        schema:
+          type: string
+      - in: query
+        name: stability
         schema:
           type: string
       tags:
@@ -1675,6 +1699,21 @@ paths:
                 type: string
                 format: binary
           description: ''
+  /api/v1/operator/catalog-curation/metrics/:
+    get:
+      operationId: v1_operator_catalog_curation_metrics_retrieve
+      summary: Evaluate Catalog Curation outcomes by confidence and scoring version
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CatalogCurationMetrics'
+          description: ''
   /api/v1/operator/catalog-curation/partition-decisions/{decision_id}/:
     get:
       operationId: v1_operator_catalog_curation_partition_decisions_retrieve
@@ -1736,6 +1775,10 @@ paths:
       summary: Browse persisted Property Match Suggestions
       parameters:
       - in: query
+        name: age
+        schema:
+          type: string
+      - in: query
         name: band
         schema:
           type: string
@@ -1748,6 +1791,10 @@ paths:
         schema:
           type: string
       - in: query
+        name: own_work
+        schema:
+          type: string
+      - in: query
         name: page
         schema:
           type: integer
@@ -1755,6 +1802,10 @@ paths:
         name: page_size
         schema:
           type: integer
+      - in: query
+        name: q
+        schema:
+          type: string
       - in: query
         name: state
         schema:
@@ -1895,6 +1946,21 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Problem'
+          description: ''
+  /api/v1/operator/catalog-curation/summary/:
+    get:
+      operationId: v1_operator_catalog_curation_summary_retrieve
+      summary: Summarize actionable Catalog Curation work
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CatalogCurationSummary'
           description: ''
   /api/v1/operator/conversation-reports/:
     get:
@@ -4962,6 +5028,71 @@ components:
       - id
       - source
       - source_reference
+    CatalogCurationMetricBreakdown:
+      type: object
+      properties:
+        band:
+          type: string
+        scoring_version:
+          type: string
+        suggestion_count:
+          type: integer
+          minimum: 0
+        pending_count:
+          type: integer
+          minimum: 0
+        accepted_count:
+          type: integer
+          minimum: 0
+        rejected_count:
+          type: integer
+          minimum: 0
+        acceptance_rate:
+          type: number
+          format: double
+          maximum: 1
+          minimum: 0
+        rejection_rate:
+          type: number
+          format: double
+          maximum: 1
+          minimum: 0
+        oldest_age_hours:
+          type: number
+          format: double
+          minimum: 0
+      required:
+      - acceptance_rate
+      - accepted_count
+      - band
+      - oldest_age_hours
+      - pending_count
+      - rejected_count
+      - rejection_rate
+      - scoring_version
+      - suggestion_count
+    CatalogCurationMetrics:
+      type: object
+      properties:
+        suggestion_count:
+          type: integer
+          minimum: 0
+        pending_count:
+          type: integer
+          minimum: 0
+        oldest_suggestion_age_hours:
+          type: number
+          format: double
+          minimum: 0
+        breakdowns:
+          type: array
+          items:
+            $ref: '#/components/schemas/CatalogCurationMetricBreakdown'
+      required:
+      - breakdowns
+      - oldest_suggestion_age_hours
+      - pending_count
+      - suggestion_count
     CatalogCurationPropertyEvidence:
       type: object
       properties:
@@ -5063,6 +5194,22 @@ components:
       - domain
       - id
       - name
+    CatalogCurationSummary:
+      type: object
+      properties:
+        suggestion_count:
+          type: integer
+          minimum: 0
+        grouped_property_count:
+          type: integer
+          minimum: 0
+        total_count:
+          type: integer
+          minimum: 0
+      required:
+      - grouped_property_count
+      - suggestion_count
+      - total_count
     CatalogFacets:
       type: object
       properties:
@@ -9151,16 +9298,28 @@ components:
     PropertyMatchSuggestionFilters:
       type: object
       properties:
+        q:
+          type: string
         band:
           type: string
         claim:
           type: string
+        state:
+          type: string
+        age:
+          type: string
+        own_work:
+          type: string
         ordering:
           type: string
       required:
+      - age
       - band
       - claim
       - ordering
+      - own_work
+      - q
+      - state
     PropertyMatchSuggestionPage:
       type: object
       properties:

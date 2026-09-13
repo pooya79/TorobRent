@@ -20,6 +20,7 @@ import {
   type OperatorCapability,
 } from "@/features/operator/modules";
 import { currentUserQuery, sessionQuery } from "@/features/session/queries";
+import { catalogCurationSummaryQuery } from "@/features/catalog-curation/queries";
 import { cn } from "@/lib/utils";
 
 export type { OperatorCapability } from "@/features/operator/modules";
@@ -61,6 +62,10 @@ function WorkspaceNavigation({
   capabilities: OperatorCapability[];
   mobile?: boolean;
 }) {
+  const mayCurateCatalog = capabilities.includes("curate_catalog");
+  const catalogSummary = useQuery(
+    catalogCurationSummaryQuery(mayCurateCatalog),
+  );
   const navigation = [
     { label: "نمای کلی", to: "/operator", icon: Home },
     ...operatorModules.filter(({ capabilities: required }) =>
@@ -80,6 +85,14 @@ function WorkspaceNavigation({
           <NavLink className={navigationClass} to={to} end={to === "/operator"}>
             <Icon className="size-5 shrink-0" aria-hidden="true" />
             {label}
+            {to === "/operator/catalog-curation" && catalogSummary.data ? (
+              <span
+                aria-hidden="true"
+                className="bg-muted ms-auto rounded-full px-2 py-0.5 text-xs tabular-nums"
+              >
+                {catalogSummary.data.total_count.toLocaleString("fa-IR")}
+              </span>
+            ) : null}
           </NavLink>
         );
         return mobile ? (

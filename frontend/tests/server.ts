@@ -77,6 +77,21 @@ export const server = setupServer(
   http.get("*/api/v1/operator/catalog-curation/grouped-properties/", () =>
     HttpResponse.json({ count: 0, next: null, previous: null, results: [] }),
   ),
+  http.get("*/api/v1/operator/catalog-curation/metrics/", () =>
+    HttpResponse.json({
+      suggestion_count: 0,
+      pending_count: 0,
+      oldest_suggestion_age_hours: 0,
+      breakdowns: [],
+    }),
+  ),
+  http.get("*/api/v1/operator/catalog-curation/summary/", () =>
+    HttpResponse.json({
+      suggestion_count: 0,
+      grouped_property_count: 0,
+      total_count: 0,
+    }),
+  ),
   http.post(
     "*/api/v1/catalog/properties/:propertyId/view/",
     () => new HttpResponse(null, { status: 204 }),

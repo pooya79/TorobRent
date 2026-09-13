@@ -19,6 +19,7 @@ function renderOverview(
   capabilities: (
     | "handle_privacy_requests"
     | "handle_support"
+    | "curate_catalog"
     | "manage_operator_queues"
     | "moderate_conversations"
     | "review_submissions"
@@ -92,6 +93,26 @@ test("shows parallel workload summaries only for modules the Operator may access
   ).toBeVisible();
   expect(supportSummary).toHaveBeenCalledOnce();
   expect(submissionSummary).not.toHaveBeenCalled();
+});
+
+test("shows the Catalog Curation count only with its capability", async () => {
+  server.use(
+    http.get("*/api/v1/operator/catalog-curation/summary/", () =>
+      HttpResponse.json({
+        suggestion_count: 4,
+        grouped_property_count: 2,
+        total_count: 6,
+      }),
+    ),
+  );
+
+  renderOverview(["curate_catalog"]);
+
+  expect(await screen.findByText("۶")).toBeVisible();
+  expect(screen.getByText("مورد نیازمند رسیدگی")).toBeVisible();
+  expect(
+    screen.queryByRole("link", { name: "پشتیبانی" }),
+  ).not.toBeInTheDocument();
 });
 
 test("shows Conversation Reports only for the dedicated moderation capability", async () => {

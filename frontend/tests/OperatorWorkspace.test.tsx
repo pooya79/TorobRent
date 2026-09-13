@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
 import { MemoryRouter, Outlet, Route, Routes, useLocation } from "react-router";
-import { expect, test } from "vitest";
+import { expect, test, vi } from "vitest";
 
 import {
   OperatorCapabilityRoute,
@@ -173,15 +173,53 @@ test("shows Source Proposal validation only for its dedicated capability", async
 });
 
 test("shows Catalog Curation only for its independent capability", async () => {
+  server.use(
+    http.get("*/api/v1/operator/catalog-curation/summary/", () =>
+      HttpResponse.json({
+        suggestion_count: 3,
+        grouped_property_count: 2,
+        total_count: 5,
+      }),
+    ),
+  );
   renderWorkspace("/operator/catalog-curation", ["curate_catalog"]);
 
   expect(
     await screen.findByRole("heading", { name: "مقایسه هویت ملک‌ها" }),
   ).toBeVisible();
   expect(screen.getByRole("link", { name: "ساماندهی کاتالوگ" })).toBeVisible();
+  await screen.findByText("۵");
+  expect(
+    screen.getByRole("link", { name: "ساماندهی کاتالوگ" }),
+  ).toHaveTextContent("۵");
   expect(
     screen.queryByRole("link", { name: "بررسی درخواست‌های ثبت آگهی" }),
   ).not.toBeInTheDocument();
+});
+
+test("does not expose or count Catalog Curation without its capability", async () => {
+  const summaryRequest = vi.fn();
+  server.use(
+    http.get("*/api/v1/operator/catalog-curation/summary/", () => {
+      summaryRequest();
+      return HttpResponse.json({
+        suggestion_count: 3,
+        grouped_property_count: 2,
+        total_count: 5,
+      });
+    }),
+  );
+  renderWorkspace("/operator/catalog-curation", ["handle_support"]);
+
+  expect(
+    await screen.findByRole("heading", {
+      name: "دسترسی به این بخش داده نشده است",
+    }),
+  ).toBeVisible();
+  expect(
+    screen.queryByRole("link", { name: "ساماندهی کاتالوگ" }),
+  ).not.toBeInTheDocument();
+  expect(summaryRequest).not.toHaveBeenCalled();
 });
 
 test("shows the Conversation Report queue only for its dedicated capability", async () => {

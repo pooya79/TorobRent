@@ -37,6 +37,7 @@ from apps.catalog.tasks import (
     measure_property_match_candidates,
     reconcile_property_match_suggestions,
 )
+from apps.submissions.models import Submission, SubmitterRole
 
 
 def make_operator() -> User:
@@ -455,10 +456,126 @@ def test_suggestions_api_defaults_to_unclaimed_likely_pairs_in_queue_order(
     assert item["property_ids"] == [str(min(first.pk, second.pk)), str(max(first.pk, second.pk))]
     assert item["evidence_summary"]
     assert response.data["filters"] == {
+        "q": "",
         "band": "likely",
         "claim": "unclaimed",
+        "state": "pending",
+        "age": "all",
+        "own_work": "all",
         "ordering": "confidence",
     }
+
+
+@pytest.mark.django_db
+def test_suggestions_api_searches_identity_and_filters_operational_facets(api_client: APIClient):
+    operator = make_operator()
+    source = Source.objects.create(
+        name="queue-facets-source",
+        domain="queue-facets.example",
+        display_name="منبع ویژه صف",
+        outbound_policy=OutboundPolicy.EXTERNAL_LINK,
+    )
+    left = make_property(source, "SPECIAL-REF")
+    make_property(source, "OTHER-REF")
+    measure_property_match_candidates(property_id=str(left.pk), limit=25)
+    suggestion = PropertyMatchSuggestion.objects.get()
+    PropertyMatchSuggestion.objects.filter(pk=suggestion.pk).update(
+        first_suggested_at=timezone.now() - timezone.timedelta(days=8),
+        state=PropertyMatchSuggestionState.REJECTED,
+    )
+    Submission.objects.create(
+        submitter=operator,
+        role=SubmitterRole.OWNER,
+        source=source,
+        listing=left.listings.get(),
+    )
+    api_client.force_authenticate(operator)
+
+    queries = (
+        str(left.pk),
+        str(left.listings.get().pk),
+        "منبع ویژه صف",
+        "سعادت آباد",
+        "SPECIAL-REF",
+    )
+    for query in queries:
+        response = api_client.get(
+            "/api/v1/operator/catalog-curation/suggestions/",
+            {
+                "q": query,
+                "band": "all",
+                "state": "rejected",
+                "age": "older_than_7_days",
+                "claim": "all",
+                "own_work": "conflict",
+            },
+        )
+        assert response.status_code == 200
+        assert [item["id"] for item in response.data["results"]] == [str(suggestion.pk)]
+
+
+@pytest.mark.django_db
+def test_suggestions_api_orders_by_relevant_status_and_reports_safe_counts_and_metrics(
+    api_client: APIClient,
+):
+    source = Source.objects.create(
+        name="queue-metrics-source",
+        domain="queue-metrics.example",
+        display_name="منبع معیارها",
+        outbound_policy=OutboundPolicy.EXTERNAL_LINK,
+    )
+    properties = [make_property(source, f"METRIC-{index}") for index in range(3)]
+    measure_property_match_candidates(property_id=str(properties[0].pk), limit=25)
+    suggestions = list(PropertyMatchSuggestion.objects.order_by("id"))
+    assert len(suggestions) == 2
+    PropertyMatchSuggestion.objects.filter(pk=suggestions[0].pk).update(
+        band="possible",
+        scoring_version="property-match-v1",
+    )
+    suggestions[0].evaluations.update(
+        band="possible",
+        scoring_version="property-match-v1",
+    )
+    operator = make_operator()
+    api_client.force_authenticate(operator)
+    review = claim_suggestion(api_client, suggestions[0])
+    rejected = api_client.post(
+        f"/api/v1/operator/catalog-curation/suggestions/{suggestions[0].pk}/reject/",
+        {
+            "revision": review["revision"],
+            "claim_id": review["claim_id"],
+            "reason": "دو ملک متفاوت",
+        },
+        format="json",
+    )
+    assert rejected.status_code == 201
+
+    ordered = api_client.get(
+        "/api/v1/operator/catalog-curation/suggestions/",
+        {"band": "all", "state": "all", "claim": "all", "ordering": "status"},
+    )
+    assert ordered.status_code == 200
+    assert [item["state"] for item in ordered.data["results"]] == ["pending", "rejected"]
+
+    summary = api_client.get("/api/v1/operator/catalog-curation/summary/")
+    assert summary.status_code == 200
+    assert summary.data["suggestion_count"] == 1
+    assert summary.data["total_count"] >= 1
+    assert "evidence" not in str(summary.data)
+
+    metrics = api_client.get("/api/v1/operator/catalog-curation/metrics/")
+    assert metrics.status_code == 200
+    assert metrics.data["suggestion_count"] == 2
+    assert metrics.data["oldest_suggestion_age_hours"] >= 0
+    assert {(item["band"], item["scoring_version"]) for item in metrics.data["breakdowns"]} == {
+        ("likely", "property-match-v2"),
+        ("possible", "property-match-v1"),
+    }
+    by_version = {item["scoring_version"]: item for item in metrics.data["breakdowns"]}
+    assert by_version["property-match-v2"]["rejected_count"] == 0
+    assert by_version["property-match-v1"]["rejected_count"] == 1
+    assert by_version["property-match-v1"]["rejection_rate"] == 1
+    assert "evidence" not in str(metrics.data)
 
 
 @pytest.mark.django_db

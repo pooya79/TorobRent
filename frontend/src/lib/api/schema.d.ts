@@ -772,6 +772,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/v1/operator/catalog-curation/metrics/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Evaluate Catalog Curation outcomes by confidence and scoring version */
+    get: operations["v1_operator_catalog_curation_metrics_retrieve"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/v1/operator/catalog-curation/partition-decisions/{decision_id}/": {
     parameters: {
       query?: never;
@@ -868,6 +885,23 @@ export interface paths {
     put?: never;
     /** Snooze a scheduled Property Match Suggestion */
     post: operations["v1_operator_catalog_curation_suggestions_snooze_create"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/operator/catalog-curation/summary/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Summarize actionable Catalog Curation work */
+    get: operations["v1_operator_catalog_curation_summary_retrieve"];
+    put?: never;
+    post?: never;
     delete?: never;
     options?: never;
     head?: never;
@@ -2505,6 +2539,27 @@ export interface components {
       source: components["schemas"]["CatalogCurationSource"];
       source_reference: string;
     };
+    CatalogCurationMetricBreakdown: {
+      band: string;
+      scoring_version: string;
+      suggestion_count: number;
+      pending_count: number;
+      accepted_count: number;
+      rejected_count: number;
+      /** Format: double */
+      acceptance_rate: number;
+      /** Format: double */
+      rejection_rate: number;
+      /** Format: double */
+      oldest_age_hours: number;
+    };
+    CatalogCurationMetrics: {
+      suggestion_count: number;
+      pending_count: number;
+      /** Format: double */
+      oldest_suggestion_age_hours: number;
+      breakdowns: components["schemas"]["CatalogCurationMetricBreakdown"][];
+    };
     CatalogCurationPropertyEvidence: {
       /** Format: uuid */
       id: string;
@@ -2539,6 +2594,11 @@ export interface components {
       id: string;
       name: string;
       domain: string;
+    };
+    CatalogCurationSummary: {
+      suggestion_count: number;
+      grouped_property_count: number;
+      total_count: number;
     };
     CatalogFacets: {
       property_types: components["schemas"]["FacetCount"][];
@@ -4220,8 +4280,12 @@ export interface components {
       created_at: string;
     };
     PropertyMatchSuggestionFilters: {
+      q: string;
       band: string;
       claim: string;
+      state: string;
+      age: string;
+      own_work: string;
       ordering: string;
     };
     PropertyMatchSuggestionPage: {
@@ -7225,9 +7289,15 @@ export interface operations {
   v1_operator_catalog_curation_grouped_properties_list: {
     parameters: {
       query?: {
+        attention?: string;
+        changed?: string;
+        measurement_status?: string;
+        ordering?: string;
         page?: number;
         page_size?: number;
         q?: string;
+        scoring_version?: string;
+        stability?: string;
       };
       header?: never;
       path?: never;
@@ -7370,6 +7440,25 @@ export interface operations {
       };
     };
   };
+  v1_operator_catalog_curation_metrics_retrieve: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["CatalogCurationMetrics"];
+        };
+      };
+    };
+  };
   v1_operator_catalog_curation_partition_decisions_retrieve: {
     parameters: {
       query?: never;
@@ -7420,11 +7509,14 @@ export interface operations {
   v1_operator_catalog_curation_suggestions_retrieve: {
     parameters: {
       query?: {
+        age?: string;
         band?: string;
         claim?: string;
         ordering?: string;
+        own_work?: string;
         page?: number;
         page_size?: number;
+        q?: string;
         state?: string;
       };
       header?: never;
@@ -7574,6 +7666,25 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  v1_operator_catalog_curation_summary_retrieve: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["CatalogCurationSummary"];
         };
       };
     };

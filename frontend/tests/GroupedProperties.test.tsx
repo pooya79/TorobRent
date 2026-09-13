@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
-import { MemoryRouter } from "react-router";
+import { MemoryRouter, useLocation } from "react-router";
 import { expect, test } from "vitest";
 
 import { CatalogCurationPage } from "@/pages/CatalogCurationPage";
@@ -11,6 +11,58 @@ import { server } from "./server";
 const propertyId = "11111111-1111-4111-8111-111111111111";
 const listingA = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const listingB = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+
+function LocationState() {
+  const location = useLocation();
+  return <output aria-label="وضعیت نشانی گروه‌ها">{location.search}</output>;
+}
+
+test("keeps grouped Property search, filters, sort, and page in the URL", async () => {
+  const user = userEvent.setup();
+  let requested = new URLSearchParams();
+  server.use(
+    http.get(
+      "*/api/v1/operator/catalog-curation/grouped-properties/",
+      ({ request }) => {
+        requested = new URL(request.url).searchParams;
+        return HttpResponse.json({
+          count: 0,
+          next: null,
+          previous: null,
+          results: [],
+        });
+      },
+    ),
+  );
+  render(
+    <QueryClientProvider
+      client={
+        new QueryClient({ defaultOptions: { queries: { retry: false } } })
+      }
+    >
+      <MemoryRouter
+        initialEntries={[
+          "/operator/catalog-curation?g_q=REF-A&g_attention=needs_attention&g_page=3",
+        ]}
+      >
+        <CatalogCurationPage />
+        <LocationState />
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+
+  await screen.findByText("ملک گروه‌بندی‌شده‌ای وجود ندارد.");
+  expect(requested.get("q")).toBe("REF-A");
+  expect(requested.get("attention")).toBe("needs_attention");
+  expect(requested.get("page")).toBe("3");
+  await user.selectOptions(screen.getByLabelText("وضعیت سنجش"), "stale");
+  expect(screen.getByLabelText("وضعیت نشانی گروه‌ها")).toHaveTextContent(
+    "g_measurement=stale",
+  );
+  expect(screen.getByLabelText("وضعیت نشانی گروه‌ها")).not.toHaveTextContent(
+    "g_page=3",
+  );
+});
 
 test("browses grouped Properties and distinguishes contradictions from missing evidence", async () => {
   const user = userEvent.setup();
@@ -196,7 +248,7 @@ test("browses grouped Properties and distinguishes contradictions from missing e
   );
 
   expect(await screen.findByText("نیازمند توجه")).toBeVisible();
-  expect(screen.getByText("۳ آگهی")).toBeVisible();
+  expect(await screen.findByText("۳ آگهی")).toBeVisible();
   await user.click(screen.getByRole("button", { name: "بررسی سازگاری" }));
   expect(await screen.findByText("قوی‌ترین جفت سنجیده‌شده")).toBeVisible();
   expect(screen.getByText("ضعیف‌ترین جفت سنجیده‌شده")).toBeVisible();
@@ -278,7 +330,7 @@ test("shows a not-yet-measured group without raising a false alarm", async () =>
   );
 
   expect(await screen.findByText("هنوز سنجیده نشده")).toBeVisible();
-  expect(screen.queryByText("نیازمند توجه")).not.toBeInTheDocument();
+  expect(screen.getAllByText("نیازمند توجه")).toHaveLength(1);
   await user.click(screen.getByRole("button", { name: "بررسی سازگاری" }));
   expect(await screen.findByText("سنجش جاری موجود نیست")).toBeVisible();
   expect(

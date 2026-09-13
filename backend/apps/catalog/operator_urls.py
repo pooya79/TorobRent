@@ -1,7 +1,9 @@
 from django.urls import path
 
 from .operator_views import (
+    CatalogCurationMetricsView,
     CatalogCurationPropertySearchView,
+    CatalogCurationSummaryView,
     GroupedPropertyDetailView,
     GroupedPropertyListView,
     PropertyComparisonView,
@@ -22,6 +24,8 @@ from .operator_views import (
 app_name = "operator-catalog-curation"
 
 urlpatterns = [
+    path("summary/", CatalogCurationSummaryView.as_view(), name="summary"),
+    path("metrics/", CatalogCurationMetricsView.as_view(), name="metrics"),
     path("grouped-properties/", GroupedPropertyListView.as_view(), name="grouped-properties"),
     path(
         "grouped-properties/<uuid:property_id>/",

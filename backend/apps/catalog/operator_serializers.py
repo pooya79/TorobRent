@@ -202,6 +202,31 @@ class GroupedPropertyPageSerializer(serializers.Serializer[Any]):
     results = GroupedPropertySummarySerializer(many=True)
 
 
+class CatalogCurationSummarySerializer(serializers.Serializer[Any]):
+    suggestion_count = serializers.IntegerField(min_value=0)
+    grouped_property_count = serializers.IntegerField(min_value=0)
+    total_count = serializers.IntegerField(min_value=0)
+
+
+class CatalogCurationMetricBreakdownSerializer(serializers.Serializer[Any]):
+    band = serializers.CharField()
+    scoring_version = serializers.CharField()
+    suggestion_count = serializers.IntegerField(min_value=0)
+    pending_count = serializers.IntegerField(min_value=0)
+    accepted_count = serializers.IntegerField(min_value=0)
+    rejected_count = serializers.IntegerField(min_value=0)
+    acceptance_rate = serializers.FloatField(min_value=0, max_value=1)
+    rejection_rate = serializers.FloatField(min_value=0, max_value=1)
+    oldest_age_hours = serializers.FloatField(min_value=0)
+
+
+class CatalogCurationMetricsSerializer(serializers.Serializer[Any]):
+    suggestion_count = serializers.IntegerField(min_value=0)
+    pending_count = serializers.IntegerField(min_value=0)
+    oldest_suggestion_age_hours = serializers.FloatField(min_value=0)
+    breakdowns = CatalogCurationMetricBreakdownSerializer(many=True)
+
+
 class GroupingHistorySerializer(serializers.Serializer[Any]):
     id = serializers.UUIDField()
     listing_id = serializers.UUIDField()
@@ -528,8 +553,12 @@ class PropertyMatchSuggestionSerializer(serializers.Serializer[Any]):
 
 
 class PropertyMatchSuggestionFiltersSerializer(serializers.Serializer[Any]):
+    q = serializers.CharField(allow_blank=True)
     band = serializers.CharField()
     claim = serializers.CharField()
+    state = serializers.CharField()
+    age = serializers.CharField()
+    own_work = serializers.CharField()
     ordering = serializers.CharField()
 
 

@@ -13,6 +13,8 @@ from apps.catalog.match_suggestions import evaluate_property_pair
 from apps.catalog.matching import SCORING_VERSION
 from apps.catalog.models import (
     Listing,
+    ListingGroupingAction,
+    ListingGroupingEvent,
     ListingImage,
     ListingState,
     OutboundPolicy,
@@ -146,6 +148,62 @@ def test_grouped_properties_lists_every_current_multi_listing_group_and_restrict
         api_client.get("/api/v1/operator/catalog-curation/grouped-properties/").status_code == 403
     )
     assert first.property_id == grouped.pk
+
+
+@pytest.mark.django_db
+def test_grouped_properties_filters_and_orders_operational_statuses(
+    api_client: APIClient, source: Source
+):
+    stable, _ = make_property(source, "STABLE-A")
+    _, stable_second = make_property(source, "STABLE-B")
+    stable_second.property = stable
+    stable_second.save(update_fields=["property"])
+    attention, _ = make_property(source, "ATTENTION-A", area_sqm=90)
+    attention_origin, attention_second = make_property(source, "ATTENTION-B", area_sqm=180)
+    attention_second.property = attention
+    attention_second.source_claims = {"area_sqm": [180, "180"]}
+    attention_second.save(update_fields=["property", "source_claims"])
+    attention.listings.first().source_claims = {"area_sqm": [90, "90"]}
+    attention.listings.first().save(update_fields=["source_claims"])
+    ListingGroupingEvent.objects.create(
+        listing=attention_second,
+        from_property=attention_origin,
+        to_property=attention,
+        action=ListingGroupingAction.MERGE,
+        reason="recent correction",
+    )
+    stable_measurement = measure_group_consistency(stable.pk)
+    attention_measurement = measure_group_consistency(attention.pk)
+    assert stable_measurement is not None
+    assert attention_measurement is not None
+    PropertyGroupConsistencyMeasurement.objects.filter(pk=attention_measurement.pk).update(
+        needs_attention=True
+    )
+    attention_measurement.refresh_from_db()
+    assert attention_measurement.needs_attention is True
+    api_client.force_authenticate(make_operator())
+
+    response = api_client.get(
+        "/api/v1/operator/catalog-curation/grouped-properties/",
+        {
+            "q": str(attention.pk),
+            "attention": "needs_attention",
+            "changed": "recent",
+            "measurement_status": "measured",
+            "scoring_version": attention_measurement.scoring_version,
+            "ordering": "measurement_status",
+        },
+    )
+
+    assert response.status_code == 200
+    assert [item["id"] for item in response.data["results"]] == [str(attention.pk)]
+
+    stable_response = api_client.get(
+        "/api/v1/operator/catalog-curation/grouped-properties/",
+        {"stability": "stable", "ordering": "stability"},
+    )
+    assert stable_response.status_code == 200
+    assert [item["id"] for item in stable_response.data["results"]] == [str(stable.pk)]
 
 
 @pytest.mark.django_db

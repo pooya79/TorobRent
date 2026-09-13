@@ -1,8 +1,8 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { http, HttpResponse } from "msw";
-import { MemoryRouter } from "react-router";
+import { delay, http, HttpResponse } from "msw";
+import { MemoryRouter, useLocation, useNavigate } from "react-router";
 import { expect, test } from "vitest";
 
 import { CatalogCurationPage } from "@/pages/CatalogCurationPage";
@@ -10,6 +10,143 @@ import { server } from "./server";
 
 const firstId = "11111111-1111-4111-8111-111111111111";
 const secondId = "22222222-2222-4222-8222-222222222222";
+
+function LocationState() {
+  const location = useLocation();
+  return <output aria-label="وضعیت نشانی">{location.search}</output>;
+}
+
+function HistoryControls() {
+  const navigate = useNavigate();
+  return <button onClick={() => void navigate(-1)}>بازگشت مرورگر</button>;
+}
+
+test("keeps suggestion queue controls in the URL and shows safe operational metrics", async () => {
+  const user = userEvent.setup();
+  const requested: URLSearchParams[] = [];
+  server.use(
+    http.get(
+      "*/api/v1/operator/catalog-curation/suggestions/",
+      ({ request }) => {
+        requested.push(new URL(request.url).searchParams);
+        return HttpResponse.json({
+          count: 0,
+          next: null,
+          previous: null,
+          results: [],
+          filters: {},
+        });
+      },
+    ),
+    http.get("*/api/v1/operator/catalog-curation/metrics/", () =>
+      HttpResponse.json({
+        suggestion_count: 4,
+        pending_count: 2,
+        oldest_suggestion_age_hours: 72,
+        breakdowns: [
+          {
+            band: "likely",
+            scoring_version: "property-match-v2",
+            suggestion_count: 4,
+            pending_count: 2,
+            accepted_count: 1,
+            rejected_count: 1,
+            acceptance_rate: 0.5,
+            rejection_rate: 0.5,
+            oldest_age_hours: 72,
+          },
+        ],
+      }),
+    ),
+  );
+  render(
+    <QueryClientProvider
+      client={
+        new QueryClient({ defaultOptions: { queries: { retry: false } } })
+      }
+    >
+      <MemoryRouter
+        initialEntries={[
+          "/operator/catalog-curation",
+          "/operator/catalog-curation?s_q=REF-7&s_band=possible&s_page=2",
+        ]}
+        initialIndex={1}
+      >
+        <CatalogCurationPage />
+        <LocationState />
+        <HistoryControls />
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+
+  expect(
+    await screen.findByRole("heading", { name: "معیارهای عملیاتی" }),
+  ).toBeVisible();
+  expect(await screen.findByText("property-match-v2")).toBeVisible();
+  expect(requested.at(-1)?.get("q")).toBe("REF-7");
+  expect(requested.at(-1)?.get("band")).toBe("possible");
+  expect(requested.at(-1)?.get("page")).toBe("2");
+  await user.click(screen.getByRole("button", { name: "بازگشت مرورگر" }));
+  await waitFor(() =>
+    expect(screen.getByLabelText("جست‌وجوی پیشنهادها")).toHaveValue(""),
+  );
+  await waitFor(() => expect(requested.at(-1)?.get("q")).toBe(""));
+  await user.selectOptions(screen.getByLabelText("چرخه پیشنهاد"), "rejected");
+  expect(screen.getByLabelText("وضعیت نشانی")).toHaveTextContent(
+    "s_state=rejected",
+  );
+  expect(screen.getByLabelText("وضعیت نشانی")).not.toHaveTextContent(
+    "s_page=2",
+  );
+});
+
+test("announces loading and error states for both queues and metrics", async () => {
+  server.use(
+    http.get("*/api/v1/operator/catalog-curation/suggestions/", async () => {
+      await delay(50);
+      return new HttpResponse(null, { status: 503 });
+    }),
+    http.get(
+      "*/api/v1/operator/catalog-curation/grouped-properties/",
+      async () => {
+        await delay(50);
+        return new HttpResponse(null, { status: 503 });
+      },
+    ),
+    http.get("*/api/v1/operator/catalog-curation/metrics/", async () => {
+      await delay(50);
+      return new HttpResponse(null, { status: 503 });
+    }),
+  );
+
+  render(
+    <QueryClientProvider
+      client={
+        new QueryClient({ defaultOptions: { queries: { retry: false } } })
+      }
+    >
+      <MemoryRouter>
+        <CatalogCurationPage />
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+
+  expect(screen.getByText("در حال دریافت معیارها…")).toHaveAttribute(
+    "role",
+    "status",
+  );
+  expect(screen.getByText("در حال دریافت پیشنهادها…")).toHaveAttribute(
+    "role",
+    "status",
+  );
+  expect(screen.getByText("در حال دریافت گروه‌ها…")).toHaveAttribute(
+    "role",
+    "status",
+  );
+  expect(await screen.findByText("معیارهای عملیاتی دریافت نشد")).toBeVisible();
+  expect(await screen.findByText("صف پیشنهادها دریافت نشد")).toBeVisible();
+  expect(await screen.findByText("گروه‌ها دریافت نشدند")).toBeVisible();
+});
 
 test("browses the default Likely suggestion queue and opens current evidence", async () => {
   const user = userEvent.setup();
@@ -455,8 +592,11 @@ test("searches, selects exactly two Properties, and explains Match Confidence", 
     screen.getByRole("heading", { name: "مقایسه دستی ملک‌ها" }),
   ).toBeVisible();
 
-  await user.type(screen.getByRole("searchbox"), "REF-7");
-  await user.click(screen.getByRole("button", { name: "جست‌وجو" }));
+  const manualSearch = screen.getByLabelText("جست‌وجوی ملک جاری");
+  await user.type(manualSearch, "REF-7");
+  await user.click(
+    manualSearch.closest("form")!.querySelector<HTMLButtonElement>("button")!,
+  );
   await screen.findAllByRole("button", {
     name: "انتخاب برای مقایسه",
   });

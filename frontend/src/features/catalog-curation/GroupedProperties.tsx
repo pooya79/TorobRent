@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowRight, Layers3, TriangleAlert } from "lucide-react";
 import { useState } from "react";
+import { useSearchParams } from "react-router";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -14,6 +15,10 @@ import {
   groupedPropertiesQuery,
   groupedPropertyDetailQuery,
 } from "@/features/catalog-curation/queries";
+import {
+  updateQueueFilter,
+  updateQueuePage,
+} from "@/features/catalog-curation/url-state";
 import type { components } from "@/lib/api/schema";
 import { api } from "@/lib/api/client";
 
@@ -770,9 +775,38 @@ function GroupDetail({
 }
 
 export function GroupedProperties() {
-  const [page, setPage] = useState(1);
+  const [searchParams, setSearchParams] = useSearchParams();
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const groups = useQuery(groupedPropertiesQuery(page));
+  const q = searchParams.get("g_q") ?? "";
+  const page = Math.max(1, Number(searchParams.get("g_page")) || 1);
+  const attention = (searchParams.get("g_attention") ?? "all") as
+    "all" | "needs_attention";
+  const changed = (searchParams.get("g_changed") ?? "all") as "all" | "recent";
+  const stability = (searchParams.get("g_stability") ?? "all") as
+    "all" | "stable";
+  const measurementStatus = (searchParams.get("g_measurement") ?? "all") as
+    "all" | "measured" | "stale" | "not_measured";
+  const scoringVersion = searchParams.get("g_version") ?? "";
+  const ordering = (searchParams.get("g_order") ?? "needs_attention") as
+    "needs_attention" | "recent_change" | "stability" | "measurement_status";
+  const groups = useQuery(
+    groupedPropertiesQuery({
+      page,
+      q,
+      attention,
+      changed,
+      stability,
+      measurementStatus,
+      scoringVersion,
+      ordering,
+    }),
+  );
+
+  function updateFilter(key: string, value: string) {
+    setSearchParams((current) =>
+      updateQueueFilter(current, key, value, "g_page"),
+    );
+  }
 
   if (selectedId) {
     return (
@@ -797,6 +831,90 @@ export function GroupedProperties() {
             {groups.data.count.toLocaleString("fa-IR")} گروه
           </Badge>
         ) : null}
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <label className="grid gap-1 text-sm">
+          جست‌وجوی هویت گروه
+          <Input
+            type="search"
+            value={q}
+            placeholder="شناسه ملک، آگهی، منبع، محله یا شناسه منبع"
+            onChange={(event) => updateFilter("g_q", event.target.value)}
+          />
+        </label>
+        <label className="grid gap-1 text-sm">
+          نیاز به توجه
+          <select
+            className="border-input bg-background h-10 rounded-md border px-3"
+            value={attention}
+            onChange={(event) =>
+              updateFilter("g_attention", event.target.value)
+            }
+          >
+            <option value="all">همه</option>
+            <option value="needs_attention">فقط نیازمند توجه</option>
+          </select>
+        </label>
+        <label className="grid gap-1 text-sm">
+          تغییر گروه‌بندی
+          <select
+            className="border-input bg-background h-10 rounded-md border px-3"
+            value={changed}
+            onChange={(event) => updateFilter("g_changed", event.target.value)}
+          >
+            <option value="all">همه</option>
+            <option value="recent">تغییر اخیر</option>
+          </select>
+        </label>
+        <label className="grid gap-1 text-sm">
+          پایداری گروه
+          <select
+            className="border-input bg-background h-10 rounded-md border px-3"
+            value={stability}
+            onChange={(event) =>
+              updateFilter("g_stability", event.target.value)
+            }
+          >
+            <option value="all">همه</option>
+            <option value="stable">فقط پایدار</option>
+          </select>
+        </label>
+        <label className="grid gap-1 text-sm">
+          وضعیت سنجش
+          <select
+            className="border-input bg-background h-10 rounded-md border px-3"
+            value={measurementStatus}
+            onChange={(event) =>
+              updateFilter("g_measurement", event.target.value)
+            }
+          >
+            <option value="all">همه</option>
+            <option value="measured">سنجیده‌شده</option>
+            <option value="stale">سنجش منقضی</option>
+            <option value="not_measured">سنجیده‌نشده</option>
+          </select>
+        </label>
+        <label className="grid gap-1 text-sm">
+          نسخه سنجش
+          <Input
+            value={scoringVersion}
+            placeholder="برای نمونه property-match-v2"
+            onChange={(event) => updateFilter("g_version", event.target.value)}
+          />
+        </label>
+        <label className="grid gap-1 text-sm">
+          مرتب‌سازی گروه‌ها
+          <select
+            className="border-input bg-background h-10 rounded-md border px-3"
+            value={ordering}
+            onChange={(event) => updateFilter("g_order", event.target.value)}
+          >
+            <option value="needs_attention">نیازمند توجه</option>
+            <option value="recent_change">تغییر اخیر</option>
+            <option value="stability">پایداری</option>
+            <option value="measurement_status">وضعیت سنجش</option>
+          </select>
+        </label>
       </div>
       {groups.isPending ? <p role="status">در حال دریافت گروه‌ها…</p> : null}
       {groups.isError ? (
@@ -846,7 +964,11 @@ export function GroupedProperties() {
             type="button"
             variant="outline"
             disabled={!groups.data.previous}
-            onClick={() => setPage((value) => Math.max(1, value - 1))}
+            onClick={() =>
+              setSearchParams((current) =>
+                updateQueuePage(current, "g_page", page - 1),
+              )
+            }
           >
             صفحه قبل گروه‌ها
           </Button>
@@ -857,7 +979,11 @@ export function GroupedProperties() {
             type="button"
             variant="outline"
             disabled={!groups.data.next}
-            onClick={() => setPage((value) => value + 1)}
+            onClick={() =>
+              setSearchParams((current) =>
+                updateQueuePage(current, "g_page", page + 1),
+              )
+            }
           >
             صفحه بعد گروه‌ها
           </Button>

@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
+  catalogCurationMetricsQuery,
   catalogCurationSearchQuery,
   propertyComparisonQuery,
 } from "@/features/catalog-curation/queries";
@@ -329,6 +330,7 @@ export function CatalogCurationWorkspace() {
   );
   const search = useQuery(catalogCurationSearchQuery(searchTerm, page));
   const comparison = useQuery(propertyComparisonQuery(comparisonIds));
+  const metrics = useQuery(catalogCurationMetricsQuery());
 
   function submitSearch(event: FormEvent) {
     event.preventDefault();
@@ -386,6 +388,91 @@ export function CatalogCurationWorkspace() {
           </a>
         </Button>
       </nav>
+
+      <section
+        className="mb-8 rounded-2xl border p-5"
+        aria-labelledby="metrics-title"
+      >
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 id="metrics-title" className="text-2xl font-semibold">
+              معیارهای عملیاتی
+            </h2>
+            <p className="text-muted-foreground mt-2 text-sm">
+              نرخ تصمیم‌ها فقط برای ارزیابی نسخه امتیازدهی است و وزن‌ها یا
+              آستانه‌ها را تغییر نمی‌دهد.
+            </p>
+          </div>
+          {metrics.data ? (
+            <Badge variant="secondary">
+              {metrics.data.pending_count.toLocaleString("fa-IR")} پیشنهاد در
+              انتظار
+            </Badge>
+          ) : null}
+        </div>
+        {metrics.isPending ? <p role="status">در حال دریافت معیارها…</p> : null}
+        {metrics.isError ? (
+          <Alert variant="destructive">
+            <AlertTitle>معیارهای عملیاتی دریافت نشد</AlertTitle>
+            <AlertDescription>دوباره تلاش کنید.</AlertDescription>
+          </Alert>
+        ) : null}
+        {metrics.data ? (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[42rem] text-sm">
+              <caption className="sr-only">
+                معیارها بر پایه نوار اطمینان و نسخه امتیازدهی
+              </caption>
+              <thead>
+                <tr className="border-b text-start">
+                  <th className="p-2 text-start">نوار اطمینان</th>
+                  <th className="p-2 text-start">نسخه</th>
+                  <th className="p-2 text-start">تعداد</th>
+                  <th className="p-2 text-start">قدیمی‌ترین (ساعت)</th>
+                  <th className="p-2 text-start">پذیرش</th>
+                  <th className="p-2 text-start">رد</th>
+                </tr>
+              </thead>
+              <tbody>
+                {metrics.data.breakdowns.map((item) => (
+                  <tr
+                    key={`${item.band}:${item.scoring_version}`}
+                    className="border-b last:border-0"
+                  >
+                    <td className="p-2">
+                      {bandLabels[item.band as keyof typeof bandLabels] ??
+                        item.band}
+                    </td>
+                    <td className="p-2" dir="ltr">
+                      {item.scoring_version}
+                    </td>
+                    <td className="p-2">
+                      {item.suggestion_count.toLocaleString("fa-IR")}
+                    </td>
+                    <td className="p-2">
+                      {Math.round(item.oldest_age_hours).toLocaleString(
+                        "fa-IR",
+                      )}
+                    </td>
+                    <td className="p-2">
+                      {Math.round(item.acceptance_rate * 100).toLocaleString(
+                        "fa-IR",
+                      )}
+                      ٪
+                    </td>
+                    <td className="p-2">
+                      {Math.round(item.rejection_rate * 100).toLocaleString(
+                        "fa-IR",
+                      )}
+                      ٪
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : null}
+      </section>
 
       <section
         id="suggestions"
