@@ -109,6 +109,7 @@ def group_identity_revision(property_: Property) -> str:
             "to_property_id",
             "action",
             "decision_id",
+            "partition_decision_id",
             "created_at",
         )
     )
@@ -385,6 +386,7 @@ def grouping_history(property_: Property) -> list[dict[str, Any]]:
             "action": event.action,
             "reason": event.reason,
             "decision_id": event.decision_id,
+            "partition_decision_id": event.partition_decision_id,
             "created_at": event.created_at,
         }
         for event in events

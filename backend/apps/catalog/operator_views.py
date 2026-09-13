@@ -31,6 +31,7 @@ from .models import (
     PropertyMatchDecision,
     PropertyMatchSuggestion,
     PropertyMatchSuggestionState,
+    PropertyPartitionDecision,
 )
 from .operator_serializers import (
     CatalogCurationPropertySearchPageSerializer,
@@ -47,10 +48,16 @@ from .operator_serializers import (
     PropertyMatchSuggestionPageSerializer,
     PropertyMatchSuggestionSerializer,
     PropertyMatchSuggestionSnoozeRequestSerializer,
+    PropertyPartitionClaimRequestSerializer,
+    PropertyPartitionConfirmRequestSerializer,
+    PropertyPartitionDecisionSerializer,
+    PropertyPartitionPreviewSerializer,
+    PropertyPartitionSelectionSerializer,
     grouped_property_data,
     property_search_data,
     suggestion_data,
 )
+from .property_partitions import claim_partition, confirm_partition, partition_preview
 from .selectors import (
     search_current_properties_for_curation,
     search_grouped_properties_for_curation,
@@ -184,6 +191,84 @@ class GroupedPropertyDetailView(APIView):
         )
         payload = grouped_property_data(property_, include_detail=True)
         return Response(GroupedPropertyDetailSerializer(payload).data)
+
+
+class PropertyPartitionPreviewView(APIView):
+    permission_classes = [CanCurateCatalog]
+
+    @extend_schema(
+        summary="Preview a proper subset partition from one grouped Property",
+        request=PropertyPartitionSelectionSerializer,
+        responses={200: PropertyPartitionPreviewSerializer},
+    )
+    def post(self, request: Request, property_id: uuid.UUID) -> Response:
+        serializer = PropertyPartitionSelectionSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        payload = partition_preview(
+            actor=cast(User, request.user),
+            property_id=property_id,
+            **serializer.validated_data,
+        )
+        return Response(PropertyPartitionPreviewSerializer(payload).data)
+
+
+class PropertyPartitionClaimView(APIView):
+    permission_classes = [CanCurateCatalog]
+
+    @extend_schema(
+        summary="Start or renew a grouped Property partition review",
+        request=PropertyPartitionClaimRequestSerializer,
+        responses={200: PropertyPartitionPreviewSerializer},
+    )
+    def post(self, request: Request, property_id: uuid.UUID) -> Response:
+        serializer = PropertyPartitionClaimRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        payload = claim_partition(
+            actor=cast(User, request.user),
+            property_id=property_id,
+            **serializer.validated_data,
+        )
+        return Response(PropertyPartitionPreviewSerializer(payload).data)
+
+
+class PropertyPartitionConfirmView(APIView):
+    permission_classes = [CanCurateCatalog]
+
+    @extend_schema(
+        summary="Confirm one reviewed grouped Property partition",
+        request=PropertyPartitionConfirmRequestSerializer,
+        responses={
+            200: PropertyPartitionDecisionSerializer,
+            201: PropertyPartitionDecisionSerializer,
+        },
+    )
+    def post(self, request: Request, property_id: uuid.UUID) -> Response:
+        serializer = PropertyPartitionConfirmRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        already_decided = PropertyPartitionDecision.objects.filter(
+            claim_id=serializer.validated_data["claim_id"]
+        ).exists()
+        decision = confirm_partition(
+            actor=cast(User, request.user),
+            property_id=property_id,
+            **serializer.validated_data,
+        )
+        return Response(
+            PropertyPartitionDecisionSerializer(decision).data,
+            status=200 if already_decided else 201,
+        )
+
+
+class PropertyPartitionDecisionView(APIView):
+    permission_classes = [CanCurateCatalog]
+
+    @extend_schema(
+        summary="Read a retained Property partition decision",
+        responses={200: PropertyPartitionDecisionSerializer},
+    )
+    def get(self, request: Request, decision_id: uuid.UUID) -> Response:
+        decision = get_object_or_404(PropertyPartitionDecision, pk=decision_id)
+        return Response(PropertyPartitionDecisionSerializer(decision).data)
 
 
 class PropertyMatchSuggestionListView(APIView):

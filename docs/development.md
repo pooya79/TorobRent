@@ -498,3 +498,28 @@ current-version measurement is shown as not yet measured and does not imply inco
 reliable deterministic contradiction or blocker signals mark a group Needs Attention. Measurements
 are advisory: the task and read APIs never group or separate Listings, and existing grouping events
 and Property Match Decisions remain the source of audit history and approved graph edges.
+
+### Grouped Property partitioning
+
+Apply catalog migration 0028 before enabling partition decisions. A Catalog Curator starts from a
+Grouped Property, selects a non-empty proper subset of its Listings, reviews the retained evidence
+and resulting groups, then takes a renewable ten-minute claim before confirmation. The preview and
+confirmation revision includes normalized facts, Listings and Rental Terms, Listing and Property
+Images, Favorites, grouping history and pending suggestions. Any intervening evidence or membership
+change requires a fresh preview.
+
+When every selected Listing shares one empty retained origin in the current merge component, that
+historical Property can be restored. Otherwise the Operator explicitly confirms the normalized
+facts and Property Images of a new Property. The transaction moves only the selected Listing foreign
+keys: Rental Terms, source claims and routes, Listing Images, availability and Listing-bound
+communications remain attached to their Listings. Favorites stay on the surviving Property and are
+never copied.
+
+Each confirmation retains a Property Partition Decision and one linked split event per moved
+Listing, including before/after evidence, actor and optional reason. It also records the current
+identity fingerprint as Not the same Property evidence between the resulting roots. Scheduled
+matching keeps that pair suppressed until its material identity fingerprint changes. There is no
+generic undo or bulk-partition endpoint; a later correction is another explicit reviewed decision.
+
+Run `tests/test_property_partitions.py` against PostgreSQL to exercise competing claims and atomic
+rollback as well as the ordinary API behavior.

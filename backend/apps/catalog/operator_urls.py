@@ -13,6 +13,10 @@ from .operator_views import (
     PropertyMatchSuggestionListView,
     PropertyMatchSuggestionRejectView,
     PropertyMatchSuggestionSnoozeView,
+    PropertyPartitionClaimView,
+    PropertyPartitionConfirmView,
+    PropertyPartitionDecisionView,
+    PropertyPartitionPreviewView,
 )
 
 app_name = "operator-catalog-curation"
@@ -23,6 +27,26 @@ urlpatterns = [
         "grouped-properties/<uuid:property_id>/",
         GroupedPropertyDetailView.as_view(),
         name="grouped-property-detail",
+    ),
+    path(
+        "grouped-properties/<uuid:property_id>/partitions/preview/",
+        PropertyPartitionPreviewView.as_view(),
+        name="partition-preview",
+    ),
+    path(
+        "grouped-properties/<uuid:property_id>/partitions/claim/",
+        PropertyPartitionClaimView.as_view(),
+        name="partition-claim",
+    ),
+    path(
+        "grouped-properties/<uuid:property_id>/partitions/confirm/",
+        PropertyPartitionConfirmView.as_view(),
+        name="partition-confirm",
+    ),
+    path(
+        "partition-decisions/<uuid:decision_id>/",
+        PropertyPartitionDecisionView.as_view(),
+        name="partition-decision",
     ),
     path("suggestions/", PropertyMatchSuggestionListView.as_view(), name="suggestions"),
     path(

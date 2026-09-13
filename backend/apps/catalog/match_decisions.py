@@ -33,6 +33,7 @@ from .models import (
     PropertyMatchSuggestion,
     PropertyMatchSuggestionEvaluation,
     PropertyMatchSuggestionState,
+    PropertyPartitionClaim,
     RentalTerms,
 )
 from .operator_serializers import property_evidence_data
@@ -296,6 +297,10 @@ def claim_comparison(
             properties=properties,
         )
     now = timezone.now()
+    if PropertyPartitionClaim.objects.filter(
+        property_id__in=properties, expires_at__gt=now
+    ).exists():
+        raise ReviewConflict("این ملک در حال بررسی تفکیک است.")
     occupied = PropertyMatchClaim.objects.filter(
         Q(left_id__in=properties) | Q(right_id__in=properties), expires_at__gt=now
     )

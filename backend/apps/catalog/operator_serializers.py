@@ -16,6 +16,7 @@ from .models import (
     PropertyMatchClaim,
     PropertyMatchDecision,
     PropertyMatchSuggestion,
+    PropertyPartitionDecision,
     PropertyType,
 )
 
@@ -208,6 +209,7 @@ class GroupingHistorySerializer(serializers.Serializer[Any]):
     action = serializers.ChoiceField(choices=("attach", "split", "merge"))
     reason = serializers.CharField()
     decision_id = serializers.UUIDField(allow_null=True)
+    partition_decision_id = serializers.UUIDField(allow_null=True)
     created_at = serializers.DateTimeField()
 
 
@@ -284,6 +286,103 @@ class GroupedPropertyDetailSerializer(GroupedPropertySummarySerializer):
     approved_connections = GroupApprovedConnectionSerializer(many=True)
     indirect_only_connections = GroupIndirectConnectionSerializer(many=True)
     measurement = GroupConsistencyMeasurementSerializer(allow_null=True)
+
+
+class PropertyPartitionSelectionSerializer(serializers.Serializer[Any]):
+    listing_ids = serializers.ListField(child=serializers.UUIDField(), min_length=1, max_length=100)
+
+
+class PropertyPartitionListingSerializer(CatalogCurationListingEvidenceSerializer):
+    state = serializers.CharField()
+    external_url = serializers.URLField(allow_blank=True)
+    direct_phone = serializers.CharField(allow_blank=True)
+    rental_terms = serializers.DictField()
+
+
+class PropertyPartitionRestorationOptionSerializer(serializers.Serializer[Any]):
+    id = serializers.UUIDField()
+    normalized_facts = serializers.DictField()
+    property = CatalogCurationPropertyEvidenceSerializer()
+
+
+class PropertyPartitionResultSerializer(serializers.Serializer[Any]):
+    role = serializers.ChoiceField(choices=("surviving", "separated"))
+    id = serializers.UUIDField(allow_null=True)
+    normalized_facts = serializers.DictField()
+    listing_ids = serializers.ListField(child=serializers.UUIDField())
+
+
+class PropertyPartitionImageSerializer(serializers.Serializer[Any]):
+    id = serializers.UUIDField()
+    property_id = serializers.UUIDField()
+    url = serializers.CharField()
+
+
+class PropertyPartitionFavoriteImpactSerializer(serializers.Serializer[Any]):
+    surviving_count = serializers.IntegerField(min_value=0)
+    copied_count = serializers.IntegerField(min_value=0)
+
+
+class PropertyPartitionPreviewSerializer(serializers.Serializer[Any]):
+    property_id = serializers.UUIDField()
+    revision = serializers.CharField()
+    selected_listing_ids = serializers.ListField(child=serializers.UUIDField())
+    selected_listings = PropertyPartitionListingSerializer(many=True)
+    remaining_listings = PropertyPartitionListingSerializer(many=True)
+    grouping_history = GroupingHistorySerializer(many=True)
+    approved_connections = GroupApprovedConnectionSerializer(many=True)
+    pending_suggestions = serializers.ListField(child=serializers.DictField())
+    property_images = PropertyPartitionImageSerializer(many=True)
+    favorites = PropertyPartitionFavoriteImpactSerializer()
+    restoration_options = PropertyPartitionRestorationOptionSerializer(many=True)
+    new_property_defaults = serializers.DictField()
+    resulting_properties = PropertyPartitionResultSerializer(many=True)
+    claim = serializers.DictField(allow_null=True)
+
+
+class PropertyPartitionClaimRequestSerializer(PropertyPartitionSelectionSerializer):
+    revision = serializers.CharField(min_length=64, max_length=64)
+
+
+class PropertyPartitionConfirmRequestSerializer(PropertyPartitionClaimRequestSerializer):
+    claim_id = serializers.UUIDField()
+    destination_mode = serializers.ChoiceField(choices=("restore", "new"))
+    destination_property_id = serializers.UUIDField(required=False, allow_null=True, default=None)
+    normalized_facts = serializers.DictField(required=False, default=dict)
+    image_ids = serializers.ListField(child=serializers.UUIDField(), max_length=100)
+    facts_confirmed = serializers.BooleanField()
+    images_confirmed = serializers.BooleanField()
+    reason = serializers.CharField(required=False, allow_blank=True, max_length=4000, default="")
+
+
+class PropertyPartitionDecisionSerializer(serializers.ModelSerializer[PropertyPartitionDecision]):
+    actor_id = serializers.UUIDField()
+    source_property_id = serializers.UUIDField()
+    separated_property_id = serializers.UUIDField()
+    grouping_event_ids: serializers.PrimaryKeyRelatedField[Any] = (
+        serializers.PrimaryKeyRelatedField(source="grouping_events", many=True, read_only=True)
+    )
+
+    class Meta:
+        model = PropertyPartitionDecision
+        fields = (
+            "id",
+            "actor_id",
+            "source_property_id",
+            "separated_property_id",
+            "restored_historical_property",
+            "selected_listing_ids",
+            "before_revision",
+            "after_revision",
+            "evidence",
+            "after_snapshot",
+            "selected_facts",
+            "selected_image_ids",
+            "grouping_event_ids",
+            "reason",
+            "created_at",
+        )
+        read_only_fields = fields
 
 
 class PropertyMatchClaimSerializer(serializers.Serializer[Any]):

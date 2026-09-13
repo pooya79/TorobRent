@@ -22,6 +22,7 @@ from .models import (
     PropertyMatchSuggestionEvaluation,
     PropertyMatchSuggestionOrigin,
     PropertyMatchSuggestionState,
+    PropertyPartitionDecision,
 )
 
 ELIGIBLE_LISTING_STATES = tuple(
@@ -276,6 +277,11 @@ def evaluate_property_pair(
     left_revision = property_identity_revision(left)
     right_revision = property_identity_revision(right)
     evidence_fingerprint = hashlib.sha256(f"{left_revision}:{right_revision}".encode()).hexdigest()
+    partition_suppressed = PropertyPartitionDecision.objects.filter(
+        Q(source_property=left, separated_property=right)
+        | Q(source_property=right, separated_property=left),
+        suppression_fingerprint=evidence_fingerprint,
+    ).exists()
     evidence = _assessment_evidence(assessment)
     blocked = any(
         signal.classification == SignalClassification.BLOCKER for signal in assessment.signals
@@ -304,10 +310,13 @@ def evaluate_property_pair(
             right=right,
             first_suggested_at=now,
             state=(
-                PropertyMatchSuggestionState.PENDING
+                PropertyMatchSuggestionState.REJECTED
+                if partition_suppressed
+                else PropertyMatchSuggestionState.PENDING
                 if active
                 else PropertyMatchSuggestionState.SUPERSEDED
             ),
+            suppressed_evidence_fingerprint=(evidence_fingerprint if partition_suppressed else ""),
             **values,
         )
     else:
@@ -319,7 +328,11 @@ def evaluate_property_pair(
             suggestion.scoring_version != assessment.scoring_version,
             suggestion.evidence != evidence,
         ))
-        if (
+        if partition_suppressed:
+            suggestion.state = PropertyMatchSuggestionState.REJECTED
+            suggestion.suppressed_evidence_fingerprint = evidence_fingerprint
+            suggestion.snoozed_until = None
+        elif (
             suggestion.state == PropertyMatchSuggestionState.REJECTED
             and suggestion.suppressed_evidence_fingerprint == evidence_fingerprint
         ):

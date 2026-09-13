@@ -613,6 +613,13 @@ class ListingGroupingEvent(models.Model):
         blank=True,
         related_name="grouping_events",
     )
+    partition_decision = models.ForeignKey(
+        "PropertyPartitionDecision",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="grouping_events",
+    )
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     listing = models.ForeignKey(Listing, on_delete=models.PROTECT, related_name="grouping_events")
     from_property = models.ForeignKey(
@@ -627,6 +634,12 @@ class ListingGroupingEvent(models.Model):
 
     class Meta:
         ordering = ("created_at", "id")
+        constraints = [
+            models.CheckConstraint(
+                condition=~Q(decision__isnull=False, partition_decision__isnull=False),
+                name="catalog_grouping_event_one_decision_kind",
+            )
+        ]
 
     def __str__(self) -> str:
         return f"{self.get_action_display()}: {self.listing_id}"
@@ -663,6 +676,47 @@ class PropertyMatchClaim(models.Model):
 
     def __str__(self) -> str:
         return f"{self.left_id} / {self.right_id}: {self.actor_id}"
+
+
+class PropertyPartitionClaim(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    property = models.ForeignKey(
+        Property, on_delete=models.PROTECT, related_name="partition_claims"
+    )
+    actor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    selected_listing_ids = models.JSONField(default=list)
+    revision = models.CharField(max_length=64)
+    expires_at = models.DateTimeField()
+
+    def __str__(self) -> str:
+        return f"{self.property_id}: {self.actor_id}"
+
+
+class PropertyPartitionDecision(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    claim = models.OneToOneField(PropertyPartitionClaim, on_delete=models.PROTECT)
+    actor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    source_property = models.ForeignKey(
+        Property, on_delete=models.PROTECT, related_name="partition_source_decisions"
+    )
+    separated_property = models.ForeignKey(
+        Property, on_delete=models.PROTECT, related_name="partition_result_decisions"
+    )
+    restored_historical_property = models.BooleanField(default=False)
+    selected_listing_ids = models.JSONField(default=list)
+    before_revision = models.CharField(max_length=64)
+    after_revision = models.CharField(max_length=64)
+    evidence = models.JSONField()
+    after_snapshot = models.JSONField()
+    selected_facts = models.JSONField(default=dict)
+    selected_image_ids = models.JSONField(default=list)
+    suppression_fingerprint = models.CharField(max_length=64)
+    request_digest = models.CharField(max_length=64)
+    reason = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self) -> str:
+        return f"{self.source_property_id} → {self.separated_property_id}"
 
 
 class PropertyMatchDecision(models.Model):

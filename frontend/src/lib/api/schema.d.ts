@@ -704,6 +704,57 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/v1/operator/catalog-curation/grouped-properties/{property_id}/partitions/claim/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Start or renew a grouped Property partition review */
+    post: operations["v1_operator_catalog_curation_grouped_properties_partitions_claim_create"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/operator/catalog-curation/grouped-properties/{property_id}/partitions/confirm/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Confirm one reviewed grouped Property partition */
+    post: operations["v1_operator_catalog_curation_grouped_properties_partitions_confirm_create"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/operator/catalog-curation/grouped-properties/{property_id}/partitions/preview/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Preview a proper subset partition from one grouped Property */
+    post: operations["v1_operator_catalog_curation_grouped_properties_partitions_preview_create"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/v1/operator/catalog-curation/images/{image_id}/": {
     parameters: {
       query?: never;
@@ -713,6 +764,23 @@ export interface paths {
     };
     /** Read restricted Property review imagery */
     get: operations["v1_operator_catalog_curation_images_retrieve"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/operator/catalog-curation/partition-decisions/{decision_id}/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Read a retained Property partition decision */
+    get: operations["v1_operator_catalog_curation_partition_decisions_retrieve"];
     put?: never;
     post?: never;
     delete?: never;
@@ -2687,6 +2755,12 @@ export interface components {
       normalized_corrections?: components["schemas"]["NormalizedCorrectionsAudit"];
       publication_result?: components["schemas"]["PublicationResultAudit"];
     };
+    /**
+     * @description * `restore` - restore
+     *     * `new` - new
+     * @enum {string}
+     */
+    DestinationModeEnum: "restore" | "new";
     Detail: {
       detail: string;
     };
@@ -3152,6 +3226,8 @@ export interface components {
       reason: string;
       /** Format: uuid */
       decision_id: string | null;
+      /** Format: uuid */
+      partition_decision_id: string | null;
       /** Format: date-time */
       created_at: string;
     };
@@ -4164,6 +4240,123 @@ export interface components {
       reason: string;
       /** @default 7 */
       days: components["schemas"]["DaysEnum"];
+    };
+    PropertyPartitionClaimRequest: {
+      listing_ids: string[];
+      revision: string;
+    };
+    PropertyPartitionConfirmRequest: {
+      listing_ids: string[];
+      revision: string;
+      /** Format: uuid */
+      claim_id: string;
+      destination_mode: components["schemas"]["DestinationModeEnum"];
+      /** Format: uuid */
+      destination_property_id?: string | null;
+      normalized_facts?: {
+        [key: string]: unknown;
+      };
+      image_ids: string[];
+      facts_confirmed: boolean;
+      images_confirmed: boolean;
+      /** @default  */
+      reason: string;
+    };
+    PropertyPartitionDecision: {
+      /** Format: uuid */
+      readonly id: string;
+      /** Format: uuid */
+      actor_id: string;
+      /** Format: uuid */
+      source_property_id: string;
+      /** Format: uuid */
+      separated_property_id: string;
+      readonly restored_historical_property: boolean;
+      readonly selected_listing_ids: unknown;
+      readonly before_revision: string;
+      readonly after_revision: string;
+      readonly evidence: unknown;
+      readonly after_snapshot: unknown;
+      readonly selected_facts: unknown;
+      readonly selected_image_ids: unknown;
+      readonly grouping_event_ids: string[];
+      readonly reason: string;
+      /** Format: date-time */
+      readonly created_at: string;
+    };
+    PropertyPartitionFavoriteImpact: {
+      surviving_count: number;
+      copied_count: number;
+    };
+    PropertyPartitionImage: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      property_id: string;
+      url: string;
+    };
+    PropertyPartitionListing: {
+      /** Format: uuid */
+      id: string;
+      source: components["schemas"]["CatalogCurationSource"];
+      source_reference: string;
+      source_claims: unknown;
+      provenance_note: string;
+      state: string;
+      external_url: string;
+      direct_phone: string;
+      rental_terms: {
+        [key: string]: unknown;
+      };
+    };
+    PropertyPartitionPreview: {
+      /** Format: uuid */
+      property_id: string;
+      revision: string;
+      selected_listing_ids: string[];
+      selected_listings: components["schemas"]["PropertyPartitionListing"][];
+      remaining_listings: components["schemas"]["PropertyPartitionListing"][];
+      grouping_history: components["schemas"]["GroupingHistory"][];
+      approved_connections: components["schemas"]["GroupApprovedConnection"][];
+      pending_suggestions: {
+        [key: string]: unknown;
+      }[];
+      property_images: components["schemas"]["PropertyPartitionImage"][];
+      favorites: components["schemas"]["PropertyPartitionFavoriteImpact"];
+      restoration_options: components["schemas"]["PropertyPartitionRestorationOption"][];
+      new_property_defaults: {
+        [key: string]: unknown;
+      };
+      resulting_properties: components["schemas"]["PropertyPartitionResult"][];
+      claim: {
+        [key: string]: unknown;
+      } | null;
+    };
+    PropertyPartitionRestorationOption: {
+      /** Format: uuid */
+      id: string;
+      normalized_facts: {
+        [key: string]: unknown;
+      };
+      property: components["schemas"]["CatalogCurationPropertyEvidence"];
+    };
+    PropertyPartitionResult: {
+      role: components["schemas"]["PropertyPartitionResultRoleEnum"];
+      /** Format: uuid */
+      id: string | null;
+      normalized_facts: {
+        [key: string]: unknown;
+      };
+      listing_ids: string[];
+    };
+    /**
+     * @description * `surviving` - surviving
+     *     * `separated` - separated
+     * @enum {string}
+     */
+    PropertyPartitionResultRoleEnum: "surviving" | "separated";
+    PropertyPartitionSelection: {
+      listing_ids: string[];
     };
     PropertySearchPage: {
       ignored_preferences?: string[];
@@ -7072,6 +7265,89 @@ export interface operations {
       };
     };
   };
+  v1_operator_catalog_curation_grouped_properties_partitions_claim_create: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        property_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["PropertyPartitionClaimRequest"];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PropertyPartitionPreview"];
+        };
+      };
+    };
+  };
+  v1_operator_catalog_curation_grouped_properties_partitions_confirm_create: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        property_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["PropertyPartitionConfirmRequest"];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PropertyPartitionDecision"];
+        };
+      };
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PropertyPartitionDecision"];
+        };
+      };
+    };
+  };
+  v1_operator_catalog_curation_grouped_properties_partitions_preview_create: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        property_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["PropertyPartitionSelection"];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PropertyPartitionPreview"];
+        };
+      };
+    };
+  };
   v1_operator_catalog_curation_images_retrieve: {
     parameters: {
       query?: never;
@@ -7089,6 +7365,27 @@ export interface operations {
         };
         content: {
           "image/webp": string;
+        };
+      };
+    };
+  };
+  v1_operator_catalog_curation_partition_decisions_retrieve: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        decision_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PropertyPartitionDecision"];
         };
       };
     };

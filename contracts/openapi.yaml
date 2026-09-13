@@ -1562,6 +1562,96 @@ paths:
               schema:
                 $ref: '#/components/schemas/GroupedPropertyDetail'
           description: ''
+  /api/v1/operator/catalog-curation/grouped-properties/{property_id}/partitions/claim/:
+    post:
+      operationId: v1_operator_catalog_curation_grouped_properties_partitions_claim_create
+      summary: Start or renew a grouped Property partition review
+      parameters:
+      - in: path
+        name: property_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PropertyPartitionClaimRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PropertyPartitionPreview'
+          description: ''
+  /api/v1/operator/catalog-curation/grouped-properties/{property_id}/partitions/confirm/:
+    post:
+      operationId: v1_operator_catalog_curation_grouped_properties_partitions_confirm_create
+      summary: Confirm one reviewed grouped Property partition
+      parameters:
+      - in: path
+        name: property_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PropertyPartitionConfirmRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PropertyPartitionDecision'
+          description: ''
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PropertyPartitionDecision'
+          description: ''
+  /api/v1/operator/catalog-curation/grouped-properties/{property_id}/partitions/preview/:
+    post:
+      operationId: v1_operator_catalog_curation_grouped_properties_partitions_preview_create
+      summary: Preview a proper subset partition from one grouped Property
+      parameters:
+      - in: path
+        name: property_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PropertyPartitionSelection'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PropertyPartitionPreview'
+          description: ''
   /api/v1/operator/catalog-curation/images/{image_id}/:
     get:
       operationId: v1_operator_catalog_curation_images_retrieve
@@ -1584,6 +1674,28 @@ paths:
               schema:
                 type: string
                 format: binary
+          description: ''
+  /api/v1/operator/catalog-curation/partition-decisions/{decision_id}/:
+    get:
+      operationId: v1_operator_catalog_curation_partition_decisions_retrieve
+      summary: Read a retained Property partition decision
+      parameters:
+      - in: path
+        name: decision_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PropertyPartitionDecision'
           description: ''
   /api/v1/operator/catalog-curation/properties/:
     get:
@@ -5425,6 +5537,14 @@ components:
           $ref: '#/components/schemas/NormalizedCorrectionsAudit'
         publication_result:
           $ref: '#/components/schemas/PublicationResultAudit'
+    DestinationModeEnum:
+      enum:
+      - restore
+      - new
+      type: string
+      description: |-
+        * `restore` - restore
+        * `new` - new
     Detail:
       type: object
       properties:
@@ -6633,6 +6753,11 @@ components:
           - string
           - 'null'
           format: uuid
+        partition_decision_id:
+          type:
+          - string
+          - 'null'
+          format: uuid
         created_at:
           type: string
           format: date-time
@@ -6643,6 +6768,7 @@ components:
       - from_property_id
       - id
       - listing_id
+      - partition_decision_id
       - reason
       - to_property_id
     GroupingHistoryActionEnum:
@@ -9081,6 +9207,328 @@ components:
       required:
       - claim_id
       - revision
+    PropertyPartitionClaimRequest:
+      type: object
+      properties:
+        listing_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+          maxItems: 100
+          minItems: 1
+        revision:
+          type: string
+          maxLength: 64
+          minLength: 64
+      required:
+      - listing_ids
+      - revision
+    PropertyPartitionConfirmRequest:
+      type: object
+      properties:
+        listing_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+          maxItems: 100
+          minItems: 1
+        revision:
+          type: string
+          maxLength: 64
+          minLength: 64
+        claim_id:
+          type: string
+          format: uuid
+        destination_mode:
+          $ref: '#/components/schemas/DestinationModeEnum'
+        destination_property_id:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        normalized_facts:
+          type: object
+          additionalProperties: {}
+        image_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+          maxItems: 100
+        facts_confirmed:
+          type: boolean
+        images_confirmed:
+          type: boolean
+        reason:
+          type: string
+          default: ''
+          maxLength: 4000
+      required:
+      - claim_id
+      - destination_mode
+      - facts_confirmed
+      - image_ids
+      - images_confirmed
+      - listing_ids
+      - revision
+    PropertyPartitionDecision:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        actor_id:
+          type: string
+          format: uuid
+        source_property_id:
+          type: string
+          format: uuid
+        separated_property_id:
+          type: string
+          format: uuid
+        restored_historical_property:
+          type: boolean
+          readOnly: true
+        selected_listing_ids:
+          readOnly: true
+        before_revision:
+          type: string
+          readOnly: true
+        after_revision:
+          type: string
+          readOnly: true
+        evidence:
+          readOnly: true
+        after_snapshot:
+          readOnly: true
+        selected_facts:
+          readOnly: true
+        selected_image_ids:
+          readOnly: true
+        grouping_event_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+          readOnly: true
+        reason:
+          type: string
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - actor_id
+      - after_revision
+      - after_snapshot
+      - before_revision
+      - created_at
+      - evidence
+      - grouping_event_ids
+      - id
+      - reason
+      - restored_historical_property
+      - selected_facts
+      - selected_image_ids
+      - selected_listing_ids
+      - separated_property_id
+      - source_property_id
+    PropertyPartitionFavoriteImpact:
+      type: object
+      properties:
+        surviving_count:
+          type: integer
+          minimum: 0
+        copied_count:
+          type: integer
+          minimum: 0
+      required:
+      - copied_count
+      - surviving_count
+    PropertyPartitionImage:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        property_id:
+          type: string
+          format: uuid
+        url:
+          type: string
+      required:
+      - id
+      - property_id
+      - url
+    PropertyPartitionListing:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        source:
+          $ref: '#/components/schemas/CatalogCurationSource'
+        source_reference:
+          type: string
+        source_claims: {}
+        provenance_note:
+          type: string
+        state:
+          type: string
+        external_url:
+          oneOf:
+          - type: string
+            format: uri
+          - type: string
+            maxLength: 0
+        direct_phone:
+          type: string
+        rental_terms:
+          type: object
+          additionalProperties: {}
+      required:
+      - direct_phone
+      - external_url
+      - id
+      - provenance_note
+      - rental_terms
+      - source
+      - source_claims
+      - source_reference
+      - state
+    PropertyPartitionPreview:
+      type: object
+      properties:
+        property_id:
+          type: string
+          format: uuid
+        revision:
+          type: string
+        selected_listing_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+        selected_listings:
+          type: array
+          items:
+            $ref: '#/components/schemas/PropertyPartitionListing'
+        remaining_listings:
+          type: array
+          items:
+            $ref: '#/components/schemas/PropertyPartitionListing'
+        grouping_history:
+          type: array
+          items:
+            $ref: '#/components/schemas/GroupingHistory'
+        approved_connections:
+          type: array
+          items:
+            $ref: '#/components/schemas/GroupApprovedConnection'
+        pending_suggestions:
+          type: array
+          items:
+            type: object
+            additionalProperties: {}
+        property_images:
+          type: array
+          items:
+            $ref: '#/components/schemas/PropertyPartitionImage'
+        favorites:
+          $ref: '#/components/schemas/PropertyPartitionFavoriteImpact'
+        restoration_options:
+          type: array
+          items:
+            $ref: '#/components/schemas/PropertyPartitionRestorationOption'
+        new_property_defaults:
+          type: object
+          additionalProperties: {}
+        resulting_properties:
+          type: array
+          items:
+            $ref: '#/components/schemas/PropertyPartitionResult'
+        claim:
+          type:
+          - object
+          - 'null'
+          additionalProperties: {}
+      required:
+      - approved_connections
+      - claim
+      - favorites
+      - grouping_history
+      - new_property_defaults
+      - pending_suggestions
+      - property_id
+      - property_images
+      - remaining_listings
+      - restoration_options
+      - resulting_properties
+      - revision
+      - selected_listing_ids
+      - selected_listings
+    PropertyPartitionRestorationOption:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        normalized_facts:
+          type: object
+          additionalProperties: {}
+        property:
+          $ref: '#/components/schemas/CatalogCurationPropertyEvidence'
+      required:
+      - id
+      - normalized_facts
+      - property
+    PropertyPartitionResult:
+      type: object
+      properties:
+        role:
+          $ref: '#/components/schemas/PropertyPartitionResultRoleEnum'
+        id:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        normalized_facts:
+          type: object
+          additionalProperties: {}
+        listing_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+      required:
+      - id
+      - listing_ids
+      - normalized_facts
+      - role
+    PropertyPartitionResultRoleEnum:
+      enum:
+      - surviving
+      - separated
+      type: string
+      description: |-
+        * `surviving` - surviving
+        * `separated` - separated
+    PropertyPartitionSelection:
+      type: object
+      properties:
+        listing_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+          maxItems: 100
+          minItems: 1
+      required:
+      - listing_ids
     PropertySearchPage:
       type: object
       properties:

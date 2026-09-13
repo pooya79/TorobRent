@@ -211,7 +211,7 @@ test("browses grouped Properties and distinguishes contradictions from missing e
   expect(screen.getByText("۱ اتصال فقط غیرمستقیم")).toBeVisible();
   expect(screen.getByText("نسخه سنجش: property-match-v2")).toBeVisible();
   expect(screen.getByText("35.774100, 51.356200")).toBeVisible();
-  expect(screen.getByText("منبع الف · A-1")).toBeVisible();
+  expect(screen.getAllByText("منبع الف · A-1")[0]).toBeVisible();
   await user.click(screen.getByRole("button", { name: "بازگشت به گروه‌ها" }));
   await user.click(screen.getByRole("button", { name: "صفحه بعد گروه‌ها" }));
   expect(await screen.findByText("صفحه ۲")).toBeVisible();
@@ -370,4 +370,179 @@ test("shows a low-weight contradiction without calling it reliable", async () =>
   expect(await screen.findByText("امکانات")).toBeVisible();
   expect(screen.getByText("هیچ تناقض قابل اتکایی ثبت نشده است.")).toBeVisible();
   expect(screen.queryByText("نیازمند توجه")).not.toBeInTheDocument();
+});
+
+test("previews, claims, and confirms a single Listing partition", async () => {
+  const user = userEvent.setup();
+  const listingC = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+  const historicalId = "22222222-2222-4222-8222-222222222222";
+  const claimId = "55555555-5555-4555-8555-555555555555";
+  let confirmedBody: unknown;
+  const summary = {
+    id: propertyId,
+    title: "آپارتمان در سعادت‌آباد",
+    listing_count: 3,
+    listing_states: ["published", "archived"],
+    measurement_status: "measured",
+    attention_status: "needs_attention",
+    needs_attention: true,
+    scoring_version: "property-match-v2",
+    measured_at: "2026-09-13T08:00:00Z",
+    last_grouping_change: "2026-09-12T08:00:00Z",
+  };
+  const listing = (id: string, name: string, reference: string) => ({
+    id,
+    source: { id: id.replace(/^./, "d"), name, domain: `${reference}.example` },
+    source_reference: reference,
+    source_claims: {},
+    provenance_note: "",
+  });
+  const preview = {
+    property_id: propertyId,
+    revision: "a".repeat(64),
+    selected_listing_ids: [listingB],
+    selected_listings: [
+      {
+        ...listing(listingB, "منبع ب", "B-1"),
+        state: "published",
+        external_url: "https://b.example/B-1",
+        direct_phone: "",
+        rental_terms: { deposit_rial: 1, monthly_rent_rial: 2 },
+      },
+    ],
+    remaining_listings: [],
+    grouping_history: [],
+    approved_connections: [],
+    pending_suggestions: [{ id: "suggestion" }],
+    property_images: [],
+    favorites: { surviving_count: 2, copied_count: 0 },
+    restoration_options: [
+      {
+        id: historicalId,
+        normalized_facts: { area_sqm: 120 },
+        property: {
+          id: historicalId,
+          normalized_facts: { area_sqm: 120 },
+          provenance_note: "",
+          exact_location: {
+            latitude: null,
+            longitude: null,
+            operator_notes: "",
+          },
+          listings: [],
+        },
+      },
+    ],
+    new_property_defaults: { area_sqm: 90 },
+    resulting_properties: [
+      {
+        role: "surviving",
+        id: propertyId,
+        normalized_facts: { area_sqm: 90 },
+        listing_ids: [listingA, listingC],
+      },
+      {
+        role: "separated",
+        id: historicalId,
+        normalized_facts: { area_sqm: 120 },
+        listing_ids: [listingB],
+      },
+    ],
+    claim: null,
+  };
+  server.use(
+    http.get("*/api/v1/operator/catalog-curation/grouped-properties/", () =>
+      HttpResponse.json({
+        count: 1,
+        next: null,
+        previous: null,
+        results: [summary],
+      }),
+    ),
+    http.get(
+      `*/api/v1/operator/catalog-curation/grouped-properties/${propertyId}/`,
+      () =>
+        HttpResponse.json({
+          ...summary,
+          property: {
+            id: propertyId,
+            normalized_facts: { area_sqm: 90 },
+            provenance_note: "",
+            exact_location: {
+              latitude: null,
+              longitude: null,
+              operator_notes: "",
+            },
+            listings: [
+              listing(listingA, "منبع الف", "A-1"),
+              listing(listingB, "منبع ب", "B-1"),
+              listing(listingC, "منبع ج", "C-1"),
+            ],
+          },
+          grouping_history: [],
+          approved_connections: [],
+          indirect_only_connections: [],
+          measurement: null,
+        }),
+    ),
+    http.post(
+      `*/api/v1/operator/catalog-curation/grouped-properties/${propertyId}/partitions/preview/`,
+      () => HttpResponse.json(preview),
+    ),
+    http.post(
+      `*/api/v1/operator/catalog-curation/grouped-properties/${propertyId}/partitions/claim/`,
+      () =>
+        HttpResponse.json({
+          ...preview,
+          claim: {
+            id: claimId,
+            actor_id: "66666666-6666-4666-8666-666666666666",
+            expires_at: "2026-09-13T09:00:00Z",
+          },
+        }),
+    ),
+    http.post(
+      `*/api/v1/operator/catalog-curation/grouped-properties/${propertyId}/partitions/confirm/`,
+      async ({ request }) => {
+        confirmedBody = await request.json();
+        return HttpResponse.json(
+          { id: "77777777-7777-4777-8777-777777777777" },
+          { status: 201 },
+        );
+      },
+    ),
+  );
+
+  render(
+    <QueryClientProvider client={new QueryClient()}>
+      <MemoryRouter>
+        <CatalogCurationPage />
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+
+  await user.click(
+    await screen.findByRole("button", { name: "بررسی سازگاری" }),
+  );
+  await user.click(screen.getByLabelText("انتخاب آگهی منبع ب B-1"));
+  await user.click(screen.getByRole("button", { name: "پیش‌نمایش تفکیک" }));
+  expect(
+    await screen.findByText("۲ علاقه‌مندی روی ملک باقی می‌ماند."),
+  ).toBeVisible();
+  expect(screen.getByText("۱ پیشنهاد در انتظار تحت تاثیر است.")).toBeVisible();
+  await user.click(screen.getByRole("button", { name: "شروع بررسی تفکیک" }));
+  await user.click(
+    screen.getByLabelText("واقعیت‌های ملک جداشده را تأیید می‌کنم"),
+  );
+  await user.click(screen.getByLabelText("تصاویر ملک جداشده را تأیید می‌کنم"));
+  await user.click(screen.getByRole("button", { name: "تأیید تفکیک" }));
+  expect(await screen.findByText("تفکیک ثبت شد.")).toBeVisible();
+  expect(confirmedBody).toMatchObject({
+    listing_ids: [listingB],
+    claim_id: claimId,
+    destination_mode: "restore",
+    destination_property_id: historicalId,
+    facts_confirmed: true,
+    images_confirmed: true,
+  });
 });
