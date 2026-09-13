@@ -154,9 +154,16 @@ def test_partition_restores_historical_property_and_preserves_listing_bound_data
     )
     assert audit.status_code == 200
     assert audit.data["evidence"]["favorites"][0]["property_id"] == str(survivor.pk)
+    assert audit.data["evidence"]["property_image_variants"][0]["asset_id"] == str(
+        listing_variant.asset_id
+    )
     assert audit.data["after_snapshot"]["separated"]["property_images"][0]["property_id"] == str(
         historical.pk
     )
+    assert {
+        item["asset_id"]
+        for item in audit.data["after_snapshot"]["separated"]["property_image_variants"]
+    } == {str(listing_variant.asset_id)}
     suppression = PropertyMatchSuggestion.objects.get(
         left_id=min(survivor.pk, historical.pk), right_id=max(survivor.pk, historical.pk)
     )

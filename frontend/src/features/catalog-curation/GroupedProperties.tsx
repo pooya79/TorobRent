@@ -228,6 +228,23 @@ function PartitionPanel({
   };
   const invalidSelection =
     selectedIds.length === 0 || selectedIds.length === listings.length;
+  const resultingProperties =
+    preview?.resulting_properties.map((result) => {
+      if (result.role === "surviving") return result;
+      if (destinationMode === "new") {
+        return { ...result, id: null, normalized_facts: newFacts };
+      }
+      const restoration = preview.restoration_options.find(
+        (option) => option.id === destinationId,
+      );
+      return restoration
+        ? {
+            ...result,
+            id: restoration.id,
+            normalized_facts: restoration.normalized_facts,
+          }
+        : result;
+    }) ?? [];
 
   return (
     <Card className="shadow-none">
@@ -368,7 +385,7 @@ function PartitionPanel({
               </div>
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
-              {preview.resulting_properties.map((result) => (
+              {resultingProperties.map((result) => (
                 <div key={result.role} className="rounded-lg border p-3">
                   <p className="mb-2 text-sm font-medium">
                     {result.role === "surviving"
@@ -479,6 +496,16 @@ function PartitionPanel({
               </Button>
             ) : (
               <div className="space-y-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={
+                    claimMutation.isPending || confirmMutation.isPending
+                  }
+                  onClick={() => claimMutation.mutate()}
+                >
+                  تمدید بررسی تفکیک
+                </Button>
                 <Label htmlFor="partition-reason">دلیل اختیاری</Label>
                 <textarea
                   id="partition-reason"

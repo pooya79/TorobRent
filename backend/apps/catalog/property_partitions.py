@@ -24,6 +24,7 @@ from .models import (
     ListingGroupingAction,
     ListingGroupingEvent,
     ListingImage,
+    ListingImageVariant,
     Property,
     PropertyImage,
     PropertyImageVariant,
@@ -63,9 +64,21 @@ def _lock_group(property_id: UUID) -> Property:
     list(RentalTerms.objects.select_for_update().filter(listing__in=listings).order_by("pk"))
     list(ListingImage.objects.select_for_update().filter(listing__in=listings).order_by("pk"))
     list(
+        ListingImageVariant.objects
+        .select_for_update()
+        .filter(image__listing__in=listings)
+        .order_by("pk")
+    )
+    list(
         PropertyImage.objects
         .select_for_update()
         .filter(property_id__in=component_ids)
+        .order_by("pk")
+    )
+    list(
+        PropertyImageVariant.objects
+        .select_for_update()
+        .filter(image__property_id__in=component_ids)
         .order_by("pk")
     )
     list(
@@ -124,8 +137,17 @@ def _snapshot(property_: Property) -> dict[str, Any]:
         "listing_images": list(
             ListingImage.objects.filter(listing__in=listings).order_by("pk").values()
         ),
+        "listing_image_variants": list(
+            ListingImageVariant.objects.filter(image__listing__in=listings).order_by("pk").values()
+        ),
         "property_images": list(
             PropertyImage.objects.filter(property_id__in=component_ids).order_by("pk").values()
+        ),
+        "property_image_variants": list(
+            PropertyImageVariant.objects
+            .filter(image__property_id__in=component_ids)
+            .order_by("pk")
+            .values()
         ),
         "favorites": list(Favorite.objects.filter(property=property_).order_by("pk").values()),
         "grouping_history": grouping_history(property_),

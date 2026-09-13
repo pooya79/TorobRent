@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { MemoryRouter } from "react-router";
@@ -382,6 +382,7 @@ test.each([
   const claimId = "55555555-5555-4555-8555-555555555555";
   const imageId = "88888888-8888-4888-8888-888888888888";
   let confirmedBody: unknown;
+  let claimCalls = 0;
   const summary = {
     id: propertyId,
     title: "آپارتمان در سعادت‌آباد",
@@ -528,15 +529,17 @@ test.each([
     ),
     http.post(
       `*/api/v1/operator/catalog-curation/grouped-properties/${propertyId}/partitions/claim/`,
-      () =>
-        HttpResponse.json({
+      () => {
+        claimCalls += 1;
+        return HttpResponse.json({
           ...preview,
           claim: {
             id: claimId,
             actor_id: "66666666-6666-4666-8666-666666666666",
             expires_at: "2026-09-13T09:00:00Z",
           },
-        }),
+        });
+      },
     ),
     http.post(
       `*/api/v1/operator/catalog-curation/grouped-properties/${propertyId}/partitions/confirm/`,
@@ -581,8 +584,13 @@ test.each([
     const area = screen.getByLabelText("متراژ");
     await user.clear(area);
     await user.type(area, "130");
+    expect(screen.getByText("130")).toBeVisible();
   }
   await user.click(screen.getByRole("button", { name: "شروع بررسی تفکیک" }));
+  await user.click(
+    await screen.findByRole("button", { name: "تمدید بررسی تفکیک" }),
+  );
+  await waitFor(() => expect(claimCalls).toBe(2));
   await user.click(
     screen.getByLabelText("واقعیت‌های ملک جداشده را تأیید می‌کنم"),
   );
