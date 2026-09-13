@@ -17,6 +17,7 @@ from rest_framework.exceptions import APIException, PermissionDenied, Validation
 from apps.accounts.capabilities import OperatorCapability, has_capability
 from apps.accounts.models import User
 
+from .decision_audit import assessment_snapshot, evaluation_snapshot
 from .locations import derive_public_location
 from .matching import compare_properties
 from .models import (
@@ -26,6 +27,7 @@ from .models import (
     ListingImage,
     ListingImageVariant,
     Property,
+    PropertyDecisionOrigin,
     PropertyImage,
     PropertyImageVariant,
     PropertyMatchClaim,
@@ -48,9 +50,13 @@ class ReviewConflict(APIException):
     default_detail = "شواهد یا مسئول بررسی تغییر کرده است؛ مقایسه را تازه کنید."
 
 
-def _authorize(actor: User) -> None:
+def _authorize(actor: User, *, administrative: bool = False) -> None:
     # Re-read permissions rather than trusting a request's cached capability set.
-    if not has_capability(User.objects.get(pk=actor.pk), OperatorCapability.CURATE_CATALOG):
+    actor = User.objects.get(pk=actor.pk)
+    if administrative:
+        if not actor.is_active or not actor.is_superuser:
+            raise PermissionDenied("دسترسی ابرکاربر برای تعمیر مدیریتی لازم است.")
+    elif not has_capability(actor, OperatorCapability.CURATE_CATALOG):
         raise PermissionDenied("مجوز ساماندهی کاتالوگ لازم است.")
 
 
@@ -193,19 +199,6 @@ def _approved_connection_data(properties: list[Property]) -> dict[str, list[Any]
     }
 
 
-def _evaluation_snapshot(evaluation: PropertyMatchSuggestionEvaluation) -> dict[str, Any]:
-    return {
-        "score": evaluation.score,
-        "band": evaluation.band,
-        "scoring_version": evaluation.scoring_version,
-        "evidence_fingerprint": evaluation.evidence_fingerprint,
-        "left_revision": evaluation.left_revision,
-        "right_revision": evaluation.right_revision,
-        "evidence": evaluation.evidence,
-        "origin": evaluation.origin,
-    }
-
-
 def _current_suggestion(
     *,
     suggestion_id: UUID,
@@ -270,8 +263,9 @@ def claim_comparison(
     properties: list[UUID],
     revision: str,
     suggestion_id: UUID | None = None,
+    administrative: bool = False,
 ) -> dict[str, Any]:
-    _authorize(actor)
+    _authorize(actor, administrative=administrative)
     selected = _properties(properties, lock=True)
     properties = [property_.pk for property_ in selected]
     _eligible(actor, properties)
@@ -409,8 +403,9 @@ def approve_comparison(
     warning_confirmed: bool = False,
     reason: str = "",
     suggestion_id: UUID | None = None,
+    administrative: bool = False,
 ) -> PropertyMatchDecision:
-    _authorize(actor)
+    _authorize(actor, administrative=administrative)
     request_digest = _revision(
         json.loads(
             json.dumps(
@@ -426,6 +421,7 @@ def approve_comparison(
                     "warning_confirmed": warning_confirmed,
                     "reason": reason,
                     "suggestion_id": suggestion_id,
+                    "administrative": administrative,
                 },
                 cls=DjangoJSONEncoder,
             )
@@ -448,7 +444,21 @@ def approve_comparison(
         ):
             return existing
         raise ReviewConflict()
-    selected = _approval_properties(properties)
+    try:
+        selected = _approval_properties(properties)
+    except ReviewConflict:
+        # A concurrent identical approval can collapse the pair while this request waits
+        # for the stable root locks. Return its durable decision instead of reporting stale.
+        existing = (
+            PropertyMatchDecision.objects.select_for_update().filter(claim_id=claim_id).first()
+        )
+        if (
+            existing is not None
+            and existing.actor_id == actor.pk
+            and existing.request_digest == request_digest
+        ):
+            return existing
+        raise
     properties = [property_.pk for property_ in selected]
     survivor_id = current_property_id(survivor_id)
     fact_choices = {
@@ -536,11 +546,28 @@ def approve_comparison(
     decision = PropertyMatchDecision.objects.create(
         claim=claim,
         actor=actor,
-        origin=evaluation.origin if evaluation is not None else "operator_initiated",
+        origin=(
+            PropertyDecisionOrigin.ADMINISTRATIVE
+            if administrative
+            else evaluation.origin
+            if evaluation is not None
+            else PropertyDecisionOrigin.OPERATOR_INITIATED
+        ),
         outcome=PropertyMatchDecision.Outcome.SAME_PROPERTY,
         suggestion=suggestion,
         evaluation=evaluation,
-        evaluation_snapshot=_evaluation_snapshot(evaluation) if evaluation is not None else {},
+        evaluation_snapshot=(
+            evaluation_snapshot(evaluation)
+            if evaluation is not None
+            else assessment_snapshot(
+                before["assessment"],
+                origin=(
+                    PropertyDecisionOrigin.ADMINISTRATIVE
+                    if administrative
+                    else PropertyDecisionOrigin.OPERATOR_INITIATED
+                ),
+            )
+        ),
         survivor=survivor,
         redundant=redundant,
         before_revision=revision,
@@ -631,7 +658,7 @@ def decide_suggestion(
         outcome=outcome,
         suggestion=suggestion,
         evaluation=evaluation,
-        evaluation_snapshot=_evaluation_snapshot(evaluation),
+        evaluation_snapshot=evaluation_snapshot(evaluation),
         survivor=None,
         redundant=None,
         before_revision=revision,

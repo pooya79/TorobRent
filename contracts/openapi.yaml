@@ -7881,7 +7881,7 @@ components:
       - revision
       - role
       - source_id
-    OriginEnum:
+    Origin81eEnum:
       enum:
       - focused
       - nightly
@@ -8669,6 +8669,22 @@ components:
       - scoring_version
       - signals
       - suggested_survivor_id
+    PropertyDecisionOriginEnum:
+      enum:
+      - operator_initiated
+      - administrative
+      - focused
+      - nightly
+      - backfill
+      - rescore
+      type: string
+      description: |-
+        * `operator_initiated` - آغازشده توسط کارشناس
+        * `administrative` - تعمیر مدیریتی
+        * `focused` - سنجش متمرکز
+        * `nightly` - آشتی شبانه
+        * `backfill` - پس‌پرکردن اولیه
+        * `rescore` - امتیازدهی دوباره
     PropertyDetail:
       type: object
       properties:
@@ -8966,7 +8982,8 @@ components:
           type: string
           format: uuid
         origin:
-          type: string
+          allOf:
+          - $ref: '#/components/schemas/PropertyDecisionOriginEnum'
           readOnly: true
         outcome:
           allOf:
@@ -9138,7 +9155,7 @@ components:
           - $ref: '#/components/schemas/PropertyMatchClaim'
           - type: 'null'
         origin:
-          $ref: '#/components/schemas/OriginEnum'
+          $ref: '#/components/schemas/Origin81eEnum'
         snoozed_until:
           type:
           - string
@@ -9216,7 +9233,7 @@ components:
           - $ref: '#/components/schemas/PropertyMatchClaim'
           - type: 'null'
         origin:
-          $ref: '#/components/schemas/OriginEnum'
+          $ref: '#/components/schemas/Origin81eEnum'
         snoozed_until:
           type:
           - string
@@ -9280,7 +9297,7 @@ components:
           items:
             $ref: '#/components/schemas/MatchSignal'
         origin:
-          $ref: '#/components/schemas/OriginEnum'
+          $ref: '#/components/schemas/Origin81eEnum'
         created_at:
           type: string
           format: date-time
@@ -9444,6 +9461,10 @@ components:
         actor_id:
           type: string
           format: uuid
+        origin:
+          allOf:
+          - $ref: '#/components/schemas/PropertyDecisionOriginEnum'
+          readOnly: true
         source_property_id:
           type: string
           format: uuid
@@ -9454,6 +9475,8 @@ components:
           type: boolean
           readOnly: true
         selected_listing_ids:
+          readOnly: true
+        evaluation_snapshot:
           readOnly: true
         before_revision:
           type: string
@@ -9488,9 +9511,11 @@ components:
       - after_snapshot
       - before_revision
       - created_at
+      - evaluation_snapshot
       - evidence
       - grouping_event_ids
       - id
+      - origin
       - reason
       - restored_historical_property
       - selected_facts

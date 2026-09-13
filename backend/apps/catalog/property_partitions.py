@@ -14,6 +14,7 @@ from rest_framework.exceptions import ValidationError
 
 from apps.accounts.models import User
 
+from .decision_audit import evaluation_snapshot
 from .group_consistency import approved_connection_graph, grouping_history
 from .locations import derive_public_location
 from .match_decisions import CLAIM_LIFETIME, FACT_FIELDS, ReviewConflict, _authorize, _eligible
@@ -26,6 +27,7 @@ from .models import (
     ListingImage,
     ListingImageVariant,
     Property,
+    PropertyDecisionOrigin,
     PropertyImage,
     PropertyImageVariant,
     PropertyMatchClaim,
@@ -46,6 +48,12 @@ def _json[T](value: T) -> T:
 def _digest(value: Any) -> str:
     encoded = json.dumps(_json(value), sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(encoded.encode()).hexdigest()
+
+
+@transaction.atomic
+def partition_state_revision(property_id: UUID) -> str:
+    """Lock and revise all evidence that can affect a partition destination."""
+    return _digest(_snapshot(_lock_group(property_id)))
 
 
 def _lock_group(property_id: UUID) -> Property:
@@ -185,8 +193,14 @@ def _listing_preview(listing: Listing) -> dict[str, Any]:
 
 
 @transaction.atomic
-def partition_preview(*, actor: User, property_id: UUID, listing_ids: list[UUID]) -> dict[str, Any]:
-    _authorize(actor)
+def partition_preview(
+    *,
+    actor: User,
+    property_id: UUID,
+    listing_ids: list[UUID],
+    administrative: bool = False,
+) -> dict[str, Any]:
+    _authorize(actor, administrative=administrative)
     property_ = _lock_group(property_id)
     selected = _selected_listings(property_, listing_ids)
     _eligible(actor, [property_.pk])
@@ -262,9 +276,19 @@ def partition_preview(*, actor: User, property_id: UUID, listing_ids: list[UUID]
 
 @transaction.atomic
 def claim_partition(
-    *, actor: User, property_id: UUID, listing_ids: list[UUID], revision: str
+    *,
+    actor: User,
+    property_id: UUID,
+    listing_ids: list[UUID],
+    revision: str,
+    administrative: bool = False,
 ) -> dict[str, Any]:
-    preview = partition_preview(actor=actor, property_id=property_id, listing_ids=listing_ids)
+    preview = partition_preview(
+        actor=actor,
+        property_id=property_id,
+        listing_ids=listing_ids,
+        administrative=administrative,
+    )
     if preview["revision"] != revision:
         raise ReviewConflict()
     now = timezone.now()
@@ -329,8 +353,9 @@ def confirm_partition(
     facts_confirmed: bool,
     images_confirmed: bool,
     reason: str = "",
+    administrative: bool = False,
 ) -> PropertyPartitionDecision:
-    _authorize(actor)
+    _authorize(actor, administrative=administrative)
     request_digest = _digest({
         "property_id": property_id,
         "listing_ids": sorted(listing_ids),
@@ -343,6 +368,7 @@ def confirm_partition(
         "facts_confirmed": facts_confirmed,
         "images_confirmed": images_confirmed,
         "reason": reason,
+        "administrative": administrative,
     })
     existing = (
         PropertyPartitionDecision.objects.select_for_update().filter(claim_id=claim_id).first()
@@ -351,6 +377,13 @@ def confirm_partition(
         if existing.actor_id == actor.pk and existing.request_digest == request_digest:
             return existing
         raise ReviewConflict()
+    if destination_mode == "existing" and destination_property_id is not None:
+        list(
+            Property.objects
+            .select_for_update()
+            .filter(pk__in=(property_id, destination_property_id))
+            .order_by("pk")
+        )
     source = _lock_group(property_id)
     selected = _selected_listings(source, listing_ids)
     _eligible(actor, [source.pk])
@@ -394,6 +427,13 @@ def confirm_partition(
         destination.normalized_at = timezone.now()
         destination.save()
         restored = False
+    elif destination_mode == "existing":
+        if destination_property_id is None or destination_property_id == source.pk:
+            raise ValidationError({"destination_property_id": "ملک مقصد معتبر نیست."})
+        destination = _lock_group(destination_property_id)
+        _eligible(actor, [destination.pk])
+        selected_facts = _facts(destination)
+        restored = False
     else:
         raise ValidationError({"destination_mode": "مقصد تفکیک معتبر نیست."})
     available_images = {
@@ -409,6 +449,11 @@ def confirm_partition(
     decision = PropertyPartitionDecision.objects.create(
         claim=claim,
         actor=actor,
+        origin=(
+            PropertyDecisionOrigin.ADMINISTRATIVE
+            if administrative
+            else PropertyDecisionOrigin.OPERATOR_INITIATED
+        ),
         source_property=source,
         separated_property=destination,
         restored_historical_property=restored,
@@ -456,6 +501,9 @@ def confirm_partition(
         source.pk, destination.pk, origin="focused", persist_inactive=True
     )
     if suggestion is not None:
+        evaluation = suggestion.evaluations.order_by("-created_at", "-pk").first()
+        if evaluation is not None:
+            decision.evaluation_snapshot = _json(evaluation_snapshot(evaluation))
         suggestion.state = PropertyMatchSuggestionState.REJECTED
         suggestion.suppressed_evidence_fingerprint = suggestion.evidence_fingerprint
         suggestion.snoozed_until = None
@@ -473,7 +521,14 @@ def confirm_partition(
     })
     decision.after_snapshot = after
     decision.after_revision = _digest(after)
-    decision.save(update_fields=["after_snapshot", "after_revision", "suppression_fingerprint"])
+    decision.save(
+        update_fields=[
+            "after_snapshot",
+            "after_revision",
+            "suppression_fingerprint",
+            "evaluation_snapshot",
+        ]
+    )
     claim.expires_at = timezone.now()
     claim.save(update_fields=["expires_at"])
     return decision

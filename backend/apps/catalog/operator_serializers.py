@@ -394,10 +394,12 @@ class PropertyPartitionDecisionSerializer(serializers.ModelSerializer[PropertyPa
         fields = (
             "id",
             "actor_id",
+            "origin",
             "source_property_id",
             "separated_property_id",
             "restored_historical_property",
             "selected_listing_ids",
+            "evaluation_snapshot",
             "before_revision",
             "after_revision",
             "evidence",

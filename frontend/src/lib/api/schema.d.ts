@@ -3701,7 +3701,7 @@ export interface components {
      *     * `rescore` - rescore
      * @enum {string}
      */
-    OriginEnum: "focused" | "nightly" | "backfill" | "rescore";
+    Origin81eEnum: "focused" | "nightly" | "backfill" | "rescore";
     /**
      * @description * `direct_contact` - تماس مستقیم
      *     * `external_link` - پیوند منبع
@@ -4067,6 +4067,22 @@ export interface components {
       approved_connections: components["schemas"]["PropertyMatchApprovedConnection"][];
       indirect_listing_ids: string[];
     };
+    /**
+     * @description * `operator_initiated` - آغازشده توسط کارشناس
+     *     * `administrative` - تعمیر مدیریتی
+     *     * `focused` - سنجش متمرکز
+     *     * `nightly` - آشتی شبانه
+     *     * `backfill` - پس‌پرکردن اولیه
+     *     * `rescore` - امتیازدهی دوباره
+     * @enum {string}
+     */
+    PropertyDecisionOriginEnum:
+      | "operator_initiated"
+      | "administrative"
+      | "focused"
+      | "nightly"
+      | "backfill"
+      | "rescore";
     PropertyDetail: {
       /** Format: uuid */
       id: string;
@@ -4163,7 +4179,7 @@ export interface components {
       readonly id: string;
       /** Format: uuid */
       actor_id: string;
-      readonly origin: string;
+      readonly origin: components["schemas"]["PropertyDecisionOriginEnum"];
       readonly outcome: components["schemas"]["OutcomeEnum"];
       /** Format: uuid */
       suggestion_id: string | null;
@@ -4228,7 +4244,7 @@ export interface components {
       scoring_version: string;
       evidence_summary: components["schemas"]["PropertyMatchEvidenceSummary"][];
       claim: components["schemas"]["PropertyMatchClaim"] | null;
-      origin: components["schemas"]["OriginEnum"];
+      origin: components["schemas"]["Origin81eEnum"];
       /** Format: date-time */
       snoozed_until: string | null;
       /** Format: date-time */
@@ -4254,7 +4270,7 @@ export interface components {
       scoring_version: string;
       evidence_summary: components["schemas"]["PropertyMatchEvidenceSummary"][];
       claim: components["schemas"]["PropertyMatchClaim"] | null;
-      origin: components["schemas"]["OriginEnum"];
+      origin: components["schemas"]["Origin81eEnum"];
       /** Format: date-time */
       snoozed_until: string | null;
       /** Format: date-time */
@@ -4275,7 +4291,7 @@ export interface components {
       left_revision: string;
       right_revision: string;
       evidence: components["schemas"]["MatchSignal"][];
-      origin: components["schemas"]["OriginEnum"];
+      origin: components["schemas"]["Origin81eEnum"];
       /** Format: date-time */
       created_at: string;
     };
@@ -4332,12 +4348,14 @@ export interface components {
       readonly id: string;
       /** Format: uuid */
       actor_id: string;
+      readonly origin: components["schemas"]["PropertyDecisionOriginEnum"];
       /** Format: uuid */
       source_property_id: string;
       /** Format: uuid */
       separated_property_id: string;
       readonly restored_historical_property: boolean;
       readonly selected_listing_ids: unknown;
+      readonly evaluation_snapshot: unknown;
       readonly before_revision: string;
       readonly after_revision: string;
       readonly evidence: unknown;

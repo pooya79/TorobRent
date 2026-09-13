@@ -1,0 +1,31 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+
+{% block content %}
+  <p>این تعمیر بر پایه بازبینی فعلی اجرا می‌شود. اگر شواهد یا گروه‌بندی تغییر کند، عملیات رد خواهد شد.</p>
+  <ul>
+    {% for detail in details %}<li>{{ detail }}</li>{% endfor %}
+  </ul>
+  {% if score is not None %}
+    <p>امتیاز شواهد: {{ score }} — نسخه امتیازدهی: {{ scoring_version }}</p>
+  {% endif %}
+  <form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="{{ action }}">
+    <input type="hidden" name="target_property" value="{{ target_id }}">
+    <input type="hidden" name="reviewed_revision" value="{{ reviewed_revision }}">
+    <input type="hidden" name="confirm_repair" value="1">
+    <input type="hidden" name="index" value="0">
+    {% for selected_id in selected_ids %}
+      <input type="hidden" name="_selected_action" value="{{ selected_id }}">
+    {% endfor %}
+    <div class="form-row">
+      <label for="id_reason">دلیل اختیاری:</label>
+      <textarea id="id_reason" name="reason" rows="3">{{ reason }}</textarea>
+    </div>
+    <div class="submit-row">
+      <input type="submit" value="تأیید و اجرا" class="default">
+      <a href="../">انصراف</a>
+    </div>
+  </form>
+{% endblock %}

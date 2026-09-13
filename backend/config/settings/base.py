@@ -214,6 +214,10 @@ SPECTACULAR_SETTINGS = {
             "blocker",
         ),
         "OutboundPolicyEnum": "apps.catalog.models.OutboundPolicy.choices",
+        "PropertyDecisionOriginEnum": "apps.catalog.models.PropertyDecisionOrigin.choices",
+        "PropertyMatchSuggestionOriginEnum": (
+            "apps.catalog.models.PropertyMatchSuggestionOrigin.choices"
+        ),
         "PropertyTypeEnum": "apps.catalog.models.PropertyType.choices",
         "PrivacyActionTypeEnum": "apps.contact.models.PrivacyActionType.choices",
         "SubmissionStateEnum": "apps.submissions.models.SubmissionState.choices",

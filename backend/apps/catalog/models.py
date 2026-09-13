@@ -692,10 +692,25 @@ class PropertyPartitionClaim(models.Model):
         return f"{self.property_id}: {self.actor_id}"
 
 
+class PropertyDecisionOrigin(models.TextChoices):
+    OPERATOR_INITIATED = "operator_initiated", "آغازشده توسط کارشناس"
+    ADMINISTRATIVE = "administrative", "تعمیر مدیریتی"
+    FOCUSED = "focused", "سنجش متمرکز"
+    NIGHTLY = "nightly", "آشتی شبانه"
+    BACKFILL = "backfill", "پس‌پرکردن اولیه"
+    RESCORE = "rescore", "امتیازدهی دوباره"
+
+
 class PropertyPartitionDecision(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     claim = models.OneToOneField(PropertyPartitionClaim, on_delete=models.PROTECT)
     actor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    origin = models.CharField(
+        max_length=24,
+        choices=PropertyDecisionOrigin,
+        default=PropertyDecisionOrigin.OPERATOR_INITIATED,
+        editable=False,
+    )
     source_property = models.ForeignKey(
         Property, on_delete=models.PROTECT, related_name="partition_source_decisions"
     )
@@ -704,6 +719,7 @@ class PropertyPartitionDecision(models.Model):
     )
     restored_historical_property = models.BooleanField(default=False)
     selected_listing_ids = models.JSONField(default=list)
+    evaluation_snapshot = models.JSONField(default=dict, blank=True)
     before_revision = models.CharField(max_length=64)
     after_revision = models.CharField(max_length=64)
     evidence = models.JSONField()
@@ -728,7 +744,12 @@ class PropertyMatchDecision(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     claim = models.OneToOneField(PropertyMatchClaim, on_delete=models.PROTECT)
     actor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
-    origin = models.CharField(max_length=24, default="operator_initiated", editable=False)
+    origin = models.CharField(
+        max_length=24,
+        choices=PropertyDecisionOrigin,
+        default=PropertyDecisionOrigin.OPERATOR_INITIATED,
+        editable=False,
+    )
     outcome = models.CharField(
         max_length=24,
         choices=Outcome,

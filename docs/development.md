@@ -524,6 +524,26 @@ generic undo or bulk-partition endpoint; a later correction is another explicit 
 Run `tests/test_property_partitions.py` against PostgreSQL to exercise competing claims and atomic
 rollback as well as the ordinary API behavior.
 
+### Django administration break-glass grouping
+
+Apply catalog migration 0030 before using the reviewed administration repairs. Property merging
+and Listing reassignment remain available only to active superusers; Django `is_staff` and Catalog
+Curation continue to be independent grants. Ordinary Operators use the React Catalog Curation
+workspace.
+
+Both administration actions have a review and confirmation step carrying an opaque evidence
+revision. Each action accepts exactly one Property pair or one Listing, plus an optional reason. A
+changed revision, an overlapping claim, an invalid destination, or a self-referential repair is
+rejected without partial mutation. Property merging delegates to the canonical match claim and
+approval service, retaining the target's normalized facts and active Property Images. Listing
+reassignment delegates to the canonical partition claim and confirmation service; direct Property
+editing on an existing Listing is read-only so it cannot bypass durable negative identity evidence.
+The resulting decisions record administrative origin, actor, affected Properties and Listings,
+available scoring evidence, and before/after revisions.
+
+Run `tests/test_catalog_admin_grouping.py` against PostgreSQL together with the match-decision and
+partition suites to exercise behavioral equivalence and rollback at the service boundary.
+
 ### Catalog matching backfill and rescore operations
 
 Apply catalog migration 0029 before running the initial matching backfill or a scoring-version

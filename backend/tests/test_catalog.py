@@ -1968,7 +1968,7 @@ def test_regroup_listing_chooses_attach_or_split_inside_the_catalog_workflow():
 
 
 @pytest.mark.django_db
-def test_operator_regroups_a_listing_through_the_admin_change_form():
+def test_superuser_reassigns_a_listing_through_the_reviewed_admin_action():
     call_command("loaddata", "catalog_seed", verbosity=0)
     operator = User.objects.create_superuser(
         email="operator-grouping@example.com", password="operator-password"
@@ -2007,32 +2007,53 @@ def test_operator_regroups_a_listing_through_the_admin_change_form():
         source_claims={"area_sqm": 101},
         direct_phone="۰۹۱۲۱۲۳۴۵۶۷",
     )
+    Listing.objects.create(
+        property=original,
+        source=source,
+        terms=RentalTerms.objects.create(
+            deposit_rial=4_000_000_000,
+            monthly_rent_rial=200_000_000,
+        ),
+        direct_phone="۰۹۱۲۱۲۳۴۵۶۷",
+    )
 
-    response = client.post(
-        f"/admin/catalog/listing/{listing.id}/change/",
+    preview = client.post(
+        "/admin/catalog/listing/",
         {
-            "property": str(destination.id),
-            "source": str(source.id),
-            "terms": str(listing.terms_id),
-            "state": ListingState.DRAFT,
-            "description": "",
-            "source_reference": "",
-            "source_claims": '{"area_sqm": 101}',
-            "provenance_note": "",
-            "external_url": "",
-            "direct_phone": "۰۹۱۲۱۲۳۴۵۶۷",
-            "_save": "Save",
+            "action": "reassign_to_property",
+            "target_property": str(destination.id),
+            "_selected_action": [str(listing.id)],
+            "index": "0",
         },
     )
 
-    assert response.status_code == 302
+    assert preview.status_code == 200
+    assert preview.context["reviewed_revision"]
+    response = client.post(
+        "/admin/catalog/listing/",
+        {
+            "action": "reassign_to_property",
+            "target_property": str(destination.id),
+            "reviewed_revision": preview.context["reviewed_revision"],
+            "reason": "اصلاح مدیریتی",
+            "_selected_action": [str(listing.id)],
+            "confirm_repair": "1",
+            "index": "0",
+        },
+        follow=True,
+    )
+
+    assert response.status_code == 200
     listing.refresh_from_db()
     assert listing.property_id == destination.id
-    assert listing.grouping_events.get().action == "attach"
+    event = listing.grouping_events.get()
+    assert event.action == "split"
+    assert event.partition_decision.origin == "administrative"
+    assert event.partition_decision.reason == "اصلاح مدیریتی"
 
 
 @pytest.mark.django_db
-def test_operator_merges_selected_properties_through_the_admin_action():
+def test_superuser_merges_selected_properties_through_the_reviewed_admin_action():
     call_command("loaddata", "catalog_seed", verbosity=0)
     operator = User.objects.create_superuser(
         email="operator-merge@example.com", password="operator-password"
@@ -2051,13 +2072,40 @@ def test_operator_merges_selected_properties_through_the_admin_action():
         )
         for _ in range(2)
     ]
+    source = Source.objects.get(is_builtin=True)
+    for property_ in (target, duplicate):
+        Listing.objects.create(
+            property=property_,
+            source=source,
+            terms=RentalTerms.objects.create(
+                deposit_rial=5_000_000_000,
+                monthly_rent_rial=200_000_000,
+            ),
+            state=ListingState.PUBLISHED,
+            available_until=timezone.now() + timedelta(days=1),
+            direct_phone="۰۹۱۲۱۲۳۴۵۶۷",
+        )
 
-    response = client.post(
+    preview = client.post(
         "/admin/catalog/property/",
         {
             "action": "merge_into_target",
             "target_property": str(target.id),
             "_selected_action": [str(duplicate.id)],
+            "index": "0",
+        },
+    )
+
+    assert preview.status_code == 200
+    assert preview.context["reviewed_revision"]
+    response = client.post(
+        "/admin/catalog/property/",
+        {
+            "action": "merge_into_target",
+            "target_property": str(target.id),
+            "reviewed_revision": preview.context["reviewed_revision"],
+            "_selected_action": [str(duplicate.id)],
+            "confirm_repair": "1",
             "index": "0",
         },
         follow=True,
@@ -2067,6 +2115,7 @@ def test_operator_merges_selected_properties_through_the_admin_action():
     duplicate.refresh_from_db()
     assert duplicate.merged_into_id == target.id
     assert "یک ملک تکراری ادغام شد" in response.content.decode()
+    assert duplicate.redundant_decisions.get().origin == "administrative"
 
 
 @pytest.mark.django_db

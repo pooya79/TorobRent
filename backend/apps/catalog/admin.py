@@ -4,13 +4,25 @@ from typing import Any, cast
 from django import forms
 from django.contrib import admin, messages
 from django.contrib.admin.helpers import ActionForm
+from django.contrib.admin.options import Action, ActionLocation
+from django.contrib.auth.models import AnonymousUser
 from django.core.exceptions import ValidationError
 from django.db.models import Count, Q, QuerySet
 from django.http import HttpRequest
+from django.template.response import TemplateResponse
 from django.utils import timezone
 from django.utils.translation import ngettext
+from rest_framework.exceptions import APIException
 from unfold.admin import ModelAdmin
 
+from apps.accounts.models import User
+
+from .administrative_grouping import (
+    administrative_merge,
+    administrative_merge_preview,
+    administrative_partition_preview,
+    administrative_reassign_listing,
+)
 from .models import (
     City,
     District,
@@ -29,9 +41,7 @@ from .services import (
     archive_listing,
     confirm_listing_availability,
     mark_listing_unavailable,
-    merge_properties,
     publish_listing,
-    regroup_listing,
 )
 
 PERSIAN_DIGITS = str.maketrans("۰۱۲۳۴۵۶۷۸۹", "0123456789")
@@ -139,12 +149,58 @@ class RentalTermsAdminForm(forms.ModelForm):  # type: ignore[type-arg]
         return instance
 
 
-class PropertyMergeActionForm(ActionForm):
+class BreakGlassActionForm(ActionForm):
     target_property = forms.ModelChoiceField(
-        queryset=Property.objects.filter(merged_into__isnull=True),
+        queryset=Property.objects.all(),
         required=False,
-        label="ملک مقصد ادغام",
+        label="ملک مقصد",
     )
+    reason = forms.CharField(required=False, max_length=4000, label="دلیل اختیاری")
+    reviewed_revision = forms.CharField(required=False, widget=forms.HiddenInput)
+
+
+def _repair_confirmation(
+    *,
+    model_admin: admin.ModelAdmin[Any],
+    request: HttpRequest,
+    action: str,
+    selected_ids: list[str],
+    target_id: str,
+    reviewed_revision: str,
+    title: str,
+    details: list[str],
+    score: int | None = None,
+    scoring_version: str = "",
+) -> TemplateResponse:
+    return TemplateResponse(
+        request,
+        "admin/catalog/repair_confirmation.html",
+        {
+            **model_admin.admin_site.each_context(request),
+            "opts": model_admin.model._meta,
+            "title": title,
+            "action": action,
+            "selected_ids": selected_ids,
+            "target_id": target_id,
+            "reviewed_revision": reviewed_revision,
+            "reason": request.POST.get("reason", ""),
+            "details": details,
+            "score": score,
+            "scoring_version": scoring_version,
+        },
+    )
+
+
+def _admin_actor(request: HttpRequest) -> User:
+    if isinstance(request.user, AnonymousUser):
+        raise ValidationError("دسترسی ابرکاربر برای تعمیر مدیریتی لازم است.")
+    return request.user
+
+
+def _domain_error_text(exc: ValidationError | APIException) -> str:
+    if isinstance(exc, ValidationError):
+        return "; ".join(exc.messages)
+    return str(exc.detail)
 
 
 @admin.register(City)
@@ -205,39 +261,68 @@ class PropertyAdmin(ModelAdmin):  # type: ignore[type-arg]
     list_filter = ("property_type", "city", "district")
     search_fields = ("id", "neighborhood__name_fa")
     readonly_fields = ("merged_into", "merged_at")
-    action_form = PropertyMergeActionForm
+    action_form = BreakGlassActionForm
     actions = ("merge_into_target",)
 
     @admin.action(description="ادغام ملک‌های انتخاب‌شده در ملک مقصد")
-    def merge_into_target(self, request: HttpRequest, queryset: Any) -> None:
+    def merge_into_target(self, request: HttpRequest, queryset: Any) -> TemplateResponse | None:
         target_id = request.POST.get("target_property")
         if not target_id:
             self.message_user(request, "ملک مقصد ادغام را انتخاب کنید.", level=messages.ERROR)
-            return
+            return None
         try:
             target = Property.objects.get(pk=target_id, merged_into__isnull=True)
         except Property.DoesNotExist, ValueError:
             self.message_user(request, "ملک مقصد معتبر نیست.", level=messages.ERROR)
-            return
-
-        merged = 0
-        for duplicate in queryset.exclude(pk=target.pk):
-            try:
-                merge_properties(target=target, duplicate=duplicate)
-            except ValidationError as exc:
-                self.message_user(request, f"{duplicate.id}: {exc}", level=messages.ERROR)
-            else:
-                merged += 1
-        if merged:
+            return None
+        duplicates = list(queryset.exclude(pk=target.pk))
+        if len(duplicates) != 1:
             self.message_user(
-                request,
-                ngettext(
-                    "یک ملک تکراری ادغام شد.",
-                    f"{merged} ملک تکراری ادغام شدند.",
-                    merged,
-                ),
-                level=messages.SUCCESS,
+                request, "دقیقاً یک ملک تکراری را برای بازبینی انتخاب کنید.", level=messages.ERROR
             )
+            return None
+        duplicate = duplicates[0]
+        try:
+            if "confirm_repair" not in request.POST:
+                reviewed = administrative_merge_preview(
+                    actor=_admin_actor(request),
+                    survivor_id=target.pk,
+                    redundant_id=duplicate.pk,
+                )
+                return _repair_confirmation(
+                    model_admin=self,
+                    request=request,
+                    action="merge_into_target",
+                    selected_ids=[str(duplicate.pk)],
+                    target_id=str(target.pk),
+                    reviewed_revision=str(reviewed["revision"]),
+                    title="تأیید ادغام مدیریتی ملک",
+                    details=[f"ملک {property_['id']}" for property_ in reviewed["properties"]],
+                    score=reviewed["score"],
+                    scoring_version=str(reviewed["scoring_version"]),
+                )
+            administrative_merge(
+                actor=_admin_actor(request),
+                survivor_id=target.pk,
+                redundant_id=duplicate.pk,
+                reviewed_revision=request.POST.get("reviewed_revision", ""),
+                reason=request.POST.get("reason", ""),
+            )
+        except (ValidationError, APIException) as exc:
+            self.message_user(request, _domain_error_text(exc), level=messages.ERROR)
+            return None
+        self.message_user(request, "یک ملک تکراری ادغام شد.", level=messages.SUCCESS)
+        return None
+
+    def get_actions(
+        self,
+        request: HttpRequest,
+        action_location: ActionLocation = ActionLocation.CHANGE_LIST,
+    ) -> dict[str, Action | None]:
+        actions = super().get_actions(request, action_location)
+        if not request.user.is_superuser:
+            actions.pop("merge_into_target", None)
+        return actions
 
 
 @admin.register(RentalTerms)
@@ -274,30 +359,79 @@ class ListingAdmin(ModelAdmin):  # type: ignore[type-arg]
     )
     search_fields = ("id", "source_reference", "property__neighborhood__name_fa")
     readonly_fields = ("published_at", "availability_confirmed_at", "available_until")
+    action_form = BreakGlassActionForm
     actions = (
+        "reassign_to_property",
         "publish_listings",
         "confirm_availability",
         "mark_unavailable",
         "archive",
     )
 
-    def save_model(
+    def get_readonly_fields(
+        self, request: HttpRequest, obj: Listing | None = None
+    ) -> tuple[str, ...]:
+        fields = super().get_readonly_fields(request, obj)
+        return (*fields, "property") if obj is not None else tuple(fields)
+
+    def get_actions(
         self,
         request: HttpRequest,
-        obj: Listing,
-        form: forms.ModelForm[Any],
-        change: bool,
-    ) -> None:
-        if not change or "property" not in form.changed_data:
-            super().save_model(request, obj, form, change)
-            return
+        action_location: ActionLocation = ActionLocation.CHANGE_LIST,
+    ) -> dict[str, Action | None]:
+        actions = super().get_actions(request, action_location)
+        if not request.user.is_superuser:
+            actions.pop("reassign_to_property", None)
+        return actions
 
-        original_property_id = Listing.objects.only("property_id").get(pk=obj.pk).property_id
-        destination = obj.property
-        obj.property_id = original_property_id
-        super().save_model(request, obj, form, change)
-        regroup_listing(listing=obj, destination=destination)
-        obj.property = destination
+    @admin.action(description="بازگماری بازبینی‌شده آگهی به ملک مقصد")
+    def reassign_to_property(self, request: HttpRequest, queryset: Any) -> TemplateResponse | None:
+        target_id = request.POST.get("target_property")
+        if not target_id:
+            self.message_user(request, "ملک مقصد را انتخاب کنید.", level=messages.ERROR)
+            return None
+        listings = list(queryset)
+        if len(listings) != 1:
+            self.message_user(
+                request, "دقیقاً یک آگهی را برای بازبینی انتخاب کنید.", level=messages.ERROR
+            )
+            return None
+        listing = listings[0]
+        try:
+            target = Property.objects.get(pk=target_id)
+            if "confirm_repair" not in request.POST:
+                reviewed = administrative_partition_preview(
+                    actor=_admin_actor(request), listing=listing, destination_id=target.pk
+                )
+                return _repair_confirmation(
+                    model_admin=self,
+                    request=request,
+                    action="reassign_to_property",
+                    selected_ids=[str(listing.pk)],
+                    target_id=str(target.pk),
+                    reviewed_revision=str(reviewed["revision"]),
+                    title="تأیید بازگماری مدیریتی آگهی",
+                    details=[
+                        f"آگهی {listing.pk}: {listing.source.display_name}",
+                        f"ملک مبدا: {listing.property_id}",
+                        f"ملک مقصد: {target.pk}",
+                    ],
+                )
+            administrative_reassign_listing(
+                actor=_admin_actor(request),
+                listing_id=listing.pk,
+                destination_id=target.pk,
+                reviewed_revision=request.POST.get("reviewed_revision", ""),
+                reason=request.POST.get("reason", ""),
+            )
+        except Property.DoesNotExist, ValueError:
+            self.message_user(request, "ملک مقصد معتبر نیست.", level=messages.ERROR)
+            return None
+        except (ValidationError, APIException) as exc:
+            self.message_user(request, _domain_error_text(exc), level=messages.ERROR)
+            return None
+        self.message_user(request, "آگهی با ثبت تصمیم تفکیک بازگماری شد.", level=messages.SUCCESS)
+        return None
 
     @admin.action(description="اعتبارسنجی و انتشار آگهی‌های انتخاب‌شده")
     def publish_listings(self, request: HttpRequest, queryset: Any) -> None:
