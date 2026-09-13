@@ -3,6 +3,7 @@ from argparse import ArgumentParser
 from typing import Any
 
 from django.core.management.base import BaseCommand
+from django.db import transaction
 
 from apps.catalog.models import PropertyMatchOperation
 from apps.catalog.tasks import backfill_property_matching, rescore_property_matching
@@ -33,5 +34,11 @@ class Command(BaseCommand):
             .first()
             or 0
         )
-        task.delay(operation_id=operation_id, limit=limit, generation=generation)
+        transaction.on_commit(
+            lambda: task.delay(
+                operation_id=operation_id,
+                limit=limit,
+                generation=generation,
+            )
+        )
         self.stdout.write(operation_id)

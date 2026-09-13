@@ -5,9 +5,9 @@ import pytest
 from django.core.management import call_command
 from rest_framework.test import APIClient
 
-from apps.catalog import group_consistency, matching, tasks
+from apps.catalog import group_consistency, match_operations, match_suggestions, matching
 from apps.catalog.group_consistency import measure_group_consistency
-from apps.catalog.match_suggestions import measure_candidates_for_property
+from apps.catalog.match_suggestions import candidate_property_ids, measure_candidates_for_property
 from apps.catalog.models import (
     ListingState,
     OutboundPolicy,
@@ -161,7 +161,7 @@ def test_rescore_retains_negative_snooze_and_historical_measurements(
 
     monkeypatch.setattr(matching, "SCORING_VERSION", "property-match-v3")
     monkeypatch.setattr(group_consistency, "SCORING_VERSION", "property-match-v3")
-    monkeypatch.setattr(tasks, "SCORING_VERSION", "property-match-v3")
+    monkeypatch.setattr(match_operations, "SCORING_VERSION", "property-match-v3")
     monkeypatch.setattr(rescore_property_matching, "delay", lambda **_kwargs: None)
     operation_id = uuid.uuid4()
     generation = 0
@@ -216,6 +216,132 @@ def test_rescore_retains_negative_snooze_and_historical_measurements(
 
 
 @pytest.mark.django_db
+def test_rescore_can_reactivate_a_superseded_diagnostic_under_the_new_version(monkeypatch):
+    from dataclasses import replace
+
+    source = Source.objects.create(
+        name="superseded-rescore-source",
+        domain="superseded-rescore.example",
+        display_name="منبع عیب‌یابی جایگزین‌شده",
+        outbound_policy=OutboundPolicy.EXTERNAL_LINK,
+    )
+    left = make_property(source, "LEFT", latitude=None, longitude=None)
+    right = make_property(source, "RIGHT", latitude=None, longitude=None)
+    right.property_type = "office"
+    right.room_count = 5
+    right.floor = 12
+    right.total_floors = 20
+    right.units_per_floor = 8
+    right.parking = "absent"
+    right.elevator = "absent"
+    right.save()
+    suggestion = match_suggestions.evaluate_property_pair(
+        left.pk,
+        right.pk,
+        origin="backfill",
+        persist_inactive=True,
+    )
+    assert suggestion is not None
+    assert suggestion.state == "superseded"
+    original_compare = match_suggestions.compare_properties
+
+    def compare_under_new_version(*properties):
+        return replace(
+            original_compare(*properties),
+            score=80,
+            band="likely",
+            scoring_version="property-match-v3",
+        )
+
+    monkeypatch.setattr(match_suggestions, "compare_properties", compare_under_new_version)
+    monkeypatch.setattr(match_operations, "SCORING_VERSION", "property-match-v3")
+    monkeypatch.setattr(rescore_property_matching, "delay", lambda **_kwargs: None)
+    operation_id = uuid.uuid4()
+    page = rescore_property_matching(operation_id=str(operation_id), limit=1, generation=0)
+    while page["status"] != "completed":
+        page = rescore_property_matching(
+            operation_id=str(operation_id),
+            limit=1,
+            generation=int(page["generation"]),
+        )
+
+    suggestion.refresh_from_db()
+    assert suggestion.state == "pending"
+    assert list(suggestion.evaluations.values_list("scoring_version", flat=True)) == [
+        "property-match-v2",
+        "property-match-v3",
+    ]
+
+
+@pytest.mark.django_db
+def test_version_change_between_pages_stops_with_a_safe_terminal_outcome(monkeypatch):
+    source = Source.objects.create(
+        name="mid-operation-version-source",
+        domain="mid-operation-version.example",
+        display_name="منبع تغییر نسخه",
+        outbound_policy=OutboundPolicy.EXTERNAL_LINK,
+    )
+    focus = make_property(source, "FOCUS")
+    make_property(source, "FIRST")
+    make_property(source, "SECOND")
+    measure_candidates_for_property(focus.pk, limit=25)
+    monkeypatch.setattr(rescore_property_matching, "delay", lambda **_kwargs: None)
+    operation_id = uuid.uuid4()
+    first_page = rescore_property_matching(
+        operation_id=str(operation_id),
+        limit=1,
+        generation=0,
+    )
+    evaluation_count = sum(
+        item.evaluations.count() for item in PropertyMatchSuggestion.objects.all()
+    )
+    monkeypatch.setattr(match_operations, "SCORING_VERSION", "property-match-v3")
+
+    stopped = rescore_property_matching(
+        operation_id=str(operation_id),
+        limit=1,
+        generation=int(first_page["generation"]),
+    )
+
+    operation = PropertyMatchOperation.objects.get(pk=operation_id)
+    assert stopped["status"] == "failed"
+    assert operation.error_code == "scoring_version_changed"
+    assert operation.completed_at is None
+    assert sum(item.evaluations.count() for item in PropertyMatchSuggestion.objects.all()) == (
+        evaluation_count
+    )
+
+
+@pytest.mark.django_db
+def test_indexed_candidate_pages_cover_candidates_beyond_the_first_page():
+    source = Source.objects.create(
+        name="candidate-page-source",
+        domain="candidate-page.example",
+        display_name="منبع صفحه‌بندی نامزد",
+        outbound_policy=OutboundPolicy.EXTERNAL_LINK,
+    )
+    focus = make_property(
+        source,
+        "FOCUS",
+        property_id="10000000-0000-0000-0000-000000000000",
+    )
+    candidates = [
+        make_property(
+            source,
+            str(index),
+            property_id=f"{index}0000000-0000-0000-0000-000000000000",
+        )
+        for index in (2, 3, 4)
+    ]
+
+    first_page = candidate_property_ids(focus, limit=2, after_id=focus.pk)
+    second_page = candidate_property_ids(focus, limit=2, after_id=first_page[-1])
+
+    assert first_page == [uuid.UUID(str(candidates[0].pk)), uuid.UUID(str(candidates[1].pk))]
+    assert second_page == [uuid.UUID(str(candidates[2].pk))]
+
+
+@pytest.mark.django_db
 def test_interrupted_backfill_records_safe_failure_and_resumes_same_checkpoint(monkeypatch):
     source = Source.objects.create(
         name="retry-backfill-source",
@@ -225,12 +351,14 @@ def test_interrupted_backfill_records_safe_failure_and_resumes_same_checkpoint(m
     )
     make_property(source, "RETRY")
     operation_id = uuid.uuid4()
-    original_measure = tasks.measure_candidates_for_property
+    original_measure = match_operations.measure_indexed_candidate_page
 
     def fail_with_restricted_detail(*_args, **_kwargs):
         raise RuntimeError("exact location 35.774100,51.356200")
 
-    monkeypatch.setattr(tasks, "measure_candidates_for_property", fail_with_restricted_detail)
+    monkeypatch.setattr(
+        match_operations, "measure_indexed_candidate_page", fail_with_restricted_detail
+    )
     with pytest.raises(RuntimeError, match="exact location"):
         backfill_property_matching(
             operation_id=str(operation_id),
@@ -244,7 +372,7 @@ def test_interrupted_backfill_records_safe_failure_and_resumes_same_checkpoint(m
     assert interrupted.generation == 0
     assert interrupted.cursor is None
 
-    monkeypatch.setattr(tasks, "measure_candidates_for_property", original_measure)
+    monkeypatch.setattr(match_operations, "measure_indexed_candidate_page", original_measure)
     monkeypatch.setattr(backfill_property_matching, "delay", lambda **_kwargs: None)
     generation = interrupted.generation
     while True:
@@ -264,7 +392,10 @@ def test_interrupted_backfill_records_safe_failure_and_resumes_same_checkpoint(m
 
 
 @pytest.mark.django_db
-def test_duplicate_backfill_delivery_requeues_without_advancing_the_checkpoint(monkeypatch):
+def test_duplicate_backfill_delivery_requeues_without_advancing_the_checkpoint(
+    django_capture_on_commit_callbacks,
+    monkeypatch,
+):
     source = Source.objects.create(
         name="duplicate-backfill-source",
         domain="duplicate-backfill.example",
@@ -281,11 +412,12 @@ def test_duplicate_backfill_delivery_requeues_without_advancing_the_checkpoint(m
     )
     operation_id = uuid.uuid4()
 
-    first = backfill_property_matching(
-        operation_id=str(operation_id),
-        limit=1,
-        generation=0,
-    )
+    with django_capture_on_commit_callbacks(execute=True):
+        first = backfill_property_matching(
+            operation_id=str(operation_id),
+            limit=1,
+            generation=0,
+        )
     assert first["generation"] == 1
     assert len(delayed) == 1
     evaluation_count = sum(
@@ -293,11 +425,12 @@ def test_duplicate_backfill_delivery_requeues_without_advancing_the_checkpoint(m
     )
     delayed.clear()
 
-    duplicate = backfill_property_matching(
-        operation_id=str(operation_id),
-        limit=1,
-        generation=0,
-    )
+    with django_capture_on_commit_callbacks(execute=True):
+        duplicate = backfill_property_matching(
+            operation_id=str(operation_id),
+            limit=1,
+            generation=0,
+        )
 
     assert duplicate == first
     assert delayed == [
@@ -313,7 +446,10 @@ def test_duplicate_backfill_delivery_requeues_without_advancing_the_checkpoint(m
 
 
 @pytest.mark.django_db
-def test_retry_after_continuation_publish_failure_requeues_committed_checkpoint(monkeypatch):
+def test_retry_after_continuation_publish_failure_requeues_committed_checkpoint(
+    django_capture_on_commit_callbacks,
+    monkeypatch,
+):
     source = Source.objects.create(
         name="publish-failure-source",
         domain="publish-failure.example",
@@ -328,7 +464,10 @@ def test_retry_after_continuation_publish_failure_requeues_committed_checkpoint(
         raise ConnectionError("broker unavailable")
 
     monkeypatch.setattr(backfill_property_matching, "delay", fail_to_publish)
-    with pytest.raises(ConnectionError, match="broker unavailable"):
+    with (
+        pytest.raises(ConnectionError, match="broker unavailable"),
+        django_capture_on_commit_callbacks(execute=True),
+    ):
         backfill_property_matching(
             operation_id=str(operation_id),
             limit=1,
@@ -348,11 +487,12 @@ def test_retry_after_continuation_publish_failure_requeues_committed_checkpoint(
         lambda **kwargs: delayed.append(kwargs),
     )
 
-    retry = backfill_property_matching(
-        operation_id=str(operation_id),
-        limit=1,
-        generation=0,
-    )
+    with django_capture_on_commit_callbacks(execute=True):
+        retry = backfill_property_matching(
+            operation_id=str(operation_id),
+            limit=1,
+            generation=0,
+        )
 
     assert retry["generation"] == 1
     assert delayed == [
@@ -464,7 +604,10 @@ def test_rescore_preserves_operator_decision_made_between_pages(
 
 
 @pytest.mark.django_db
-def test_management_command_starts_a_repeatable_operation(monkeypatch):
+def test_management_command_starts_a_repeatable_operation(
+    django_capture_on_commit_callbacks,
+    monkeypatch,
+):
     operation_id = uuid.uuid4()
     delayed: list[dict[str, object]] = []
     monkeypatch.setattr(
@@ -474,13 +617,14 @@ def test_management_command_starts_a_repeatable_operation(monkeypatch):
     )
     stdout = StringIO()
 
-    call_command(
-        "run_property_match_operation",
-        "backfill",
-        operation_id=str(operation_id),
-        limit=25,
-        stdout=stdout,
-    )
+    with django_capture_on_commit_callbacks(execute=True):
+        call_command(
+            "run_property_match_operation",
+            "backfill",
+            operation_id=str(operation_id),
+            limit=25,
+            stdout=stdout,
+        )
 
     assert delayed == [
         {
@@ -534,6 +678,7 @@ def test_overlapping_operation_deliveries_are_serialized_by_postgresql(monkeypat
     operation = PropertyMatchOperation.objects.get(pk=operation_id)
     assert {result["generation"] for result in results} == {1}
     assert operation.generation == 1
-    assert operation.processed_targets == 1
+    assert operation.processed_targets == 0
+    assert operation.evaluated_pairs == 1
     assert PropertyMatchSuggestion.objects.count() == 1
     assert PropertyMatchSuggestion.objects.get().evaluations.count() == existing_evaluations + 1

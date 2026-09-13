@@ -818,6 +818,7 @@ class PropertyMatchOperation(models.Model):
     phase = models.CharField(max_length=16, choices=Phase)
     scoring_version = models.CharField(max_length=64)
     cursor = models.UUIDField(null=True, blank=True)
+    secondary_cursor = models.UUIDField(null=True, blank=True)
     generation = models.PositiveIntegerField(default=0)
     processed_targets = models.PositiveIntegerField(default=0)
     evaluated_pairs = models.PositiveIntegerField(default=0)

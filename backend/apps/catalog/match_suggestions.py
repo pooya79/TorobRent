@@ -5,7 +5,7 @@ import json
 import uuid
 from dataclasses import asdict
 from decimal import Decimal
-from typing import cast
+from typing import TypedDict, cast
 
 from django.core.serializers.json import DjangoJSONEncoder
 from django.db import transaction
@@ -64,6 +64,12 @@ IDENTITY_SOURCE_CLAIM_FIELDS = (
 )
 
 
+class CandidatePageResult(TypedDict):
+    evaluated: int
+    active: int
+    next_after_id: str | None
+
+
 def eligible_property_roots() -> QuerySet[Property]:
     return Property.objects.filter(
         merged_into__isnull=True,
@@ -90,11 +96,18 @@ def _fair_bounded_union(paths: list[list[uuid.UUID]], limit: int) -> list[uuid.U
     return result
 
 
-def candidate_property_ids(property_: Property, *, limit: int) -> list[uuid.UUID]:
+def candidate_property_ids(
+    property_: Property,
+    *,
+    limit: int,
+    after_id: uuid.UUID | None = None,
+) -> list[uuid.UUID]:
     """Return the bounded union of indexed candidate paths for one current Property."""
     if limit < 1:
         return []
     base = eligible_property_roots().exclude(pk=property_.pk)
+    if after_id is not None:
+        base = base.filter(pk__gt=after_id)
     paths: list[list[uuid.UUID]] = []
 
     if property_.latitude is not None and property_.longitude is not None:
@@ -161,13 +174,13 @@ def candidate_property_ids(property_: Property, *, limit: int) -> list[uuid.UUID
                     perceptual_buckets__position=position,
                     perceptual_buckets__value=value,
                 )
-    image_ids: list[uuid.UUID] = []
+    image_paths: list[list[uuid.UUID]] = []
     if exact_image_query:
         eligible_exact_image_query = (
             Q(listings__state__in=ELIGIBLE_LISTING_STATES) & exact_image_query
         )
-        image_ids.extend(_bounded_ids(base.filter(eligible_exact_image_query).distinct(), limit))
-    if perceptual_bucket_query and len(image_ids) < limit:
+        image_paths.append(_bounded_ids(base.filter(eligible_exact_image_query).distinct(), limit))
+    if perceptual_bucket_query:
         matching_image_score = (
             ListingImage.objects
             .filter(
@@ -185,7 +198,7 @@ def candidate_property_ids(property_: Property, *, limit: int) -> list[uuid.UUID
             .order_by("-shared_bucket_count", "pk")
             .values("shared_bucket_count")[:1]
         )
-        perceptual_ids = list(
+        perceptual_candidates = (
             base
             .annotate(
                 perceptual_bucket_score=Subquery(
@@ -194,15 +207,13 @@ def candidate_property_ids(property_: Property, *, limit: int) -> list[uuid.UUID
                 )
             )
             .filter(perceptual_bucket_score__isnull=False)
-            .order_by("-perceptual_bucket_score", "pk")
+            .order_by("pk" if after_id is not None else "-perceptual_bucket_score", "pk")
             .values_list("pk", flat=True)[:limit]
         )
-        image_ids.extend(
-            candidate_id for candidate_id in perceptual_ids if candidate_id not in image_ids
-        )
-    if image_ids:
+        image_paths.append(list(perceptual_candidates))
+    if image_paths:
         # Image evidence is the most selective path, so it gets the first round-robin slot.
-        paths.insert(0, image_ids[:limit])
+        paths[0:0] = image_paths
 
     building_query = Q()
     if property_.total_floors is not None and property_.units_per_floor is not None:
@@ -218,6 +229,8 @@ def candidate_property_ids(property_: Property, *, limit: int) -> list[uuid.UUID
     if building_query:
         paths.append(_bounded_ids(base.filter(building_query), limit))
 
+    if after_id is not None:
+        return sorted({candidate_id for path in paths for candidate_id in path})[:limit]
     return _fair_bounded_union(paths, limit)
 
 
@@ -454,7 +467,6 @@ def measure_candidates_for_property(
     limit: int,
     origin: str = PropertyMatchSuggestionOrigin.FOCUSED,
     persist_inactive: bool = False,
-    only_higher_ids: bool = False,
 ) -> dict[str, int]:
     property_ = eligible_property_roots().filter(pk=property_id).first()
     if property_ is None:
@@ -480,10 +492,6 @@ def measure_candidates_for_property(
         for candidate_id in candidate_property_ids(property_, limit=limit)
         if candidate_id not in candidate_ids
     )
-    if only_higher_ids:
-        candidate_ids = [
-            candidate_id for candidate_id in candidate_ids if candidate_id > property_.pk
-        ]
     evaluations = [
         evaluate_property_pair(
             property_.pk,
@@ -498,3 +506,36 @@ def measure_candidates_for_property(
         for suggestion in evaluations
     )
     return {"evaluated": len(candidate_ids), "active": active_count}
+
+
+def measure_indexed_candidate_page(
+    property_id: uuid.UUID,
+    *,
+    limit: int,
+    after_id: uuid.UUID | None,
+    origin: str,
+    persist_inactive: bool,
+) -> CandidatePageResult:
+    property_ = eligible_property_roots().filter(pk=property_id).first()
+    if property_ is None:
+        return {"evaluated": 0, "active": 0, "next_after_id": None}
+    cursor = max(property_.pk, after_id) if after_id is not None else property_.pk
+    candidate_ids = candidate_property_ids(property_, limit=limit, after_id=cursor)
+    evaluations = [
+        evaluate_property_pair(
+            property_.pk,
+            candidate_id,
+            origin=origin,
+            persist_inactive=persist_inactive,
+        )
+        for candidate_id in candidate_ids
+    ]
+    active_count = sum(
+        suggestion is not None and suggestion.state == PropertyMatchSuggestionState.PENDING
+        for suggestion in evaluations
+    )
+    return {
+        "evaluated": len(candidate_ids),
+        "active": active_count,
+        "next_after_id": str(candidate_ids[-1]) if len(candidate_ids) == limit else None,
+    }

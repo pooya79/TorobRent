@@ -16,6 +16,7 @@ from .models import (
     PropertyMatchClaim,
     PropertyMatchDecision,
     PropertyMatchSuggestion,
+    PropertyMatchSuggestionOrigin,
     PropertyPartitionDecision,
     PropertyType,
 )
@@ -520,7 +521,7 @@ class PropertyMatchSuggestionSerializer(serializers.Serializer[Any]):
     scoring_version = serializers.CharField()
     evidence_summary = PropertyMatchEvidenceSummarySerializer(many=True)
     claim = PropertyMatchClaimSerializer(allow_null=True)
-    origin = serializers.ChoiceField(choices=("focused", "nightly", "backfill", "rescore"))
+    origin = serializers.ChoiceField(choices=PropertyMatchSuggestionOrigin.values)
     snoozed_until = serializers.DateTimeField(allow_null=True)
     first_suggested_at = serializers.DateTimeField()
     last_evaluated_at = serializers.DateTimeField()
@@ -608,7 +609,7 @@ class PropertyMatchSuggestionEvaluationSerializer(serializers.Serializer[Any]):
     left_revision = serializers.CharField()
     right_revision = serializers.CharField()
     evidence = MatchSignalSerializer(many=True)
-    origin = serializers.ChoiceField(choices=("focused", "nightly", "backfill", "rescore"))
+    origin = serializers.ChoiceField(choices=PropertyMatchSuggestionOrigin.values)
     created_at = serializers.DateTimeField()
 
 
