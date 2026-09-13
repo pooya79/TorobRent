@@ -293,7 +293,9 @@ def _pair_measurement(
 def measure_group_consistency(
     property_id: uuid.UUID,
 ) -> PropertyGroupConsistencyMeasurement | None:
-    property_ = grouped_property_queryset().select_for_update().filter(pk=property_id).first()
+    # PostgreSQL cannot apply SELECT FOR UPDATE to the annotated GROUP BY eligibility query.
+    list(Property.objects.select_for_update().filter(pk=property_id))
+    property_ = grouped_property_queryset().filter(pk=property_id).first()
     if property_ is None:
         return None
     listings = list(

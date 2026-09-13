@@ -7738,11 +7738,13 @@ components:
       enum:
       - focused
       - nightly
+      - backfill
       - rescore
       type: string
       description: |-
         * `focused` - focused
         * `nightly` - nightly
+        * `backfill` - backfill
         * `rescore` - rescore
     OutboundPolicyEnum:
       enum:

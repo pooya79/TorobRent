@@ -20,6 +20,7 @@ from .models import (
     Neighborhood,
     ProductEvent,
     Property,
+    PropertyMatchOperation,
     RentalTerms,
     Source,
 )
@@ -449,3 +450,45 @@ class ProductEventAdmin(ModelAdmin):  # type: ignore[type-arg]
             ),
         )
         return response
+
+
+@admin.register(PropertyMatchOperation)
+class PropertyMatchOperationAdmin(ModelAdmin):  # type: ignore[type-arg]
+    list_display = (
+        "started_at",
+        "kind",
+        "status",
+        "phase",
+        "scoring_version",
+        "processed_targets",
+        "evaluated_pairs",
+        "active_suggestions",
+        "measured_groups",
+    )
+    list_filter = ("kind", "status", "phase", "scoring_version")
+    readonly_fields = (
+        "id",
+        "kind",
+        "status",
+        "phase",
+        "scoring_version",
+        "cursor",
+        "generation",
+        "processed_targets",
+        "evaluated_pairs",
+        "active_suggestions",
+        "measured_groups",
+        "error_code",
+        "started_at",
+        "updated_at",
+        "completed_at",
+    )
+
+    def has_add_permission(self, request: HttpRequest) -> bool:
+        return False
+
+    def has_change_permission(self, request: HttpRequest, obj: Any = None) -> bool:
+        return False
+
+    def has_delete_permission(self, request: HttpRequest, obj: Any = None) -> bool:
+        return False

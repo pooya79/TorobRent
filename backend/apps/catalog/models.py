@@ -791,7 +791,48 @@ class PropertyMatchSuggestionState(models.TextChoices):
 class PropertyMatchSuggestionOrigin(models.TextChoices):
     FOCUSED = "focused", "سنجش متمرکز"
     NIGHTLY = "nightly", "آشتی شبانه"
+    BACKFILL = "backfill", "پس‌پرکردن اولیه"
     RESCORE = "rescore", "امتیازدهی دوباره"
+
+
+class PropertyMatchOperation(models.Model):
+    class Kind(models.TextChoices):
+        BACKFILL = "backfill", "پس‌پرکردن اولیه"
+        RESCORE = "rescore", "امتیازدهی دوباره"
+
+    class Status(models.TextChoices):
+        PENDING = "pending", "در انتظار"
+        RUNNING = "running", "در حال اجرا"
+        COMPLETED = "completed", "تکمیل‌شده"
+        FAILED = "failed", "ناموفق"
+
+    class Phase(models.TextChoices):
+        CANDIDATES = "candidates", "نامزدها"
+        SUGGESTIONS = "suggestions", "پیشنهادها"
+        GROUPS = "groups", "گروه‌ها"
+        COMPLETED = "completed", "تکمیل‌شده"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    kind = models.CharField(max_length=16, choices=Kind)
+    status = models.CharField(max_length=16, choices=Status, default=Status.PENDING)
+    phase = models.CharField(max_length=16, choices=Phase)
+    scoring_version = models.CharField(max_length=64)
+    cursor = models.UUIDField(null=True, blank=True)
+    generation = models.PositiveIntegerField(default=0)
+    processed_targets = models.PositiveIntegerField(default=0)
+    evaluated_pairs = models.PositiveIntegerField(default=0)
+    active_suggestions = models.PositiveIntegerField(default=0)
+    measured_groups = models.PositiveIntegerField(default=0)
+    error_code = models.CharField(max_length=120, blank=True)
+    started_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ("-started_at", "-id")
+
+    def __str__(self) -> str:
+        return f"{self.get_kind_display()}: {self.get_status_display()}"
 
 
 class PropertyMatchSuggestion(models.Model):

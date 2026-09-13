@@ -523,3 +523,22 @@ generic undo or bulk-partition endpoint; a later correction is another explicit 
 
 Run `tests/test_property_partitions.py` against PostgreSQL to exercise competing claims and atomic
 rollback as well as the ordinary API behavior.
+
+### Catalog matching backfill and rescore operations
+
+Apply catalog migration 0029 before running the initial matching backfill or a scoring-version
+rescore. Start an operation with a stable UUID so the same command can be retried safely:
+
+```bash
+cd backend
+uv run python manage.py run_property_match_operation backfill --operation-id <uuid> --limit 100
+uv run python manage.py run_property_match_operation rescore --operation-id <uuid> --limit 100
+```
+
+Each task page atomically advances a durable `PropertyMatchOperation` checkpoint and enqueues the
+next page. Progress, the scoring version, a sanitized failure code, and the terminal outcome are
+visible in Django administration without exposing exact locations or evidence. Reuse the same UUID
+after an interrupted delivery; an already completed operation is a no-op. Backfill evaluates each
+bounded indexed pair once, retains below-threshold diagnostics as superseded work, and then measures
+every grouped Property. Rescore revisits pending, rejected, and snoozed suggestions before refreshing
+group consistency. Neither operation groups or separates Properties.

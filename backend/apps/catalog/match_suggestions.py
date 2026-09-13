@@ -453,6 +453,8 @@ def measure_candidates_for_property(
     *,
     limit: int,
     origin: str = PropertyMatchSuggestionOrigin.FOCUSED,
+    persist_inactive: bool = False,
+    only_higher_ids: bool = False,
 ) -> dict[str, int]:
     property_ = eligible_property_roots().filter(pk=property_id).first()
     if property_ is None:
@@ -478,8 +480,17 @@ def measure_candidates_for_property(
         for candidate_id in candidate_property_ids(property_, limit=limit)
         if candidate_id not in candidate_ids
     )
+    if only_higher_ids:
+        candidate_ids = [
+            candidate_id for candidate_id in candidate_ids if candidate_id > property_.pk
+        ]
     evaluations = [
-        evaluate_property_pair(property_.pk, candidate_id, origin=origin)
+        evaluate_property_pair(
+            property_.pk,
+            candidate_id,
+            origin=origin,
+            persist_inactive=persist_inactive,
+        )
         for candidate_id in candidate_ids
     ]
     active_count = sum(

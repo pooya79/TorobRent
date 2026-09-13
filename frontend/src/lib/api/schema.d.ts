@@ -3637,10 +3637,11 @@ export interface components {
     /**
      * @description * `focused` - focused
      *     * `nightly` - nightly
+     *     * `backfill` - backfill
      *     * `rescore` - rescore
      * @enum {string}
      */
-    OriginEnum: "focused" | "nightly" | "rescore";
+    OriginEnum: "focused" | "nightly" | "backfill" | "rescore";
     /**
      * @description * `direct_contact` - تماس مستقیم
      *     * `external_link` - پیوند منبع
