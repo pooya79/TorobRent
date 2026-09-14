@@ -158,6 +158,12 @@ def test_later_run_refreshes_identity_and_preserves_old_evidence(
     assert Listing.objects.filter(source_id=assigned_case[1]["source"]["id"]).count() == 10
     assert Property.objects.count() == RentalTerms.objects.count() == 10
     assert Listing.objects.get(external_url=url).terms.monthly_rent_rial == 250_000_000
+    proposal = api_client.get(
+        "/api/v1/operator/source-proposals/",
+        {"proposal": str(assigned_case[0].pk)},
+    ).json()[0]
+    assert len(proposal["properties"]) == 10
+    assert {item["extraction_run"] for item in proposal["properties"]} == {second["id"]}
     retained = ExtractionRun.objects.get(pk=first["id"]).results[0]
     assert retained["normalized"]["monthly_rent_rial"] == 200_000_000
 

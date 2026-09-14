@@ -2,6 +2,7 @@ import uuid
 from functools import cached_property
 from typing import Any
 
+from django.db.models import OuterRef, Subquery
 from django.utils import timezone
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
@@ -17,6 +18,7 @@ from .exclusion_serializers import SourceExclusionSerializer
 from .extraction_serializers import ExtractionRequestSerializer
 from .models import (
     DiscoveryStage,
+    ExternalListingCandidate,
     ExternalListingCandidateReviewClaim,
     InventoryRange,
     SourceAssignment,
@@ -707,9 +709,24 @@ class OperatorSourceProposalSerializer(SourceProposalSerializer):
     def get_properties(self, proposal: SourceProposal) -> list[dict[str, Any]]:
         if not self.context.get("include_properties", True):
             return []
+        latest_candidate = (
+            ExternalListingCandidate.objects
+            .filter(
+                source_proposal=proposal,
+                discovery_version__isnull=True,
+                superseded=False,
+                external_url=OuterRef("external_url"),
+            )
+            .order_by("-created_at", "-id")
+            .values("id")[:1]
+        )
         candidates = (
             proposal.external_listing_candidates
-            .filter(discovery_version__isnull=True, superseded=False)
+            .filter(
+                discovery_version__isnull=True,
+                superseded=False,
+                id=Subquery(latest_candidate),
+            )
             .select_related("source", "source_proposal")
             .prefetch_related(
                 "extraction_run__request__assignment", "events__actor", "images__variants"
