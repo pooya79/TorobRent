@@ -1,14 +1,17 @@
 import re
 import uuid
 from dataclasses import dataclass, replace
+from datetime import timedelta
 from decimal import Decimal
 from enum import StrEnum
 from typing import Any, Literal, cast
 
 from django.db.models import (
+    BooleanField,
     Case,
     CharField,
     Count,
+    DateTimeField,
     DecimalField,
     Exists,
     ExpressionWrapper,
@@ -25,6 +28,7 @@ from django.db.models import (
 from django.db.models.functions import Replace
 from django.utils import timezone
 
+from .matching import SCORING_VERSION
 from .models import (
     PROPERTY_TYPES_BY_CATEGORY,
     TEHRAN_CITY_ID,
@@ -32,10 +36,12 @@ from .models import (
     District,
     Favorite,
     Listing,
+    ListingGroupingEvent,
     ListingState,
     Neighborhood,
     Property,
     PropertyCategory,
+    PropertyGroupConsistencyMeasurement,
     PropertyImageVariant,
     PropertyType,
 )
@@ -235,13 +241,72 @@ def search_current_properties_for_curation(query: str) -> QuerySet[Property, Pro
 
 
 def search_grouped_properties_for_curation(query: str) -> QuerySet[Property, Property]:
+    latest_measurement = PropertyGroupConsistencyMeasurement.objects.filter(
+        property_id=OuterRef("pk")
+    ).order_by("-measured_at", "-id")
+    latest_grouping_event = ListingGroupingEvent.objects.filter(
+        Q(from_property_id=OuterRef("pk")) | Q(to_property_id=OuterRef("pk"))
+    ).order_by("-created_at", "-pk")
+    recent_cutoff = timezone.now() - timedelta(days=30)
     properties = (
         Property.objects
         .filter(merged_into__isnull=True)
         .annotate(listing_count_value=Count("listings", distinct=True))
         .filter(listing_count_value__gt=1)
-        .select_related("city", "district", "neighborhood")
-        .prefetch_related("listings__source", "listings__images", "consistency_measurements")
+        .select_related(
+            "city",
+            "district",
+            "neighborhood",
+            "current_consistency_measurement",
+        )
+        .prefetch_related("listings__source")
+        .annotate(
+            has_group_measurement=Exists(
+                PropertyGroupConsistencyMeasurement.objects.filter(property_id=OuterRef("pk"))
+            ),
+            latest_scoring_version=Subquery(latest_measurement.values("scoring_version")[:1]),
+            latest_measured_at=Subquery(
+                latest_measurement.values("measured_at")[:1],
+                output_field=DateTimeField(),
+            ),
+            latest_grouping_change=Subquery(
+                latest_grouping_event.values("created_at")[:1],
+                output_field=DateTimeField(),
+            ),
+        )
+        .annotate(
+            measurement_status_value=Case(
+                When(
+                    current_consistency_measurement__scoring_version=SCORING_VERSION,
+                    then=Value("measured"),
+                ),
+                When(has_group_measurement=True, then=Value("stale")),
+                default=Value("not_measured"),
+                output_field=CharField(),
+            ),
+            needs_attention_value=Case(
+                When(
+                    current_consistency_measurement__scoring_version=SCORING_VERSION,
+                    current_consistency_measurement__needs_attention=True,
+                    then=Value(True),
+                ),
+                default=Value(False),
+                output_field=BooleanField(),
+            ),
+        )
+        .annotate(
+            attention_status_value=Case(
+                When(needs_attention_value=True, then=Value("needs_attention")),
+                When(
+                    measurement_status_value="measured",
+                    latest_grouping_change__gte=recent_cutoff,
+                    then=Value("recent_change"),
+                ),
+                When(measurement_status_value="measured", then=Value("stable")),
+                default=Value("not_measured"),
+                output_field=CharField(),
+            )
+        )
     )
     try:
         query_uuid = uuid.UUID(query)

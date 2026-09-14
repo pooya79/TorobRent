@@ -6,4 +6,4 @@ class CatalogConfig(AppConfig):
     name = "apps.catalog"
 
     def ready(self) -> None:
-        from . import match_suggestion_signals, signals  # noqa: F401
+        from . import group_consistency_signals, match_suggestion_signals, signals  # noqa: F401

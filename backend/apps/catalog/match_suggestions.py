@@ -10,10 +10,24 @@ from typing import TypedDict, cast
 
 from django.core.serializers.json import DjangoJSONEncoder
 from django.db import transaction
-from django.db.models import Count, IntegerField, OuterRef, Q, QuerySet, Subquery
+from django.db.models import (
+    Case,
+    Count,
+    DecimalField,
+    ExpressionWrapper,
+    F,
+    IntegerField,
+    OuterRef,
+    Q,
+    QuerySet,
+    Subquery,
+    Value,
+    When,
+)
+from django.db.models.functions import Abs
 from django.utils import timezone
 
-from .matching import MatchAssessment, SignalClassification, compare_properties
+from .matching import SCORING_VERSION, MatchAssessment, SignalClassification, compare_properties
 from .models import (
     ListingImage,
     ListingState,
@@ -82,6 +96,22 @@ def _bounded_ids(queryset: QuerySet[Property], limit: int) -> list[uuid.UUID]:
     return list(queryset.order_by("pk").values_list("pk", flat=True)[:limit])
 
 
+def _ranked_ids(queryset: QuerySet[Property], limit: int, *ordering: str) -> list[uuid.UUID]:
+    return list(queryset.order_by(*ordering, "pk").values_list("pk", flat=True)[:limit])
+
+
+def _candidate_ids(
+    queryset: QuerySet[Property],
+    limit: int,
+    *,
+    after_id: uuid.UUID | None,
+    ordering: tuple[str, ...],
+) -> list[uuid.UUID]:
+    if after_id is not None:
+        return _bounded_ids(queryset, limit)
+    return _ranked_ids(queryset, limit, *ordering)
+
+
 def _fair_bounded_union(paths: list[list[uuid.UUID]], limit: int) -> list[uuid.UUID]:
     """Take candidates round-robin so no populated evidence path can crowd out another."""
     result: list[uuid.UUID] = []
@@ -106,15 +136,25 @@ def candidate_property_ids(
     """Return the bounded union of indexed candidate paths for one current Property."""
     if limit < 1:
         return []
-    base = eligible_property_roots().exclude(pk=property_.pk)
+    all_candidates = eligible_property_roots().exclude(pk=property_.pk)
     if after_id is not None:
-        base = base.filter(pk__gt=after_id)
+        all_candidates = all_candidates.filter(pk__gt=after_id)
+    base = (
+        all_candidates.filter(city_id=property_.city_id)
+        if property_.city_id is not None
+        else all_candidates.none()
+    )
     paths: list[list[uuid.UUID]] = []
 
     if property_.latitude is not None and property_.longitude is not None:
         coordinate_delta = Decimal("0.005")
+        coordinate_distance = ExpressionWrapper(
+            Abs(F("latitude") - Value(property_.latitude))
+            + Abs(F("longitude") - Value(property_.longitude)),
+            output_field=DecimalField(max_digits=10, decimal_places=6),
+        )
         paths.append(
-            _bounded_ids(
+            _candidate_ids(
                 base.filter(
                     latitude__range=(
                         property_.latitude - coordinate_delta,
@@ -124,8 +164,10 @@ def candidate_property_ids(
                         property_.longitude - coordinate_delta,
                         property_.longitude + coordinate_delta,
                     ),
-                ),
+                ).annotate(coordinate_distance=coordinate_distance),
                 limit,
+                after_id=after_id,
+                ordering=("coordinate_distance",),
             )
         )
 
@@ -147,7 +189,27 @@ def candidate_property_ids(
             ),
         )
     if location_facts:
-        paths.append(_bounded_ids(base.filter(location_facts), limit))
+        location_candidates = base.filter(location_facts).annotate(
+            neighborhood_rank=Case(
+                When(neighborhood_id=property_.neighborhood_id, then=Value(0)),
+                default=Value(1),
+                output_field=IntegerField(),
+            )
+        )
+        ordering = ["neighborhood_rank"]
+        if property_.area_sqm is not None:
+            location_candidates = location_candidates.annotate(
+                area_distance=Abs(F("area_sqm") - Value(property_.area_sqm))
+            )
+            ordering.append("area_distance")
+        paths.append(
+            _candidate_ids(
+                location_candidates,
+                limit,
+                after_id=after_id,
+                ordering=tuple(ordering),
+            )
+        )
 
     images = property_.listings.filter(state__in=ELIGIBLE_LISTING_STATES).values_list(
         "images__raw_content_sha256",
@@ -171,7 +233,6 @@ def candidate_property_ids(
         exact_image_query |= Q(listings__images__normalized_pixel_sha256__in=normalized_hashes)
     perceptual_bucket_query = Q()
     if perceptual_hashes:
-        exact_image_query |= Q(listings__images__perceptual_dhash__in=perceptual_hashes)
         bucket_pairs = property_.listings.filter(state__in=ELIGIBLE_LISTING_STATES).values_list(
             "images__perceptual_buckets__position",
             "images__perceptual_buckets__value",
@@ -184,10 +245,17 @@ def candidate_property_ids(
                 )
     image_paths: list[list[uuid.UUID]] = []
     if exact_image_query:
+        exact_image_base = (
+            all_candidates.filter(Q(city_id=property_.city_id) | Q(city__isnull=True))
+            if property_.city_id is not None
+            else all_candidates
+        )
         eligible_exact_image_query = (
             Q(listings__state__in=ELIGIBLE_LISTING_STATES) & exact_image_query
         )
-        image_paths.append(_bounded_ids(base.filter(eligible_exact_image_query).distinct(), limit))
+        image_paths.append(
+            _bounded_ids(exact_image_base.filter(eligible_exact_image_query).distinct(), limit)
+        )
     if perceptual_bucket_query:
         matching_image_score = (
             ListingImage.objects
@@ -294,24 +362,39 @@ def evaluate_property_pair(
     if len(properties) != 2:
         return None
     left, right = properties
-    assessment = compare_properties(left, right)
     left_revision = property_identity_revision(left)
     right_revision = property_identity_revision(right)
     evidence_fingerprint = hashlib.sha256(f"{left_revision}:{right_revision}".encode()).hexdigest()
+    now = timezone.now()
+    suggestion = (
+        PropertyMatchSuggestion.objects.select_for_update().filter(left=left, right=right).first()
+    )
     partition_suppressed = PropertyPartitionDecision.objects.filter(
         Q(source_property=left, separated_property=right)
         | Q(source_property=right, separated_property=left),
         suppression_fingerprint=evidence_fingerprint,
     ).exists()
+    if suggestion is not None:
+        reusable = all((
+            suggestion.left_revision == left_revision,
+            suggestion.right_revision == right_revision,
+            suggestion.scoring_version == SCORING_VERSION,
+            not partition_suppressed or suggestion.state == PropertyMatchSuggestionState.REJECTED,
+            suggestion.state != PropertyMatchSuggestionState.SNOOZED
+            or suggestion.snoozed_until is not None
+            and suggestion.snoozed_until > now,
+        ))
+        if reusable:
+            suggestion.origin = origin
+            suggestion.last_evaluated_at = now
+            suggestion.save(update_fields=("origin", "last_evaluated_at", "updated_at"))
+            return suggestion
+    assessment = compare_properties(left, right)
     evidence = _assessment_evidence(assessment)
     blocked = any(
         signal.classification == SignalClassification.BLOCKER for signal in assessment.signals
     )
     active = assessment.band != "below_threshold" and not blocked
-    now = timezone.now()
-    suggestion = (
-        PropertyMatchSuggestion.objects.select_for_update().filter(left=left, right=right).first()
-    )
     if suggestion is None and not active and not persist_inactive:
         return None
     values = {

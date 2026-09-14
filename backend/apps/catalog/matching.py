@@ -40,6 +40,10 @@ class MatchAssessment:
     signals: tuple[MatchSignal, ...]
 
 
+def have_different_known_cities(left: Property, right: Property) -> bool:
+    return left.city_id is not None and right.city_id is not None and left.city_id != right.city_id
+
+
 def _signal(
     key: str,
     label: str,
@@ -382,6 +386,23 @@ def compare_properties(
     left_listings: Iterable[Listing] | None = None,
     right_listings: Iterable[Listing] | None = None,
 ) -> MatchAssessment:
+    if have_different_known_cities(left, right):
+        return MatchAssessment(
+            scoring_version=SCORING_VERSION,
+            score=0,
+            band="below_threshold",
+            is_calibrated_probability=False,
+            signals=(
+                _signal(
+                    "city",
+                    "شهر",
+                    str(left.city_id),
+                    str(right.city_id),
+                    SignalClassification.BLOCKER,
+                    0,
+                ),
+            ),
+        )
     city_signal = _equality_signal(
         key="city",
         label="شهر",
@@ -390,15 +411,6 @@ def compare_properties(
         support=15,
         contradiction=0,
     )
-    if left.city_id and right.city_id and left.city_id != right.city_id:
-        city_signal = _signal(
-            "city",
-            "شهر",
-            str(left.city_id),
-            str(right.city_id),
-            SignalClassification.BLOCKER,
-            0,
-        )
     location_signal = _location_signal(left, right)
     signals = (
         city_signal,

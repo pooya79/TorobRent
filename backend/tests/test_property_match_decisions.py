@@ -1,6 +1,7 @@
 import pytest
 from rest_framework.test import APIClient
 
+from apps.catalog.group_consistency import measure_group_consistency
 from apps.catalog.models import OutboundPolicy, Source
 from tests.test_catalog_curation import make_current_property, make_operator
 
@@ -26,6 +27,25 @@ def compare(client, left, right):
     response = client.get(BASE + "comparison/", {"property": [str(left.pk), str(right.pk)]})
     assert response.status_code == 200
     return response.data
+
+
+@pytest.mark.django_db
+def test_consistency_measurement_does_not_change_manual_comparison_evidence(
+    api_client, comparison_case
+):
+    _, left, right = comparison_case
+    source = left.listings.get().source
+    extra_property, extra_listing = make_current_property(source=source, source_reference="EXTRA")
+    extra_listing.property = left
+    extra_listing.save(update_fields=["property"])
+    before = compare(api_client, left, right)
+
+    measurement = measure_group_consistency(left.pk)
+    after = compare(api_client, left, right)
+
+    assert measurement is not None
+    assert extra_property.pk != left.pk
+    assert after["revision"] == before["revision"]
 
 
 @pytest.mark.django_db

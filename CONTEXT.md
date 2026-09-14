@@ -97,6 +97,12 @@ separate, or defer that judgment, whether prompted by a Property Match Suggestio
 manually.
 _Avoid_: Automatic match, Submission Review decision
 
+**Group Consistency Measurement**:
+A versioned, advisory assessment of whether Listings grouped under one Property contain a reliable
+deterministic contradiction. Consistency does not mean identical claims or prove shared identity;
+missing evidence and minor disagreement do not by themselves make a group inconsistent.
+_Avoid_: Identity proof, automatic split decision
+
 **Direct Listing**:
 A Listing whose continuation route is a verified contact number approved for public display by the
 Submitter.

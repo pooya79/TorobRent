@@ -209,6 +209,14 @@ class Property(models.Model):
         editable=False,
     )
     merged_at = models.DateTimeField(null=True, blank=True, editable=False)
+    current_consistency_measurement = models.ForeignKey(
+        "PropertyGroupConsistencyMeasurement",
+        on_delete=models.SET_NULL,
+        related_name="+",
+        null=True,
+        blank=True,
+        editable=False,
+    )
 
     class Meta:
         permissions = (("curate_catalog", "Can curate the Property catalog"),)

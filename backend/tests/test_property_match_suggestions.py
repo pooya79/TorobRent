@@ -18,6 +18,7 @@ from apps.catalog.match_suggestion_signals import (
 )
 from apps.catalog.match_suggestions import candidate_property_ids, evaluate_property_pair
 from apps.catalog.models import (
+    City,
     Listing,
     ListingImage,
     ListingImagePerceptualBucket,
@@ -125,7 +126,7 @@ def test_focused_measurement_persists_one_current_pair_and_appends_history():
     assert suggestion.evidence_fingerprint
     assert suggestion.left_revision
     assert suggestion.right_revision
-    assert suggestion.evaluations.count() == 2
+    assert suggestion.evaluations.count() == 1
 
 
 @pytest.mark.django_db
@@ -181,6 +182,111 @@ def test_candidate_generation_uses_the_bounded_union_of_identity_indexes():
     assert set(candidates) == {coordinate.pk, fact_bucket.pk, image_hash.pk, building.pk}
     assert unrelated.pk not in candidates
     assert ListingImagePerceptualBucket.objects.count() == 32
+
+
+@pytest.mark.django_db
+def test_candidate_generation_excludes_properties_in_a_different_known_city():
+    source = Source.objects.create(
+        name="city-gate-source",
+        domain="city-gate.example",
+        display_name="منبع مرز شهر",
+        outbound_policy=OutboundPolicy.EXTERNAL_LINK,
+    )
+    focus = make_property(source, "FOCUS")
+    different_city = make_property(source, "DIFFERENT-CITY")
+    different_city.city = City.objects.create(
+        name_fa="کرج",
+        source_code="karaj",
+        source_year=2026,
+        provenance_url="https://example.com/karaj",
+        imported_at=timezone.localdate(),
+        reviewed=True,
+    )
+    different_city.save(update_fields=["city"])
+
+    candidates = candidate_property_ids(focus, limit=10)
+
+    assert different_city.pk not in candidates
+
+
+@pytest.mark.django_db
+def test_only_exact_image_identity_can_bypass_a_missing_candidate_city():
+    source = Source.objects.create(
+        name="missing-city-image-source",
+        domain="missing-city-image.example",
+        display_name="منبع تصویر بدون شهر",
+        outbound_policy=OutboundPolicy.EXTERNAL_LINK,
+    )
+    focus = make_property(source, "FOCUS")
+    perceptual_only = make_property(
+        source, "PERCEPTUAL", latitude=None, longitude=None, area_sqm=500
+    )
+    exact = make_property(source, "EXACT", latitude=None, longitude=None, area_sqm=500)
+    for property_ in (perceptual_only, exact):
+        property_.city = None
+        property_.district = None
+        property_.neighborhood = None
+        property_.property_type = PropertyType.OFFICE
+        property_.floor = None
+        property_.total_floors = None
+        property_.units_per_floor = None
+        property_.save()
+    ListingImage.objects.create(
+        listing=focus.listings.get(),
+        position=0,
+        raw_content_sha256="a" * 64,
+        perceptual_dhash="0123456789abcdef",
+    )
+    ListingImage.objects.create(
+        listing=perceptual_only.listings.get(),
+        position=0,
+        raw_content_sha256="b" * 64,
+        perceptual_dhash="0123456789abcdef",
+    )
+    ListingImage.objects.create(
+        listing=exact.listings.get(),
+        position=0,
+        raw_content_sha256="a" * 64,
+        perceptual_dhash="fedcba9876543210",
+    )
+
+    candidates = candidate_property_ids(focus, limit=10)
+
+    assert exact.pk in candidates
+    assert perceptual_only.pk not in candidates
+
+
+@pytest.mark.django_db
+def test_coordinate_candidates_rank_nearest_before_uuid_order():
+    source = Source.objects.create(
+        name="distance-ranking-source",
+        domain="distance-ranking.example",
+        display_name="منبع رتبه‌بندی فاصله",
+        outbound_policy=OutboundPolicy.EXTERNAL_LINK,
+    )
+    focus = make_property(
+        source,
+        "FOCUS",
+        property_id="80000000-0000-0000-0000-000000000000",
+    )
+    make_property(
+        source,
+        "FAR",
+        latitude=Decimal("35.778000"),
+        longitude=Decimal("51.360000"),
+        property_id="00000000-0000-0000-0000-000000000001",
+    )
+    nearest = make_property(
+        source,
+        "NEAREST",
+        latitude=Decimal("35.774110"),
+        longitude=Decimal("51.356210"),
+        property_id="ffffffff-ffff-ffff-ffff-ffffffffffff",
+    )
+
+    candidates = candidate_property_ids(focus, limit=1)
+
+    assert candidates == [uuid.UUID(str(nearest.pk))]
 
 
 @pytest.mark.django_db
@@ -1123,9 +1229,9 @@ def test_rejecting_a_suggestion_records_scheduler_evaluation_and_suppresses_unch
 
     suggestion.refresh_from_db()
     assert suggestion.state == PropertyMatchSuggestionState.REJECTED
-    assert suggestion.evaluations.count() == 2
+    assert suggestion.evaluations.count() == 1
     history = api_client.get(f"/api/v1/operator/catalog-curation/suggestions/{suggestion.pk}/")
-    assert len(history.data["evaluation_history"]) == 2
+    assert len(history.data["evaluation_history"]) == 1
     assert history.data["decision_history"][0]["id"] == response.data["id"]
     api_client.force_authenticate(
         User.objects.create_user(
@@ -1356,6 +1462,7 @@ def test_scoring_version_change_does_not_reopen_negative_suppression(
             original_compare(*properties), scoring_version="property-match-v3"
         ),
     )
+    monkeypatch.setattr(match_suggestions, "SCORING_VERSION", "property-match-v3")
 
     measure_property_match_candidates(property_id=str(left.pk), limit=25)
 
@@ -1475,6 +1582,7 @@ def test_scoring_evidence_change_invalidates_an_active_suggestion_claim(
             original_compare(*properties), scoring_version="property-match-v3"
         ),
     )
+    monkeypatch.setattr(match_suggestions, "SCORING_VERSION", "property-match-v3")
 
     measure_property_match_candidates(property_id=str(left.pk), limit=25)
     response = api_client.post(

@@ -289,7 +289,9 @@ def test_distant_exact_locations_are_a_hard_blocker(api_client: APIClient):
 
 
 @pytest.mark.django_db
-def test_different_cities_are_a_hard_blocker(api_client: APIClient):
+def test_manual_comparison_rejects_properties_in_different_known_cities(
+    api_client: APIClient,
+):
     curator = make_operator(email="curator@example.com")
     source = Source.objects.create(
         name="curation-source",
@@ -316,10 +318,8 @@ def test_different_cities_are_a_hard_blocker(api_client: APIClient):
         {"property": [str(left.id), str(right.id)]},
     )
 
-    assert response.status_code == 200
-    assert response.data["score"] == 0
-    city_signal = next(signal for signal in response.data["signals"] if signal["key"] == "city")
-    assert city_signal["classification"] == "blocker"
+    assert response.status_code == 400
+    assert "شهر" in str(response.data)
 
 
 @pytest.mark.django_db

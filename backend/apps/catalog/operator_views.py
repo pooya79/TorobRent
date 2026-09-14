@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timedelta
-from typing import TypedDict, cast
+from datetime import timedelta
+from typing import Any, TypedDict, cast
 
-from django.db.models import Exists, OuterRef, Q
+from django.db.models import Case, Exists, IntegerField, OuterRef, Q, Value, When
 from django.http import FileResponse
 from django.utils import timezone
 from drf_spectacular.utils import OpenApiParameter, extend_schema
@@ -172,66 +172,64 @@ class GroupedPropertyListView(APIView):
         responses={200: GroupedPropertyPageSerializer},
     )
     def get(self, request: Request) -> Response:
-        properties = list(
-            search_grouped_properties_for_curation(request.query_params.get("q", "").strip())
+        properties = search_grouped_properties_for_curation(
+            request.query_params.get("q", "").strip()
         )
-        results = [grouped_property_data(property_) for property_ in properties]
+        properties_query: Any = properties
         attention = request.query_params.get("attention", "all")
         changed = request.query_params.get("changed", "all")
         stability = request.query_params.get("stability", "all")
         measurement_status = request.query_params.get("measurement_status", "all")
         scoring_version = request.query_params.get("scoring_version", "")
         if attention == "needs_attention":
-            results = [item for item in results if item["needs_attention"]]
+            properties_query = properties_query.filter(needs_attention_value=True)
         if changed == "recent":
-            cutoff = timezone.now() - timedelta(days=30)
-            results = [
-                item
-                for item in results
-                if isinstance(item["last_grouping_change"], datetime)
-                and item["last_grouping_change"] >= cutoff
-            ]
+            properties_query = properties_query.filter(
+                latest_grouping_change__gte=timezone.now() - timedelta(days=30)
+            )
         if stability == "stable":
-            results = [item for item in results if item["attention_status"] == "stable"]
+            properties_query = properties_query.filter(attention_status_value="stable")
         if measurement_status != "all":
-            results = [item for item in results if item["measurement_status"] == measurement_status]
+            properties_query = properties_query.filter(measurement_status_value=measurement_status)
         if scoring_version:
-            results = [item for item in results if item["scoring_version"] == scoring_version]
-        priority = {
-            "needs_attention": 0,
-            "recent_change": 1,
-            "stable": 2,
-            "not_measured": 3,
-        }
+            properties_query = properties_query.filter(latest_scoring_version=scoring_version)
         ordering = request.query_params.get("ordering", "needs_attention")
         if ordering == "recent_change":
-            results.sort(
-                key=lambda item: str(item["last_grouping_change"] or ""),
-                reverse=True,
-            )
+            properties_query = properties_query.order_by("-latest_grouping_change", "pk")
         elif ordering == "stability":
-            results.sort(
-                key=lambda item: (item["measurement_status"] != "measured", str(item["id"]))
-            )
+            properties_query = properties_query.annotate(
+                sort_priority=Case(
+                    When(measurement_status_value="measured", then=Value(0)),
+                    default=Value(1),
+                    output_field=IntegerField(),
+                )
+            ).order_by("sort_priority", "pk")
         elif ordering == "measurement_status":
-            measurement_priority = {"stale": 0, "not_measured": 1, "measured": 2}
-            results.sort(
-                key=lambda item: (
-                    measurement_priority[cast(str, item["measurement_status"])],
-                    str(item["id"]),
+            properties_query = properties_query.annotate(
+                sort_priority=Case(
+                    When(measurement_status_value="stale", then=Value(0)),
+                    When(measurement_status_value="not_measured", then=Value(1)),
+                    default=Value(2),
+                    output_field=IntegerField(),
                 )
-            )
+            ).order_by("sort_priority", "pk")
         else:
-            results.sort(
-                key=lambda item: (
-                    priority[cast(str, item["attention_status"])],
-                    str(item["id"]),
+            properties_query = properties_query.annotate(
+                sort_priority=Case(
+                    When(attention_status_value="needs_attention", then=Value(0)),
+                    When(attention_status_value="recent_change", then=Value(1)),
+                    When(attention_status_value="stable", then=Value(2)),
+                    default=Value(3),
+                    output_field=IntegerField(),
                 )
-            )
+            ).order_by("sort_priority", "pk")
         paginator = StandardPageNumberPagination()
-        selected = paginator.paginate_queryset(results, request, view=self)
+        selected: list[Any] | None = paginator.paginate_queryset(
+            properties_query, request, view=self
+        )
         assert selected is not None
-        data = GroupedPropertySummarySerializer(selected, many=True).data
+        results = [grouped_property_data(property_) for property_ in selected]
+        data = GroupedPropertySummarySerializer(results, many=True).data
         return paginator.get_paginated_response(data)
 
 

@@ -25,6 +25,41 @@ from .models import (
 from .services import property_component_ids
 
 RELIABLE_CONTRADICTION_CONTRIBUTION = -10
+GROUP_PROPERTY_REVISION_FIELDS = (
+    "city_id",
+    "district_id",
+    "neighborhood_id",
+    "property_type",
+    "area_sqm",
+    "room_count",
+    "construction_year",
+    "floor",
+    "total_floors",
+    "units_per_floor",
+    "parking",
+    "elevator",
+    "storage",
+    "balcony",
+    "furnished",
+    "heating",
+    "cooling",
+    "latitude",
+    "longitude",
+)
+GROUP_PROPERTY_UPDATE_FIELDS = frozenset(
+    field.removesuffix("_id") for field in GROUP_PROPERTY_REVISION_FIELDS
+)
+GROUP_LISTING_REVISION_FIELDS = (
+    "state",
+    "source_id",
+    "source_reference",
+    "source_claims",
+    "updated_at",
+)
+GROUP_LISTING_UPDATE_FIELDS = frozenset({
+    "property",
+    *(field.removesuffix("_id") for field in GROUP_LISTING_REVISION_FIELDS),
+})
 LISTING_SCORING_CLAIM_FIELDS = (
     "property_type",
     "area_sqm",
@@ -67,15 +102,16 @@ def _grouping_events(property_: Property) -> QuerySet[ListingGroupingEvent]:
     )
 
 
+def invalidate_group_consistency(property_ids: set[uuid.UUID]) -> None:
+    if property_ids:
+        Property.objects.filter(pk__in=property_ids).update(current_consistency_measurement=None)
+
+
 def group_identity_revision(property_: Property) -> str:
     listing_rows = [
         {
             "id": listing.pk,
-            "state": listing.state,
-            "source_id": listing.source_id,
-            "source_reference": listing.source_reference,
-            "source_claims": listing.source_claims,
-            "updated_at": listing.updated_at,
+            **{field: getattr(listing, field) for field in GROUP_LISTING_REVISION_FIELDS},
             "images": [
                 {
                     "id": image.pk,
@@ -104,30 +140,7 @@ def group_identity_revision(property_: Property) -> str:
     )
     payload = {
         "property_id": property_.pk,
-        "facts": {
-            field: getattr(property_, field)
-            for field in (
-                "city_id",
-                "district_id",
-                "neighborhood_id",
-                "property_type",
-                "area_sqm",
-                "room_count",
-                "construction_year",
-                "floor",
-                "total_floors",
-                "units_per_floor",
-                "parking",
-                "elevator",
-                "storage",
-                "balcony",
-                "furnished",
-                "heating",
-                "cooling",
-                "latitude",
-                "longitude",
-            )
-        },
+        "facts": {field: getattr(property_, field) for field in GROUP_PROPERTY_REVISION_FIELDS},
         "listings": listing_rows,
         "grouping_events": event_rows,
     }
@@ -295,15 +308,32 @@ def measure_group_consistency(
 ) -> PropertyGroupConsistencyMeasurement | None:
     # PostgreSQL cannot apply SELECT FOR UPDATE to the annotated GROUP BY eligibility query.
     list(Property.objects.select_for_update().filter(pk=property_id))
-    property_ = grouped_property_queryset().filter(pk=property_id).first()
+    property_ = (
+        grouped_property_queryset()
+        .select_related("current_consistency_measurement")
+        .filter(pk=property_id)
+        .first()
+    )
     if property_ is None:
         return None
+    current = property_.current_consistency_measurement
+    if current is not None and current.scoring_version == SCORING_VERSION:
+        return current
     listings = list(
         property_.listings
         .select_related("source")
         .prefetch_related("images__variants__asset")
         .order_by("pk")
     )
+    group_revision = group_identity_revision(property_)
+    current = PropertyGroupConsistencyMeasurement.objects.filter(
+        property=property_,
+        group_revision=group_revision,
+        scoring_version=SCORING_VERSION,
+    ).first()
+    if current is not None:
+        Property.objects.filter(pk=property_.pk).update(current_consistency_measurement=current)
+        return current
     origins = _listing_origins(listings, property_)
     pairs = [_pair_measurement(left, right, origins) for left, right in combinations(listings, 2)]
     measured_pairs = [pair for pair in pairs if pair["status"] == "measured"]
@@ -319,7 +349,7 @@ def measure_group_consistency(
     weakest_pair = min(measured_pairs, key=lambda pair: pair["score"], default=None)
     measurement, _ = PropertyGroupConsistencyMeasurement.objects.update_or_create(
         property=property_,
-        group_revision=group_identity_revision(property_),
+        group_revision=group_revision,
         scoring_version=SCORING_VERSION,
         defaults={
             "listing_count": len(listings),
@@ -331,21 +361,27 @@ def measure_group_consistency(
             "measured_at": timezone.now(),
         },
     )
+    Property.objects.filter(pk=property_.pk).update(current_consistency_measurement=measurement)
     return measurement
 
 
 def current_group_measurement(
     property_: Property,
 ) -> tuple[str, PropertyGroupConsistencyMeasurement | None]:
-    latest = next(iter(property_.consistency_measurements.all()), None)
+    current = property_.current_consistency_measurement
+    if current is not None and current.scoring_version == SCORING_VERSION:
+        return "measured", current
+    prefetched = getattr(property_, "latest_consistency_measurements", None)
+    if prefetched is None and hasattr(property_, "has_group_measurement"):
+        return ("stale", None) if property_.has_group_measurement else ("not_measured", None)
+    latest = (
+        prefetched[0]
+        if prefetched
+        else property_.consistency_measurements.order_by("-measured_at", "-id").first()
+    )
     if latest is None:
         return "not_measured", None
-    is_current = latest.scoring_version == SCORING_VERSION and (
-        latest.group_revision == group_identity_revision(property_)
-    )
-    if not is_current:
-        return "stale", latest
-    return "measured", latest
+    return "stale", latest
 
 
 def approved_connection_graph(property_: Property) -> list[dict[str, Any]]:

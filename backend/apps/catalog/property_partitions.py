@@ -14,7 +14,7 @@ from rest_framework.exceptions import ValidationError
 
 from apps.accounts.models import User
 
-from .decision_audit import evaluation_snapshot
+from .decision_audit import evaluation_snapshot, property_snapshot_rows
 from .group_consistency import approved_connection_graph, grouping_history
 from .locations import derive_public_location
 from .match_decisions import CLAIM_LIFETIME, FACT_FIELDS, ReviewConflict, _authorize, _eligible
@@ -139,7 +139,9 @@ def _snapshot(property_: Property) -> dict[str, Any]:
     component_ids = property_component_ids(property_.pk)
     listings = Listing.objects.filter(property=property_).order_by("pk")
     return _json({
-        "properties": list(Property.objects.filter(pk__in=component_ids).order_by("pk").values()),
+        "properties": property_snapshot_rows(
+            Property.objects.filter(pk__in=component_ids).order_by("pk")
+        ),
         "listings": list(listings.values()),
         "terms": list(RentalTerms.objects.filter(listing__in=listings).order_by("pk").values()),
         "listing_images": list(

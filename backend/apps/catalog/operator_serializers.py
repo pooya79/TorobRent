@@ -1,5 +1,5 @@
 from datetime import timedelta
-from typing import Any
+from typing import Any, cast
 
 from django.utils import timezone
 from rest_framework import serializers
@@ -125,18 +125,31 @@ def grouped_property_data(
     property_: Property, *, include_detail: bool = False
 ) -> dict[str, object]:
     measurement_status, measurement = current_group_measurement(property_)
-    history = grouping_history(property_)
-    last_grouping_change = history[-1]["created_at"] if history else None
-    if measurement_status != "measured":
-        attention_status = "not_measured"
-    elif measurement is not None and measurement.needs_attention:
-        attention_status = "needs_attention"
-    elif last_grouping_change is not None and last_grouping_change >= timezone.now() - timedelta(
-        days=30
-    ):
-        attention_status = "recent_change"
+    history = grouping_history(property_) if include_detail else []
+    last_grouping_change = (
+        history[-1]["created_at"] if history else getattr(property_, "latest_grouping_change", None)
+    )
+    annotated_attention_status = getattr(property_, "attention_status_value", None)
+    if not include_detail and annotated_attention_status is not None:
+        attention_status = annotated_attention_status
+        annotated_property = cast(Any, property_)
+        measurement_status = annotated_property.measurement_status_value
+        needs_attention = annotated_property.needs_attention_value
     else:
-        attention_status = "stable"
+        if measurement_status != "measured":
+            attention_status = "not_measured"
+        elif measurement is not None and measurement.needs_attention:
+            attention_status = "needs_attention"
+        elif (
+            last_grouping_change is not None
+            and last_grouping_change >= timezone.now() - timedelta(days=30)
+        ):
+            attention_status = "recent_change"
+        else:
+            attention_status = "stable"
+        needs_attention = bool(
+            measurement_status == "measured" and measurement and measurement.needs_attention
+        )
     listings = list(property_.listings.all())
     title = (
         property_.title if property_.property_type in PropertyType.values else "ملک بدون نوع ثبت‌شده"
@@ -148,11 +161,17 @@ def grouped_property_data(
         "listing_states": sorted({listing.state for listing in listings}),
         "measurement_status": measurement_status,
         "attention_status": attention_status,
-        "needs_attention": bool(
-            measurement_status == "measured" and measurement and measurement.needs_attention
+        "needs_attention": needs_attention,
+        "scoring_version": (
+            measurement.scoring_version
+            if measurement
+            else getattr(property_, "latest_scoring_version", None)
         ),
-        "scoring_version": measurement.scoring_version if measurement else None,
-        "measured_at": measurement.measured_at if measurement else None,
+        "measured_at": (
+            measurement.measured_at
+            if measurement
+            else getattr(property_, "latest_measured_at", None)
+        ),
         "last_grouping_change": last_grouping_change,
     }
     if include_detail:

@@ -162,6 +162,7 @@ def test_rescore_retains_negative_snooze_and_historical_measurements(
     monkeypatch.setattr(matching, "SCORING_VERSION", "property-match-v3")
     monkeypatch.setattr(group_consistency, "SCORING_VERSION", "property-match-v3")
     monkeypatch.setattr(match_operations, "SCORING_VERSION", "property-match-v3")
+    monkeypatch.setattr(match_suggestions, "SCORING_VERSION", "property-match-v3")
     monkeypatch.setattr(rescore_property_matching, "delay", lambda **_kwargs: None)
     operation_id = uuid.uuid4()
     generation = 0
@@ -254,6 +255,7 @@ def test_rescore_can_reactivate_a_superseded_diagnostic_under_the_new_version(mo
         )
 
     monkeypatch.setattr(match_suggestions, "compare_properties", compare_under_new_version)
+    monkeypatch.setattr(match_suggestions, "SCORING_VERSION", "property-match-v3")
     monkeypatch.setattr(match_operations, "SCORING_VERSION", "property-match-v3")
     monkeypatch.setattr(rescore_property_matching, "delay", lambda **_kwargs: None)
     operation_id = uuid.uuid4()
@@ -637,7 +639,7 @@ def test_rescore_preserves_operator_decision_made_between_pages(
 
     untouched.refresh_from_db()
     assert untouched.state == "rejected"
-    assert untouched.evaluations.count() == 2
+    assert untouched.evaluations.count() == 1
     assert PropertyMatchDecision.objects.filter(pk=response.data["id"]).exists()
 
 

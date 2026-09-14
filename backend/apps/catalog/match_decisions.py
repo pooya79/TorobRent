@@ -17,9 +17,9 @@ from rest_framework.exceptions import APIException, PermissionDenied, Validation
 from apps.accounts.capabilities import OperatorCapability, has_capability
 from apps.accounts.models import User
 
-from .decision_audit import assessment_snapshot, evaluation_snapshot
+from .decision_audit import assessment_snapshot, evaluation_snapshot, property_snapshot_rows
 from .locations import derive_public_location
-from .matching import compare_properties
+from .matching import compare_properties, have_different_known_cities
 from .models import (
     Listing,
     ListingGroupingAction,
@@ -136,7 +136,7 @@ def _snapshot(properties: list[Property]) -> dict[str, Any]:
     properties = [refreshed[pk] for pk in ids]
     listings = Listing.objects.filter(property_id__in=ids).order_by("pk")
     payload = {
-        "properties": list(Property.objects.filter(pk__in=ids).order_by("pk").values()),
+        "properties": property_snapshot_rows(Property.objects.filter(pk__in=ids).order_by("pk")),
         "listings": list(listings.values()),
         "terms": list(RentalTerms.objects.filter(listing__in=listings).order_by("pk").values()),
         "property_images": list(
@@ -236,6 +236,8 @@ def _current_suggestion(
 @transaction.atomic
 def comparison_data(ids: list[UUID]) -> dict[str, Any]:
     properties = _properties(ids, lock=True)
+    if have_different_known_cities(*properties):
+        raise ValidationError("ملک‌های متعلق به شهرهای متفاوت قابل مقایسه نیستند.")
     ids = [property_.pk for property_ in properties]
     _lock_evidence(ids)
     snapshot = _snapshot(properties)

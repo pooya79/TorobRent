@@ -2,7 +2,16 @@
 
 from typing import Any
 
-from .models import PropertyMatchSuggestionEvaluation
+from django.db.models import QuerySet
+
+from .models import Property, PropertyMatchSuggestionEvaluation
+
+
+def property_snapshot_rows(properties: QuerySet[Property]) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = [dict(row) for row in properties.values()]
+    for row in rows:
+        row.pop("current_consistency_measurement_id", None)
+    return rows
 
 
 def evaluation_snapshot(evaluation: PropertyMatchSuggestionEvaluation) -> dict[str, Any]:

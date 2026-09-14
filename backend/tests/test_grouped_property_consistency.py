@@ -4,6 +4,8 @@ import pytest
 from django.contrib.auth.models import Permission
 from django.core.cache import cache
 from django.core.management import call_command
+from django.db import connection
+from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
 from rest_framework.test import APIClient
 
@@ -151,6 +153,29 @@ def test_grouped_properties_lists_every_current_multi_listing_group_and_restrict
 
 
 @pytest.mark.django_db
+def test_grouped_property_page_paginates_before_loading_group_evidence(
+    api_client: APIClient, source: Source
+):
+    for index in range(30):
+        grouped, _ = make_property(source, f"PAGE-{index}-A")
+        _, second = make_property(source, f"PAGE-{index}-B")
+        second.property = grouped
+        second.save(update_fields=["property"])
+    api_client.force_authenticate(make_operator())
+
+    with CaptureQueriesContext(connection) as queries:
+        response = api_client.get(
+            "/api/v1/operator/catalog-curation/grouped-properties/",
+            {"page_size": 5},
+        )
+
+    assert response.status_code == 200
+    assert response.data["count"] == 30
+    assert len(response.data["results"]) == 5
+    assert len(queries) <= 8
+
+
+@pytest.mark.django_db
 def test_grouped_properties_filters_and_orders_operational_statuses(
     api_client: APIClient, source: Source
 ):
@@ -233,6 +258,63 @@ def test_current_measurement_uses_all_listing_states_and_missing_evidence_is_not
     assert {pair["status"] for pair in measurement.pair_measurements} == {"missing_evidence"}
     assert measurement.explicit_contradictions == []
     assert measurement.needs_attention is False
+
+
+@pytest.mark.django_db
+def test_unchanged_group_reuses_its_current_consistency_measurement(source: Source):
+    grouped, _ = make_property(source, "UNCHANGED-A")
+    _, second = make_property(source, "UNCHANGED-B")
+    second.property = grouped
+    second.save(update_fields=["property"])
+
+    first = measure_group_consistency(grouped.pk)
+    repeated = measure_group_consistency(grouped.pk)
+
+    assert first is not None
+    assert repeated is not None
+    assert repeated.pk == first.pk
+    assert repeated.measured_at == first.measured_at
+    assert PropertyGroupConsistencyMeasurement.objects.count() == 1
+
+
+@pytest.mark.django_db
+def test_scoring_evidence_change_marks_group_measurement_stale(
+    api_client: APIClient, source: Source
+):
+    grouped, first = make_property(source, "STALE-A")
+    _, second = make_property(source, "STALE-B")
+    second.property = grouped
+    second.save(update_fields=["property"])
+    assert measure_group_consistency(grouped.pk) is not None
+    first.source_claims = {"area_sqm": 91}
+    first.save(update_fields=["source_claims"])
+    api_client.force_authenticate(make_operator())
+
+    response = api_client.get(
+        "/api/v1/operator/catalog-curation/grouped-properties/",
+        {"measurement_status": "stale"},
+    )
+
+    assert response.status_code == 200
+    assert response.data["count"] == 1
+    assert response.data["results"][0]["id"] == str(grouped.pk)
+    assert response.data["results"][0]["measurement_status"] == "stale"
+
+
+@pytest.mark.django_db
+def test_listing_revision_change_invalidates_current_group_measurement(source: Source):
+    grouped, first = make_property(source, "REVISION-A")
+    _, second = make_property(source, "REVISION-B")
+    second.property = grouped
+    second.save(update_fields=["property"])
+    measurement = measure_group_consistency(grouped.pk)
+    assert measurement is not None
+
+    first.source_reference = "REVISION-A-UPDATED"
+    first.save(update_fields=["source_reference"])
+    grouped.refresh_from_db()
+
+    assert grouped.current_consistency_measurement_id is None
 
 
 @pytest.mark.django_db
