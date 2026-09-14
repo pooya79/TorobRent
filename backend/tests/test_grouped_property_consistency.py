@@ -153,6 +153,29 @@ def test_grouped_properties_lists_every_current_multi_listing_group_and_restrict
 
 
 @pytest.mark.django_db
+@pytest.mark.parametrize(
+    "query",
+    ["سعادت‌آباد", "منبع سنجش گروه", "SEARCHABLE-REF"],
+)
+def test_grouped_properties_text_searches_visible_identity_fields(
+    api_client: APIClient, source: Source, query: str
+):
+    grouped, _ = make_property(source, "SEARCHABLE-REF")
+    _, second = make_property(source, "OTHER-REF")
+    second.property = grouped
+    second.save(update_fields=["property"])
+    api_client.force_authenticate(make_operator())
+
+    response = api_client.get(
+        "/api/v1/operator/catalog-curation/grouped-properties/",
+        {"q": query},
+    )
+
+    assert response.status_code == 200
+    assert [item["id"] for item in response.data["results"]] == [str(grouped.pk)]
+
+
+@pytest.mark.django_db
 def test_grouped_property_page_paginates_before_loading_group_evidence(
     api_client: APIClient, source: Source
 ):

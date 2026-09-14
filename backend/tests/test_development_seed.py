@@ -14,6 +14,7 @@ from apps.catalog.models import (
     ListingImage,
     ListingState,
     Property,
+    PropertyGroupConsistencyMeasurement,
     PropertyImage,
     PropertyType,
     RentalTerms,
@@ -102,6 +103,14 @@ def test_seed_dev_catalog_exercises_review_scenarios():
     assert RentalTerms.objects.filter(deposit_rial=0, monthly_rent_rial__gt=0).exists()
     assert RentalTerms.objects.filter(deposit_rial__gt=0, monthly_rent_rial=0).exists()
     assert Property.objects.annotate(total=Count("listings")).filter(total__gt=1).count() == 20
+    assert PropertyGroupConsistencyMeasurement.objects.count() == 20
+    assert (
+        Property.objects
+        .annotate(total=Count("listings"))
+        .filter(total__gt=1, current_consistency_measurement__isnull=False)
+        .count()
+        == 20
+    )
     assert Listing.objects.exclude(source_claims={}).exists()
     image_counts = set(
         Listing.objects

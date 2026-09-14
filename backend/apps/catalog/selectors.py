@@ -241,6 +241,14 @@ def search_current_properties_for_curation(query: str) -> QuerySet[Property, Pro
 
 
 def search_grouped_properties_for_curation(query: str) -> QuerySet[Property, Property]:
+    listing_count = (
+        Listing.objects
+        .filter(property_id=OuterRef("pk"))
+        .order_by()
+        .values("property_id")
+        .annotate(total=Count("pk"))
+        .values("total")[:1]
+    )
     latest_measurement = PropertyGroupConsistencyMeasurement.objects.filter(
         property_id=OuterRef("pk")
     ).order_by("-measured_at", "-id")
@@ -251,7 +259,7 @@ def search_grouped_properties_for_curation(query: str) -> QuerySet[Property, Pro
     properties = (
         Property.objects
         .filter(merged_into__isnull=True)
-        .annotate(listing_count_value=Count("listings", distinct=True))
+        .annotate(listing_count_value=Subquery(listing_count, output_field=IntegerField()))
         .filter(listing_count_value__gt=1)
         .select_related(
             "city",
@@ -317,19 +325,29 @@ def search_grouped_properties_for_curation(query: str) -> QuerySet[Property, Pro
     if not query:
         return properties.distinct()
     normalized_query = normalize_persian_search(query)
+    matching_listing = (
+        Listing.objects
+        .filter(property_id=OuterRef("pk"))
+        .annotate(
+            normalized_source=_normalized_search_expression("source__display_name"),
+            normalized_reference=_normalized_search_expression("source_reference"),
+        )
+        .filter(
+            Q(normalized_source__icontains=normalized_query)
+            | Q(normalized_reference__icontains=normalized_query)
+        )
+    )
     return (
         properties
         .annotate(
             normalized_city=_normalized_search_expression("city__name_fa"),
             normalized_neighborhood=_normalized_search_expression("neighborhood__name_fa"),
-            normalized_source=_normalized_search_expression("listings__source__display_name"),
-            normalized_reference=_normalized_search_expression("listings__source_reference"),
+            has_matching_listing=Exists(matching_listing),
         )
         .filter(
             Q(normalized_city__icontains=normalized_query)
             | Q(normalized_neighborhood__icontains=normalized_query)
-            | Q(normalized_source__icontains=normalized_query)
-            | Q(normalized_reference__icontains=normalized_query)
+            | Q(has_matching_listing=True)
         )
         .distinct()
     )

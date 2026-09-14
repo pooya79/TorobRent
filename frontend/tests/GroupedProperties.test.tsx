@@ -62,6 +62,54 @@ test("keeps grouped Property search, filters, sort, and page in the URL", async 
   expect(screen.getByLabelText("وضعیت نشانی گروه‌ها")).not.toHaveTextContent(
     "g_page=3",
   );
+  await user.click(screen.getByRole("button", { name: "پاک‌کردن فیلترها" }));
+  expect(screen.getByLabelText("وضعیت نشانی گروه‌ها")).toHaveTextContent(/^$/);
+  expect(screen.getByLabelText("وضعیت سنجش")).toHaveValue("all");
+});
+
+test("debounces grouped Property search without dropping typed characters", async () => {
+  const user = userEvent.setup();
+  const requestedQueries: string[] = [];
+  server.use(
+    http.get(
+      "*/api/v1/operator/catalog-curation/grouped-properties/",
+      ({ request }) => {
+        requestedQueries.push(new URL(request.url).searchParams.get("q") ?? "");
+        return HttpResponse.json({
+          count: 0,
+          next: null,
+          previous: null,
+          results: [],
+        });
+      },
+    ),
+  );
+  render(
+    <QueryClientProvider
+      client={
+        new QueryClient({ defaultOptions: { queries: { retry: false } } })
+      }
+    >
+      <MemoryRouter>
+        <CatalogCurationPage />
+        <LocationState />
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+
+  await screen.findByText("ملک گروه‌بندی‌شده‌ای وجود ندارد.");
+  requestedQueries.length = 0;
+  const search = screen.getByRole("searchbox", {
+    name: "جست‌وجوی هویت گروه",
+  });
+  await user.type(search, "DEV-013");
+
+  expect(search).toHaveValue("DEV-013");
+  expect(requestedQueries).toEqual([]);
+  await waitFor(() => expect(requestedQueries).toEqual(["DEV-013"]));
+  expect(screen.getByLabelText("وضعیت نشانی گروه‌ها")).toHaveTextContent(
+    "g_q=DEV-013",
+  );
 });
 
 test("browses grouped Properties and distinguishes contradictions from missing evidence", async () => {
@@ -523,7 +571,12 @@ test.each([
         },
       },
     ],
-    new_property_defaults: { area_sqm: 90 },
+    new_property_defaults: {
+      city_id: propertyId,
+      property_type: "warehouse",
+      parking: "present",
+      area_sqm: 90,
+    },
     resulting_properties: [
       {
         role: "surviving",
@@ -623,6 +676,9 @@ test.each([
   ).toBeVisible();
   expect(screen.getByText("۱ پیشنهاد در انتظار تحت تاثیر است.")).toBeVisible();
   expect(screen.getByText("https://b.example/B-1")).toBeVisible();
+  expect(screen.getAllByText("منتشرشده").length).toBeGreaterThan(0);
+  expect(screen.queryByText("published")).not.toBeInTheDocument();
+  expect(screen.getByText("ودیعه: ۱ ریال، اجاره ماهانه: ۲ ریال")).toBeVisible();
   expect(screen.getByText("گروه‌بندی پیشین", { exact: false })).toBeVisible();
   expect(screen.getByText(/suggestion/)).toBeVisible();
   expect(
@@ -633,6 +689,11 @@ test.each([
     await user.click(
       screen.getByLabelText("ساخت ملک تازه با واقعیت‌های نمایش‌داده‌شده"),
     );
+    expect(
+      screen.getAllByText("بدون تغییر نسبت به گروه فعلی").length,
+    ).toBeGreaterThan(0);
+    expect(screen.getByLabelText("نوع ملک")).toHaveValue("warehouse");
+    expect(screen.getByLabelText("پارکینگ")).toHaveValue("present");
     const area = screen.getByLabelText("متراژ");
     await user.clear(area);
     await user.type(area, "130");

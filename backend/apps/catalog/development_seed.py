@@ -17,6 +17,7 @@ from apps.common.media import (
 )
 from apps.common.models import MediaAsset
 
+from .group_consistency import grouped_property_queryset, measure_group_consistency
 from .locations import derive_public_location
 from .models import (
     TEHRAN_CITY_ID,
@@ -379,6 +380,8 @@ def seed_development_catalog() -> DevelopmentCatalog:
     _seed_listing_images(listings, assets_by_name)
     _seed_property_images(properties, assets_by_name)
     _seed_price_history(listings)
+    for property_id in grouped_property_queryset().values_list("pk", flat=True):
+        measure_group_consistency(property_id)
     return DevelopmentCatalog(
         properties=len(properties),
         listings=len(listings),

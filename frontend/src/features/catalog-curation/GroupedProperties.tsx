@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowRight, Layers3, TriangleAlert } from "lucide-react";
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "react-router";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -15,6 +15,10 @@ import {
   groupedPropertiesQuery,
   groupedPropertyDetailQuery,
 } from "@/features/catalog-curation/queries";
+import {
+  propertyTypeLabels,
+  propertyTypeOptions,
+} from "@/features/catalog/property-taxonomy";
 import {
   updateQueueFilter,
   updateQueuePage,
@@ -58,11 +62,89 @@ const attentionLabels: Record<GroupSummary["attention_status"], string> = {
   not_measured: "هنوز سنجیده نشده",
 };
 
-function displayFact(value: unknown) {
+const groupingActionLabels: Record<string, string> = {
+  attach: "افزودن آگهی",
+  split: "تفکیک آگهی",
+  merge: "ادغام ملک‌ها",
+};
+
+const listingStateLabels: Record<string, string> = {
+  draft: "پیش‌نویس",
+  pending: "در انتظار بررسی",
+  published: "منتشرشده",
+  expired: "منقضی‌شده",
+  rejected: "ردشده",
+  unavailable: "ناموجود",
+  archived: "بایگانی‌شده",
+};
+
+const featureStateLabels: Record<string, string> = {
+  present: "دارد",
+  absent: "ندارد",
+  unknown: "نامشخص",
+};
+
+const featureFactKeys = new Set([
+  "parking",
+  "elevator",
+  "storage",
+  "balcony",
+  "furnished",
+]);
+
+const inheritedIdentityKeys = new Set([
+  "city_id",
+  "district_id",
+  "neighborhood_id",
+]);
+
+function displayFact(value: unknown, key?: string): string {
   if (value == null || value === "") return "—";
-  if (typeof value === "string" || typeof value === "number") return value;
+  if (key && inheritedIdentityKeys.has(key)) {
+    return "بدون تغییر نسبت به گروه فعلی";
+  }
+  if (
+    key === "property_type" &&
+    typeof value === "string" &&
+    value in propertyTypeLabels
+  ) {
+    return propertyTypeLabels[value as keyof typeof propertyTypeLabels];
+  }
+  if (key && featureFactKeys.has(key) && typeof value === "string") {
+    return featureStateLabels[value] ?? value;
+  }
+  if (typeof value === "string") return value;
+  if (typeof value === "number") return value.toLocaleString("fa-IR");
   if (typeof value === "boolean") return value ? "بله" : "خیر";
-  return JSON.stringify(value);
+  if (Array.isArray(value)) {
+    return value.map((item) => displayFact(item, key)).join("، ");
+  }
+  if (typeof value === "object") {
+    const entries = Object.entries(value);
+    if (!entries.length) return "اطلاعاتی ثبت نشده";
+    return entries
+      .map(([itemKey, itemValue]) => {
+        const label = factLabels[itemKey] ?? itemKey;
+        return `${label}: ${displayFact(itemValue, itemKey)}`;
+      })
+      .join("، ");
+  }
+  return typeof value === "bigint" ? value.toString() : "—";
+}
+
+function displayRentalTerms(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return displayFact(value);
+  }
+  const terms = value as Record<string, unknown>;
+  const rial = (amount: unknown) =>
+    typeof amount === "number"
+      ? `${amount.toLocaleString("fa-IR")} ریال`
+      : displayFact(amount);
+  return [
+    `ودیعه: ${rial(terms.deposit_rial)}`,
+    `اجاره ماهانه: ${rial(terms.monthly_rent_rial)}`,
+  ].join("، ");
 }
 
 function editableFact(value: unknown) {
@@ -73,6 +155,35 @@ function editableFact(value: unknown) {
   return JSON.stringify(value);
 }
 
+function DebouncedFilterInput({
+  value,
+  type,
+  placeholder,
+  onCommit,
+}: {
+  value: string;
+  type?: "search" | "text";
+  placeholder: string;
+  onCommit: (value: string) => void;
+}) {
+  const [draft, setDraft] = useState(value);
+
+  useEffect(() => {
+    if (draft === value) return;
+    const timeout = window.setTimeout(() => onCommit(draft), 300);
+    return () => window.clearTimeout(timeout);
+  }, [draft, onCommit, value]);
+
+  return (
+    <Input
+      type={type}
+      value={draft}
+      placeholder={placeholder}
+      onChange={(event) => setDraft(event.target.value)}
+    />
+  );
+}
+
 function ListingEvidence({ listing }: { listing: PartitionListing }) {
   return (
     <article className="space-y-2 rounded-md border p-2 text-sm">
@@ -81,7 +192,7 @@ function ListingEvidence({ listing }: { listing: PartitionListing }) {
       </p>
       <dl className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
         <dt className="text-muted-foreground">وضعیت</dt>
-        <dd>{listing.state}</dd>
+        <dd>{listingStateLabels[listing.state] ?? listing.state}</dd>
         <dt className="text-muted-foreground">مسیر منبع</dt>
         <dd className="break-all" dir="ltr">
           {listing.external_url || "—"}
@@ -89,7 +200,7 @@ function ListingEvidence({ listing }: { listing: PartitionListing }) {
         <dt className="text-muted-foreground">تماس مستقیم</dt>
         <dd dir="ltr">{listing.direct_phone || "—"}</dd>
         <dt className="text-muted-foreground">شرایط اجاره</dt>
-        <dd>{displayFact(listing.rental_terms)}</dd>
+        <dd>{displayRentalTerms(listing.rental_terms)}</dd>
         <dt className="text-muted-foreground">ادعاهای منبع</dt>
         <dd>{displayFact(listing.source_claims)}</dd>
         <dt className="text-muted-foreground">منشا شواهد</dt>
@@ -369,7 +480,8 @@ function PartitionPanel({
                 {preview.grouping_history.length ? (
                   preview.grouping_history.map((event) => (
                     <p key={event.id} className="text-xs">
-                      {event.action} · {event.reason || "بدون دلیل"}
+                      {groupingActionLabels[event.action] ?? event.action} ·{" "}
+                      {event.reason || "بدون دلیل"}
                     </p>
                   ))
                 ) : (
@@ -380,8 +492,8 @@ function PartitionPanel({
                 <p className="mb-2 text-sm font-medium">پیشنهادهای در انتظار</p>
                 {preview.pending_suggestions.length ? (
                   preview.pending_suggestions.map((suggestion, index) => (
-                    <p key={index} className="text-xs break-all" dir="ltr">
-                      {JSON.stringify(suggestion)}
+                    <p key={index} className="text-xs break-all">
+                      {displayFact(suggestion)}
                     </p>
                   ))
                 ) : (
@@ -401,8 +513,10 @@ function PartitionPanel({
                     {Object.entries(result.normalized_facts).map(
                       ([key, value]) => (
                         <div key={key} className="contents">
-                          <dt className="text-muted-foreground">{key}</dt>
-                          <dd>{displayFact(value)}</dd>
+                          <dt className="text-muted-foreground">
+                            {factLabels[key] ?? key}
+                          </dt>
+                          <dd>{displayFact(value, key)}</dd>
                         </div>
                       ),
                     )}
@@ -430,7 +544,7 @@ function PartitionPanel({
                     id={`restore-${option.id}`}
                   />
                   <Label htmlFor={`restore-${option.id}`}>
-                    بازیابی ملک تاریخی {option.id}
+                    بازیابی ملک تاریخی پیشین
                   </Label>
                 </div>
               ))}
@@ -450,16 +564,63 @@ function PartitionPanel({
                       <Label htmlFor={`partition-fact-${key}`}>
                         {factLabels[key] ?? key}
                       </Label>
-                      <Input
-                        id={`partition-fact-${key}`}
-                        value={editableFact(value)}
-                        onChange={(event) =>
-                          setNewFacts((current) => ({
-                            ...current,
-                            [key]: event.target.value || null,
-                          }))
-                        }
-                      />
+                      {inheritedIdentityKeys.has(key) ? (
+                        <p
+                          id={`partition-fact-${key}`}
+                          className="text-muted-foreground rounded-md border px-3 py-2 text-sm"
+                        >
+                          بدون تغییر نسبت به گروه فعلی
+                        </p>
+                      ) : key === "property_type" ? (
+                        <select
+                          id={`partition-fact-${key}`}
+                          className="border-input bg-background h-11 w-full rounded-md border px-3"
+                          value={editableFact(value)}
+                          onChange={(event) =>
+                            setNewFacts((current) => ({
+                              ...current,
+                              [key]: event.target.value,
+                            }))
+                          }
+                        >
+                          {propertyTypeOptions.map(([option, label]) => (
+                            <option key={option} value={option}>
+                              {label}
+                            </option>
+                          ))}
+                        </select>
+                      ) : featureFactKeys.has(key) ? (
+                        <select
+                          id={`partition-fact-${key}`}
+                          className="border-input bg-background h-11 w-full rounded-md border px-3"
+                          value={editableFact(value)}
+                          onChange={(event) =>
+                            setNewFacts((current) => ({
+                              ...current,
+                              [key]: event.target.value,
+                            }))
+                          }
+                        >
+                          {Object.entries(featureStateLabels).map(
+                            ([option, label]) => (
+                              <option key={option} value={option}>
+                                {label}
+                              </option>
+                            ),
+                          )}
+                        </select>
+                      ) : (
+                        <Input
+                          id={`partition-fact-${key}`}
+                          value={editableFact(value)}
+                          onChange={(event) =>
+                            setNewFacts((current) => ({
+                              ...current,
+                              [key]: event.target.value || null,
+                            }))
+                          }
+                        />
+                      )}
                     </div>
                   ))}
                 </div>
@@ -802,10 +963,46 @@ export function GroupedProperties() {
     }),
   );
 
+  const commitSearch = useCallback(
+    (value: string) => {
+      setSearchParams((current) =>
+        updateQueueFilter(current, "g_q", value, "g_page"),
+      );
+    },
+    [setSearchParams],
+  );
+  const commitVersion = useCallback(
+    (value: string) => {
+      setSearchParams((current) =>
+        updateQueueFilter(current, "g_version", value, "g_page"),
+      );
+    },
+    [setSearchParams],
+  );
+
   function updateFilter(key: string, value: string) {
     setSearchParams((current) =>
       updateQueueFilter(current, key, value, "g_page"),
     );
+  }
+
+  function clearFilters() {
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      for (const key of [
+        "g_q",
+        "g_page",
+        "g_attention",
+        "g_changed",
+        "g_stability",
+        "g_measurement",
+        "g_version",
+        "g_order",
+      ]) {
+        next.delete(key);
+      }
+      return next;
+    });
   }
 
   if (selectedId) {
@@ -835,11 +1032,12 @@ export function GroupedProperties() {
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <label className="grid gap-1 text-sm">
           جست‌وجوی هویت گروه
-          <Input
+          <DebouncedFilterInput
+            key={q}
             type="search"
             value={q}
             placeholder="شناسه ملک، آگهی، منبع، محله یا شناسه منبع"
-            onChange={(event) => updateFilter("g_q", event.target.value)}
+            onCommit={commitSearch}
           />
         </label>
         <label className="grid gap-1 text-sm">
@@ -896,10 +1094,11 @@ export function GroupedProperties() {
         </label>
         <label className="grid gap-1 text-sm">
           نسخه سنجش
-          <Input
+          <DebouncedFilterInput
+            key={scoringVersion}
             value={scoringVersion}
             placeholder="برای نمونه property-match-v2"
-            onChange={(event) => updateFilter("g_version", event.target.value)}
+            onCommit={commitVersion}
           />
         </label>
         <label className="grid gap-1 text-sm">
@@ -915,6 +1114,16 @@ export function GroupedProperties() {
             <option value="measurement_status">وضعیت سنجش</option>
           </select>
         </label>
+        <div className="flex items-end">
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full"
+            onClick={clearFilters}
+          >
+            پاک‌کردن فیلترها
+          </Button>
+        </div>
       </div>
       {groups.isPending ? <p role="status">در حال دریافت گروه‌ها…</p> : null}
       {groups.isError ? (
@@ -944,7 +1153,10 @@ export function GroupedProperties() {
             <CardContent className="space-y-3 text-sm">
               <p>{group.listing_count.toLocaleString("fa-IR")} آگهی</p>
               <p className="text-muted-foreground">
-                وضعیت‌ها: {group.listing_states.join("، ")}
+                وضعیت‌ها:{" "}
+                {group.listing_states
+                  .map((state) => listingStateLabels[state] ?? state)
+                  .join("، ")}
               </p>
               <Button
                 type="button"
