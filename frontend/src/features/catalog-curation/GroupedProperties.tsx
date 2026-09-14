@@ -972,7 +972,15 @@ function GroupDetail({
 
 export function GroupedProperties() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const selectedId = searchParams.get("group");
+  function setSelectedId(id: string | null) {
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      if (id) next.set("group", id);
+      else next.delete("group");
+      return next;
+    });
+  }
   const q = searchParams.get("g_q") ?? "";
   const page = Math.max(1, Number(searchParams.get("g_page")) || 1);
   const attention = (searchParams.get("g_attention") ?? "all") as
@@ -1042,11 +1050,15 @@ export function GroupedProperties() {
 
   if (selectedId) {
     return (
-      <GroupDetail propertyId={selectedId} onBack={() => setSelectedId(null)} />
+      <GroupDetail
+        key={selectedId}
+        propertyId={selectedId}
+        onBack={() => setSelectedId(null)}
+      />
     );
   }
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="flex items-center gap-2 text-2xl font-semibold">
@@ -1064,7 +1076,7 @@ export function GroupedProperties() {
           </Badge>
         ) : null}
       </div>
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="bg-muted/30 grid gap-4 rounded-xl border p-4 sm:grid-cols-2">
         <label className="grid gap-1 text-sm">
           جست‌وجوی هویت گروه
           <DebouncedFilterInput
@@ -1078,7 +1090,7 @@ export function GroupedProperties() {
         <label className="grid gap-1 text-sm">
           نیاز به توجه
           <select
-            className="border-input bg-background h-10 rounded-md border px-3"
+            className="border-input bg-background h-11 w-full min-w-0 rounded-lg border px-3"
             value={attention}
             onChange={(event) =>
               updateFilter("g_attention", event.target.value)
@@ -1088,67 +1100,87 @@ export function GroupedProperties() {
             <option value="needs_attention">فقط نیازمند توجه</option>
           </select>
         </label>
-        <label className="grid gap-1 text-sm">
-          تغییر گروه‌بندی
-          <select
-            className="border-input bg-background h-10 rounded-md border px-3"
-            value={changed}
-            onChange={(event) => updateFilter("g_changed", event.target.value)}
-          >
-            <option value="all">همه</option>
-            <option value="recent">تغییر اخیر</option>
-          </select>
-        </label>
-        <label className="grid gap-1 text-sm">
-          پایداری گروه
-          <select
-            className="border-input bg-background h-10 rounded-md border px-3"
-            value={stability}
-            onChange={(event) =>
-              updateFilter("g_stability", event.target.value)
-            }
-          >
-            <option value="all">همه</option>
-            <option value="stable">فقط پایدار</option>
-          </select>
-        </label>
-        <label className="grid gap-1 text-sm">
-          وضعیت سنجش
-          <select
-            className="border-input bg-background h-10 rounded-md border px-3"
-            value={measurementStatus}
-            onChange={(event) =>
-              updateFilter("g_measurement", event.target.value)
-            }
-          >
-            <option value="all">همه</option>
-            <option value="measured">سنجیده‌شده</option>
-            <option value="stale">سنجش منقضی</option>
-            <option value="not_measured">سنجیده‌نشده</option>
-          </select>
-        </label>
-        <label className="grid gap-1 text-sm">
-          نسخه سنجش
-          <DebouncedFilterInput
-            key={scoringVersion}
-            value={scoringVersion}
-            placeholder="برای نمونه property-match-v2"
-            onCommit={commitVersion}
-          />
-        </label>
-        <label className="grid gap-1 text-sm">
-          مرتب‌سازی گروه‌ها
-          <select
-            className="border-input bg-background h-10 rounded-md border px-3"
-            value={ordering}
-            onChange={(event) => updateFilter("g_order", event.target.value)}
-          >
-            <option value="needs_attention">نیازمند توجه</option>
-            <option value="recent_change">تغییر اخیر</option>
-            <option value="stability">پایداری</option>
-            <option value="measurement_status">وضعیت سنجش</option>
-          </select>
-        </label>
+      </div>
+      <details
+        className="rounded-xl border p-4"
+        open={
+          changed !== "all" ||
+          stability !== "all" ||
+          measurementStatus !== "all" ||
+          !!scoringVersion ||
+          ordering !== "needs_attention"
+        }
+      >
+        <summary className="cursor-pointer text-sm font-medium">
+          فیلترهای بیشتر و مرتب‌سازی گروه‌ها
+        </summary>
+        <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          <label className="grid gap-1 text-sm">
+            تغییر گروه‌بندی
+            <select
+              className="border-input bg-background h-11 w-full min-w-0 rounded-lg border px-3"
+              value={changed}
+              onChange={(event) =>
+                updateFilter("g_changed", event.target.value)
+              }
+            >
+              <option value="all">همه</option>
+              <option value="recent">تغییر اخیر</option>
+            </select>
+          </label>
+          <label className="grid gap-1 text-sm">
+            پایداری گروه
+            <select
+              className="border-input bg-background h-11 w-full min-w-0 rounded-lg border px-3"
+              value={stability}
+              onChange={(event) =>
+                updateFilter("g_stability", event.target.value)
+              }
+            >
+              <option value="all">همه</option>
+              <option value="stable">فقط پایدار</option>
+            </select>
+          </label>
+          <label className="grid gap-1 text-sm">
+            وضعیت سنجش
+            <select
+              className="border-input bg-background h-11 w-full min-w-0 rounded-lg border px-3"
+              value={measurementStatus}
+              onChange={(event) =>
+                updateFilter("g_measurement", event.target.value)
+              }
+            >
+              <option value="all">همه</option>
+              <option value="measured">سنجیده‌شده</option>
+              <option value="stale">سنجش منقضی</option>
+              <option value="not_measured">سنجیده‌نشده</option>
+            </select>
+          </label>
+          <label className="grid gap-1 text-sm">
+            نسخه سنجش
+            <DebouncedFilterInput
+              key={scoringVersion}
+              value={scoringVersion}
+              placeholder="برای نمونه property-match-v2"
+              onCommit={commitVersion}
+            />
+          </label>
+          <label className="grid gap-1 text-sm">
+            مرتب‌سازی گروه‌ها
+            <select
+              className="border-input bg-background h-11 w-full min-w-0 rounded-lg border px-3"
+              value={ordering}
+              onChange={(event) => updateFilter("g_order", event.target.value)}
+            >
+              <option value="needs_attention">نیازمند توجه</option>
+              <option value="recent_change">تغییر اخیر</option>
+              <option value="stability">پایداری</option>
+              <option value="measurement_status">وضعیت سنجش</option>
+            </select>
+          </label>
+        </div>
+      </details>
+      <div className="flex justify-end">
         <div className="flex items-end">
           <Button
             type="button"

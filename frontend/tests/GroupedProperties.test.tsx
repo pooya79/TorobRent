@@ -42,7 +42,7 @@ test("keeps grouped Property search, filters, sort, and page in the URL", async 
     >
       <MemoryRouter
         initialEntries={[
-          "/operator/catalog-curation?g_q=REF-A&g_attention=needs_attention&g_page=3",
+          "/operator/catalog-curation/groups?g_q=REF-A&g_attention=needs_attention&g_page=3",
         ]}
       >
         <CatalogCurationPage />
@@ -55,6 +55,7 @@ test("keeps grouped Property search, filters, sort, and page in the URL", async 
   expect(requested.get("q")).toBe("REF-A");
   expect(requested.get("attention")).toBe("needs_attention");
   expect(requested.get("page")).toBe("3");
+  await user.click(screen.getByText("فیلترهای بیشتر و مرتب‌سازی گروه‌ها"));
   await user.selectOptions(screen.getByLabelText("وضعیت سنجش"), "stale");
   expect(screen.getByLabelText("وضعیت نشانی گروه‌ها")).toHaveTextContent(
     "g_measurement=stale",
@@ -90,7 +91,7 @@ test("debounces grouped Property search without dropping typed characters", asyn
         new QueryClient({ defaultOptions: { queries: { retry: false } } })
       }
     >
-      <MemoryRouter>
+      <MemoryRouter initialEntries={["/operator/catalog-curation/groups"]}>
         <CatalogCurationPage />
         <LocationState />
       </MemoryRouter>
@@ -289,13 +290,15 @@ test("browses grouped Properties and distinguishes contradictions from missing e
         new QueryClient({ defaultOptions: { queries: { retry: false } } })
       }
     >
-      <MemoryRouter>
+      <MemoryRouter initialEntries={["/operator/catalog-curation/groups"]}>
         <CatalogCurationPage />
       </MemoryRouter>
     </QueryClientProvider>,
   );
 
-  expect(await screen.findByText("نیازمند توجه")).toBeVisible();
+  expect(
+    await screen.findByText("نیازمند توجه", { selector: "div" }),
+  ).toBeVisible();
   expect(await screen.findByText("۳ آگهی")).toBeVisible();
   await user.click(screen.getByRole("button", { name: "بررسی سازگاری" }));
   expect(document.body).not.toHaveTextContent(
@@ -374,7 +377,7 @@ test("shows a not-yet-measured group without raising a false alarm", async () =>
         new QueryClient({ defaultOptions: { queries: { retry: false } } })
       }
     >
-      <MemoryRouter>
+      <MemoryRouter initialEntries={["/operator/catalog-curation/groups"]}>
         <CatalogCurationPage />
       </MemoryRouter>
     </QueryClientProvider>,
@@ -461,7 +464,7 @@ test("shows a low-weight contradiction without calling it reliable", async () =>
         new QueryClient({ defaultOptions: { queries: { retry: false } } })
       }
     >
-      <MemoryRouter>
+      <MemoryRouter initialEntries={["/operator/catalog-curation/groups"]}>
         <CatalogCurationPage />
       </MemoryRouter>
     </QueryClientProvider>,
@@ -669,7 +672,7 @@ test.each([
 
   render(
     <QueryClientProvider client={new QueryClient()}>
-      <MemoryRouter>
+      <MemoryRouter initialEntries={["/operator/catalog-curation/groups"]}>
         <CatalogCurationPage />
       </MemoryRouter>
     </QueryClientProvider>,

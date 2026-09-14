@@ -33,12 +33,16 @@ export function PropertyMatchReview({
   comparison,
   suggestionId,
   onRefresh,
+  guided = false,
 }: {
   comparison: Comparison;
   suggestionId?: string;
   onRefresh: () => void;
+  guided?: boolean;
 }) {
   const queryClient = useQueryClient();
+  const [step, setStep] = useState(0);
+  const [showAllFacts, setShowAllFacts] = useState(false);
   const [survivor, setSurvivor] = useState(comparison.suggested_survivor_id);
   const [survivorConfirmed, setSurvivorConfirmed] = useState(false);
   const [facts, setFacts] = useState<Record<string, string>>(() =>
@@ -254,11 +258,15 @@ export function PropertyMatchReview({
     reject.isPending ||
     snooze.isPending;
   return (
-    <Card>
-      <CardHeader>
+    <Card className="gap-0 overflow-hidden shadow-none">
+      <CardHeader
+        className={
+          guided ? "bg-muted/30 border-b py-4" : "bg-muted/30 border-b pb-6"
+        }
+      >
         <CardTitle>تصمیم تطبیق ملک</CardTitle>
       </CardHeader>
-      <CardContent className="space-y-6">
+      <CardContent className={guided ? "space-y-4 pt-4" : "space-y-6 pt-6"}>
         <p>
           ملک کامل‌تر یا تازه‌تر بررسی‌شده پیشنهاد شده است. انتخاب نهایی با
           شماست.
@@ -290,56 +298,132 @@ export function PropertyMatchReview({
             <AlertDescription>{message}</AlertDescription>
           </Alert>
         )}
-        <fieldset disabled={!claimId || busy} className="min-w-0 space-y-5">
-          <label className="grid gap-2">
-            ملک باقی‌مانده
-            <select
-              className="w-full min-w-0 rounded-md border p-2"
-              value={survivor}
-              onChange={(event) => {
-                setSurvivor(event.target.value);
-                setSurvivorConfirmed(false);
-              }}
-            >
-              {properties.map((id, index) => (
-                <option value={id} key={id}>
-                  ملک {(index + 1).toLocaleString("fa-IR")}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={survivorConfirmed}
-              onChange={(event) => setSurvivorConfirmed(event.target.checked)}
-            />
-            ملک باقی‌مانده را تأیید می‌کنم
-          </label>
-          <div className="grid gap-4 md:grid-cols-2">
-            {comparison.decision_fields.map((field) => (
-              <label key={field.key} className="grid gap-2">
-                {field.label}
-                <select
-                  className="w-full min-w-0 rounded-md border p-2"
-                  value={facts[field.key]}
-                  onChange={(event) =>
-                    setFacts({ ...facts, [field.key]: event.target.value })
-                  }
-                >
-                  <option value="">انتخاب مقدار متعارض</option>
-                  {properties.map((id, index) => (
-                    <option value={id} key={id}>
-                      ملک {(index + 1).toLocaleString("fa-IR")}:{" "}
-                      {factLabel(field.display_values[id])}
-                    </option>
-                  ))}
-                </select>
-              </label>
+        {!claimId ? (
+          <p className="bg-muted/50 text-muted-foreground rounded-xl p-4 text-sm leading-7">
+            ابتدا شواهد را بخوانید. با «شروع بررسی» امکان انتخاب مقادیر و ثبت
+            تصمیم فعال می‌شود.
+          </p>
+        ) : null}
+        {guided ? (
+          <nav aria-label="مراحل ثبت تصمیم" className="grid grid-cols-3 gap-2">
+            {["ملک اصلی", "مشخصات", "تصاویر و تأیید"].map((label, index) => (
+              <Button
+                key={label}
+                variant={step === index ? "secondary" : "ghost"}
+                disabled={busy}
+                aria-current={step === index ? "step" : undefined}
+                className="h-auto min-h-11 whitespace-normal"
+                onClick={() => setStep(index)}
+              >
+                {(index + 1).toLocaleString("fa-IR")}. {label}
+              </Button>
             ))}
-          </div>
-          <div>
-            <p className="mb-3 font-medium">
+          </nav>
+        ) : null}
+        <fieldset
+          disabled={!claimId || busy}
+          className="min-w-0 space-y-6 disabled:opacity-60"
+        >
+          <section
+            className="space-y-4 rounded-xl border p-5"
+            aria-labelledby="survivor-step"
+            hidden={guided && step !== 0}
+          >
+            <h3 id="survivor-step" className="font-semibold">
+              ۱. انتخاب ملک اصلی
+            </h3>
+            <p className="text-muted-foreground text-sm leading-7">
+              آگهی‌ها در این ملک جمع می‌شوند. مشخصات نهایی را در مرحله بعد
+              انتخاب کنید.
+            </p>
+            <label className="grid gap-2">
+              ملک باقی‌مانده
+              <select
+                className="border-input bg-background min-h-11 w-full min-w-0 rounded-lg border px-3 py-2 text-sm"
+                value={survivor}
+                onChange={(event) => {
+                  setSurvivor(event.target.value);
+                  setSurvivorConfirmed(false);
+                }}
+              >
+                {properties.map((id, index) => (
+                  <option value={id} key={id}>
+                    ملک {(index + 1).toLocaleString("fa-IR")}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={survivorConfirmed}
+                onChange={(event) => setSurvivorConfirmed(event.target.checked)}
+              />
+              ملک باقی‌مانده را تأیید می‌کنم
+            </label>
+          </section>
+          <section
+            className="space-y-4 rounded-xl border p-5"
+            aria-labelledby="facts-step"
+            hidden={guided && step !== 1}
+          >
+            <h3 id="facts-step" className="font-semibold">
+              ۲. مشخصات نهایی ملک
+            </h3>
+            <p className="text-muted-foreground text-sm leading-7">
+              برای مشخصات متعارض، مقدار درست را از یکی از دو ملک انتخاب کنید.
+            </p>
+            {guided ? (
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <p className="text-muted-foreground text-sm">
+                  {comparison.decision_fields
+                    .filter((field) => field.conflicting)
+                    .length.toLocaleString("fa-IR")}{" "}
+                  مشخصه متعارض؛ بقیه مقادیر از ملک پیشنهادی انتخاب شده‌اند.
+                </p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setShowAllFacts(!showAllFacts)}
+                >
+                  {showAllFacts ? "فقط مشخصات متعارض" : "نمایش همه مشخصات"}
+                </Button>
+              </div>
+            ) : null}
+            <div className="grid gap-4 md:grid-cols-2">
+              {comparison.decision_fields
+                .filter((field) => !guided || showAllFacts || field.conflicting)
+                .map((field) => (
+                  <label key={field.key} className="grid gap-2">
+                    {field.label}
+                    <select
+                      className="border-input bg-background min-h-11 w-full min-w-0 rounded-lg border px-3 py-2 text-sm"
+                      value={facts[field.key]}
+                      onChange={(event) =>
+                        setFacts({ ...facts, [field.key]: event.target.value })
+                      }
+                    >
+                      <option value="">انتخاب مقدار متعارض</option>
+                      {properties.map((id, index) => (
+                        <option value={id} key={id}>
+                          ملک {(index + 1).toLocaleString("fa-IR")}:{" "}
+                          {factLabel(field.display_values[id])}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                ))}
+            </div>
+          </section>
+          <section
+            className="rounded-xl border p-5"
+            aria-labelledby="images-step"
+            hidden={guided && step !== 2}
+          >
+            <h3 id="images-step" className="mb-3 font-semibold">
+              ۳. تصاویر ملک
+            </h3>
+            <p className="text-muted-foreground mb-4 text-sm leading-7">
               تصاویر هر دو ملک؛ نخستین تصویر انتخاب‌شده تصویر اصلی خواهد بود.
             </p>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -388,8 +472,8 @@ export function PropertyMatchReview({
               انتخاب خالی یعنی ملک باقی‌مانده بدون تصویر نمایش داده می‌شود.
               تصاویر آگهی‌ها و سوابق حفظ می‌شوند.
             </p>
-          </div>
-          {warning && (
+          </section>
+          {warning && (!guided || step === 2) && (
             <Alert variant="destructive">
               <AlertTitle>شواهد ضعیف یا متعارض</AlertTitle>
               <AlertDescription>
@@ -410,10 +494,13 @@ export function PropertyMatchReview({
               </AlertDescription>
             </Alert>
           )}
-          <label className="grid gap-2">
+          <label
+            hidden={guided && step !== 2}
+            className={guided && step !== 2 ? "hidden" : "grid gap-2"}
+          >
             دلیل (اختیاری)
             <textarea
-              className="w-full min-w-0 rounded-md border p-2"
+              className="border-input bg-background min-h-11 w-full min-w-0 rounded-lg border px-3 py-2 text-sm"
               maxLength={4000}
               value={reason}
               onChange={(event) => setReason(event.target.value)}
@@ -436,7 +523,42 @@ export function PropertyMatchReview({
             </label>
           ) : null}
         </fieldset>
-        <div className="flex flex-wrap gap-3">
+        {guided ? (
+          <div className="flex items-center justify-between gap-3">
+            <Button
+              variant="outline"
+              disabled={step === 0 || busy}
+              onClick={() => setStep(step - 1)}
+            >
+              مرحله قبل
+            </Button>
+            <p className="text-muted-foreground text-sm" role="status">
+              مرحله {(step + 1).toLocaleString("fa-IR")} از ۳
+            </p>
+            {step < 2 ? (
+              <Button
+                disabled={
+                  busy ||
+                  !claimId ||
+                  (step === 0 && !survivorConfirmed) ||
+                  (step === 1 && Object.values(facts).some((value) => !value))
+                }
+                onClick={() => setStep(step + 1)}
+              >
+                مرحله بعد
+              </Button>
+            ) : (
+              <span />
+            )}
+          </div>
+        ) : null}
+        <div
+          className={
+            guided && step !== 2
+              ? "hidden"
+              : "bg-muted/30 flex flex-wrap gap-3 rounded-xl border p-4"
+          }
+        >
           <Button
             type="button"
             disabled={

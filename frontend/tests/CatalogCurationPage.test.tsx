@@ -79,11 +79,7 @@ test("keeps suggestion queue controls in the URL and shows safe operational metr
     </QueryClientProvider>,
   );
 
-  expect(
-    await screen.findByRole("heading", { name: "معیارهای عملیاتی" }),
-  ).toBeVisible();
-  expect(await screen.findByText("property-match-v2")).toBeVisible();
-  expect(requested.at(-1)?.get("q")).toBe("REF-7");
+  await waitFor(() => expect(requested.at(-1)?.get("q")).toBe("REF-7"));
   expect(requested.at(-1)?.get("band")).toBe("possible");
   expect(requested.at(-1)?.get("page")).toBe("2");
   await user.click(screen.getByRole("button", { name: "بازگشت مرورگر" }));
@@ -98,6 +94,11 @@ test("keeps suggestion queue controls in the URL and shows safe operational metr
   expect(screen.getByLabelText("وضعیت نشانی")).not.toHaveTextContent(
     "s_page=2",
   );
+  await user.click(screen.getByRole("link", { name: "گزارش عملکرد" }));
+  expect(await screen.findByText("property-match-v2")).toBeVisible();
+  expect(screen.queryByLabelText("جست‌وجوی پیشنهادها")).not.toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "بازگشت مرورگر" }));
+  expect(await screen.findByLabelText("چرخه پیشنهاد")).toHaveValue("rejected");
 });
 
 test("announces loading and error states for both queues and metrics", async () => {
@@ -131,21 +132,24 @@ test("announces loading and error states for both queues and metrics", async () 
     </QueryClientProvider>,
   );
 
-  expect(screen.getByText("در حال دریافت معیارها…")).toHaveAttribute(
-    "role",
-    "status",
-  );
+  const user = userEvent.setup();
   expect(screen.getByText("در حال دریافت پیشنهادها…")).toHaveAttribute(
     "role",
     "status",
   );
+  expect(await screen.findByText("صف پیشنهادها دریافت نشد")).toBeVisible();
+  await user.click(screen.getByRole("link", { name: "ملک‌های گروه‌بندی‌شده" }));
   expect(screen.getByText("در حال دریافت گروه‌ها…")).toHaveAttribute(
     "role",
     "status",
   );
-  expect(await screen.findByText("معیارهای عملیاتی دریافت نشد")).toBeVisible();
-  expect(await screen.findByText("صف پیشنهادها دریافت نشد")).toBeVisible();
   expect(await screen.findByText("گروه‌ها دریافت نشدند")).toBeVisible();
+  await user.click(screen.getByRole("link", { name: "گزارش عملکرد" }));
+  expect(screen.getByText("در حال دریافت معیارها…")).toHaveAttribute(
+    "role",
+    "status",
+  );
+  expect(await screen.findByText("معیارهای عملیاتی دریافت نشد")).toBeVisible();
 });
 
 test("completes a suggested merge without refetching obsolete detail", async () => {
@@ -582,9 +586,7 @@ test("searches, selects exactly two Properties, and explains Match Confidence", 
   expect(
     screen.getByRole("link", { name: "ملک‌های گروه‌بندی‌شده" }),
   ).toBeVisible();
-  expect(
-    await screen.findByRole("heading", { name: "ملک‌های گروه‌بندی‌شده" }),
-  ).toBeVisible();
+  await user.click(screen.getByRole("link", { name: "مقایسه دستی" }));
   expect(
     screen.getByRole("heading", { name: "مقایسه دستی ملک‌ها" }),
   ).toBeVisible();
@@ -608,10 +610,18 @@ test("searches, selects exactly two Properties, and explains Match Confidence", 
   await user.click(screen.getByRole("button", { name: "مقایسه دو ملک" }));
 
   expect(await screen.findByText("۹۲ از ۱۰۰")).toBeVisible();
+  expect(screen.queryByLabelText("جست‌وجوی ملک جاری")).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole("button", { name: "حذف از مقایسه" }),
+  ).not.toBeInTheDocument();
   expect(screen.getByText("احتمال کالیبره‌شده نیست")).toBeVisible();
+  expect(screen.queryByText("35.774100, 51.356200")).not.toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "شواهد تطبیق" }));
   expect(screen.getByText("نسخه امتیازدهی: property-match-v2")).toBeVisible();
   expect(screen.getByText("متراژ")).toBeVisible();
   expect(screen.getByText("+۱۵")).toBeVisible();
+  expect(screen.getByText("Normalized pixels")).not.toBeVisible();
+  await user.click(screen.getByText("تصاویر آگهی", { selector: "span" }));
   expect(screen.getAllByText("SHA-256")).toHaveLength(2);
   expect(screen.getByText("Normalized pixels")).toBeVisible();
   expect(screen.getByText("dHash · فاصله ۴")).toBeVisible();
@@ -620,9 +630,77 @@ test("searches, selects exactly two Properties, and explains Match Confidence", 
   expect(screen.getByAltText("تصویر منبع یک")).toBeVisible();
   expect(screen.getByAltText("تصویر منبع دو")).toBeVisible();
   expect(screen.getByText("+۲۵")).toBeVisible();
+  await user.click(screen.getByRole("button", { name: "مشخصات و منابع" }));
+  expect(screen.getByText("35.774100, 51.356200")).not.toBeVisible();
+  await user.click(screen.getByText(/جزئیات ملک ۱/));
   expect(screen.getByText("35.774100, 51.356200")).toBeVisible();
-  expect(screen.getAllByText("منبع یک · REF-7")).toHaveLength(2);
+  expect(screen.getByText("منبع یک · REF-7")).toBeVisible();
   expect(
     screen.getByText('{"address":"restricted source address"}'),
+  ).toBeVisible();
+  await user.click(
+    screen.getByRole("button", { name: "بازگشت به انتخاب ملک‌ها" }),
+  );
+  expect(screen.getByLabelText("جست‌وجوی ملک جاری")).toHaveValue("REF-7");
+  expect(screen.getAllByRole("button", { name: "حذف از مقایسه" })).toHaveLength(
+    2,
+  );
+  expect(screen.getByText("صفحه ۲ · ۵۲ نتیجه")).toBeVisible();
+  expect(screen.queryByText("۹۲ از ۱۰۰")).not.toBeInTheDocument();
+});
+
+test("opens a bookmarked view and keeps unrelated queues off the page", async () => {
+  const user = userEvent.setup();
+  let suggestionRequests = 0;
+  let groupRequests = 0;
+  server.use(
+    http.get("*/api/v1/operator/catalog-curation/suggestions/", () => {
+      suggestionRequests += 1;
+      return HttpResponse.json({
+        count: 0,
+        results: [],
+        next: null,
+        previous: null,
+      });
+    }),
+    http.get("*/api/v1/operator/catalog-curation/grouped-properties/", () => {
+      groupRequests += 1;
+      return HttpResponse.json({
+        count: 0,
+        results: [],
+        next: null,
+        previous: null,
+      });
+    }),
+  );
+  render(
+    <QueryClientProvider
+      client={
+        new QueryClient({ defaultOptions: { queries: { retry: false } } })
+      }
+    >
+      <MemoryRouter initialEntries={["/operator/catalog-curation/compare"]}>
+        <CatalogCurationPage />
+        <HistoryControls />
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+  expect(
+    screen.getByRole("heading", { name: "مقایسه دستی ملک‌ها" }),
+  ).toBeVisible();
+  expect(screen.getByRole("link", { name: "مقایسه دستی" })).toHaveAttribute(
+    "aria-current",
+    "page",
+  );
+  expect(suggestionRequests).toBe(0);
+  expect(groupRequests).toBe(0);
+  await user.click(screen.getByRole("link", { name: "ملک‌های گروه‌بندی‌شده" }));
+  await screen.findByText("ملک گروه‌بندی‌شده‌ای وجود ندارد.");
+  expect(screen.queryByLabelText("جست‌وجوی ملک جاری")).not.toBeInTheDocument();
+  expect(suggestionRequests).toBe(0);
+  expect(groupRequests).toBe(1);
+  await user.click(screen.getByRole("button", { name: "بازگشت مرورگر" }));
+  expect(
+    screen.getByRole("heading", { name: "مقایسه دستی ملک‌ها" }),
   ).toBeVisible();
 });

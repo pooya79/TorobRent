@@ -223,7 +223,15 @@ function SuggestionDetail({
 
 export function PropertyMatchSuggestions() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const selectedId = searchParams.get("suggestion");
+  function setSelectedId(id: string | null) {
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      if (id) next.set("suggestion", id);
+      else next.delete("suggestion");
+      return next;
+    });
+  }
   const query = searchParams.get("s_q") ?? "";
   const [draftState, setDraftState] = useState({ query, value: query });
   const draft = draftState.query === query ? draftState.value : query;
@@ -267,6 +275,7 @@ export function PropertyMatchSuggestions() {
   if (selectedId) {
     return (
       <SuggestionDetail
+        key={selectedId}
         suggestionId={selectedId}
         onBack={() => setSelectedId(null)}
       />
@@ -274,7 +283,7 @@ export function PropertyMatchSuggestions() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="flex items-center gap-2 text-2xl font-semibold">
@@ -292,10 +301,14 @@ export function PropertyMatchSuggestions() {
           </Badge>
         ) : null}
       </div>
-      <form onSubmit={submitSearch} role="search" className="flex gap-2">
+      <form
+        onSubmit={submitSearch}
+        role="search"
+        className="flex flex-col gap-2 sm:flex-row"
+      >
         <input
           type="search"
-          className="border-input bg-background h-10 min-w-0 flex-1 rounded-md border px-3"
+          className="border-input bg-background h-11 min-h-11 min-w-0 rounded-md border px-3 sm:flex-1"
           aria-label="جست‌وجوی پیشنهادها"
           placeholder="شناسه ملک، آگهی، منبع، محله یا شناسه منبع"
           value={draft}
@@ -305,11 +318,11 @@ export function PropertyMatchSuggestions() {
         />
         <Button type="submit">جست‌وجوی پیشنهادها</Button>
       </form>
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="bg-muted/30 grid gap-4 rounded-xl border p-4 sm:grid-cols-2 xl:grid-cols-3">
         <label className="grid gap-1 text-sm">
           نوار اطمینان
           <select
-            className="border-input bg-background h-10 rounded-md border px-3"
+            className="border-input bg-background h-11 w-full min-w-0 rounded-lg border px-3"
             value={band}
             onChange={(event) => updateFilter("s_band", event.target.value)}
           >
@@ -322,7 +335,7 @@ export function PropertyMatchSuggestions() {
         <label className="grid gap-1 text-sm">
           مسئول بررسی
           <select
-            className="border-input bg-background h-10 rounded-md border px-3"
+            className="border-input bg-background h-11 w-full min-w-0 rounded-lg border px-3"
             value={claim}
             onChange={(event) => updateFilter("s_claim", event.target.value)}
           >
@@ -335,7 +348,7 @@ export function PropertyMatchSuggestions() {
         <label className="grid gap-1 text-sm">
           چرخه پیشنهاد
           <select
-            className="border-input bg-background h-10 rounded-md border px-3"
+            className="border-input bg-background h-11 w-full min-w-0 rounded-lg border px-3"
             value={state}
             onChange={(event) => updateFilter("s_state", event.target.value)}
           >
@@ -347,85 +360,132 @@ export function PropertyMatchSuggestions() {
             <option value="all">همه</option>
           </select>
         </label>
-        <label className="grid gap-1 text-sm">
-          سن پیشنهاد
-          <select
-            className="border-input bg-background h-10 rounded-md border px-3"
-            value={age}
-            onChange={(event) => updateFilter("s_age", event.target.value)}
-          >
-            <option value="all">همه</option>
-            <option value="older_than_24_hours">بیش از ۲۴ ساعت</option>
-            <option value="older_than_7_days">بیش از ۷ روز</option>
-          </select>
-        </label>
-        <label className="grid gap-1 text-sm">
-          تعارض کار خود
-          <select
-            className="border-input bg-background h-10 rounded-md border px-3"
-            value={ownWork}
-            onChange={(event) => updateFilter("s_own", event.target.value)}
-          >
-            <option value="all">همه</option>
-            <option value="clear">بدون تعارض</option>
-            <option value="conflict">دارای تعارض</option>
-          </select>
-        </label>
-        <label className="grid gap-1 text-sm">
-          مرتب‌سازی
-          <select
-            className="border-input bg-background h-10 rounded-md border px-3"
-            value={ordering}
-            onChange={(event) => updateFilter("s_order", event.target.value)}
-          >
-            <option value="confidence">بیشترین اطمینان</option>
-            <option value="oldest">قدیمی‌ترین</option>
-            <option value="newest_evidence">جدیدترین شواهد</option>
-            <option value="status">وضعیت مرتبط</option>
-          </select>
-        </label>
       </div>
+      <details
+        className="rounded-xl border p-4"
+        open={age !== "all" || ownWork !== "all" || ordering !== "confidence"}
+      >
+        <summary className="cursor-pointer text-sm font-medium">
+          فیلترهای بیشتر و مرتب‌سازی
+        </summary>
+        <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          <label className="grid gap-1 text-sm">
+            سن پیشنهاد
+            <select
+              className="border-input bg-background h-11 w-full min-w-0 rounded-lg border px-3"
+              value={age}
+              onChange={(event) => updateFilter("s_age", event.target.value)}
+            >
+              <option value="all">همه</option>
+              <option value="older_than_24_hours">بیش از ۲۴ ساعت</option>
+              <option value="older_than_7_days">بیش از ۷ روز</option>
+            </select>
+          </label>
+          <label className="grid gap-1 text-sm">
+            تعارض کار خود
+            <select
+              className="border-input bg-background h-11 w-full min-w-0 rounded-lg border px-3"
+              value={ownWork}
+              onChange={(event) => updateFilter("s_own", event.target.value)}
+            >
+              <option value="all">همه</option>
+              <option value="clear">بدون تعارض</option>
+              <option value="conflict">دارای تعارض</option>
+            </select>
+          </label>
+          <label className="grid gap-1 text-sm">
+            مرتب‌سازی
+            <select
+              className="border-input bg-background h-11 w-full min-w-0 rounded-lg border px-3"
+              value={ordering}
+              onChange={(event) => updateFilter("s_order", event.target.value)}
+            >
+              <option value="confidence">بیشترین اطمینان</option>
+              <option value="oldest">قدیمی‌ترین</option>
+              <option value="newest_evidence">جدیدترین شواهد</option>
+              <option value="status">وضعیت مرتبط</option>
+            </select>
+          </label>
+        </div>{" "}
+      </details>
       {suggestions.isPending ? (
         <p role="status">در حال دریافت پیشنهادها…</p>
       ) : null}
       {suggestions.isError ? (
         <Alert variant="destructive">
           <AlertTitle>صف پیشنهادها دریافت نشد</AlertTitle>
-          <AlertDescription>دوباره تلاش کنید.</AlertDescription>
+          <AlertDescription>
+            <Button
+              variant="outline"
+              disabled={suggestions.isFetching}
+              onClick={() => void suggestions.refetch()}
+            >
+              تلاش دوباره
+            </Button>
+          </AlertDescription>
         </Alert>
       ) : null}
       {suggestions.data?.results.length === 0 ? (
         <p className="text-muted-foreground rounded-xl border p-6 text-center">
-          پیشنهاد محتمل و بدون مسئولی وجود ندارد.
+          پیشنهادی با این فیلترها پیدا نشد.
         </p>
       ) : null}
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid gap-4 xl:grid-cols-2">
         {suggestions.data?.results.map((suggestion) => (
-          <Card key={suggestion.id} className="gap-3 shadow-none">
+          <Card
+            key={suggestion.id}
+            className="hover:border-primary/40 gap-4 overflow-hidden border shadow-none transition-colors"
+          >
             <CardHeader>
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  {suggestion.properties.map((property) => (
-                    <CardTitle
-                      key={property.id}
-                      className="mb-1 text-base last:mb-0"
-                    >
-                      {property.title}
-                    </CardTitle>
+              <div className="flex flex-col-reverse items-start justify-between gap-3 sm:flex-row">
+                <div className="min-w-0 flex-1 space-y-3">
+                  {suggestion.properties.map((property, index) => (
+                    <div key={property.id} className="flex items-start gap-3">
+                      <span className="bg-muted text-muted-foreground flex size-8 shrink-0 items-center justify-center rounded-lg text-sm font-medium">
+                        {(index + 1).toLocaleString("fa-IR")}
+                      </span>
+                      <div className="min-w-0">
+                        <CardTitle className="text-base leading-7">
+                          {property.title}
+                        </CardTitle>
+                        <p className="text-muted-foreground mt-1 text-xs leading-6">
+                          {[property.city, property.neighborhood]
+                            .filter(Boolean)
+                            .join("، ") || "مکان نامشخص"}{" "}
+                          · {property.area_sqm?.toLocaleString("fa-IR") ?? "—"}{" "}
+                          متر
+                        </p>
+                      </div>
+                    </div>
                   ))}
                 </div>
-                <Badge>{suggestion.score.toLocaleString("fa-IR")} از ۱۰۰</Badge>
+                <Badge
+                  variant={
+                    suggestion.band === "likely" ? "default" : "secondary"
+                  }
+                  className="shrink-0 tabular-nums"
+                >
+                  {suggestion.score.toLocaleString("fa-IR")} از ۱۰۰
+                </Badge>
               </div>
               <p className="text-muted-foreground text-xs">
-                {bandLabels[suggestion.band]} · قدیمی‌ترین مورد ابتدا در امتیاز
-                برابر
+                {bandLabels[suggestion.band]}
               </p>
             </CardHeader>
             <CardContent className="space-y-3">
               <ul className="flex flex-wrap gap-2">
                 {suggestion.evidence_summary.slice(0, 3).map((evidence) => (
                   <li key={`${evidence.label}:${evidence.classification}`}>
-                    <Badge variant="outline">{evidence.label}</Badge>
+                    <Badge
+                      variant={
+                        evidence.classification === "contradiction" ||
+                        evidence.classification === "blocker"
+                          ? "destructive"
+                          : "outline"
+                      }
+                    >
+                      {evidence.label}
+                    </Badge>
                   </li>
                 ))}
               </ul>

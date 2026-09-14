@@ -95,7 +95,7 @@ test("searches for two Properties and completes the manual approval path", async
         new QueryClient({ defaultOptions: { queries: { retry: false } } })
       }
     >
-      <MemoryRouter>
+      <MemoryRouter initialEntries={["/operator/catalog-curation/compare"]}>
         <CatalogCurationPage />
       </MemoryRouter>
     </QueryClientProvider>,
@@ -107,15 +107,23 @@ test("searches for two Properties and completes the manual approval path", async
   await user.click(choices[0]!);
   await user.click(choices[1]!);
   await user.click(screen.getByRole("button", { name: "مقایسه دو ملک" }));
-  await screen.findByRole("button", { name: "شروع بررسی" });
-  expect(
-    screen.getByRole("button", { name: "تأیید و گروه‌بندی" }),
-  ).toBeDisabled();
+  await user.click(
+    await screen.findByRole("button", { name: "ادامه برای ثبت تصمیم" }),
+  );
+  expect(screen.getByRole("button", { name: "مرحله بعد" })).toBeDisabled();
   await user.click(screen.getByRole("button", { name: "شروع بررسی" }));
   await screen.findByRole("button", { name: "تمدید بررسی" });
   expect(screen.getByLabelText("ملک باقی‌مانده")).toHaveValue(right);
   await user.click(screen.getByLabelText("ملک باقی‌مانده را تأیید می‌کنم"));
+  await user.click(screen.getByRole("button", { name: "مرحله بعد" }));
+  expect(screen.getByLabelText("ملک باقی‌مانده")).not.toBeVisible();
   await user.selectOptions(screen.getByLabelText("متراژ"), left);
+  await user.click(screen.getByRole("button", { name: "شواهد تطبیق" }));
+  expect(screen.getByLabelText("متراژ")).not.toBeVisible();
+  await user.click(screen.getByRole("button", { name: "ثبت تصمیم" }));
+  expect(screen.getByLabelText("متراژ")).toHaveValue(left);
+  expect(screen.getByRole("button", { name: "تمدید بررسی" })).toBeVisible();
+  await user.click(screen.getByRole("button", { name: "مرحله بعد" }));
   await user.click(screen.getByLabelText("انتخاب تصویر ۲"));
   await user.click(screen.getByLabelText("انتخاب تصاویر را تأیید می‌کنم"));
   expect(screen.getByRole("alert")).toHaveTextContent("شواهد ضعیف یا متعارض");
