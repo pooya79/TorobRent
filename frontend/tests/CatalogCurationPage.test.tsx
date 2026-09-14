@@ -148,8 +148,10 @@ test("announces loading and error states for both queues and metrics", async () 
   expect(await screen.findByText("گروه‌ها دریافت نشدند")).toBeVisible();
 });
 
-test("browses the default Likely suggestion queue and opens current evidence", async () => {
+test("completes a suggested merge without refetching obsolete detail", async () => {
   const user = userEvent.setup();
+  let suggestionListRequests = 0;
+  let suggestionDetailRequests = 0;
   const replacementId = "99999999-9999-4999-8999-999999999999";
   const suggestion = {
     id: "33333333-3333-4333-8333-333333333333",
@@ -247,7 +249,7 @@ test("browses the default Likely suggestion queue and opens current evidence", a
                   name: "منبع ب",
                   domain: "b.example",
                 },
-                source_reference: "REF-B",
+                source_reference: "fa5051b7-8432-4a77-8c5a-ab1210aa2ecd",
               },
             ]
           : [],
@@ -267,6 +269,7 @@ test("browses the default Likely suggestion queue and opens current evidence", a
     http.get(
       "*/api/v1/operator/catalog-curation/suggestions/",
       ({ request }) => {
+        suggestionListRequests += 1;
         const params = new URL(request.url).searchParams;
         expect(params.get("band")).toBe("likely");
         expect(params.get("claim")).toBe("unclaimed");
@@ -286,12 +289,14 @@ test("browses the default Likely suggestion queue and opens current evidence", a
     ),
     http.get(
       `*/api/v1/operator/catalog-curation/suggestions/${suggestion.id}/`,
-      () =>
-        HttpResponse.json({
+      () => {
+        suggestionDetailRequests += 1;
+        return HttpResponse.json({
           ...suggestion,
           id: replacementId,
           comparison,
-        }),
+        });
+      },
     ),
     http.post(
       "*/api/v1/operator/catalog-curation/claim/",
@@ -310,22 +315,11 @@ test("browses the default Likely suggestion queue and opens current evidence", a
         });
       },
     ),
-    http.post(
-      `*/api/v1/operator/catalog-curation/suggestions/${replacementId}/reject/`,
-      async ({ request }) => {
-        expect(await request.json()).toEqual({
-          revision: comparison.revision,
-          claim_id: "44444444-4444-4444-8444-444444444444",
-          reason: "",
-        });
-        return HttpResponse.json(
-          {
-            id: "66666666-6666-4666-8666-666666666666",
-            outcome: "not_same_property",
-          },
-          { status: 201 },
-        );
-      },
+    http.post("*/api/v1/operator/catalog-curation/approve/", () =>
+      HttpResponse.json(
+        { id: "66666666-6666-4666-8666-666666666666", survivor_id: secondId },
+        { status: 201 },
+      ),
     ),
   );
   render(
@@ -351,15 +345,18 @@ test("browses the default Likely suggestion queue and opens current evidence", a
   expect(screen.getByText(/منبع ب.*منبع ج/)).toBeVisible();
   expect(screen.getByText("متراژ متناقض")).toBeVisible();
   expect(screen.getByText(/آگهی‌های متصل غیرمستقیم/)).toBeVisible();
-  expect(screen.getByText(/منبع ب.*REF-B/)).toBeVisible();
+  expect(screen.getByText("منبع ب")).toBeVisible();
+  expect(screen.queryByText(/fa5051b7-8432-4a77-8c5a-ab1210aa2ecd/)).toBeNull();
   expect(
     screen.getByText(/نبود شواهد مستقیم به معنی تناقض نیست/),
   ).toBeVisible();
   await user.click(screen.getByRole("button", { name: "شروع بررسی" }));
-  await user.click(
-    await screen.findByRole("button", { name: "این دو ملک متفاوت‌اند" }),
-  );
-  expect(await screen.findByText("تصمیم متفاوت بودن ثبت شد.")).toBeVisible();
+  await user.click(screen.getByLabelText("ملک باقی‌مانده را تأیید می‌کنم"));
+  await user.click(screen.getByLabelText("انتخاب تصاویر را تأیید می‌کنم"));
+  await user.click(screen.getByRole("button", { name: "تأیید و گروه‌بندی" }));
+  expect(await screen.findByText("گروه‌بندی ثبت شد.")).toBeVisible();
+  await waitFor(() => expect(suggestionListRequests).toBe(2));
+  expect(suggestionDetailRequests).toBe(1);
 });
 
 test("searches, selects exactly two Properties, and explains Match Confidence", async () => {

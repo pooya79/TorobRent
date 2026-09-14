@@ -298,6 +298,9 @@ test("browses grouped Properties and distinguishes contradictions from missing e
   expect(await screen.findByText("نیازمند توجه")).toBeVisible();
   expect(await screen.findByText("۳ آگهی")).toBeVisible();
   await user.click(screen.getByRole("button", { name: "بررسی سازگاری" }));
+  expect(document.body).not.toHaveTextContent(
+    /[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/i,
+  );
   expect(await screen.findByText("قوی‌ترین جفت سنجیده‌شده")).toBeVisible();
   expect(screen.getByText("ضعیف‌ترین جفت سنجیده‌شده")).toBeVisible();
   expect(screen.getByText("تناقض‌های صریح")).toBeVisible();
@@ -483,6 +486,8 @@ test.each([
   const imageId = "88888888-8888-4888-8888-888888888888";
   let confirmedBody: unknown;
   let claimCalls = 0;
+  let groupListRequests = 0;
+  let groupDetailRequests = 0;
   const summary = {
     id: propertyId,
     title: "آپارتمان در سعادت‌آباد",
@@ -509,6 +514,7 @@ test.each([
     selected_listings: [
       {
         ...listing(listingB, "منبع ب", "B-1"),
+        provenance_note: "Extraction Run 55555555-5555-4555-8555-555555555555",
         state: "published",
         external_url: "https://b.example/B-1",
         direct_phone: "",
@@ -594,18 +600,20 @@ test.each([
     claim: null,
   };
   server.use(
-    http.get("*/api/v1/operator/catalog-curation/grouped-properties/", () =>
-      HttpResponse.json({
+    http.get("*/api/v1/operator/catalog-curation/grouped-properties/", () => {
+      groupListRequests += 1;
+      return HttpResponse.json({
         count: 1,
         next: null,
         previous: null,
         results: [summary],
-      }),
-    ),
+      });
+    }),
     http.get(
       `*/api/v1/operator/catalog-curation/grouped-properties/${propertyId}/`,
-      () =>
-        HttpResponse.json({
+      () => {
+        groupDetailRequests += 1;
+        return HttpResponse.json({
           ...summary,
           property: {
             id: propertyId,
@@ -626,7 +634,8 @@ test.each([
           approved_connections: [],
           indirect_only_connections: [],
           measurement: null,
-        }),
+        });
+      },
     ),
     http.post(
       `*/api/v1/operator/catalog-curation/grouped-properties/${propertyId}/partitions/preview/`,
@@ -671,6 +680,9 @@ test.each([
   );
   await user.click(screen.getByLabelText("انتخاب آگهی منبع ب B-1"));
   await user.click(screen.getByRole("button", { name: "پیش‌نمایش تفکیک" }));
+  expect(document.body).not.toHaveTextContent(
+    /[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/i,
+  );
   expect(
     await screen.findByText("۲ علاقه‌مندی روی ملک باقی می‌ماند."),
   ).toBeVisible();
@@ -680,11 +692,10 @@ test.each([
   expect(screen.queryByText("published")).not.toBeInTheDocument();
   expect(screen.getByText("ودیعه: ۱ ریال، اجاره ماهانه: ۲ ریال")).toBeVisible();
   expect(screen.getByText("گروه‌بندی پیشین", { exact: false })).toBeVisible();
-  expect(screen.getByText(/suggestion/)).toBeVisible();
-  expect(
-    screen.getByRole("img", { name: `تصویر پیشنهادی ملک ${imageId}` }),
-  ).toBeVisible();
-  await user.click(screen.getByLabelText(`انتخاب تصویر ملک ${imageId}`));
+  expect(screen.getByText("پیشنهاد در انتظار ۱")).toBeVisible();
+  expect(screen.getByRole("img", { name: "تصویر پیشنهادی ۱" })).toBeVisible();
+  expect(screen.queryByText(imageId, { exact: false })).not.toBeInTheDocument();
+  await user.click(screen.getByLabelText("انتخاب تصویر پیشنهادی ۱"));
   if (mode === "new") {
     await user.click(
       screen.getByLabelText("ساخت ملک تازه با واقعیت‌های نمایش‌داده‌شده"),
@@ -710,6 +721,8 @@ test.each([
   await user.click(screen.getByLabelText("تصاویر ملک جداشده را تأیید می‌کنم"));
   await user.click(screen.getByRole("button", { name: "تأیید تفکیک" }));
   expect(await screen.findByText("تفکیک ثبت شد.")).toBeVisible();
+  await waitFor(() => expect(groupListRequests).toBe(2));
+  expect(groupDetailRequests).toBe(1);
   expect(confirmedBody).toMatchObject({
     listing_ids: [listingB],
     claim_id: claimId,

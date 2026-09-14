@@ -6,12 +6,25 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { api } from "@/lib/api/client";
 import type { components } from "@/lib/api/schema";
+import { isCatalogCurationListQuery } from "./queries";
 
 type Comparison = components["schemas"]["PropertyComparison"];
 
+const uuidPattern =
+  /\b[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\b/gi;
+
+function operatorFacingText(value: string) {
+  if (/^Extraction Run\s+/i.test(value) && uuidPattern.test(value)) {
+    uuidPattern.lastIndex = 0;
+    return "اجرای استخراج";
+  }
+  uuidPattern.lastIndex = 0;
+  return value.replace(uuidPattern, "شناسه داخلی");
+}
+
 function factLabel(value: unknown): string {
   if (value == null || value === "") return "نامشخص";
-  if (typeof value === "string") return value;
+  if (typeof value === "string") return operatorFacingText(value);
   if (typeof value === "number") return value.toLocaleString("fa-IR");
   return JSON.stringify(value);
 }
@@ -122,7 +135,8 @@ export function PropertyMatchReview({
       void queryClient.invalidateQueries({ queryKey: ["catalog"] });
       if (suggestionId) {
         void queryClient.invalidateQueries({
-          queryKey: ["catalog-curation", "suggestions"],
+          predicate: (query) =>
+            isCatalogCurationListQuery(query.queryKey, "suggestions"),
         });
       }
       setCompleted({
@@ -160,7 +174,8 @@ export function PropertyMatchReview({
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({
-        queryKey: ["catalog-curation", "suggestions"],
+        predicate: (query) =>
+          isCatalogCurationListQuery(query.queryKey, "suggestions"),
       });
       setCompleted({ outcome: "not_same_property" });
       setClaimId(null);
@@ -199,7 +214,8 @@ export function PropertyMatchReview({
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({
-        queryKey: ["catalog-curation", "suggestions"],
+        predicate: (query) =>
+          isCatalogCurationListQuery(query.queryKey, "suggestions"),
       });
       setCompleted({ outcome: "snoozed" });
       setClaimId(null);
@@ -287,7 +303,7 @@ export function PropertyMatchReview({
             >
               {properties.map((id, index) => (
                 <option value={id} key={id}>
-                  ملک {index + 1} — {id}
+                  ملک {(index + 1).toLocaleString("fa-IR")}
                 </option>
               ))}
             </select>
@@ -314,7 +330,8 @@ export function PropertyMatchReview({
                   <option value="">انتخاب مقدار متعارض</option>
                   {properties.map((id, index) => (
                     <option value={id} key={id}>
-                      ملک {index + 1}: {factLabel(field.display_values[id])}
+                      ملک {(index + 1).toLocaleString("fa-IR")}:{" "}
+                      {factLabel(field.display_values[id])}
                     </option>
                   ))}
                 </select>

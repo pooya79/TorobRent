@@ -14,6 +14,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
   groupedPropertiesQuery,
   groupedPropertyDetailQuery,
+  isCatalogCurationListQuery,
 } from "@/features/catalog-curation/queries";
 import {
   propertyTypeLabels,
@@ -98,6 +99,29 @@ const inheritedIdentityKeys = new Set([
   "neighborhood_id",
 ]);
 
+const uuidPattern =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const uuidInTextPattern =
+  /\b[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\b/gi;
+
+function operatorFacingText(value: string) {
+  if (/^Extraction Run\s+/i.test(value) && uuidInTextPattern.test(value)) {
+    uuidInTextPattern.lastIndex = 0;
+    return "اجرای استخراج";
+  }
+  uuidInTextPattern.lastIndex = 0;
+  return value.replace(uuidInTextPattern, "شناسه داخلی");
+}
+
+function listingLabel(listing: {
+  source: { name: string };
+  source_reference: string;
+}) {
+  return listing.source_reference && !uuidPattern.test(listing.source_reference)
+    ? `${listing.source.name} · ${listing.source_reference}`
+    : listing.source.name;
+}
+
 function displayFact(value: unknown, key?: string): string {
   if (value == null || value === "") return "—";
   if (key && inheritedIdentityKeys.has(key)) {
@@ -113,7 +137,7 @@ function displayFact(value: unknown, key?: string): string {
   if (key && featureFactKeys.has(key) && typeof value === "string") {
     return featureStateLabels[value] ?? value;
   }
-  if (typeof value === "string") return value;
+  if (typeof value === "string") return operatorFacingText(value);
   if (typeof value === "number") return value.toLocaleString("fa-IR");
   if (typeof value === "boolean") return value ? "بله" : "خیر";
   if (Array.isArray(value)) {
@@ -187,9 +211,7 @@ function DebouncedFilterInput({
 function ListingEvidence({ listing }: { listing: PartitionListing }) {
   return (
     <article className="space-y-2 rounded-md border p-2 text-sm">
-      <p className="font-medium">
-        {listing.source.name} · {listing.source_reference || "بدون شناسه"}
-      </p>
+      <p className="font-medium">{listingLabel(listing)}</p>
       <dl className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
         <dt className="text-muted-foreground">وضعیت</dt>
         <dd>{listingStateLabels[listing.state] ?? listing.state}</dd>
@@ -204,7 +226,11 @@ function ListingEvidence({ listing }: { listing: PartitionListing }) {
         <dt className="text-muted-foreground">ادعاهای منبع</dt>
         <dd>{displayFact(listing.source_claims)}</dd>
         <dt className="text-muted-foreground">منشا شواهد</dt>
-        <dd>{listing.provenance_note || "—"}</dd>
+        <dd>
+          {listing.provenance_note
+            ? operatorFacingText(listing.provenance_note)
+            : "—"}
+        </dd>
       </dl>
     </article>
   );
@@ -213,9 +239,11 @@ function ListingEvidence({ listing }: { listing: PartitionListing }) {
 function PairSummary({
   title,
   pair,
+  listingLabels,
 }: {
   title: string;
   pair: GroupPair | null;
+  listingLabels: ReadonlyMap<string, string>;
 }) {
   return (
     <div className="rounded-xl border p-3">
@@ -223,7 +251,9 @@ function PairSummary({
       {pair ? (
         <p className="text-muted-foreground mt-1 text-sm">
           {pair.score?.toLocaleString("fa-IR") ?? "—"} از ۱۰۰ · آگهی‌های{" "}
-          <span dir="ltr">{pair.listing_ids.join(" / ")}</span>
+          {pair.listing_ids
+            .map((id) => listingLabels.get(id) ?? "آگهی ثبت‌شده")
+            .join(" / ")}
         </p>
       ) : (
         <p className="text-muted-foreground mt-1 text-sm">
@@ -330,7 +360,8 @@ function PartitionPanel({
     onSuccess() {
       setCompleted(true);
       void queryClient.invalidateQueries({
-        queryKey: ["catalog-curation", "grouped-properties"],
+        predicate: (query) =>
+          isCatalogCurationListQuery(query.queryKey, "grouped-properties"),
       });
     },
   });
@@ -373,7 +404,8 @@ function PartitionPanel({
         </p>
         <div className="space-y-2">
           {listings.map((listing) => {
-            const label = `انتخاب آگهی ${listing.source.name} ${listing.source_reference || "بدون شناسه"}`;
+            const displayLabel = listingLabel(listing);
+            const label = `انتخاب آگهی ${displayLabel.replace(" · ", " ")}`;
             return (
               <div
                 key={listing.id}
@@ -388,8 +420,7 @@ function PartitionPanel({
                   }
                 />
                 <Label htmlFor={`partition-${listing.id}`}>
-                  {listing.source.name} ·{" "}
-                  {listing.source_reference || "بدون شناسه"}
+                  {displayLabel}
                 </Label>
               </div>
             );
@@ -459,14 +490,9 @@ function PartitionPanel({
               <div className="rounded-lg border p-3">
                 <p className="mb-2 text-sm font-medium">گراف اتصال</p>
                 {preview.approved_connections.length ? (
-                  preview.approved_connections.map((connection) => (
-                    <p
-                      key={connection.decision_id}
-                      className="text-xs break-all"
-                      dir="ltr"
-                    >
-                      {connection.left_property_id} →{" "}
-                      {connection.right_property_id}
+                  preview.approved_connections.map((connection, index) => (
+                    <p key={connection.decision_id} className="text-xs">
+                      پیوند تأییدشده {(index + 1).toLocaleString("fa-IR")}
                     </p>
                   ))
                 ) : (
@@ -491,9 +517,9 @@ function PartitionPanel({
               <div className="rounded-lg border p-3">
                 <p className="mb-2 text-sm font-medium">پیشنهادهای در انتظار</p>
                 {preview.pending_suggestions.length ? (
-                  preview.pending_suggestions.map((suggestion, index) => (
-                    <p key={index} className="text-xs break-all">
-                      {displayFact(suggestion)}
+                  preview.pending_suggestions.map((_, index) => (
+                    <p key={index} className="text-xs">
+                      پیشنهاد در انتظار {(index + 1).toLocaleString("fa-IR")}
                     </p>
                   ))
                 ) : (
@@ -626,32 +652,35 @@ function PartitionPanel({
                 </div>
               </div>
             ) : null}
-            {preview.property_images.map((item) => (
-              <div
-                key={item.id}
-                className="flex items-center gap-3 rounded-lg border p-2"
-              >
-                <Checkbox
-                  id={`partition-image-${item.id}`}
-                  checked={imageIds.includes(item.id)}
-                  onCheckedChange={(value) =>
-                    setImageIds((current) =>
-                      value === true
-                        ? [...current, item.id]
-                        : current.filter((id) => id !== item.id),
-                    )
-                  }
-                />
-                <img
-                  src={item.url}
-                  alt={`تصویر پیشنهادی ملک ${item.id}`}
-                  className="h-20 w-28 rounded-md object-cover"
-                />
-                <Label htmlFor={`partition-image-${item.id}`}>
-                  انتخاب تصویر ملک {item.id}
-                </Label>
-              </div>
-            ))}
+            {preview.property_images.map((item, index) => {
+              const imageNumber = (index + 1).toLocaleString("fa-IR");
+              return (
+                <div
+                  key={item.id}
+                  className="flex items-center gap-3 rounded-lg border p-2"
+                >
+                  <Checkbox
+                    id={`partition-image-${item.id}`}
+                    checked={imageIds.includes(item.id)}
+                    onCheckedChange={(value) =>
+                      setImageIds((current) =>
+                        value === true
+                          ? [...current, item.id]
+                          : current.filter((id) => id !== item.id),
+                      )
+                    }
+                  />
+                  <img
+                    src={item.url}
+                    alt={`تصویر پیشنهادی ${imageNumber}`}
+                    className="h-20 w-28 rounded-md object-cover"
+                  />
+                  <Label htmlFor={`partition-image-${item.id}`}>
+                    انتخاب تصویر پیشنهادی {imageNumber}
+                  </Label>
+                </div>
+              );
+            })}
             {!claimId ? (
               <Button
                 type="button"
@@ -748,6 +777,12 @@ function GroupDetail({
   onBack: () => void;
 }) {
   const detail = useQuery(groupedPropertyDetailQuery(propertyId));
+  const listingLabels = new Map(
+    detail.data?.property.listings.map((listing) => [
+      listing.id,
+      listingLabel(listing),
+    ]) ?? [],
+  );
   const missingCount =
     detail.data?.measurement?.pair_measurements.filter(
       (pair) => pair.status === "missing_evidence",
@@ -792,10 +827,12 @@ function GroupDetail({
                 <PairSummary
                   title="قوی‌ترین جفت سنجیده‌شده"
                   pair={detail.data.measurement.strongest_pair}
+                  listingLabels={listingLabels}
                 />
                 <PairSummary
                   title="ضعیف‌ترین جفت سنجیده‌شده"
                   pair={detail.data.measurement.weakest_pair}
+                  listingLabels={listingLabels}
                 />
               </div>
               <Card className="shadow-none">
@@ -857,13 +894,16 @@ function GroupDetail({
                 {detail.data.property.exact_location.longitude ?? "—"}
               </p>
               {detail.data.property.exact_location.operator_notes ? (
-                <p>{detail.data.property.exact_location.operator_notes}</p>
+                <p>
+                  {operatorFacingText(
+                    detail.data.property.exact_location.operator_notes,
+                  )}
+                </p>
               ) : null}
               <ul className="space-y-2">
                 {detail.data.property.listings.map((listing) => (
                   <li key={listing.id} className="rounded-lg border p-3">
-                    {listing.source.name} ·{" "}
-                    {listing.source_reference || "بدون شناسه منبع"}
+                    {listingLabel(listing)}
                   </li>
                 ))}
               </ul>
@@ -887,14 +927,9 @@ function GroupDetail({
                   )}{" "}
                   اتصال فقط غیرمستقیم
                 </p>
-                {detail.data.approved_connections.map((connection) => (
-                  <p
-                    key={connection.decision_id}
-                    className="text-xs break-all"
-                    dir="ltr"
-                  >
-                    {connection.left_property_id} →{" "}
-                    {connection.right_property_id}
+                {detail.data.approved_connections.map((connection, index) => (
+                  <p key={connection.decision_id} className="text-xs">
+                    پیوند تأییدشده {(index + 1).toLocaleString("fa-IR")}
                   </p>
                 ))}
               </CardContent>

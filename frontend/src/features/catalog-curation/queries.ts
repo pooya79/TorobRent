@@ -2,6 +2,20 @@ import { queryOptions } from "@tanstack/react-query";
 
 import { api } from "@/lib/api/client";
 
+type CatalogCurationListResource = "grouped-properties" | "suggestions";
+
+export function isCatalogCurationListQuery(
+  queryKey: readonly unknown[],
+  resource: CatalogCurationListResource,
+) {
+  return (
+    queryKey[0] === "catalog-curation" &&
+    queryKey[1] === resource &&
+    typeof queryKey[2] === "object" &&
+    queryKey[2] !== null
+  );
+}
+
 export function catalogCurationSearchQuery(
   searchTerm: string | null,
   page: number,

@@ -174,6 +174,41 @@ test("another Operator's claim stays read-only and offers refresh", async () => 
   expect(refresh).toHaveBeenCalledTimes(2);
 });
 
+test("keeps internal Property and evidence identifiers out of review labels", () => {
+  render(
+    <QueryClientProvider client={new QueryClient()}>
+      <PropertyMatchReview
+        comparison={{
+          ...comparison,
+          decision_fields: [
+            {
+              key: "provenance_note",
+              label: "یادداشت شواهد",
+              values: {
+                [left]: `Extraction Run ${left}`,
+                [right]: `Extraction Run ${right}`,
+              },
+              display_values: {
+                [left]: `Extraction Run ${left}`,
+                [right]: `Extraction Run ${right}`,
+              },
+              conflicting: true,
+            },
+          ],
+        }}
+        onRefresh={vi.fn()}
+      />
+    </QueryClientProvider>,
+  );
+
+  expect(screen.queryByText(left, { exact: false })).not.toBeInTheDocument();
+  expect(screen.queryByText(right, { exact: false })).not.toBeInTheDocument();
+  expect(screen.getByRole("option", { name: "ملک ۱" })).toBeInTheDocument();
+  expect(
+    screen.getAllByRole("option", { name: /ملک [۱۲]: اجرای استخراج/ }),
+  ).toHaveLength(2);
+});
+
 test("approves a scheduled suggestion with its review identity", async () => {
   const user = userEvent.setup();
   let claimBody: unknown;

@@ -23,6 +23,18 @@ const bandLabels = {
   below_threshold: "زیر آستانه",
 };
 
+const uuidPattern =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function indirectListingLabel(listing: {
+  source: { name: string };
+  source_reference: string;
+}) {
+  return listing.source_reference && !uuidPattern.test(listing.source_reference)
+    ? `${listing.source.name} · ${listing.source_reference}`
+    : listing.source.name;
+}
+
 type ListingPair = {
   left: { listing_id: string; source: string };
   right: { listing_id: string; source: string };
@@ -184,7 +196,7 @@ function SuggestionDetail({
                     <ul className="mt-2 space-y-1">
                       {indirectListings.map((listing) => (
                         <li key={listing.id}>
-                          {listing.source.name} · {listing.source_reference}
+                          {indirectListingLabel(listing)}
                         </li>
                       ))}
                     </ul>
