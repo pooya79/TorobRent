@@ -3,7 +3,7 @@
 import hashlib
 import json
 from dataclasses import asdict
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import Any
 from uuid import UUID
 
@@ -34,6 +34,7 @@ from .models import (
     PropertyMatchDecision,
     PropertyMatchSuggestion,
     PropertyMatchSuggestionEvaluation,
+    PropertyMatchSuggestionOrigin,
     PropertyMatchSuggestionState,
     PropertyPartitionClaim,
     RentalTerms,
@@ -48,6 +49,15 @@ CLAIM_LIFETIME = timedelta(minutes=10)
 class ReviewConflict(APIException):
     status_code = 409
     default_detail = "شواهد یا مسئول بررسی تغییر کرده است؛ مقایسه را تازه کنید."
+
+
+class StaleSuggestion(ReviewConflict):
+    default_code = "stale_property_match_suggestion"
+
+
+class SuggestionNoLongerReviewable(ReviewConflict):
+    default_code = "property_match_suggestion_no_longer_reviewable"
+    default_detail = "این پیشنهاد پس از به‌روزرسانی شواهد دیگر قابل بررسی نیست."
 
 
 def _authorize(actor: User, *, administrative: bool = False) -> None:
@@ -215,21 +225,21 @@ def _current_suggestion(
         or [suggestion.left_id, suggestion.right_id] != ordered
         or suggestion.state != PropertyMatchSuggestionState.PENDING
     ):
-        raise ReviewConflict()
+        raise SuggestionNoLongerReviewable()
     evaluation = suggestion.evaluations.order_by("-created_at", "-pk").first()
     if evaluation is None:
-        raise ReviewConflict()
+        raise SuggestionNoLongerReviewable()
     roots = {
         item.pk: item for item in Property.objects.filter(pk__in=ordered, merged_into__isnull=True)
     }
     if len(roots) != 2:
-        raise ReviewConflict()
+        raise SuggestionNoLongerReviewable()
     if (
         property_identity_revision(roots[ordered[0]]) != evaluation.left_revision
         or property_identity_revision(roots[ordered[1]]) != evaluation.right_revision
         or suggestion.evidence_fingerprint != evaluation.evidence_fingerprint
     ):
-        raise ReviewConflict()
+        raise StaleSuggestion()
     return suggestion, evaluation
 
 
@@ -258,7 +268,6 @@ def comparison_data(ids: list[UUID]) -> dict[str, Any]:
     }
 
 
-@transaction.atomic
 def claim_comparison(
     *,
     actor: User,
@@ -267,20 +276,50 @@ def claim_comparison(
     suggestion_id: UUID | None = None,
     administrative: bool = False,
 ) -> dict[str, Any]:
+    if suggestion_id is not None:
+        # Keep the rescore in its own transaction so an inactive result remains
+        # recorded when the claim request is rejected after this function returns.
+        reviewable = _refresh_stale_suggestion_for_claim(
+            actor=actor,
+            properties=properties,
+            revision=revision,
+            suggestion_id=suggestion_id,
+            administrative=administrative,
+        )
+        if not reviewable:
+            raise SuggestionNoLongerReviewable()
+    return _claim_current_comparison(
+        actor=actor,
+        properties=properties,
+        revision=revision,
+        suggestion_id=suggestion_id,
+        administrative=administrative,
+    )
+
+
+def _validate_locked_claim_context(
+    *,
+    actor: User,
+    properties: list[UUID],
+    revision: str,
+    administrative: bool,
+) -> list[UUID]:
     _authorize(actor, administrative=administrative)
     selected = _properties(properties, lock=True)
-    properties = [property_.pk for property_ in selected]
-    _eligible(actor, properties)
-    _lock_evidence(properties)
+    property_ids = [property_.pk for property_ in selected]
+    _eligible(actor, property_ids)
+    _lock_evidence(property_ids)
     if _revision(_snapshot(selected)) != revision:
         raise ReviewConflict()
-    suggestion = None
-    if suggestion_id is not None:
-        suggestion, _ = _current_suggestion(
-            suggestion_id=suggestion_id,
-            properties=properties,
-        )
-    now = timezone.now()
+    return property_ids
+
+
+def _existing_actor_claim_or_raise(
+    *,
+    actor: User,
+    properties: list[UUID],
+    now: datetime,
+) -> PropertyMatchClaim | None:
     if PropertyPartitionClaim.objects.filter(
         property_id__in=properties, expires_at__gt=now
     ).exists():
@@ -291,7 +330,84 @@ def claim_comparison(
     pair = sorted(properties)
     if occupied.exclude(left_id=pair[0], right_id=pair[1], actor=actor).exists():
         raise ReviewConflict("این ملک در حال بررسی توسط کارشناس دیگری است.")
-    claim = occupied.filter(left_id=pair[0], right_id=pair[1], actor=actor).first()
+    return occupied.filter(left_id=pair[0], right_id=pair[1], actor=actor).first()
+
+
+@transaction.atomic
+def _refresh_stale_suggestion_for_claim(
+    *,
+    actor: User,
+    properties: list[UUID],
+    revision: str,
+    suggestion_id: UUID,
+    administrative: bool,
+) -> bool:
+    properties = _validate_locked_claim_context(
+        actor=actor,
+        properties=properties,
+        revision=revision,
+        administrative=administrative,
+    )
+    try:
+        _current_suggestion(suggestion_id=suggestion_id, properties=properties)
+    except StaleSuggestion:
+        # Rescoring expires exact-pair claims whose evidence changed. Check all
+        # overlapping reviews under the Property locks before allowing that mutation.
+        existing_claim = _existing_actor_claim_or_raise(
+            actor=actor,
+            properties=properties,
+            now=timezone.now(),
+        )
+        if existing_claim is not None and existing_claim.suggestion_id not in (
+            None,
+            suggestion_id,
+        ):
+            raise ReviewConflict() from None
+        from .match_suggestions import evaluate_property_pair
+
+        refreshed = evaluate_property_pair(
+            properties[0],
+            properties[1],
+            origin=PropertyMatchSuggestionOrigin.FOCUSED,
+            persist_inactive=True,
+        )
+        reviewable = bool(
+            refreshed is not None
+            and refreshed.pk == suggestion_id
+            and refreshed.state == PropertyMatchSuggestionState.PENDING
+        )
+        if reviewable and existing_claim is not None:
+            existing_claim.suggestion = refreshed
+            existing_claim.expires_at = timezone.now() + CLAIM_LIFETIME
+            existing_claim.save(update_fields=("suggestion", "expires_at"))
+        return reviewable
+    return True
+
+
+@transaction.atomic
+def _claim_current_comparison(
+    *,
+    actor: User,
+    properties: list[UUID],
+    revision: str,
+    suggestion_id: UUID | None,
+    administrative: bool,
+) -> dict[str, Any]:
+    properties = _validate_locked_claim_context(
+        actor=actor,
+        properties=properties,
+        revision=revision,
+        administrative=administrative,
+    )
+    suggestion = None
+    if suggestion_id is not None:
+        suggestion, _ = _current_suggestion(
+            suggestion_id=suggestion_id,
+            properties=properties,
+        )
+    now = timezone.now()
+    pair = sorted(properties)
+    claim = _existing_actor_claim_or_raise(actor=actor, properties=properties, now=now)
     if claim is None:
         PropertyMatchClaim.objects.create(
             left_id=pair[0],

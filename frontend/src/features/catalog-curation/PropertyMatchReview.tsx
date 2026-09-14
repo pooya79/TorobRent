@@ -5,6 +5,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { api } from "@/lib/api/client";
+import { apiError } from "@/lib/api/errors";
 import type { components } from "@/lib/api/schema";
 import { isCatalogCurationListQuery } from "./queries";
 
@@ -89,7 +90,9 @@ export function PropertyMatchReview({
       if (error || !data?.claim) {
         refreshCurrentRootsOnConflict(response.status);
         throw new Error(
-          "بررسی در اختیار شما نیست یا شواهد تغییر کرده است. مقایسه را تازه کنید.",
+          error
+            ? operatorFacingText(apiError(error).message)
+            : "بررسی در اختیار شما نیست یا شواهد تغییر کرده است. مقایسه را تازه کنید.",
         );
       }
       return data.claim;

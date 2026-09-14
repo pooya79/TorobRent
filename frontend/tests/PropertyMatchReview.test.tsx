@@ -148,12 +148,18 @@ test("searches for two Properties and completes the manual approval path", async
   });
 });
 
-test("another Operator's claim stays read-only and offers refresh", async () => {
+test("a non-reviewable suggestion stays read-only and offers refresh", async () => {
   const user = userEvent.setup();
   const refresh = vi.fn();
   server.use(
     http.post("*/api/v1/operator/catalog-curation/claim/", () =>
-      HttpResponse.json({ detail: "claimed" }, { status: 409 }),
+      HttpResponse.json(
+        {
+          code: "property_match_suggestion_no_longer_reviewable",
+          detail: "این پیشنهاد پس از به‌روزرسانی شواهد دیگر قابل بررسی نیست.",
+        },
+        { status: 409 },
+      ),
     ),
   );
   render(
@@ -172,7 +178,11 @@ test("another Operator's claim stays read-only and offers refresh", async () => 
     </QueryClientProvider>,
   );
   await user.click(screen.getByRole("button", { name: "شروع بررسی" }));
-  expect(await screen.findByText(/بررسی در اختیار شما نیست/)).toBeVisible();
+  expect(
+    await screen.findByText(
+      "این پیشنهاد پس از به‌روزرسانی شواهد دیگر قابل بررسی نیست.",
+    ),
+  ).toBeVisible();
   expect(screen.getByLabelText("ملک باقی‌مانده")).toBeDisabled();
   expect(
     screen.getByRole("button", { name: "تأیید و گروه‌بندی" }),

@@ -41,9 +41,9 @@ from apps.catalog.tasks import (
 from apps.submissions.models import Submission, SubmitterRole
 
 
-def make_operator() -> User:
+def make_operator(email: str = "suggestions@example.com") -> User:
     operator = User.objects.create_user(
-        email="suggestions@example.com",
+        email=email,
         password="password",
         email_verified_at=timezone.now(),
     )
@@ -839,6 +839,173 @@ def claim_suggestion(api_client: APIClient, suggestion: PropertyMatchSuggestion)
         "revision": comparison["revision"],
         "claim_id": response.data["claim"]["id"],
     }
+
+
+@pytest.mark.django_db
+def test_claim_refreshes_stale_suggestion_when_pair_remains_reviewable(
+    api_client: APIClient,
+):
+    source = Source.objects.create(
+        name="stale-claim-source",
+        domain="stale-claim.example",
+        display_name="منبع پیشنهاد قدیمی",
+        outbound_policy=OutboundPolicy.EXTERNAL_LINK,
+    )
+    left = make_property(source, "LEFT")
+    right = make_property(source, "RIGHT")
+    measure_property_match_candidates(property_id=str(left.pk), limit=25)
+    suggestion = PropertyMatchSuggestion.objects.get()
+    right.area_sqm += 1
+    right.save(update_fields=["area_sqm"])
+    api_client.force_authenticate(make_operator())
+    detail = api_client.get(f"/api/v1/operator/catalog-curation/suggestions/{suggestion.pk}/")
+    comparison = detail.data["comparison"]
+
+    response = api_client.post(
+        "/api/v1/operator/catalog-curation/claim/",
+        {
+            "properties": [item["id"] for item in comparison["properties"]],
+            "revision": comparison["revision"],
+            "suggestion_id": str(suggestion.pk),
+        },
+        format="json",
+    )
+
+    assert response.status_code == 200, response.data
+    assert response.data["claim"]["id"]
+    refreshed = api_client.get(f"/api/v1/operator/catalog-curation/suggestions/{suggestion.pk}/")
+    assert len(refreshed.data["evaluation_history"]) == 2
+
+
+@pytest.mark.django_db
+def test_claim_rejects_stale_suggestion_that_is_no_longer_reviewable(
+    api_client: APIClient,
+):
+    source = Source.objects.create(
+        name="inactive-stale-claim-source",
+        domain="inactive-stale-claim.example",
+        display_name="منبع پیشنهاد نامعتبر",
+        outbound_policy=OutboundPolicy.EXTERNAL_LINK,
+    )
+    left = make_property(source, "LEFT")
+    right = make_property(source, "RIGHT")
+    measure_property_match_candidates(property_id=str(left.pk), limit=25)
+    suggestion = PropertyMatchSuggestion.objects.get()
+    right.property_type = PropertyType.OFFICE
+    right.area_sqm = 1_000
+    right.save(update_fields=["property_type", "area_sqm"])
+    api_client.force_authenticate(make_operator())
+    detail = api_client.get(f"/api/v1/operator/catalog-curation/suggestions/{suggestion.pk}/")
+    comparison = detail.data["comparison"]
+
+    response = api_client.post(
+        "/api/v1/operator/catalog-curation/claim/",
+        {
+            "properties": [item["id"] for item in comparison["properties"]],
+            "revision": comparison["revision"],
+            "suggestion_id": str(suggestion.pk),
+        },
+        format="json",
+    )
+
+    assert response.status_code == 409
+    assert response.data["code"] == "property_match_suggestion_no_longer_reviewable"
+    assert response.data["detail"] == ("این پیشنهاد پس از به‌روزرسانی شواهد دیگر قابل بررسی نیست.")
+    refreshed = api_client.get(f"/api/v1/operator/catalog-curation/suggestions/{suggestion.pk}/")
+    assert refreshed.data["state"] == PropertyMatchSuggestionState.SUPERSEDED
+    assert refreshed.data["comparison"]["claim"] is None
+    assert len(refreshed.data["evaluation_history"]) == 2
+
+
+@pytest.mark.django_db
+def test_stale_suggestion_rescore_preserves_another_operators_claim(
+    api_client: APIClient,
+):
+    source = Source.objects.create(
+        name="occupied-stale-claim-source",
+        domain="occupied-stale-claim.example",
+        display_name="منبع پیشنهاد در حال بررسی",
+        outbound_policy=OutboundPolicy.EXTERNAL_LINK,
+    )
+    left = make_property(source, "LEFT")
+    right = make_property(source, "RIGHT")
+    measure_property_match_candidates(property_id=str(left.pk), limit=25)
+    suggestion = PropertyMatchSuggestion.objects.get()
+    right.area_sqm += 1
+    right.save(update_fields=["area_sqm"])
+    first_operator = make_operator()
+    second_operator = make_operator("other-suggestions@example.com")
+    api_client.force_authenticate(first_operator)
+    detail = api_client.get(f"/api/v1/operator/catalog-curation/suggestions/{suggestion.pk}/")
+    comparison = detail.data["comparison"]
+    manual_claim_body = {
+        "properties": [item["id"] for item in comparison["properties"]],
+        "revision": comparison["revision"],
+    }
+    first_claim = api_client.post(
+        "/api/v1/operator/catalog-curation/claim/",
+        manual_claim_body,
+        format="json",
+    )
+    assert first_claim.status_code == 200, first_claim.data
+    first_claim_id = first_claim.data["claim"]["id"]
+
+    api_client.force_authenticate(second_operator)
+    competing_claim = api_client.post(
+        "/api/v1/operator/catalog-curation/claim/",
+        {**manual_claim_body, "suggestion_id": str(suggestion.pk)},
+        format="json",
+    )
+
+    assert competing_claim.status_code == 409
+    api_client.force_authenticate(first_operator)
+    renewed = api_client.post(
+        "/api/v1/operator/catalog-curation/claim/",
+        manual_claim_body,
+        format="json",
+    )
+    assert renewed.status_code == 200, renewed.data
+    assert renewed.data["claim"]["id"] == first_claim_id
+
+
+@pytest.mark.django_db
+def test_stale_suggestion_rescore_renews_the_operators_current_claim(
+    api_client: APIClient,
+):
+    source = Source.objects.create(
+        name="owned-stale-claim-source",
+        domain="owned-stale-claim.example",
+        display_name="منبع پیشنهاد در اختیار کارشناس",
+        outbound_policy=OutboundPolicy.EXTERNAL_LINK,
+    )
+    left = make_property(source, "LEFT")
+    right = make_property(source, "RIGHT")
+    measure_property_match_candidates(property_id=str(left.pk), limit=25)
+    suggestion = PropertyMatchSuggestion.objects.get()
+    right.area_sqm += 1
+    right.save(update_fields=["area_sqm"])
+    api_client.force_authenticate(make_operator())
+    detail = api_client.get(f"/api/v1/operator/catalog-curation/suggestions/{suggestion.pk}/")
+    comparison = detail.data["comparison"]
+    claim_body = {
+        "properties": [item["id"] for item in comparison["properties"]],
+        "revision": comparison["revision"],
+    }
+    manual_claim = api_client.post(
+        "/api/v1/operator/catalog-curation/claim/",
+        claim_body,
+        format="json",
+    )
+    assert manual_claim.status_code == 200, manual_claim.data
+
+    suggestion_claim = api_client.post(
+        "/api/v1/operator/catalog-curation/claim/",
+        {**claim_body, "suggestion_id": str(suggestion.pk)},
+        format="json",
+    )
+
+    assert suggestion_claim.status_code == 200, suggestion_claim.data
+    assert suggestion_claim.data["claim"]["id"] == manual_claim.data["claim"]["id"]
 
 
 def approve_suggestion(
