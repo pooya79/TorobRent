@@ -3,12 +3,34 @@ import {
   HydrationBoundary,
   QueryClient,
 } from "@tanstack/react-query";
-import { useLoaderData } from "react-router";
+import { useLoaderData, type ShouldRevalidateFunctionArgs } from "react-router";
 
 import { propertySearchInfiniteQueryOptions } from "@/features/catalog/queries";
 import { ResultsPage } from "@/pages/ResultsPage";
 
 export { meta } from "@/pages/ResultsPage";
+
+export function shouldRevalidate({
+  currentUrl,
+  nextUrl,
+  formMethod,
+  defaultShouldRevalidate,
+}: ShouldRevalidateFunctionArgs) {
+  // Pagination is already fetched into the client cache. Rehydrating page one
+  // here would discard the accumulated pages and fetch them all again.
+  if (
+    !formMethod &&
+    currentUrl.pathname === nextUrl.pathname &&
+    currentUrl.searchParams.get("page") !== nextUrl.searchParams.get("page")
+  ) {
+    const current = new URLSearchParams(currentUrl.search);
+    const next = new URLSearchParams(nextUrl.search);
+    current.delete("page");
+    next.delete("page");
+    if (current.toString() === next.toString()) return false;
+  }
+  return defaultShouldRevalidate;
+}
 
 export async function loader({ request }: { request: Request }) {
   const requestUrl = new URL(request.url);

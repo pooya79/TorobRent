@@ -352,6 +352,7 @@ export function ResultsPage({ mapAdapter }: { mapAdapter?: MapAdapter }) {
   );
   const viewportTimer = useRef<number | undefined>(undefined);
   const loadMoreSentinel = useRef<HTMLDivElement>(null);
+  const resultsScrollContainer = useRef<HTMLDivElement>(null);
   const listSearchParams = useMemo(() => {
     const next = new URLSearchParams(searchParams);
     if (mapFilterDisabled) {
@@ -491,7 +492,7 @@ export function ResultsPage({ mapAdapter }: { mapAdapter?: MapAdapter }) {
       const next = new URLSearchParams(current);
       if (loadedPageCount > 1) next.set("page", String(loadedPageCount));
       if (next.toString() !== current.toString()) {
-        setSearchParams(next, { replace: true });
+        setSearchParams(next, { replace: true, preventScrollReset: true });
       }
     }
   }, [requestedPageCount, search, setSearchParams]);
@@ -500,7 +501,8 @@ export function ResultsPage({ mapAdapter }: { mapAdapter?: MapAdapter }) {
       search.data &&
       search.data.pages.length < requestedPageCount &&
       search.hasNextPage &&
-      !search.isFetchingNextPage
+      !search.isFetchingNextPage &&
+      !search.isFetchNextPageError
     ) {
       void loadMore();
     }
@@ -510,6 +512,7 @@ export function ResultsPage({ mapAdapter }: { mapAdapter?: MapAdapter }) {
     search.data,
     search.hasNextPage,
     search.isFetchingNextPage,
+    search.isFetchNextPageError,
   ]);
   useEffect(() => {
     const sentinel = loadMoreSentinel.current;
@@ -522,13 +525,18 @@ export function ResultsPage({ mapAdapter }: { mapAdapter?: MapAdapter }) {
     }
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries.some((entry) => entry.isIntersecting)) void loadMore();
+        if (
+          !search.isFetchNextPageError &&
+          entries.some((entry) => entry.isIntersecting)
+        ) {
+          void loadMore();
+        }
       },
-      { rootMargin: "400px" },
+      { root: resultsScrollContainer.current, rootMargin: "400px" },
     );
     observer.observe(sentinel);
     return () => observer.disconnect();
-  }, [loadMore, search.hasNextPage]);
+  }, [loadMore, search.hasNextPage, search.isFetchNextPageError]);
   const isReplacingResults =
     search.isFetching && !search.isPending && !search.isFetchingNextPage;
   const handleViewportChange = useCallback(
@@ -751,7 +759,10 @@ export function ResultsPage({ mapAdapter }: { mapAdapter?: MapAdapter }) {
               />
             )}
           </div>
-          <div className="h-full min-h-0 overflow-y-auto overscroll-contain pe-1 pb-8 xl:[direction:rtl]">
+          <div
+            ref={resultsScrollContainer}
+            className="h-full min-h-0 overflow-y-auto overscroll-contain pe-1 pb-8 xl:[direction:rtl]"
+          >
             {search.isPending ? (
               <ResultsLoading />
             ) : search.isError && !searchData ? (

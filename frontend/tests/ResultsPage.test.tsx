@@ -15,6 +15,10 @@ import {
 import { expect, test, vi } from "vitest";
 
 import { meta, ResultsPage } from "@/pages/ResultsPage";
+import SearchRoute, {
+  loader as searchLoader,
+  shouldRevalidate,
+} from "@/routes/search";
 import { ProductShell } from "@/app/ProductShell";
 import { ThemeProvider } from "@/app/ThemeProvider";
 import {
@@ -2034,67 +2038,89 @@ test("accumulates the server-provided next page through an accessible Load More 
   );
 });
 
-test("deduplicates concurrent automatic continuation triggers", async () => {
-  let intersectionCallback: IntersectionObserverCallback = () => undefined;
-  class TriggerableIntersectionObserver implements IntersectionObserver {
-    readonly root = null;
-    readonly rootMargin = "0px";
-    readonly scrollMargin = "0px";
-    readonly thresholds = [0];
-    constructor(callback: IntersectionObserverCallback) {
-      intersectionCallback = callback;
+test.each([false, true])(
+  "deduplicates automatic continuation and waits for retry after failure (%s)",
+  async (failFirstAttempt) => {
+    let intersectionCallback: IntersectionObserverCallback = () => undefined;
+    class TriggerableIntersectionObserver implements IntersectionObserver {
+      readonly root = null;
+      readonly rootMargin = "0px";
+      readonly scrollMargin = "0px";
+      readonly thresholds = [0];
+      constructor(callback: IntersectionObserverCallback) {
+        intersectionCallback = callback;
+      }
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+      takeRecords() {
+        return [];
+      }
     }
-    observe() {}
-    unobserve() {}
-    disconnect() {}
-    takeRecords() {
-      return [];
-    }
-  }
-  const originalIntersectionObserver = globalThis.IntersectionObserver;
-  globalThis.IntersectionObserver = TriggerableIntersectionObserver;
-  let secondPageRequests = 0;
-  const secondProperty = {
-    ...propertySearchPage.results[0]!,
-    id: "30000000-0000-4000-8000-000000000067",
-    title: "خانه نزدیک پایان نتایج",
-  };
-  server.use(
-    http.get("*/api/v1/catalog/properties/", async ({ request }) => {
-      if (new URL(request.url).searchParams.get("page") === "2") {
-        secondPageRequests += 1;
-        await delay(100);
+    const originalIntersectionObserver = globalThis.IntersectionObserver;
+    globalThis.IntersectionObserver = TriggerableIntersectionObserver;
+    let secondPageRequests = 0;
+    const secondProperty = {
+      ...propertySearchPage.results[0]!,
+      id: "30000000-0000-4000-8000-000000000067",
+      title: "خانه نزدیک پایان نتایج",
+    };
+    server.use(
+      http.get("*/api/v1/catalog/properties/", async ({ request }) => {
+        if (new URL(request.url).searchParams.get("page") === "2") {
+          secondPageRequests += 1;
+          await delay(100);
+          if (failFirstAttempt && secondPageRequests === 1) {
+            return HttpResponse.json({}, { status: 500 });
+          }
+          return HttpResponse.json({
+            ...propertySearchPage,
+            count: 2,
+            results: [secondProperty],
+          });
+        }
         return HttpResponse.json({
           ...propertySearchPage,
           count: 2,
-          results: [secondProperty],
+          next: "http://localhost/api/v1/catalog/properties/?page=2",
         });
-      }
-      return HttpResponse.json({
-        ...propertySearchPage,
-        count: 2,
-        next: "http://localhost/api/v1/catalog/properties/?page=2",
+      }),
+    );
+
+    try {
+      renderResults();
+      await screen.findByRole("button", { name: "نمایش ملک‌های بیشتر" });
+      act(() => {
+        const entry = { isIntersecting: true } as IntersectionObserverEntry;
+        intersectionCallback([entry], {} as IntersectionObserver);
+        intersectionCallback([entry], {} as IntersectionObserver);
       });
-    }),
-  );
 
-  try {
-    renderResults();
-    await screen.findByRole("button", { name: "نمایش ملک‌های بیشتر" });
-    act(() => {
-      const entry = { isIntersecting: true } as IntersectionObserverEntry;
-      intersectionCallback([entry], {} as IntersectionObserver);
-      intersectionCallback([entry], {} as IntersectionObserver);
-    });
-
-    expect(
-      await screen.findByRole("heading", { name: "خانه نزدیک پایان نتایج" }),
-    ).toBeVisible();
-    expect(secondPageRequests).toBe(1);
-  } finally {
-    globalThis.IntersectionObserver = originalIntersectionObserver;
-  }
-});
+      if (failFirstAttempt) {
+        await screen.findByRole("heading", {
+          name: "بارگذاری ملک‌های بیشتر کامل نشد",
+        });
+        act(() =>
+          intersectionCallback(
+            [{ isIntersecting: true } as IntersectionObserverEntry],
+            {} as IntersectionObserver,
+          ),
+        );
+        await delay(150);
+        expect(secondPageRequests).toBe(1);
+        await userEvent
+          .setup()
+          .click(screen.getByRole("button", { name: "تلاش دوباره" }));
+      }
+      expect(
+        await screen.findByRole("heading", { name: "خانه نزدیک پایان نتایج" }),
+      ).toBeVisible();
+      expect(secondPageRequests).toBe(failFirstAttempt ? 2 : 1);
+    } finally {
+      globalThis.IntersectionObserver = originalIntersectionObserver;
+    }
+  },
+);
 
 test("keeps accumulated Properties on continuation error and offers retry before announcing the end", async () => {
   const user = userEvent.setup();
@@ -2192,6 +2218,96 @@ test("reloads accumulated pages from the beginning for a shared query URL", asyn
   expect(
     screen.getByRole("heading", { name: "آپارتمان در سعادت‌آباد" }),
   ).toBeVisible();
+});
+
+test.each([
+  ["?page=2", "?page=3", undefined, false],
+  ["?page=2", "?page=1&bedroom_count=3_plus", undefined, true],
+  ["?page=2", "?page=2", undefined, true],
+  ["?page=2", "?page=3", "POST", true],
+] as const)(
+  "revalidates search changes without reloading pagination (%s → %s, %s)",
+  (current, next, formMethod, expected) => {
+    expect(
+      shouldRevalidate({
+        currentUrl: new URL(`http://localhost/search${current}`),
+        nextUrl: new URL(`http://localhost/search${next}`),
+        currentParams: {},
+        nextParams: {},
+        formMethod,
+        defaultShouldRevalidate: true,
+      }),
+    ).toBe(expected);
+  },
+);
+
+test("preserves scroll and accumulated results when pagination updates the real search route", async () => {
+  const user = userEvent.setup();
+  const requestedPages: Array<string | null> = [];
+  server.use(
+    http.get("*/api/v1/catalog/properties/", ({ request }) => {
+      const page = new URL(request.url).searchParams.get("page");
+      requestedPages.push(page);
+      return HttpResponse.json(
+        page === "2"
+          ? {
+              ...propertySearchPage,
+              count: 2,
+              results: [
+                {
+                  ...propertySearchPage.results[0]!,
+                  id: "pagination-second",
+                  title: "خانه صفحه دوم",
+                },
+              ],
+            }
+          : {
+              ...propertySearchPage,
+              count: 2,
+              next: "http://localhost/api/v1/catalog/properties/?page=2",
+            },
+      );
+    }),
+  );
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  const router = createMemoryRouter(
+    [
+      {
+        path: "/search",
+        loader: searchLoader,
+        shouldRevalidate,
+        HydrateFallback: () => null,
+        element: (
+          <RenterAccessProvider>
+            <ScrollRestoration />
+            <SearchRoute />
+          </RenterAccessProvider>
+        ),
+      },
+    ],
+    { initialEntries: ["/search"] },
+  );
+  const scrollTo = vi.spyOn(window, "scrollTo").mockImplementation(() => {});
+  try {
+    render(
+      <QueryClientProvider client={queryClient}>
+        <RouterProvider router={router} />
+      </QueryClientProvider>,
+    );
+    const loadMore = await screen.findByRole("button", {
+      name: "نمایش ملک‌های بیشتر",
+    });
+    scrollTo.mockClear();
+    await user.click(loadMore);
+    await waitFor(() => expect(router.state.location.search).toBe("?page=2"));
+    await screen.findByRole("heading", { name: "خانه صفحه دوم" });
+    expect(scrollTo).not.toHaveBeenCalled();
+    expect(requestedPages).toEqual([null, "2"]);
+  } finally {
+    scrollTo.mockRestore();
+  }
 });
 
 test("restores accumulated results, query context, and scroll after Property navigation", async () => {
