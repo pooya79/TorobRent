@@ -23,18 +23,18 @@ from apps.source_extraction.fetching import (
 )
 from apps.source_extraction.normalization import normalize_url
 
-from .exclusions import matching_exclusion
-from .models import (
+from ..exclusions import matching_exclusion
+from ..models import (
     ExtractionRequest,
     ExtractionRun,
     ExtractionState,
     ProfileReviewMode,
     SourceAssignment,
-    SourceProfile,
 )
+from ..url_validation import normalize_public_domain, normalize_public_url
+from .authorization import assignment_can_submit, authorization_error, authorized
 from .profiles import extractor_profile
 from .publication_modes import publication_mode
-from .url_validation import normalize_public_domain, normalize_public_url
 
 
 @transaction.atomic
@@ -44,15 +44,12 @@ def submit_request(
     assignment = SourceAssignment.objects.select_related("source").get(pk=assignment_id)
     source = Source.objects.select_for_update().get(pk=assignment.source_id)
     assignment.refresh_from_db()
-    if (
-        source.processing_paused
-        or assignment.representative_id != actor.pk
-        or str(assignment.proposal_id) != str(proposal_id)
-        or assignment.revoked_at
-        or assignment.approval is None
-        or assignment.source.profile.active_version_id != assignment.approval.version_id
+    if not assignment_can_submit(
+        assignment=assignment, source=source, actor=actor, proposal_id=proposal_id
     ):
         raise ValidationError("تخصیص یا پروفایل فعال در دسترس نیست.")
+    approval = assignment.approval
+    assert approval is not None
     canonical = normalize_url(normalize_public_url(url))
     if normalize_public_domain(canonical) != assignment.source.domain:
         raise ValidationError("نشانی باید روی دامنه دقیق منبع باشد.")
@@ -61,18 +58,18 @@ def submit_request(
     pending = ExtractionRequest.objects.filter(
         assignment=assignment,
         canonical_url=canonical,
-        profile_version=assignment.approval.version,
+        profile_version=approval.version,
         processing_revision=source.processing_revision,
         state__in=(ExtractionState.QUEUED, ExtractionState.RUNNING),
     ).first()
     if pending:
         return pending
-    mode, revision = publication_mode(assignment.approval)
+    mode, revision = publication_mode(approval)
     request = ExtractionRequest.objects.create(
         assignment=assignment,
         requester=actor,
         initiated_by=initiated_by or actor,
-        profile_version=assignment.approval.version,
+        profile_version=approval.version,
         review_mode=mode,
         publication_revision=revision,
         processing_revision=source.processing_revision,
@@ -94,31 +91,6 @@ MAX_ATTEMPTS = 3
 
 class AuthorizationEnded(Exception):
     pass
-
-
-def authorization_error() -> dict[str, object]:
-    return {
-        "code": "authorization_ended",
-        "detail": "تخصیص یا پروفایل تغییر کرده است.",
-        "transient": False,
-    }
-
-
-def authorized(request: ExtractionRequest) -> bool:
-    return (
-        request.requester_id is not None
-        and SourceAssignment.objects.filter(
-            pk=request.assignment_id,
-            revoked_at__isnull=True,
-            source__processing_paused=False,
-            source__processing_revision=request.processing_revision,
-            representative_id=request.requester_id,
-            approval__version_id=request.profile_version_id,
-        ).exists()
-        and SourceProfile.objects.filter(
-            source_id=request.assignment.source_id, active_version_id=request.profile_version_id
-        ).exists()
-    )
 
 
 class AssignedSourceFetcher:
@@ -236,7 +208,7 @@ def run_extraction(request_id: str, generation: int = 0) -> bool:
     try:
         if not authorized(request):
             raise AuthorizationEnded
-        from .extraction_availability import unavailable_reason
+        from ..extraction_availability import unavailable_reason
 
         fetcher = AssignedSourceFetcher(request)
         saved_fetches = run.discovery_checkpoint.get("fetch_evidence", {})
@@ -287,7 +259,7 @@ def run_extraction(request_id: str, generation: int = 0) -> bool:
                 current.save()
                 current_request.state = ExtractionState.QUEUED
                 current_request.save(update_fields=("state", "updated_at"))
-                from .tasks import extract_source
+                from ..tasks import extract_source
 
                 transaction.on_commit(lambda: extract_source.delay(request_id, generation + 1))
             return False
@@ -421,15 +393,15 @@ def run_extraction(request_id: str, generation: int = 0) -> bool:
             from .candidate_publication import create_run_candidates
 
             create_run_candidates(run)
-        from .exceptions import record_exceptions
+        from ..exceptions import record_exceptions
 
         record_exceptions(run)
-        from .retention import replace_obsolete_results
+        from ..retention import replace_obsolete_results
 
         replace_obsolete_results(run)
         run.results = []
         run.save(update_fields=("results",))
-        from .exception_notifications import record_run_health
+        from ..exception_notifications import record_run_health
 
         run.usable_results = run.candidates.filter(
             validation_errors={}, exclusion_hold__isnull=True
@@ -441,7 +413,7 @@ def run_extraction(request_id: str, generation: int = 0) -> bool:
 
             publish_automatic_candidates(run)
         if run.withdrawals:
-            from .extraction_availability import withdraw_listings
+            from ..extraction_availability import withdraw_listings
 
             withdraw_listings(run)
         request.state = state

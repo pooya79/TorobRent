@@ -261,7 +261,8 @@ def test_revocation_during_inflight_extraction_discards_stale_results(
             return fetcher.fetch(urls, **kwargs)
 
     monkeypatch.setattr(
-        "apps.source_proposals.extraction.SourcePageFetcher", lambda **kw: PausedFetcher()
+        "apps.source_proposals.source_processing.extraction.SourcePageFetcher",
+        lambda **kw: PausedFetcher(),
     )
 
     def extract():
@@ -301,7 +302,7 @@ def test_revocation_during_inflight_extraction_discards_stale_results(
 def test_revocation_preserves_failed_run_diagnostics_and_blocks_retry(
     api_client, assigned_case, monkeypatch, django_capture_on_commit_callbacks
 ):
-    from apps.source_proposals.extraction import run_extraction
+    from apps.source_proposals.source_processing.extraction import run_extraction
     from tests.test_source_extraction_contract import FixtureFetcher
 
     failed_case = (*assigned_case[:4], FixtureFetcher({}))

@@ -4,20 +4,19 @@ from django.core.exceptions import ValidationError
 from django.db import transaction
 
 from apps.accounts.models import User
-from apps.catalog.models import Source
 from apps.communications.models import SystemNotification
 
 from .models import (
-    ExternalListingCandidate,
     ProfileReviewMode,
     SourceAssignment,
     SourceProposal,
     SourceProposalEvent,
     SourcePublicationModeChange,
 )
-from .publication_modes import publication_mode
 from .responsibility import require_source_responsibility
 from .review_claims import SourceProposalReviewConflict
+from .source_processing.publication_modes import publication_mode
+from .source_state import advance_processing_revision
 
 
 @transaction.atomic
@@ -74,7 +73,7 @@ def change_processing(
 
 def start_fresh_extraction(*, assignment: SourceAssignment, actor: User) -> None:
     """Start a new bounded fetch from the approved website, never retained HTML."""
-    from .extraction import submit_request
+    from .source_processing.extraction import submit_request
 
     if assignment.representative is None:
         raise ValidationError("نماینده فعال منبع لازم است.")
@@ -85,15 +84,3 @@ def start_fresh_extraction(*, assignment: SourceAssignment, actor: User) -> None
         initiated_by=actor,
         url=assignment.proposal.website_url,
     )
-
-
-def advance_processing_revision(source: Source) -> None:
-    """Caller holds the Source lock; legacy candidates have no request revision."""
-    source.processing_revision += 1
-    source.save(update_fields=("processing_revision",))
-    ExternalListingCandidate.objects.filter(
-        source=source,
-        extraction_run__isnull=True,
-        discovery_version__isnull=True,
-        state__in=("pending", "changes_requested"),
-    ).update(superseded=True)

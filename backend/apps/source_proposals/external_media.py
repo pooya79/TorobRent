@@ -73,7 +73,7 @@ def process_candidate_image(
     if image.state != "pending":
         return
     url = image.original_url
-    from .extraction import authorized
+    from .source_processing.authorization import authorized
 
     proposal = candidate.source_proposal
     if candidate.extraction_run is not None:

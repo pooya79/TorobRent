@@ -253,7 +253,8 @@ def test_in_flight_results_remain_held_even_after_removal(
             return result
 
     monkeypatch.setattr(
-        "apps.source_proposals.extraction.SourcePageFetcher", lambda **kw: ChangingFetcher()
+        "apps.source_proposals.source_processing.extraction.SourcePageFetcher",
+        lambda **kw: ChangingFetcher(),
     )
     extract_source.run(requested.json()["id"])
     api_client.force_authenticate(representative)
@@ -327,7 +328,8 @@ def test_postgres_exclusion_commits_while_worker_is_fetching(
             return result
 
     monkeypatch.setattr(
-        "apps.source_proposals.extraction.SourcePageFetcher", lambda **kw: PausedFetcher()
+        "apps.source_proposals.source_processing.extraction.SourcePageFetcher",
+        lambda **kw: PausedFetcher(),
     )
 
     def execute():
@@ -582,7 +584,8 @@ def test_redirected_results_remember_restrictions_on_the_requested_url(
             return result
 
     monkeypatch.setattr(
-        "apps.source_proposals.extraction.SourcePageFetcher", lambda **kw: RedirectingFetcher()
+        "apps.source_proposals.source_processing.extraction.SourcePageFetcher",
+        lambda **kw: RedirectingFetcher(),
     )
     extract_source.run(requested.json()["id"])
     if timing in ("after", "published"):

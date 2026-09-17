@@ -3,7 +3,7 @@ from __future__ import annotations
 from django.db.models.signals import post_delete, post_save, pre_save
 from django.dispatch import receiver
 
-from .group_consistency import (
+from .curation.group_consistency import (
     GROUP_LISTING_UPDATE_FIELDS,
     GROUP_PROPERTY_UPDATE_FIELDS,
     invalidate_group_consistency,

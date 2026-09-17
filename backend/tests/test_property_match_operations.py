@@ -5,9 +5,12 @@ import pytest
 from django.core.management import call_command
 from rest_framework.test import APIClient
 
-from apps.catalog import group_consistency, match_operations, match_suggestions, matching
-from apps.catalog.group_consistency import measure_group_consistency
-from apps.catalog.match_suggestions import candidate_property_ids, measure_candidates_for_property
+from apps.catalog.curation import group_consistency, match_operations, match_suggestions, matching
+from apps.catalog.curation.group_consistency import measure_group_consistency
+from apps.catalog.curation.match_suggestions import (
+    candidate_property_ids,
+    measure_candidates_for_property,
+)
 from apps.catalog.models import (
     ListingState,
     OutboundPolicy,

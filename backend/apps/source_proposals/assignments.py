@@ -11,7 +11,6 @@ from apps.catalog.services import mark_listing_unavailable
 from apps.communications.services import create_source_proposal_review_notification
 
 from .discovery_workflow import release_reservations
-from .extraction import authorization_error
 from .models import (
     ExternalListingCandidateState,
     ExtractionRun,
@@ -23,8 +22,9 @@ from .models import (
     SourceProposalState,
 )
 from .review_claims import SourceProposalReviewConflict, ensure_independent_reviewer
-from .run_review import refresh_run_counts
 from .services import record_candidate_transition
+from .source_processing.authorization import authorization_error
+from .source_processing.run_review import refresh_run_counts
 
 
 @transaction.atomic

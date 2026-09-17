@@ -176,7 +176,9 @@ def test_failure_delivery_waits_for_eligible_operator_and_survives_reassignment(
     for url, html in list(fetcher.pages.items()):
         fetcher.pages[url] = re.sub(r'class="area">[0-9]+', 'class="area">9999', html)
     # Create through the representative API; the old Operator is no longer authorized to read it.
-    monkeypatch.setattr("apps.source_proposals.extraction.SourcePageFetcher", lambda **kw: fetcher)
+    monkeypatch.setattr(
+        "apps.source_proposals.source_processing.extraction.SourcePageFetcher", lambda **kw: fetcher
+    )
     api_client.force_authenticate(assigned_case[3])
     with django_capture_on_commit_callbacks(execute=True):
         response = api_client.post(
@@ -207,7 +209,9 @@ def test_concurrent_summary_tasks_deliver_once(api_client, assigned_case, monkey
         pytest.skip("Concurrent delivery requires PostgreSQL")
     proposal, assignment, operator, _, fetcher = assigned_case
     monkeypatch.setattr(extract_source, "delay", lambda *args: None)
-    monkeypatch.setattr("apps.source_proposals.extraction.SourcePageFetcher", lambda **kw: fetcher)
+    monkeypatch.setattr(
+        "apps.source_proposals.source_processing.extraction.SourcePageFetcher", lambda **kw: fetcher
+    )
     fetcher.pages[BAD_URL] = fetcher.pages[BAD_URL].replace('class="area">85', 'class="area">95')
     response = api_client.post(
         f"/api/v1/source-proposals/{proposal.pk}/extraction-requests/",
@@ -288,7 +292,8 @@ def test_redirect_into_excluded_page_does_not_alert(api_client, assigned_case, m
             )
 
     monkeypatch.setattr(
-        "apps.source_proposals.extraction.SourcePageFetcher", lambda **kw: RedirectingFetcher()
+        "apps.source_proposals.source_processing.extraction.SourcePageFetcher",
+        lambda **kw: RedirectingFetcher(),
     )
     api_client.force_authenticate(representative)
     response = api_client.post(
@@ -339,7 +344,8 @@ def test_transient_task_retries_do_not_repeat_alerts(api_client, assigned_case, 
             )
 
     monkeypatch.setattr(
-        "apps.source_proposals.extraction.SourcePageFetcher", lambda **kw: FailedFetcher()
+        "apps.source_proposals.source_processing.extraction.SourcePageFetcher",
+        lambda **kw: FailedFetcher(),
     )
     response = api_client.post(
         f"/api/v1/source-proposals/{proposal.pk}/extraction-requests/",

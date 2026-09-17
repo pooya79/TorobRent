@@ -4,6 +4,12 @@ from typing import TypedDict
 from django.db import transaction
 from django.utils import timezone
 
+from ..models import (
+    PropertyMatchOperation,
+    PropertyMatchSuggestion,
+    PropertyMatchSuggestionOrigin,
+    PropertyMatchSuggestionState,
+)
 from .group_consistency import grouped_property_queryset, measure_group_consistency
 from .match_suggestions import (
     eligible_property_roots,
@@ -11,12 +17,6 @@ from .match_suggestions import (
     measure_indexed_candidate_page,
 )
 from .matching import SCORING_VERSION
-from .models import (
-    PropertyMatchOperation,
-    PropertyMatchSuggestion,
-    PropertyMatchSuggestionOrigin,
-    PropertyMatchSuggestionState,
-)
 
 
 class OperationResult(TypedDict):

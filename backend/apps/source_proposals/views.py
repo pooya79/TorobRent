@@ -200,9 +200,9 @@ class ExtractionRequestCreateView(APIView):
         responses={201: ExtractionRequestSerializer},
     )
     def post(self, request: Request, proposal_id: str) -> Response:
-        from .extraction import submit_request
         from .extraction_serializers import ExtractionRequestSerializer, ExtractionSubmitSerializer
         from .models import SourceAssignment
+        from .source_processing.extraction import submit_request
 
         serializer = ExtractionSubmitSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)

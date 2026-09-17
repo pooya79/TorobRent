@@ -3,7 +3,9 @@ import pytest
 
 def execute_run(api_client, assigned_case, monkeypatch, django_capture_on_commit_callbacks):
     proposal, assignment, operator, representative, fetcher = assigned_case
-    monkeypatch.setattr("apps.source_proposals.extraction.SourcePageFetcher", lambda **kw: fetcher)
+    monkeypatch.setattr(
+        "apps.source_proposals.source_processing.extraction.SourcePageFetcher", lambda **kw: fetcher
+    )
     api_client.force_authenticate(representative)
     with django_capture_on_commit_callbacks(execute=True):
         response = api_client.post(
@@ -140,7 +142,9 @@ def test_later_run_refreshes_identity_and_discards_old_evidence(
         "unchanged": 9,
         "unclassified": 0,
     }
-    from apps.source_proposals.extraction_serializers import ExtractionRunSerializer
+    from apps.source_proposals.extraction_serializers import (
+        ExtractionRunSerializer,
+    )
 
     assert (
         ExtractionRunSerializer(ExtractionRun.objects.get(pk=first["id"])).data[

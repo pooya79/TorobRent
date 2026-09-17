@@ -135,7 +135,7 @@ class ExtractionRequestSerializer(serializers.ModelSerializer[ExtractionRequest]
     is_current = serializers.SerializerMethodField()
 
     def get_is_current(self, request: ExtractionRequest) -> bool:
-        from .extraction import authorized
+        from .source_processing.authorization import authorized
 
         return authorized(request)
 

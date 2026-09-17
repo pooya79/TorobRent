@@ -28,7 +28,7 @@ from django.db.models import (
 from django.db.models.functions import Replace
 from django.utils import timezone
 
-from .matching import SCORING_VERSION
+from .curation.matching import SCORING_VERSION
 from .models import (
     PROPERTY_TYPES_BY_CATEGORY,
     TEHRAN_CITY_ID,

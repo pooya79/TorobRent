@@ -19,7 +19,7 @@ from apps.catalog.models import (
 from apps.catalog.services import ExternalListingSpec, materialize_external_listing
 from apps.source_extraction.normalization import DIGIT_TRANSLATION, normalize_text
 
-from .models import ExternalListingCandidate, ExtractionRun, PublicationOutcome
+from ..models import ExternalListingCandidate, ExtractionRun, PublicationOutcome
 
 FIELD_NAMES = {"floor_area_sqm": "area_sqm", "bedroom_count": "room_count"}
 PROPERTY_FIELDS = ("city", "district", "neighborhood", "property_type", "area_sqm", "room_count")
@@ -72,8 +72,8 @@ def _bounded_integer(value: Any, maximum: int) -> int | None:
 def create_run_candidates(run: ExtractionRun) -> None:
     from apps.source_extraction.fetching import MAX_SOURCE_IMAGES
 
-    from .models import CandidateImage
-    from .tasks import process_run_images
+    from ..models import CandidateImage
+    from ..tasks import process_run_images
 
     remaining_images = MAX_SOURCE_IMAGES
     for result in run.results:
@@ -135,7 +135,7 @@ def create_run_candidates(run: ExtractionRun) -> None:
             evidence=result["evidence"],
             conflicts=result["conflicts"],
         )
-        from .exclusions import candidate_exclusion
+        from ..exclusions import candidate_exclusion
 
         candidate.exclusion_hold = candidate_exclusion(candidate, since=run.request.created_at)
         candidate.validation_errors = validation_errors(candidate)
@@ -169,12 +169,12 @@ def _published_content(listing: Listing) -> tuple[object, ...]:
 
 @transaction.atomic
 def publish_candidate(candidate: ExternalListingCandidate) -> None:
-    from .exclusions import blocking_exclusion
+    from ..exclusions import blocking_exclusion
 
     if candidate.source.processing_paused or candidate.superseded:
         raise ValidationError("پردازش متوقف است یا نتیجه قدیمی است.")
     if candidate.extraction_run is not None:
-        from .extraction import authorized
+        from .authorization import authorized
 
         if not authorized(candidate.extraction_run.request):
             raise ValidationError("مجوز این نتیجه پایان یافته است.")
@@ -216,7 +216,7 @@ def publish_candidate(candidate: ExternalListingCandidate) -> None:
         )
     )
     candidate.listing = listing
-    from .external_media import promote_candidate_images
+    from ..external_media import promote_candidate_images
 
     promote_candidate_images(candidate)
     candidate.publication_outcome = (
@@ -231,11 +231,11 @@ def publish_candidate(candidate: ExternalListingCandidate) -> None:
 
 def publish_automatic_candidates(run: ExtractionRun) -> None:
     """Publish valid candidates inside the worker's Source-locked completion transaction."""
-    from .extraction import authorized
-    from .models import ExternalListingCandidateState, ProfileReviewMode, SourceAssignment
+    from ..models import ExternalListingCandidateState, ProfileReviewMode, SourceAssignment
+    from ..services import record_candidate_transition
+    from .authorization import authorized
     from .publication_modes import publication_mode
     from .run_review import refresh_run_counts
-    from .services import record_candidate_transition
 
     request = run.request
     assignment = SourceAssignment.objects.get(pk=request.assignment_id)

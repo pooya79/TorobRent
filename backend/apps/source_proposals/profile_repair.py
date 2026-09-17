@@ -23,7 +23,6 @@ from .models import (
     SourceProfileVersion,
     SourceProposal,
 )
-from .profiles import _version_evidence, extractor_profile, review_version, validation_pages
 from .repair_provider import (
     PROMPT_VERSION,
     SCHEMA_VERSION,
@@ -33,6 +32,12 @@ from .repair_provider import (
     request_repair,
 )
 from .review_claims import SourceProposalReviewConflict
+from .source_processing.profiles import (
+    _version_evidence,
+    extractor_profile,
+    review_version,
+    validation_pages,
+)
 
 # Allows transport and validation to finish; abandoned attempts never trigger automatic retries.
 REPAIR_STALE_SECONDS = 60

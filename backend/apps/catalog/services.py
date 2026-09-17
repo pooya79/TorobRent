@@ -407,7 +407,7 @@ def merge_properties(
     duplicate.merged_into = target
     duplicate.merged_at = timezone.now()
     duplicate.save(update_fields=["merged_into", "merged_at"])
-    from .match_suggestions import rebase_suggestions_after_merge
+    from .curation.match_suggestions import rebase_suggestions_after_merge
 
     rebase_suggestions_after_merge(
         survivor_id=target.pk,

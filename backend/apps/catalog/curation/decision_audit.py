@@ -4,7 +4,7 @@ from typing import Any
 
 from django.db.models import QuerySet
 
-from .models import Property, PropertyMatchSuggestionEvaluation
+from ..models import Property, PropertyMatchSuggestionEvaluation
 
 
 def property_snapshot_rows(properties: QuerySet[Property]) -> list[dict[str, Any]]:

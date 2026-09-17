@@ -15,11 +15,11 @@ from apps.catalog.models import Source
 
 from .exception_serializers import SourceExceptionRetrySerializer
 from .exclusions import matching_exclusion
-from .extraction import submit_request
 from .extraction_serializers import ExtractionRequestSerializer
 from .models import SourceAssignment, SourceExtractionException
 from .operator_views import CanReviewSourceProposal
 from .responsibility import require_source_responsibility
+from .source_processing.extraction import submit_request
 
 
 class SourceExceptionRetryView(APIView):

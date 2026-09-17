@@ -1,7 +1,5 @@
 """Operator crawl requests and durable, per-Source recurring fetch schedules."""
 
-from datetime import timedelta
-
 from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.utils import timezone
@@ -9,10 +7,10 @@ from django.utils import timezone
 from apps.accounts.models import User
 from apps.catalog.models import Source
 
-from .extraction import submit_request
 from .models import SourceAssignment, SourceProposal, SourceProposalEvent
 from .responsibility import require_source_responsibility
-from .review_claims import SourceProposalReviewConflict
+from .source_processing.extraction import submit_request
+from .source_state import record_crawl_outcome, set_crawl_schedule
 
 
 @transaction.atomic
@@ -50,25 +48,10 @@ def control_crawl(
             url=entry_url,
         )
     elif action == "schedule":
-        if reviewed_schedule_revision != source.crawl_schedule_revision:
-            raise SourceProposalReviewConflict(
-                "schedule_conflict", "برنامه تغییر کرده؛ صفحه را تازه کنید."
-            )
-        if interval_hours not in (0, 1, 6, 12, 24, 72, 168):
-            raise ValidationError("فاصله اجرای معتبر انتخاب کنید.")
-        source.crawl_interval_hours = interval_hours
-        source.crawl_schedule_revision += 1
-        source.next_crawl_at = (
-            timezone.now() + timedelta(hours=interval_hours) if interval_hours else None
-        )
-        source.crawl_schedule_error = ""
-        source.save(
-            update_fields=(
-                "crawl_interval_hours",
-                "crawl_schedule_revision",
-                "next_crawl_at",
-                "crawl_schedule_error",
-            )
+        set_crawl_schedule(
+            source=source,
+            interval_hours=interval_hours,
+            reviewed_revision=reviewed_schedule_revision,
         )
         SourceProposalEvent.objects.create(
             proposal=proposal,
@@ -124,10 +107,9 @@ def dispatch_due_crawls() -> int:
                         proposal=proposal, actor=source.responsible_operator, action="run"
                     )
             except ValidationError as exc:
-                source.crawl_schedule_error = exc.messages[0]
+                error = exc.messages[0]
             else:
-                source.crawl_schedule_error = ""
+                error = ""
                 dispatched += 1
-            source.next_crawl_at = now + timedelta(hours=source.crawl_interval_hours)
-            source.save(update_fields=("next_crawl_at", "crawl_schedule_error"))
+            record_crawl_outcome(source=source, now=now, error=error)
     return dispatched

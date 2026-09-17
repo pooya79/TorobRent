@@ -17,7 +17,7 @@ from apps.common.media import (
 )
 from apps.common.models import MediaAsset
 
-from .group_consistency import grouped_property_queryset, measure_group_consistency
+from .curation.group_consistency import grouped_property_queryset, measure_group_consistency
 from .locations import derive_public_location
 from .models import (
     TEHRAN_CITY_ID,

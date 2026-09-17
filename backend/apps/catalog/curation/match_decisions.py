@@ -12,15 +12,12 @@ from django.core.serializers.json import DjangoJSONEncoder
 from django.db import transaction
 from django.db.models import Field, Q
 from django.utils import timezone
-from rest_framework.exceptions import APIException, PermissionDenied, ValidationError
+from rest_framework.exceptions import ValidationError
 
-from apps.accounts.capabilities import OperatorCapability, has_capability
 from apps.accounts.models import User
 
-from .decision_audit import assessment_snapshot, evaluation_snapshot, property_snapshot_rows
-from .locations import derive_public_location
-from .matching import compare_properties, have_different_known_cities
-from .models import (
+from ..locations import derive_public_location
+from ..models import (
     Listing,
     ListingGroupingAction,
     ListingGroupingEvent,
@@ -39,16 +36,12 @@ from .models import (
     PropertyPartitionClaim,
     RentalTerms,
 )
-from .operator_serializers import property_evidence_data
-from .selectors import current_properties_for_curation
-from .services import merge_properties, property_component_ids
-
-CLAIM_LIFETIME = timedelta(minutes=10)
-
-
-class ReviewConflict(APIException):
-    status_code = 409
-    default_detail = "شواهد یا مسئول بررسی تغییر کرده است؛ مقایسه را تازه کنید."
+from ..selectors import current_properties_for_curation
+from ..services import merge_properties, property_component_ids
+from .decision_audit import assessment_snapshot, evaluation_snapshot, property_snapshot_rows
+from .evidence import property_evidence_data
+from .matching import compare_properties, have_different_known_cities
+from .review_policy import CLAIM_LIFETIME, FACT_FIELDS, ReviewConflict, _authorize, _eligible
 
 
 class StaleSuggestion(ReviewConflict):
@@ -60,20 +53,10 @@ class SuggestionNoLongerReviewable(ReviewConflict):
     default_detail = "این پیشنهاد پس از به‌روزرسانی شواهد دیگر قابل بررسی نیست."
 
 
-def _authorize(actor: User, *, administrative: bool = False) -> None:
-    # Re-read permissions rather than trusting a request's cached capability set.
-    actor = User.objects.get(pk=actor.pk)
-    if administrative:
-        if not actor.is_active or not actor.is_superuser:
-            raise PermissionDenied("دسترسی ابرکاربر برای تعمیر مدیریتی لازم است.")
-    elif not has_capability(actor, OperatorCapability.CURATE_CATALOG):
-        raise PermissionDenied("مجوز ساماندهی کاتالوگ لازم است.")
-
-
 def _properties(ids: list[UUID], *, lock: bool = False) -> list[Property]:
     if len(ids) != 2 or len(set(ids)) != 2:
         raise ValidationError("دقیقاً دو ملک متفاوت انتخاب کنید.")
-    from .services import current_property_id
+    from ..services import current_property_id
 
     ids = [current_property_id(property_id) for property_id in ids]
     if len(set(ids)) != 2:
@@ -92,7 +75,7 @@ def _approval_properties(ids: list[UUID]) -> list[Property]:
     selected = _properties(ids)
     selected_ids = {property_.pk for property_ in selected}
     adjacent_endpoint_ids = _adjacent_suggestion_endpoint_ids(selected_ids)
-    from .services import current_property_id
+    from ..services import current_property_id
 
     lock_ids = selected_ids | {
         current_property_id(property_id) for property_id in adjacent_endpoint_ids
@@ -426,31 +409,6 @@ def _claim_current_comparison(
     return comparison_data(properties)
 
 
-FACT_FIELDS = {
-    "city_id": "شهر",
-    "district_id": "منطقه",
-    "neighborhood_id": "محله",
-    "property_type": "نوع ملک",
-    "area_sqm": "متراژ",
-    "room_count": "تعداد اتاق",
-    "construction_year": "سال ساخت",
-    "floor": "طبقه",
-    "total_floors": "تعداد طبقات",
-    "units_per_floor": "واحد در طبقه",
-    "parking": "پارکینگ",
-    "elevator": "آسانسور",
-    "storage": "انباری",
-    "balcony": "بالکن",
-    "furnished": "مبله",
-    "heating": "گرمایش",
-    "cooling": "سرمایش",
-    "latitude": "عرض جغرافیایی دقیق",
-    "longitude": "طول جغرافیایی دقیق",
-    "operator_location_notes": "یادداشت مکان",
-    "provenance_note": "یادداشت شواهد",
-}
-
-
 def _display_fact(property_: Property, key: str) -> Any:
     value = getattr(property_, key)
     if key.endswith("_id"):
@@ -493,19 +451,6 @@ def decision_options(properties: list[Property]) -> dict[str, Any]:
     }
 
 
-def _eligible(actor: User, properties: list[UUID]) -> None:
-    from apps.submissions.models import Submission
-
-    from .models import OutboundPolicy
-
-    if Submission.objects.filter(
-        submitter=actor,
-        listing__property_id__in=properties,
-        listing__source__outbound_policy=OutboundPolicy.DIRECT_CONTACT,
-    ).exists():
-        raise PermissionDenied("نمی‌توانید درباره آگهی مستقیم خود تصمیم بگیرید.")
-
-
 @transaction.atomic
 def approve_comparison(
     *,
@@ -545,7 +490,7 @@ def approve_comparison(
             )
         )
     )
-    from .services import current_property_id
+    from ..services import current_property_id
 
     resolved_property_ids = [current_property_id(property_id) for property_id in properties]
     if len(set(resolved_property_ids)) != 2:

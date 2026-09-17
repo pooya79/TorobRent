@@ -1,7 +1,7 @@
 import pytest
 from rest_framework.test import APIClient
 
-from apps.catalog.group_consistency import measure_group_consistency
+from apps.catalog.curation.group_consistency import measure_group_consistency
 from apps.catalog.models import OutboundPolicy, Source
 from tests.test_catalog_curation import make_current_property, make_operator
 
@@ -306,7 +306,7 @@ def test_duplicate_approvals_are_safe_under_concurrency(api_client, comparison_c
 
     from django.db import close_old_connections
 
-    from apps.catalog.match_decisions import approve_comparison
+    from apps.catalog.curation.match_decisions import approve_comparison
     from apps.catalog.operator_serializers import PropertyMatchApproveRequestSerializer
 
     operator, left, right = comparison_case
@@ -340,13 +340,13 @@ def test_connected_approvals_lock_all_roots_stably_and_leave_no_partial_merge():
     from django.db.models import Count
     from django.utils import timezone
 
-    from apps.catalog.match_decisions import (
+    from apps.catalog.curation.match_decisions import (
         FACT_FIELDS,
         ReviewConflict,
         approve_comparison,
         comparison_data,
     )
-    from apps.catalog.match_suggestions import evaluate_property_pair
+    from apps.catalog.curation.match_suggestions import evaluate_property_pair
     from apps.catalog.models import (
         Listing,
         Property,
@@ -504,7 +504,7 @@ def test_favorite_alias_retry_releases_old_root_before_stale_comparison(
 
     from django.db import close_old_connections, connection, transaction
 
-    from apps.catalog.match_decisions import ReviewConflict, comparison_data
+    from apps.catalog.curation.match_decisions import ReviewConflict, comparison_data
     from apps.catalog.models import Property
     from apps.catalog.services import save_favorite
 

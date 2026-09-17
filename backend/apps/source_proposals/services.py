@@ -396,7 +396,7 @@ def _lock_candidate(candidate: ExternalListingCandidate) -> ExternalListingCandi
     if candidate.discovery_version_id is not None:
         raise ValidationError("پیش‌نمایش کشف قابل انتشار نیست؛ درخواست استخراج ثبت کنید.")
     if candidate.extraction_run is not None:
-        from .extraction import authorized
+        from .source_processing.authorization import authorized
 
         if not authorized(candidate.extraction_run.request):
             raise ValidationError("تخصیص یا پروفایل این نتیجه دیگر فعال نیست.")
@@ -493,7 +493,7 @@ def _record_candidate_decision(
     if candidate.extraction_run is not None:
         from apps.communications.models import SystemNotification
 
-        from .run_review import refresh_run_counts
+        from .source_processing.run_review import refresh_run_counts
 
         refresh_run_counts(candidate.extraction_run)
         recipient = candidate.extraction_run.request.requester
@@ -542,7 +542,7 @@ def approve_external_listing_candidate(
     claim = _current_candidate_claim(
         candidate=candidate, actor=actor, reviewed_revision=reviewed_revision
     )
-    from .candidate_publication import publish_candidate
+    from .source_processing.candidate_publication import publish_candidate
 
     publish_candidate(candidate)
     return _record_candidate_decision(

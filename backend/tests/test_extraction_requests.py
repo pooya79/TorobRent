@@ -31,7 +31,9 @@ def test_run_uses_approved_profile_and_duplicate_delivery_preserves_results(
     from apps.source_proposals.tasks import extract_source
 
     proposal, assignment, operator, _, fetcher = assigned_case
-    monkeypatch.setattr("apps.source_proposals.extraction.SourcePageFetcher", lambda **kw: fetcher)
+    monkeypatch.setattr(
+        "apps.source_proposals.source_processing.extraction.SourcePageFetcher", lambda **kw: fetcher
+    )
     with django_capture_on_commit_callbacks(execute=True):
         response = api_client.post(
             f"/api/v1/source-proposals/{proposal.pk}/extraction-requests/",
@@ -156,7 +158,7 @@ def test_transient_failure_is_bounded_and_retry_reuses_run(api_client, assigned_
         FetchFailureCode,
         FetchRecord,
     )
-    from apps.source_proposals.extraction import run_extraction
+    from apps.source_proposals.source_processing.extraction import run_extraction
 
     proposal, assignment, _, _, fetcher = assigned_case
 
@@ -175,7 +177,8 @@ def test_transient_failure_is_bounded_and_retry_reuses_run(api_client, assigned_
             )
 
     monkeypatch.setattr(
-        "apps.source_proposals.extraction.SourcePageFetcher", lambda **kw: FailedFetcher()
+        "apps.source_proposals.source_processing.extraction.SourcePageFetcher",
+        lambda **kw: FailedFetcher(),
     )
     record = api_client.post(
         f"/api/v1/source-proposals/{proposal.pk}/extraction-requests/",
@@ -191,7 +194,9 @@ def test_transient_failure_is_bounded_and_retry_reuses_run(api_client, assigned_
     assert failed["state"] == "failed"
     assert failed["errors"][0]["transient"] is True
     assert "sensitive" not in str(failed)
-    monkeypatch.setattr("apps.source_proposals.extraction.SourcePageFetcher", lambda **kw: fetcher)
+    monkeypatch.setattr(
+        "apps.source_proposals.source_processing.extraction.SourcePageFetcher", lambda **kw: fetcher
+    )
     assert run_extraction(record["id"]) is False
     recovered = api_client.get(detail_url).json()["assignment"]["recent_requests"][0]["run"]
     assert recovered["id"] == failed["id"]
@@ -212,8 +217,8 @@ def test_concurrent_delivery_rechecks_extraction_and_publication_authority(
     from django.db import close_old_connections, connection
     from django.utils import timezone
 
-    from apps.source_proposals.extraction import run_extraction
     from apps.source_proposals.models import ExtractionRequest, ExtractionRun, SourceAssignment
+    from apps.source_proposals.source_processing.extraction import run_extraction
 
     if connection.vendor != "postgresql":
         pytest.skip("Concurrent run execution requires PostgreSQL.")
@@ -236,7 +241,8 @@ def test_concurrent_delivery_rechecks_extraction_and_publication_authority(
             return fetcher.fetch(urls, **kwargs)
 
     monkeypatch.setattr(
-        "apps.source_proposals.extraction.SourcePageFetcher", lambda **kw: PausedFetcher()
+        "apps.source_proposals.source_processing.extraction.SourcePageFetcher",
+        lambda **kw: PausedFetcher(),
     )
 
     def execute():
@@ -318,11 +324,13 @@ def test_interrupted_worker_recovery_is_bounded(api_client, assigned_case, monke
 
     from django.utils import timezone
 
-    from apps.source_proposals.extraction import run_extraction
     from apps.source_proposals.models import ExtractionRequest, ExtractionRun
+    from apps.source_proposals.source_processing.extraction import run_extraction
 
     proposal, assignment, _, _, fetcher = assigned_case
-    monkeypatch.setattr("apps.source_proposals.extraction.SourcePageFetcher", lambda **kw: fetcher)
+    monkeypatch.setattr(
+        "apps.source_proposals.source_processing.extraction.SourcePageFetcher", lambda **kw: fetcher
+    )
     record = api_client.post(
         f"/api/v1/source-proposals/{proposal.pk}/extraction-requests/",
         {
@@ -353,7 +361,7 @@ def test_http_errors_and_non_html_are_visible_run_failures(
     api_client, assigned_case, monkeypatch, status, transient
 ):
     from apps.source_extraction.fetching import FetchBatch, FetchedPage, FetchRecord
-    from apps.source_proposals.extraction import run_extraction
+    from apps.source_proposals.source_processing.extraction import run_extraction
 
     proposal, assignment, _, _, _ = assigned_case
 
@@ -372,7 +380,8 @@ def test_http_errors_and_non_html_are_visible_run_failures(
             )
 
     monkeypatch.setattr(
-        "apps.source_proposals.extraction.SourcePageFetcher", lambda **kw: HttpErrorFetcher()
+        "apps.source_proposals.source_processing.extraction.SourcePageFetcher",
+        lambda **kw: HttpErrorFetcher(),
     )
     record = api_client.post(
         f"/api/v1/source-proposals/{proposal.pk}/extraction-requests/",
@@ -398,8 +407,8 @@ def test_extraction_continues_with_approved_limits_and_fences_old_deliveries(
 ):
     from itertools import count
 
-    from apps.source_proposals.extraction import run_extraction
     from apps.source_proposals.models import ExtractionRequest, SourceReservation
+    from apps.source_proposals.source_processing.extraction import run_extraction
     from apps.source_proposals.tasks import extract_source
     from tests.test_source_extraction_contract import listing_html
 
@@ -425,10 +434,14 @@ def test_extraction_continues_with_approved_limits_and_fences_old_deliveries(
                 listing_html()
             )
     fetcher.calls.clear()
-    monkeypatch.setattr("apps.source_proposals.extraction.SourcePageFetcher", lambda **kw: fetcher)
+    monkeypatch.setattr(
+        "apps.source_proposals.source_processing.extraction.SourcePageFetcher", lambda **kw: fetcher
+    )
     clock = count()
     monkeypatch.setattr("apps.source_extraction.contract.monotonic", lambda: next(clock))
-    monkeypatch.setattr("apps.source_proposals.extraction.DISCOVERY_TIME_SLICE_SECONDS", 5)
+    monkeypatch.setattr(
+        "apps.source_proposals.source_processing.extraction.DISCOVERY_TIME_SLICE_SECONDS", 5
+    )
     queued = []
     monkeypatch.setattr(extract_source, "delay", lambda *args: queued.append(args))
     with django_capture_on_commit_callbacks(execute=True):

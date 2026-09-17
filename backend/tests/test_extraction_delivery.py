@@ -43,7 +43,8 @@ def test_scheduled_extraction_recovers_after_broker_outage(
         dispatch_scheduled_crawls.run()
     assert delivered == [(first["id"],)]
     monkeypatch.setattr(
-        "apps.source_proposals.extraction.SourcePageFetcher", lambda **kwargs: assigned_case[4]
+        "apps.source_proposals.source_processing.extraction.SourcePageFetcher",
+        lambda **kwargs: assigned_case[4],
     )
     extract_source.run(*delivered[0])
     recovered = operator_case(api_client, assigned_case)["assignment"]["recent_requests"]

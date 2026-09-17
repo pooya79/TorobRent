@@ -6,7 +6,7 @@ from django.db import transaction
 from apps.accounts.models import User
 from apps.communications.models import SystemNotification
 
-from .models import (
+from ..models import (
     ProfileReviewMode,
     SourceAssignment,
     SourceProfileDecision,
@@ -14,8 +14,8 @@ from .models import (
     SourceProposalEvent,
     SourcePublicationModeChange,
 )
-from .responsibility import require_source_responsibility
-from .review_claims import SourceProposalReviewConflict
+from ..responsibility import require_source_responsibility
+from ..review_claims import SourceProposalReviewConflict
 
 
 def publication_mode(approval: SourceProfileDecision | None) -> tuple[str, int]:

@@ -46,7 +46,9 @@ def test_valid_results_publish_automatically_and_reuse_canonical_identity(
     }
 
     # Historical publications have no recorded comparison; never guess from today's catalog.
-    from apps.source_proposals.extraction_serializers import ExtractionRunSerializer
+    from apps.source_proposals.extraction_serializers import (
+        ExtractionRunSerializer,
+    )
     from apps.source_proposals.models import ExternalListingCandidate, ExtractionRun
 
     ExternalListingCandidate.objects.filter(extraction_run_id=first["id"]).update(
@@ -163,7 +165,7 @@ def test_partial_fetch_failure_does_not_block_publication_or_duplicate_delivery(
         FetchFailureCode,
         FetchRecord,
     )
-    from apps.source_proposals.extraction import run_extraction
+    from apps.source_proposals.source_processing.extraction import run_extraction
 
     fetcher = assigned_case[4]
     target = "https://khaneh.example/listing/10000"

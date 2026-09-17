@@ -130,7 +130,9 @@ def test_late_completion_cannot_overwrite_newer_page_outcome(
     new = api_client.post(
         endpoint, {"assignment": assignment["id"], "url": BAD_URL}, format="json"
     ).json()
-    monkeypatch.setattr("apps.source_proposals.extraction.SourcePageFetcher", lambda **kw: fetcher)
+    monkeypatch.setattr(
+        "apps.source_proposals.source_processing.extraction.SourcePageFetcher", lambda **kw: fetcher
+    )
     fetcher.pages[BAD_URL] = original if newer_valid else bad
     extract_source.run(new["id"])
     fetcher.pages[BAD_URL] = bad if newer_valid else original
@@ -147,7 +149,9 @@ def test_retry_delivery_keeps_one_page_history_entry(api_client, assigned_case, 
 
     proposal, assignment, _, _, fetcher = assigned_case
     fetcher.pages[BAD_URL] = fetcher.pages[BAD_URL].replace('class="area">85', 'class="area">95')
-    monkeypatch.setattr("apps.source_proposals.extraction.SourcePageFetcher", lambda **kw: fetcher)
+    monkeypatch.setattr(
+        "apps.source_proposals.source_processing.extraction.SourcePageFetcher", lambda **kw: fetcher
+    )
     record = api_client.post(
         f"/api/v1/source-proposals/{proposal.pk}/extraction-requests/",
         {"assignment": assignment["id"], "url": BAD_URL},
@@ -195,7 +199,8 @@ def test_postgres_concurrent_workers_keep_one_current_exception(
             return fetcher.fetch(urls, **kwargs)
 
     monkeypatch.setattr(
-        "apps.source_proposals.extraction.SourcePageFetcher", lambda **kw: ConcurrentFetcher()
+        "apps.source_proposals.source_processing.extraction.SourcePageFetcher",
+        lambda **kw: ConcurrentFetcher(),
     )
 
     def execute(request_id):
@@ -290,7 +295,8 @@ def test_first_occurrence_includes_earlier_attempt_finishing_last(
             return fetcher.fetch(urls, **kwargs)
 
     monkeypatch.setattr(
-        "apps.source_proposals.extraction.SourcePageFetcher", lambda **kw: InterleavedFetcher()
+        "apps.source_proposals.source_processing.extraction.SourcePageFetcher",
+        lambda **kw: InterleavedFetcher(),
     )
     extract_source.run(old["id"])
     item = exceptions(api_client, assigned_case)[0]

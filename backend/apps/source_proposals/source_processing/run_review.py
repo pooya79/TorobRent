@@ -7,17 +7,17 @@ from django.utils import timezone
 from apps.accounts.models import User
 from apps.catalog.models import Source
 
-from .candidate_publication import publish_candidate, validation_errors
-from .extraction import authorized
-from .models import (
+from ..models import (
     ExternalListingCandidateState,
     ExtractionRun,
     ExtractionRunDecision,
     ExtractionState,
 )
-from .responsibility import require_source_responsibility
-from .review_claims import SourceProposalReviewConflict
-from .services import record_candidate_transition
+from ..responsibility import require_source_responsibility
+from ..review_claims import SourceProposalReviewConflict
+from ..services import record_candidate_transition
+from .authorization import authorized
+from .candidate_publication import publish_candidate, validation_errors
 
 
 @transaction.atomic
@@ -42,7 +42,7 @@ def approve_run(
     for candidate in run.candidates.select_for_update().filter(
         state=ExternalListingCandidateState.PENDING, superseded=False
     ):
-        from .exclusions import blocking_exclusion
+        from ..exclusions import blocking_exclusion
 
         if blocking_exclusion(candidate):
             continue

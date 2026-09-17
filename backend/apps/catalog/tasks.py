@@ -9,18 +9,18 @@ from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
 
-from .group_consistency import grouped_property_queryset, measure_group_consistency
-from .image_evidence import backfill_listing_image_hashes
-from .match_operations import (
+from .curation.group_consistency import grouped_property_queryset, measure_group_consistency
+from .curation.match_operations import (
     OperationResult,
     ensure_property_match_operation,
     process_property_match_operation_page,
     record_property_match_operation_failure,
 )
-from .match_suggestions import (
+from .curation.match_suggestions import (
     eligible_property_roots,
     measure_candidates_for_property,
 )
+from .image_evidence import backfill_listing_image_hashes
 from .models import (
     PropertyMatchOperation,
     PropertyMatchSuggestion,

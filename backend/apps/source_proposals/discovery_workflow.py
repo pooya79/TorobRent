@@ -309,7 +309,7 @@ def run_discovery(reservation_id: str, generation: int = 0) -> None:
         ):
             return
         if profile is not None:
-            from .profiles import retain_discovered_profile
+            from .source_processing.profiles import retain_discovered_profile
 
             Source.objects.select_for_update().get(pk=reservation.source_id)
             retain_discovered_profile(reservation, result, profile, contract)

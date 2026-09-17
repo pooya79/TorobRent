@@ -9,7 +9,7 @@ from apps.catalog.administrative_grouping import (
     administrative_partition_preview,
     administrative_reassign_listing,
 )
-from apps.catalog.match_decisions import comparison_data
+from apps.catalog.curation.match_decisions import comparison_data
 from apps.catalog.models import (
     Favorite,
     OutboundPolicy,

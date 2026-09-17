@@ -14,8 +14,8 @@ from .extraction_serializers import ExtractionRunSerializer
 from .models import ExtractionRun
 from .operator_views import CanReviewSourceProposal
 from .review_claims import SourceProposalReviewConflict
-from .run_review import approve_run
 from .serializers import SourceProposalApprovalSerializer
+from .source_processing.run_review import approve_run
 
 
 class OperatorRunApproveView(APIView):

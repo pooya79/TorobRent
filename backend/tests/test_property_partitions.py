@@ -4,7 +4,7 @@ import pytest
 from django.utils import timezone
 from rest_framework.test import APIClient
 
-from apps.catalog.match_suggestions import evaluate_property_pair
+from apps.catalog.curation.match_suggestions import evaluate_property_pair
 from apps.catalog.models import (
     Favorite,
     Listing,

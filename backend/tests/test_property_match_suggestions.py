@@ -11,12 +11,12 @@ from django.utils import timezone
 from rest_framework.test import APIClient
 
 from apps.accounts.models import User
+from apps.catalog.curation.match_suggestions import candidate_property_ids, evaluate_property_pair
 from apps.catalog.match_suggestion_signals import (
     FOCUSED_MEASUREMENT_DIRTY_KEY,
     FOCUSED_MEASUREMENT_KEY,
     _dispatch_focused_measurement,
 )
-from apps.catalog.match_suggestions import candidate_property_ids, evaluate_property_pair
 from apps.catalog.models import (
     City,
     Listing,
@@ -1176,7 +1176,7 @@ def test_below_threshold_rebase_retains_the_current_pair_evaluation(
 ):
     from dataclasses import replace
 
-    from apps.catalog import match_suggestions
+    from apps.catalog.curation import match_suggestions
 
     source = Source.objects.create(
         name="inactive-rebase-source",
@@ -1599,7 +1599,7 @@ def test_scoring_version_change_does_not_reopen_negative_suppression(
 ):
     from dataclasses import replace
 
-    from apps.catalog import match_suggestions
+    from apps.catalog.curation import match_suggestions
 
     source = Source.objects.create(
         name="rescore-source",
@@ -1727,7 +1727,7 @@ def test_scoring_evidence_change_invalidates_an_active_suggestion_claim(
 ):
     from dataclasses import replace
 
-    from apps.catalog import match_suggestions
+    from apps.catalog.curation import match_suggestions
 
     source = Source.objects.create(
         name="claim-rescore-source",
@@ -1824,7 +1824,7 @@ def test_duplicate_suggestion_decisions_are_safe_under_postgresql_concurrency(ap
 
     from django.db import close_old_connections, connection
 
-    from apps.catalog.match_decisions import decide_suggestion
+    from apps.catalog.curation.match_decisions import decide_suggestion
 
     if connection.vendor != "postgresql":
         pytest.skip("PostgreSQL row-lock contract")

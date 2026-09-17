@@ -222,12 +222,12 @@ class SourceAssignmentSerializer(serializers.ModelSerializer[SourceAssignment]):
 
     @extend_schema_field(serializers.ChoiceField(choices=("approval_required", "automatic", "")))
     def get_review_mode(self, assignment: SourceAssignment) -> str:
-        from .publication_modes import publication_mode
+        from .source_processing.publication_modes import publication_mode
 
         return publication_mode(assignment.approval)[0]
 
     def get_mode_revision(self, assignment: SourceAssignment) -> int:
-        from .publication_modes import publication_mode
+        from .source_processing.publication_modes import publication_mode
 
         return publication_mode(assignment.approval)[1]
 

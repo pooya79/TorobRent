@@ -27,8 +27,7 @@ from django.db.models import (
 from django.db.models.functions import Abs
 from django.utils import timezone
 
-from .matching import SCORING_VERSION, MatchAssessment, SignalClassification, compare_properties
-from .models import (
+from ..models import (
     ListingImage,
     ListingState,
     Property,
@@ -39,6 +38,7 @@ from .models import (
     PropertyMatchSuggestionState,
     PropertyPartitionDecision,
 )
+from .matching import SCORING_VERSION, MatchAssessment, SignalClassification, compare_properties
 
 ELIGIBLE_LISTING_STATES = tuple(
     state
@@ -493,7 +493,7 @@ def rebase_suggestions_after_merge(
     redundant_id: uuid.UUID,
 ) -> None:
     """Replace adjacent historical pairs with one evaluation per unordered current-root pair."""
-    from .services import current_property_id
+    from ..services import current_property_id
 
     now = timezone.now()
     adjacent = list(

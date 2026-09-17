@@ -14,15 +14,15 @@ from django.db import transaction
 from django.db.models import Q, QuerySet
 from django.utils import timezone
 
-from .matching import SCORING_VERSION, SignalClassification, compare_properties
-from .models import (
+from ..models import (
     Listing,
     ListingGroupingEvent,
     Property,
     PropertyGroupConsistencyMeasurement,
     PropertyMatchDecision,
 )
-from .services import property_component_ids
+from ..services import property_component_ids
+from .matching import SCORING_VERSION, SignalClassification, compare_properties
 
 RELIABLE_CONTRADICTION_CONTRIBUTION = -10
 GROUP_PROPERTY_REVISION_FIELDS = (

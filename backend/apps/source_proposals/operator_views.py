@@ -269,7 +269,7 @@ class OperatorSourceProfileEditView(APIView):
         responses=OperatorSourceProposalSerializer,
     )
     def post(self, request: Request, proposal_id: str) -> Response:
-        from .profiles import edit_profile
+        from .source_processing.profiles import edit_profile
 
         return _decision_response(
             request=request,
@@ -288,7 +288,7 @@ class OperatorSourceProfileApproveView(APIView):
         responses=OperatorSourceProposalSerializer,
     )
     def post(self, request: Request, proposal_id: str) -> Response:
-        from .profiles import approve_profile
+        from .source_processing.profiles import approve_profile
 
         return _decision_response(
             request=request,
@@ -326,7 +326,7 @@ class OperatorSourceProfileReviewView(APIView):
         responses=OperatorSourceProposalSerializer,
     )
     def post(self, request: Request, proposal_id: str) -> Response:
-        from .profiles import start_profile_review
+        from .source_processing.profiles import start_profile_review
 
         return _decision_response(
             request=request,
@@ -383,7 +383,7 @@ class OperatorSourcePublicationModeView(APIView):
         responses=OperatorSourceProposalSerializer,
     )
     def post(self, request: Request, proposal_id: str) -> Response:
-        from .publication_modes import change_publication_mode
+        from .source_processing.publication_modes import change_publication_mode
 
         return _decision_response(
             request=request,

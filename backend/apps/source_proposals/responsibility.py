@@ -12,9 +12,9 @@ from .models import (
     SourceAssignment,
     SourceCaseResponsibilityChange,
     SourceProposal,
-    SourceResponsibilityChange,
 )
 from .review_claims import SourceProposalReviewConflict, ensure_independent_reviewer
+from .source_state import record_responsibility
 
 
 def record_case_responsibility(
@@ -61,19 +61,6 @@ def take_responsibility(*, proposal: SourceProposal, actor: User) -> SourcePropo
         proposal=proposal, operator=actor, actor=actor, reason="پذیرش مسئولیت پرونده از صف منابع"
     )
     return proposal
-
-
-def record_responsibility(*, source: Source, operator: User, actor: User, reason: str) -> None:
-    source.responsible_operator = operator
-    source.responsibility_revision += 1
-    source.save(update_fields=("responsible_operator", "responsibility_revision"))
-    SourceResponsibilityChange.objects.create(
-        source=source,
-        operator=operator,
-        actor=actor,
-        revision=source.responsibility_revision,
-        reason=reason,
-    )
 
 
 @transaction.atomic

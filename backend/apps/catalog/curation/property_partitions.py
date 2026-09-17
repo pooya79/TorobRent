@@ -14,12 +14,8 @@ from rest_framework.exceptions import ValidationError
 
 from apps.accounts.models import User
 
-from .decision_audit import evaluation_snapshot, property_snapshot_rows
-from .group_consistency import approved_connection_graph, grouping_history
-from .locations import derive_public_location
-from .match_decisions import CLAIM_LIFETIME, FACT_FIELDS, ReviewConflict, _authorize, _eligible
-from .match_suggestions import evaluate_property_pair, property_identity_revision
-from .models import (
+from ..locations import derive_public_location
+from ..models import (
     Favorite,
     Listing,
     ListingGroupingAction,
@@ -37,8 +33,12 @@ from .models import (
     PropertyPartitionDecision,
     RentalTerms,
 )
-from .operator_serializers import property_evidence_data
-from .services import property_component_ids
+from ..services import property_component_ids
+from .decision_audit import evaluation_snapshot, property_snapshot_rows
+from .evidence import property_evidence_data
+from .group_consistency import approved_connection_graph, grouping_history
+from .match_suggestions import evaluate_property_pair, property_identity_revision
+from .review_policy import CLAIM_LIFETIME, FACT_FIELDS, ReviewConflict, _authorize, _eligible
 
 
 def _json[T](value: T) -> T:

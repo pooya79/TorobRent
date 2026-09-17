@@ -9,7 +9,7 @@ from typing import Any, Literal
 
 from apps.common.media import perceptual_hash_distance
 
-from .models import FeatureState, Listing, ListingImage, ListingState, Property
+from ..models import FeatureState, Listing, ListingImage, ListingState, Property
 
 SCORING_VERSION = "property-match-v2"
 MAX_PERCEPTUAL_DISTANCE = 10

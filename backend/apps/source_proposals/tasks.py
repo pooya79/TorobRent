@@ -26,7 +26,7 @@ def expire_source_reservations() -> None:
     reject_on_worker_lost=True,
 )  # type: ignore[untyped-decorator]
 def extract_source(self: Any, request_id: str, generation: int = 0) -> None:
-    from .extraction import run_extraction
+    from .source_processing.extraction import run_extraction
 
     if run_extraction(request_id, generation):
         raise self.retry(countdown=720)
@@ -87,7 +87,7 @@ def deliver_source_exception_summaries() -> int:
 @shared_task(soft_time_limit=240, time_limit=300)  # type: ignore[untyped-decorator]
 def dispatch_scheduled_crawls() -> int:
     from .crawl_control import dispatch_due_crawls
-    from .extraction_delivery import dispatch_pending_extractions
+    from .source_processing.extraction_delivery import dispatch_pending_extractions
 
     dispatch_pending_extractions()
     return dispatch_due_crawls()

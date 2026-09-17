@@ -10,9 +10,9 @@ from django.utils import timezone
 from rest_framework.test import APIClient
 
 from apps.accounts.models import User
-from apps.catalog.group_consistency import measure_group_consistency
-from apps.catalog.match_suggestions import evaluate_property_pair
-from apps.catalog.matching import SCORING_VERSION
+from apps.catalog.curation.group_consistency import measure_group_consistency
+from apps.catalog.curation.match_suggestions import evaluate_property_pair
+from apps.catalog.curation.matching import SCORING_VERSION
 from apps.catalog.models import (
     Listing,
     ListingGroupingAction,

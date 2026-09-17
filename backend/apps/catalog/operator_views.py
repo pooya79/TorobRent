@@ -20,12 +20,13 @@ from apps.accounts.models import User
 from apps.common.pagination import StandardPageNumberPagination
 from apps.common.serializers import ProblemSerializer
 
-from .match_decisions import (
+from .curation.match_decisions import (
     approve_comparison,
     claim_comparison,
     comparison_data,
     decide_suggestion,
 )
+from .curation.property_partitions import claim_partition, confirm_partition, partition_preview
 from .models import (
     PropertyImage,
     PropertyMatchClaim,
@@ -60,7 +61,6 @@ from .operator_serializers import (
     property_search_data,
     suggestion_data,
 )
-from .property_partitions import claim_partition, confirm_partition, partition_preview
 from .selectors import (
     search_current_properties_for_curation,
     search_grouped_properties_for_curation,

@@ -20,8 +20,8 @@ from apps.source_extraction.contract import (
 )
 from apps.source_extraction.contract import SourceProfile as ExtractorProfile
 
-from .current_website import lock_current_website
-from .models import (
+from ..current_website import lock_current_website
+from ..models import (
     SourceProfile,
     SourceProfileSnapshots,
     SourceProfileVersion,
@@ -29,7 +29,7 @@ from .models import (
     SourceProposalReviewClaim,
     SourceReservation,
 )
-from .review_claims import SourceProposalReviewConflict
+from ..review_claims import SourceProposalReviewConflict
 
 
 def _has_limitations(profile: ExtractorProfile, samples: tuple[ExtractedListing, ...]) -> bool:
@@ -92,7 +92,7 @@ def retain_discovered_profile(
 def review_version(
     *, proposal: SourceProposal, actor: User, reviewed_revision: int, reviewed_profile_version: UUID
 ) -> tuple[SourceProfileVersion, SourceProposalReviewClaim]:
-    from .review_claims import require_review_claim
+    from ..review_claims import require_review_claim
 
     claim = require_review_claim(
         proposal=proposal, actor=actor, reviewed_revision=reviewed_revision
@@ -195,13 +195,13 @@ def approve_profile(
     limitations_acknowledged: bool = False,
     reason: str = "",
 ) -> SourceProposal:
-    from .models import (
+    from ..models import (
         ProfileReviewMode,
         SourceAssignment,
         SourceProfileDecision,
         SourceProposalState,
     )
-    from .services import _record_review_decision
+    from ..services import _record_review_decision
 
     if not confirmed or review_mode not in ProfileReviewMode.values:
         raise ValidationError("Confirm profile approval and choose a supported review mode.")
@@ -263,7 +263,7 @@ def approve_profile(
         assignment.approval = decision
         assignment.save(update_fields=("approval",))
     else:
-        from .responsibility import record_responsibility
+        from ..source_state import record_responsibility
 
         source = Source.objects.select_for_update().get(pk=version.profile.source_id)
         record_responsibility(
@@ -276,7 +276,8 @@ def approve_profile(
             approval=decision,
         )
     if replacing:
-        from .processing import advance_processing_revision, start_fresh_extraction
+        from ..processing import start_fresh_extraction
+        from ..source_state import advance_processing_revision
 
         source = Source.objects.select_for_update().get(pk=version.profile.source_id)
         advance_processing_revision(source)
@@ -299,10 +300,10 @@ def start_profile_review(
     """Discover a draft while the approved version retains extraction authority."""
     from apps.accounts.capabilities import OperatorCapability, has_capability
 
-    from .discovery_workflow import approve_url
-    from .models import SourceAssignment, SourceProposalEvent, SourceProposalState
-    from .review_claims import ensure_independent_reviewer
-    from .services import claim_source_proposal_review
+    from ..discovery_workflow import approve_url
+    from ..models import SourceAssignment, SourceProposalEvent, SourceProposalState
+    from ..review_claims import ensure_independent_reviewer
+    from ..services import claim_source_proposal_review
 
     if not has_capability(actor, OperatorCapability.REVIEW_SOURCE_PROPOSALS):
         raise ValidationError("Source Proposal Review capability is required.")
@@ -315,7 +316,7 @@ def start_profile_review(
         raise SourceProposalReviewConflict("review_revision_conflict", "پرونده تغییر کرده است.")
     if proposal.source_id is None:
         raise ValidationError("منبع فعال لازم است.")
-    from .responsibility import require_source_responsibility
+    from ..responsibility import require_source_responsibility
 
     require_source_responsibility(proposal=proposal, actor=actor)
     assignment = (

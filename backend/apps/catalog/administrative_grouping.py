@@ -11,14 +11,15 @@ from django.db import transaction
 
 from apps.accounts.models import User
 
-from .match_decisions import FACT_FIELDS, approve_comparison, claim_comparison, comparison_data
-from .models import Listing, Property, PropertyMatchDecision, PropertyPartitionDecision
-from .property_partitions import (
+from .curation.match_decisions import approve_comparison, claim_comparison, comparison_data
+from .curation.property_partitions import (
     claim_partition,
     confirm_partition,
     partition_preview,
     partition_state_revision,
 )
+from .curation.review_policy import FACT_FIELDS
+from .models import Listing, Property, PropertyMatchDecision, PropertyPartitionDecision
 
 
 def _require_superuser(actor: User) -> None:

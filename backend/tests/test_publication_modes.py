@@ -92,7 +92,8 @@ def test_mode_transitions_fence_old_work_without_discarding_results(
     if timing == "queued":
         transition()
     monkeypatch.setattr(
-        "apps.source_proposals.extraction.SourcePageFetcher", lambda **kw: ChangingFetcher()
+        "apps.source_proposals.source_processing.extraction.SourcePageFetcher",
+        lambda **kw: ChangingFetcher(),
     )
     extract_source.run(response.json()["id"])
     api_client.force_authenticate(representative)
@@ -250,7 +251,8 @@ def test_disabling_during_worker_fetch_commits_before_publication(
             return fetcher.fetch(urls, **kwargs)
 
     monkeypatch.setattr(
-        "apps.source_proposals.extraction.SourcePageFetcher", lambda **kw: PausedFetcher()
+        "apps.source_proposals.source_processing.extraction.SourcePageFetcher",
+        lambda **kw: PausedFetcher(),
     )
 
     def execute():

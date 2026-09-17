@@ -8,7 +8,7 @@ from django.db import transaction
 from django.db.models import F, Q
 from django.utils import timezone
 
-from .models import ExtractionRequest, ExtractionRun, ExtractionState
+from ..models import ExtractionRequest, ExtractionRun, ExtractionState
 
 logger = logging.getLogger(__name__)
 DELIVERY_ERROR = "ارسال درخواست به صف ممکن نشد؛ سامانه دوباره تلاش می‌کند."
@@ -16,7 +16,7 @@ DELIVERY_ERROR = "ارسال درخواست به صف ممکن نشد؛ ساما
 
 @transaction.atomic
 def deliver_extraction_request(request_id: str) -> bool:
-    from .tasks import extract_source
+    from ..tasks import extract_source
 
     request = (
         ExtractionRequest.objects

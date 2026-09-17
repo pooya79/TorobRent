@@ -228,7 +228,8 @@ def test_delayed_completion_cannot_escape_pause_or_override_newer_results(
             return fetcher.fetch(urls, **kwargs)
 
     monkeypatch.setattr(
-        "apps.source_proposals.extraction.SourcePageFetcher", lambda **kw: DelayedFetcher()
+        "apps.source_proposals.source_processing.extraction.SourcePageFetcher",
+        lambda **kw: DelayedFetcher(),
     )
 
     def execute_old():
@@ -243,7 +244,8 @@ def test_delayed_completion_cannot_escape_pause_or_override_newer_results(
         try:
             assert started.wait(timeout=20)
             monkeypatch.setattr(
-                "apps.source_proposals.extraction.SourcePageFetcher", lambda **kw: fetcher
+                "apps.source_proposals.source_processing.extraction.SourcePageFetcher",
+                lambda **kw: fetcher,
             )
             if transition in ("pause", "resume"):
                 assert change_processing(api_client, assigned_case, "pause", 0).status_code == 200

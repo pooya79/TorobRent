@@ -6,7 +6,7 @@ from django.db import transaction
 from django.db.models.signals import post_delete, post_save
 from django.dispatch import receiver
 
-from .match_suggestions import IDENTITY_PROPERTY_FIELD_NAMES
+from .curation.match_suggestions import IDENTITY_PROPERTY_FIELD_NAMES
 from .models import Listing, ListingImage, ListingImagePerceptualBucket, Property
 
 logger = logging.getLogger(__name__)

@@ -86,7 +86,7 @@ class ExternalListingCandidateSerializer(serializers.ModelSerializer[ExternalLis
         return {}
 
     def get_is_current(self, candidate: ExternalListingCandidate) -> bool:
-        from .extraction import authorized
+        from .source_processing.authorization import authorized
 
         if candidate.superseded:
             return False
