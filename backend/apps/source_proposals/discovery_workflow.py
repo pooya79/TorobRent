@@ -371,7 +371,7 @@ def release_case(
         revision=proposal.revision,
         prior_state=proposal.state,
         new_state=proposal.state,
-        reason=f"رزرو و مسئولیت بررسی آزاد شد: {reason.strip()}",
+        reason=f"رزرو دامنه آزاد شد؛ مسئول پرونده تغییر نکرد: {reason.strip()}",
     )
     return proposal
 

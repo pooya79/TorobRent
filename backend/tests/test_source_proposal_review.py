@@ -135,7 +135,7 @@ def test_operator_claims_and_requests_changes_then_representative_resumes(
     )
 
     assert claimed.status_code == 201
-    assert claimed.data["operator_label"] == operator.email
+    assert claimed.data["responsibility"]["operator_label"] == operator.email
     assert missing_reason.status_code == 400
     assert requested.status_code == 200
     assert requested.data["state"] == "changes_requested"
@@ -205,15 +205,15 @@ def test_claim_and_revision_conflicts_prevent_concurrent_or_self_decisions(
     own_decision = api_client.post(claim_url, {}, format="json")
 
     assert competing_claim.status_code == 409
-    assert competing_claim.data["code"] == "review_claim_conflict"
+    assert competing_claim.data["code"] == "responsibility_conflict"
     assert missing_reason.status_code == 400
     assert rejected.status_code == 200
     assert rejected.data["state"] == "rejected"
     assert SystemNotification.objects.get().originating_source_proposal_event.new_state == (
         "rejected"
     )
-    assert stale.status_code == 409
-    assert stale.data["code"] == "review_decision_conflict"
+    assert stale.status_code == 400
+    assert stale.data["code"] == "validation_error"
     assert own_decision.status_code == 400
 
 

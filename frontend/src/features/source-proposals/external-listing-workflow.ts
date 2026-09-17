@@ -42,13 +42,10 @@ export function candidateCanDecide(
   proposal: OperatorSourceProposal | undefined,
   userId?: string,
 ) {
-  return (
-    !candidate.extraction_run ||
-    Boolean(
-      userId &&
-      proposal?.assignment?.state === "active" &&
-      proposal.assignment.review_operator === userId,
-    )
+  return Boolean(
+    userId &&
+    proposal?.responsibility?.operator === userId &&
+    (!candidate.extraction_run || proposal.assignment?.state === "active"),
   );
 }
 

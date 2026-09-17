@@ -12,6 +12,7 @@ beforeEach(() => {
   server.use(
     http.get("*/api/v1/users/me/", () =>
       HttpResponse.json({
+        id: "operator",
         operator_capabilities: ["review_source_proposals"],
       }),
     ),
@@ -19,6 +20,12 @@ beforeEach(() => {
 });
 
 const proposal = {
+  responsibility: {
+    operator: "operator",
+    operator_label: "operator@example.com",
+    revision: 1,
+    history: [],
+  },
   id: "10000000-0000-4000-8000-000000000088",
   state: "pending",
   discovery_stage: "awaiting_url",
@@ -47,7 +54,7 @@ const proposal = {
   updated_at: "2026-09-01T08:00:00Z",
 };
 
-test("inspects, claims, and requests changes to a Source Proposal", async () => {
+test("inspects an owned case and requests changes to a Source Proposal", async () => {
   const user = userEvent.setup();
   let claimed = false;
   let requestedReason = "";
@@ -101,8 +108,8 @@ test("inspects, claims, and requests changes to a Source Proposal", async () => 
   await user.click(screen.getByRole("tab", { name: "نشانی و کشف" }));
   expect(screen.getByText("در انتظار تأیید نشانی")).toBeVisible();
 
-  await user.click(screen.getByRole("button", { name: "شروع بررسی" }));
-  expect(claimed).toBe(true);
+  expect(claimed).toBe(false);
+  await screen.findByText("شما مسئول این پرونده هستید");
   await user.type(
     screen.getByLabelText("دلیل تصمیم"),
     "مدرک اختیار را تکمیل کنید.",
@@ -114,7 +121,7 @@ test("inspects, claims, and requests changes to a Source Proposal", async () => 
   expect(screen.getByRole("heading", { name: "خانه‌یاب" })).toBeVisible();
 });
 
-test("URL approval keeps the case visible with Discovery evidence and renewable responsibility", async () => {
+test("URL approval keeps the case visible with Discovery evidence and ongoing responsibility", async () => {
   const user = userEvent.setup();
   let claimCount = 0;
   const completed = {
@@ -192,8 +199,7 @@ test("URL approval keeps the case visible with Discovery evidence and renewable 
       </MemoryRouter>
     </QueryClientProvider>,
   );
-  await user.click(await screen.findByRole("button", { name: "شروع بررسی" }));
-  await user.click(screen.getByLabelText(/نشانی و اختیار نماینده/));
+  await user.click(await screen.findByLabelText(/نشانی و اختیار نماینده/));
   const approve = screen.getByRole("button", {
     name: "تأیید نشانی و شروع کشف",
   });
@@ -228,8 +234,7 @@ test("URL approval keeps the case visible with Discovery evidence and renewable 
   expect(
     screen.getByRole("button", { name: "تأیید نشانی و شروع کشف" }),
   ).toBeDisabled();
-  await user.click(screen.getByRole("button", { name: "تمدید مهلت بررسی" }));
-  expect(claimCount).toBe(2);
+  expect(claimCount).toBe(0);
   server.use(
     http.post(
       "*/api/v1/operator/source-proposals/:proposalId/claim/release/",
@@ -238,7 +243,7 @@ test("URL approval keeps the case visible with Discovery evidence and renewable 
   );
   await user.type(screen.getByLabelText("دلیل تصمیم"), "بررسی متوقف شد");
   await user.click(
-    screen.getByRole("button", { name: "انصراف از بررسی و آزادسازی رزرو" }),
+    screen.getByRole("button", { name: "توقف کشف و آزادسازی رزرو دامنه" }),
   );
   expect(
     await screen.findByText("رزرو آزاد شد؛ در انتظار بررسی دوباره"),
@@ -364,7 +369,6 @@ test("reviews profile evidence, edits a field, and approves only a validated ver
   expect(screen.getByText("۸۵ متر")).toBeVisible();
   expect(screen.getByText("۵۰۰٬۰۰۰٬۰۰۰ تومان")).toBeVisible();
   expect(screen.getByText("https://khaneh.example/unsupported")).toBeVisible();
-  await user.click(screen.getByRole("button", { name: "پذیرش بررسی پروفایل" }));
   expect(
     screen.getByRole("button", { name: "تأیید پروفایل و تخصیص منبع" }),
   ).toBeDisabled();
@@ -481,9 +485,8 @@ test("requires field selection for explicit repair and shows failure history", a
   );
   await screen.findByText("پروفایل منبع — نسخه ۱");
   expect(
-    screen.queryByRole("button", { name: "درخواست اصلاح هوشمند" }),
+    screen.queryByRole("button", { name: "پذیرش بررسی پروفایل" }),
   ).not.toBeInTheDocument();
-  await user.click(screen.getByRole("button", { name: "پذیرش بررسی پروفایل" }));
   await user.click(screen.getByRole("button", { name: "اصلاح هوشمند" }));
   const repair = screen.getByRole("button", { name: "درخواست اصلاح هوشمند" });
   expect(repair).toBeDisabled();
@@ -912,9 +915,6 @@ test.each([
     expect(
       screen.getAllByText(/فیلدهای حل‌نشده: متراژ/).length,
     ).toBeGreaterThan(0);
-    await user.click(
-      screen.getByRole("button", { name: "پذیرش بررسی پروفایل" }),
-    );
     await user.selectOptions(screen.getByLabelText("روش بررسی نتایج"), mode);
     await user.click(
       screen.getByLabelText("نمونه‌ها و اعتبارسنجی پروفایل را بررسی کردم."),
@@ -1042,9 +1042,6 @@ test.each([
         screen.queryByText("اعتبارسنجی هشت فیلد اصلی موفق بود."),
       ).not.toBeInTheDocument();
     }
-    await user.click(
-      screen.getByRole("button", { name: "پذیرش بررسی پروفایل" }),
-    );
     await user.click(
       screen.getByLabelText("نمونه‌ها و اعتبارسنجی پروفایل را بررسی کردم."),
     );
@@ -1202,7 +1199,6 @@ test("compares imperfect repair evidence and requires a fresh explicit approval"
     </QueryClientProvider>,
   );
   await screen.findByText("پروفایل منبع — نسخه ۱");
-  await user.click(screen.getByRole("button", { name: "پذیرش بررسی پروفایل" }));
   await user.selectOptions(
     screen.getByLabelText("روش بررسی نتایج"),
     "automatic",
@@ -1284,7 +1280,6 @@ test("requires explicit legacy conflict resolution before URL approval", async (
     await screen.findByText("تعارض وب‌سایت‌های جاری ارسال‌کننده"),
   ).toBeVisible();
   await user.click(screen.getByRole("tab", { name: "نشانی و کشف" }));
-  await user.click(screen.getByRole("button", { name: "شروع بررسی" }));
   expect(
     await screen.findByRole("button", { name: "تأیید نشانی و شروع کشف" }),
   ).toBeDisabled();
@@ -1788,7 +1783,7 @@ test("pauses a Source separately and resumes with explicit fresh publication mod
   ).toBeVisible();
 });
 
-test("shows an expired review reservation and lets the operator claim it again", async () => {
+test("lets the responsible operator work across tabs without claiming or renewing a lease", async () => {
   const user = userEvent.setup();
   let claims = 0;
   server.use(
@@ -1818,16 +1813,9 @@ test("shows an expired review reservation and lets the operator claim it again",
       </MemoryRouter>
     </QueryClientProvider>,
   );
-  await user.click(await screen.findByRole("button", { name: "شروع بررسی" }));
-  expect(await screen.findByText("مهلت بررسی شما تمام شد.")).toBeVisible();
-  expect(
-    screen.queryByRole("button", { name: "تأیید نشانی و شروع کشف" }),
-  ).not.toBeInTheDocument();
-  await user.click(screen.getByRole("button", { name: "پذیرش دوباره بررسی" }));
-  expect(
-    await screen.findByText("بررسی این پرونده را پذیرفته‌اید."),
-  ).toBeVisible();
-  expect(screen.getByText(/مهلت بررسی:/)).toBeVisible();
+  expect(await screen.findByText("شما مسئول این پرونده هستید")).toBeVisible();
+  expect(claims).toBe(0);
+  expect(screen.queryByText(/مهلت بررسی:/)).not.toBeInTheDocument();
   expect(
     screen.getByRole("button", { name: "تأیید نشانی و شروع کشف" }),
   ).toBeDisabled();
@@ -1836,14 +1824,14 @@ test("shows an expired review reservation and lets the operator claim it again",
   expect(
     screen.getByRole("button", { name: "تأیید نشانی و شروع کشف" }),
   ).toHaveAccessibleDescription(/علامت بزنید/);
-  await user.click(screen.getByLabelText(/نشانی و اختیار نماینده/));
+  await user.click(await screen.findByLabelText(/نشانی و اختیار نماینده/));
   expect(
     screen.getByRole("button", { name: "تأیید نشانی و شروع کشف" }),
   ).toBeEnabled();
   await user.click(screen.getByRole("tab", { name: "پروفایل" }));
   expect(
-    screen.getByRole("button", { name: "تمدید مهلت بررسی" }),
-  ).toBeVisible();
+    screen.queryByRole("button", { name: "تمدید مهلت بررسی" }),
+  ).not.toBeInTheDocument();
 });
 
 function renderCrawlControls(exceptions: unknown[] = []) {

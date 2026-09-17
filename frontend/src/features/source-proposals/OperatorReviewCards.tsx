@@ -15,21 +15,15 @@ import { SourceConversationButton } from "@/features/source-proposals/SourceConv
 import { SourceExclusionsPanel } from "@/features/source-proposals/SourceExclusionsPanel";
 import { SourcePublicationModePanel } from "@/features/source-proposals/SourcePublicationModePanel";
 import { SourceResponsibilityPanel } from "@/features/source-proposals/SourceResponsibilityPanel";
-import { CandidateEvidence } from "@/features/source-proposals/CandidateEvidence";
 import { CandidateCorrectionForm } from "@/features/source-proposals/CandidateCorrectionForm";
+import { CandidateEvidence } from "@/features/source-proposals/CandidateEvidence";
 import { ExtractionRunReview } from "./ExtractionRunReview";
 import { ExtractionHistory } from "./ExtractionHistory";
 import { SourceExceptionsPanel } from "./SourceExceptionsPanel";
 import { SourceBulkActions } from "./SourceBulkActions";
 import { SourceExclusionsSummary } from "./SourceExclusionsPanel";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import {
-  type ReactNode,
-  useEffect,
-  useState,
-  createContext,
-  useContext,
-} from "react";
+import { type ReactNode, useState, createContext, useContext } from "react";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -38,11 +32,9 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
-  claimSourceProposal,
   revokeSourceAssignment,
   startSourceProfileReview,
   releaseSourceProposal,
-  claimExternalListingCandidate,
   decideExternalListingCandidate,
   decideSourceProposal,
   type ExternalListingCandidate,
@@ -55,7 +47,10 @@ import { currentUserQuery } from "@/features/session/queries";
 import { errorMessage } from "@/lib/api/errors";
 import { candidateStatus } from "./external-listing-workflow";
 
-import { proposalStateLabels } from "@/features/source-proposals/operator-workflow";
+import {
+  sourceAssignee,
+  proposalStateLabels,
+} from "@/features/source-proposals/operator-workflow";
 const relationshipLabels = {
   website_owner: "مالک وب‌سایت",
   website_manager: "مدیر وب‌سایت",
@@ -90,20 +85,6 @@ export function ProposalReviewCard({
   const [resultView, setResultView] = useState("properties");
   const [exclusionUrl, setExclusionUrl] = useState("");
   const [exclusionDraft, setExclusionDraft] = useState(0);
-  const [claimed, setClaimed] = useState(false);
-  const [claimExpiresAt, setClaimExpiresAt] = useState<string>();
-  const [claimExpired, setClaimExpired] = useState(false);
-  useEffect(() => {
-    if (!claimed || !claimExpiresAt) return;
-    const timer = window.setTimeout(
-      () => {
-        setClaimed(false);
-        setClaimExpired(true);
-      },
-      Math.max(0, Date.parse(claimExpiresAt) - Date.now()),
-    );
-    return () => window.clearTimeout(timer);
-  }, [claimed, claimExpiresAt]);
   const currentUser = useQuery(currentUserQuery);
   const mayForceRelease = currentUser.data?.operator_capabilities.includes(
     "manage_operator_queues",
@@ -111,14 +92,12 @@ export function ProposalReviewCard({
   const canDecideSource = Boolean(
     currentUser.data?.operator_capabilities.includes(
       "review_source_proposals",
-    ) && currentUser.data?.id === proposal.assignment?.review_operator,
-  );
-  const canReview = Boolean(
-    currentUser.data?.operator_capabilities.includes(
-      "review_source_proposals",
     ) &&
-    (proposal.assignment?.state !== "active" || canDecideSource),
+    currentUser.data?.id === sourceAssignee(proposal) &&
+    currentUser.data?.id !== proposal.submitter?.id,
   );
+  const canReview = canDecideSource;
+  const canReviewPendingProposal = canReview && proposal.state === "pending";
   const [maxPages, setMaxPages] = useState("");
   const [targetDetailPages, setTargetDetailPages] = useState("");
   const validLimits =
@@ -139,14 +118,6 @@ export function ProposalReviewCard({
         : "عددهای صحیح و مثبت وارد کنید؛ تعداد آگهی هدف نباید از سقف صفحات بیشتر باشد.";
   const [confirmed, setConfirmed] = useState(false);
   const [reason, setReason] = useState("");
-  const claim = useMutation({
-    mutationFn: () => claimSourceProposal(proposal.id),
-    onSuccess: (reviewClaim) => {
-      setClaimExpiresAt(reviewClaim.expires_at);
-      setClaimExpired(false);
-      setClaimed(true);
-    },
-  });
   const decision = useMutation({
     mutationFn: ({
       kind,
@@ -167,7 +138,6 @@ export function ProposalReviewCard({
         },
       ),
     onSuccess: (updated) => {
-      if (updated.state !== "pending") setClaimed(false);
       onDecisionSuccess(updated);
     },
   });
@@ -186,11 +156,8 @@ export function ProposalReviewCard({
         target_detail_pages: Number(targetDetailPages),
       }),
     onSuccess: (updated) => {
-      setClaimed(false);
-      setClaimExpired(false);
       setConfirmed(false);
       onDecisionSuccess(updated);
-      claim.mutate();
     },
   });
 
@@ -198,7 +165,6 @@ export function ProposalReviewCard({
     mutationFn: () =>
       releaseSourceProposal(proposal.id, proposal.revision, reason),
     onSuccess: (updated) => {
-      setClaimed(false);
       onDecisionSuccess(updated);
     },
   });
@@ -207,51 +173,15 @@ export function ProposalReviewCard({
     <ActiveSectionContext value={activeSection}>
       <div className="bg-card rounded-xl border shadow-sm">
         <div className="p-5 sm:p-6">
-          {(claim.error || decision.error || release.error) && (
+          {(decision.error || release.error) && (
             <Alert variant="destructive">
               <AlertDescription>
                 {errorMessage(
-                  claim.error ?? decision.error ?? release.error,
+                  decision.error ?? release.error,
                   "ثبت عملیات ممکن نشد.",
                 )}
               </AlertDescription>
             </Alert>
-          )}
-          {proposal.state === "pending" && (claimed || claimExpired) && (
-            <div
-              role="status"
-              className="bg-primary/5 mb-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border p-4"
-            >
-              <div className="grid gap-1 text-sm">
-                <p className="font-medium">
-                  {claimExpired
-                    ? "مهلت بررسی شما تمام شد."
-                    : "بررسی این پرونده را پذیرفته‌اید."}
-                </p>
-                {claimed && claimExpiresAt && (
-                  <p>
-                    مهلت بررسی:{" "}
-                    <time dateTime={claimExpiresAt}>
-                      {new Date(claimExpiresAt).toLocaleString("fa-IR")}
-                    </time>
-                  </p>
-                )}
-                <p className="text-muted-foreground">
-                  رزرو بررسی ۱۵ دقیقه اعتبار دارد. پس از پایان مهلت، برای ثبت
-                  تصمیم باید دوباره بررسی را بپذیرید. مسئولیت منبع با پایان این
-                  مهلت تغییر نمی‌کند.
-                </p>
-              </div>
-              {canReview && (
-                <Button
-                  variant="outline"
-                  disabled={claim.isPending}
-                  onClick={() => claim.mutate()}
-                >
-                  {claimExpired ? "پذیرش دوباره بررسی" : "تمدید مهلت بررسی"}
-                </Button>
-              )}
-            </div>
           )}
           <CaseSection id="overview" title="نمای کلی و اعلام نماینده">
             {proposal.current_website_conflict && (
@@ -415,11 +345,10 @@ export function ProposalReviewCard({
                 </p>
                 {!canReview && (
                   <p role="status" className="text-sm">
-                    برای ثبت تصمیم به دسترسی بررسی منابع و، برای منابع فعال،
-                    مسئولیت این منبع نیاز دارید.
+                    فقط اپراتور مسئول پرونده می‌تواند تصمیم ثبت کند.
                   </p>
                 )}
-                {(claimed || proposal.state === "approved") &&
+                {(canReviewPendingProposal || proposal.state === "approved") &&
                   (proposal.state === "approved" || !discoveryStarted) && (
                     <fieldset className="grid gap-3 rounded-xl border p-4 sm:grid-cols-2">
                       <legend className="px-1 font-medium">
@@ -537,20 +466,11 @@ export function ProposalReviewCard({
                       </p>
                     )}
                   </div>
-                ) : !claimed || !canReview ? (
-                  <Button
-                    onClick={() => claim.mutate()}
-                    disabled={
-                      !canReview ||
-                      claim.isPending ||
-                      (mayForceRelease &&
-                        !currentUser.data?.operator_capabilities.includes(
-                          "review_source_proposals",
-                        ))
-                    }
-                  >
-                    شروع بررسی
-                  </Button>
+                ) : !canReview ? (
+                  <p className="text-muted-foreground text-sm">
+                    این پرونده فقط خواندنی است. مسئولیت از صف منابع واگذار
+                    می‌شود.
+                  </p>
                 ) : (
                   <form
                     className="grid gap-4"
@@ -637,7 +557,7 @@ export function ProposalReviewCard({
                           disabled={!reason.trim() || release.isPending}
                           onClick={() => release.mutate()}
                         >
-                          انصراف از بررسی و آزادسازی رزرو
+                          توقف کشف و آزادسازی رزرو دامنه
                         </Button>
                         <Button
                           type="submit"
@@ -671,62 +591,51 @@ export function ProposalReviewCard({
                   می‌شود.
                 </p>
               )}
-            {proposal.state === "pending" &&
-              proposal.profile_versions?.length > 0 &&
-              !claimed &&
-              canReview && (
-                <Button
-                  className="justify-self-start"
-                  onClick={() => claim.mutate()}
-                  disabled={claim.isPending}
-                >
-                  پذیرش بررسی پروفایل
-                </Button>
-              )}{" "}
             <div id={`source-profile-${proposal.id}`} />
             <SourceProfileReview
               proposal={proposal}
-              claimed={claimed && canReview}
+              canReviewPendingProposal={canReviewPendingProposal && canReview}
               onUpdate={onDecisionSuccess}
             />
           </CaseSection>
           <CaseSection id="responsibility" title="تخصیص و مسئولیت">
             {" "}
-            {mayForceRelease && proposal.state === "pending" && !claimed && (
-              <details className="rounded-xl border p-4">
-                <summary className="cursor-pointer font-medium">
-                  آزادسازی رزرو بررسی
-                </summary>
-                <div className="mt-4 grid gap-3">
-                  <Label htmlFor={`release-${proposal.id}`}>
-                    دلیل آزادسازی مسئولیت بررسی
-                  </Label>
-                  <Input
-                    id={`release-${proposal.id}`}
-                    value={reason}
-                    onChange={(event) => setReason(event.target.value)}
-                  />
-                  <Button
-                    variant="outline"
-                    disabled={!reason.trim() || release.isPending}
-                    onClick={() => release.mutate()}
-                  >
-                    آزادسازی اجباری
-                  </Button>
-                </div>
-              </details>
-            )}
-            {!proposal.assignment && (
+            {mayForceRelease &&
+              proposal.state === "pending" &&
+              !canReviewPendingProposal && (
+                <details className="rounded-xl border p-4">
+                  <summary className="cursor-pointer font-medium">
+                    توقف کشف و آزادسازی رزرو دامنه
+                  </summary>
+                  <div className="mt-4 grid gap-3">
+                    <Label htmlFor={`release-${proposal.id}`}>
+                      دلیل توقف بررسی
+                    </Label>
+                    <Input
+                      id={`release-${proposal.id}`}
+                      value={reason}
+                      onChange={(event) => setReason(event.target.value)}
+                    />
+                    <Button
+                      variant="outline"
+                      disabled={!reason.trim() || release.isPending}
+                      onClick={() => release.mutate()}
+                    >
+                      آزادسازی اجباری
+                    </Button>
+                  </div>
+                </details>
+              )}
+            {!proposal.responsibility?.operator && (
               <p className="text-muted-foreground text-sm">
-                هنوز تخصیص فعالی برای این منبع ثبت نشده است. بررسی اولیه را از
-                بخش نشانی و کشف شروع کنید.
+                این پرونده هنوز مسئول ندارد. برای پذیرش مسئولیت به صف منابع
+                بروید.
               </p>
             )}{" "}
             <SourceResponsibilityPanel
               proposal={proposal}
               canManage={Boolean(mayForceRelease)}
               onUpdate={(updated) => {
-                setClaimed(false);
                 onDecisionSuccess(updated);
               }}
             />
@@ -962,8 +871,12 @@ export function ProposalReviewCard({
             )}
           </CaseSection>
           <CaseSection id="history" title="گفت‌وگو و تاریخچه">
-            {canReview && (
+            {canReview ? (
               <SourceConversationButton proposalId={proposal.id} operator />
+            ) : (
+              <p className="text-muted-foreground text-sm">
+                گفت‌وگو با نماینده در اختیار اپراتور مسئول پرونده است.
+              </p>
             )}
             {proposal.history.length === 0 && (
               <p className="text-muted-foreground text-sm">
@@ -1018,17 +931,12 @@ export function ExternalListingCandidateCard({
     candidate.state === "published" ||
     candidate.state === "rejected" ||
     candidate.state === "cancelled";
-  const [claimed, setClaimed] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [confirmedRevision, setConfirmedRevision] = useState<number | null>(
     null,
   );
   const confirmed = confirmedRevision === candidate.revision;
   const [reason, setReason] = useState("");
-  const claim = useMutation({
-    mutationFn: () => claimExternalListingCandidate(candidate.id),
-    onSuccess: () => setClaimed(true),
-  });
   const decision = useMutation({
     mutationFn: (kind: "request-changes" | "reject" | "approve") =>
       decideExternalListingCandidate(
@@ -1114,13 +1022,7 @@ export function ExternalListingCandidateCard({
         </dl>
         <p className="text-muted-foreground text-sm">{candidate.description}</p>
 
-        {canDecide && !claimed && (
-          <p className="text-muted-foreground text-sm">
-            شروع بررسی، این ملک را برای بررسی شما رزرو می‌کند؛ چیزی منتشر
-            نمی‌شود. سپس فرم اصلاح و دکمه‌های تصمیم نمایش داده می‌شوند.
-          </p>
-        )}
-        {claimed && canDecide && candidate.extraction_run && (
+        {canDecide && candidate.extraction_run && (
           <details
             open={
               Object.keys(candidate.validation_errors ?? {}).length > 0 ||
@@ -1137,95 +1039,80 @@ export function ExternalListingCandidateCard({
             />
           </details>
         )}
-        {canDecide &&
-          (!claimed ? (
-            <Button
-              onClick={() => claim.mutate()}
-              disabled={claim.isPending || !canDecide}
-              aria-label={`شروع بررسی ${candidate.title}`}
-            >
-              {claim.isPending
-                ? "در حال آماده‌سازی…"
-                : "شروع بررسی و باز کردن فرم اصلاح"}
-            </Button>
-          ) : (
-            <div className="grid gap-4">
-              <div className="grid gap-2">
-                <Label htmlFor={`candidate-reason-${candidate.id}`}>
-                  دلیل رد یا درخواست اصلاح {candidate.title}
-                </Label>
-                <Input
-                  id={`candidate-reason-${candidate.id}`}
-                  value={reason}
-                  onChange={(event) => setReason(event.target.value)}
-                />
-              </div>
-              <p className="text-muted-foreground text-xs">
-                دلیل فقط برای رد یا درخواست اصلاح لازم است. تأیید انتشار به دلیل
-                نیاز ندارد.
-              </p>
-              <label className="flex items-start gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={confirmed}
-                  onChange={(event) =>
-                    setConfirmedRevision(
-                      event.target.checked ? candidate.revision : null,
-                    )
-                  }
-                  aria-label={`تأیید انتشار ${candidate.title}`}
-                />
-                تأیید می‌کنم این آگهی استخراج‌شده مستقلاً بررسی شده و ادامه آن
-                فقط از پیوند اصلی آگهی خواهد بود.
-              </label>
-              {dirty && (
-                <p role="status" className="text-sm">
-                  پیش از ثبت تصمیم، اصلاحات را ذخیره کنید یا از آن‌ها انصراف
-                  دهید.
-                </p>
-              )}
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  variant="outline"
-                  disabled={dirty || decision.isPending || !reason.trim()}
-                  onClick={() => decision.mutate("request-changes")}
-                  aria-label={`درخواست اصلاح ${candidate.title}`}
-                >
-                  درخواست اصلاح
-                </Button>
-                <Button
-                  variant="destructive"
-                  disabled={dirty || decision.isPending || !reason.trim()}
-                  onClick={() => decision.mutate("reject")}
-                  aria-label={`رد ${candidate.title}`}
-                >
-                  رد آگهی استخراج‌شده
-                </Button>
-                <Button
-                  disabled={
-                    dirty ||
-                    !confirmed ||
-                    decision.isPending ||
-                    candidate.state !== "pending" ||
-                    Boolean(candidate.exclusion_reason) ||
-                    Object.keys(candidate.validation_errors ?? {}).length > 0
-                  }
-                  onClick={() => decision.mutate("approve")}
-                  aria-label={`تأیید و انتشار ${candidate.title}`}
-                >
-                  تأیید و انتشار
-                </Button>
-              </div>
+        {canDecide && (
+          <div className="grid gap-4">
+            <div className="grid gap-2">
+              <Label htmlFor={`candidate-reason-${candidate.id}`}>
+                دلیل رد یا درخواست اصلاح {candidate.title}
+              </Label>
+              <Input
+                id={`candidate-reason-${candidate.id}`}
+                value={reason}
+                onChange={(event) => setReason(event.target.value)}
+              />
             </div>
-          ))}
+            <p className="text-muted-foreground text-xs">
+              دلیل فقط برای رد یا درخواست اصلاح لازم است. تأیید انتشار به دلیل
+              نیاز ندارد.
+            </p>
+            <label className="flex items-start gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={confirmed}
+                onChange={(event) =>
+                  setConfirmedRevision(
+                    event.target.checked ? candidate.revision : null,
+                  )
+                }
+                aria-label={`تأیید انتشار ${candidate.title}`}
+              />
+              تأیید می‌کنم این آگهی استخراج‌شده مستقلاً بررسی شده و ادامه آن فقط
+              از پیوند اصلی آگهی خواهد بود.
+            </label>
+            {dirty && (
+              <p role="status" className="text-sm">
+                پیش از ثبت تصمیم، اصلاحات را ذخیره کنید یا از آن‌ها انصراف دهید.
+              </p>
+            )}
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="outline"
+                disabled={dirty || decision.isPending || !reason.trim()}
+                onClick={() => decision.mutate("request-changes")}
+                aria-label={`درخواست اصلاح ${candidate.title}`}
+              >
+                درخواست اصلاح
+              </Button>
+              <Button
+                variant="destructive"
+                disabled={dirty || decision.isPending || !reason.trim()}
+                onClick={() => decision.mutate("reject")}
+                aria-label={`رد ${candidate.title}`}
+              >
+                رد آگهی استخراج‌شده
+              </Button>
+              <Button
+                disabled={
+                  dirty ||
+                  !confirmed ||
+                  decision.isPending ||
+                  candidate.state !== "pending" ||
+                  Boolean(candidate.exclusion_reason) ||
+                  Object.keys(candidate.validation_errors ?? {}).length > 0
+                }
+                onClick={() => decision.mutate("approve")}
+                aria-label={`تأیید و انتشار ${candidate.title}`}
+              >
+                تأیید و انتشار
+              </Button>
+            </div>
+          </div>
+        )}
         <CandidateEvidence candidate={candidate} showValidation={closed} />
-        {(claim.error || decision.error) && (
+        {decision.error && (
           <Alert variant="destructive">
             <AlertDescription>
-              {errorMessage(
-                claim.error ?? decision.error,
-                "ثبت تصمیم آگهی ممکن نشد.",
-              )}
+              {errorMessage(decision.error, "ثبت تصمیم آگهی ممکن نشد.")}
             </AlertDescription>
           </Alert>
         )}

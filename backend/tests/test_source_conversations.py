@@ -8,6 +8,13 @@ def test_source_conversation_reply_notifies_without_deciding_proposal(api_client
     representative = make_user(email="representative@example.com", submitter=True)
     proposal = make_pending_proposal(submitter=representative)
     operator = make_operator()
+    api_client.force_authenticate(operator)
+    assert (
+        api_client.post(
+            f"/api/v1/operator/source-proposals/{proposal.pk}/claim/", {}, format="json"
+        ).status_code
+        == 201
+    )
     api_client.force_authenticate(representative)
     before = api_client.get(f"/api/v1/source-proposals/{proposal.pk}/").json()
     opened = api_client.post(
@@ -153,6 +160,13 @@ def test_deleted_representative_retains_history_but_stops_replies(api_client):
     representative = make_user(email="representative@example.com", submitter=True)
     proposal = make_pending_proposal(submitter=representative)
     operator = make_operator()
+    api_client.force_authenticate(operator)
+    assert (
+        api_client.post(
+            f"/api/v1/operator/source-proposals/{proposal.pk}/claim/", {}, format="json"
+        ).status_code
+        == 201
+    )
     api_client.force_authenticate(representative)
     opened = api_client.post(
         "/api/v1/messages/source-conversations/", {"proposal_id": str(proposal.pk)}, format="json"
@@ -175,6 +189,12 @@ def test_operator_can_open_conversation_and_redaction_retains_context(api_client
     proposal = make_pending_proposal(submitter=representative)
     operator = make_operator()
     api_client.force_authenticate(operator)
+    assert (
+        api_client.post(
+            f"/api/v1/operator/source-proposals/{proposal.pk}/claim/", {}, format="json"
+        ).status_code
+        == 201
+    )
     opened = api_client.post(
         "/api/v1/messages/source-conversations/", {"proposal_id": str(proposal.pk)}, format="json"
     )
@@ -257,6 +277,13 @@ def test_concurrent_open_and_replies_preserve_one_source_thread(api_client):
     representative = make_user(email="representative@example.com", submitter=True)
     proposal = make_pending_proposal(submitter=representative)
     operator = make_operator()
+    api_client.force_authenticate(operator)
+    assert (
+        api_client.post(
+            f"/api/v1/operator/source-proposals/{proposal.pk}/claim/", {}, format="json"
+        ).status_code
+        == 201
+    )
     barrier = Barrier(2)
 
     def send(actor):

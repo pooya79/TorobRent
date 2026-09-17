@@ -234,9 +234,9 @@ def claim_source_proposal_review(
     *, proposal: SourceProposal, actor: User
 ) -> SourceProposalReviewClaim:
     proposal = SourceProposal.objects.select_for_update().get(id=proposal.id)
-    from .responsibility import require_source_responsibility
+    from .responsibility import take_responsibility
 
-    require_source_responsibility(proposal=proposal, actor=actor)
+    proposal = take_responsibility(proposal=proposal, actor=actor)
     if proposal.state != SourceProposalState.PENDING:
         raise ValidationError("Only a pending Source Proposal can be claimed.")
     now = timezone.now()
@@ -454,16 +454,9 @@ def _current_candidate_claim(
         raise SourceProposalReviewConflict(
             "review_decision_conflict", "Another decision already changed this candidate."
         )
-    claim = _active_candidate_claim(candidate)
-    if claim is None or claim.operator_id != actor.id:
-        raise SourceProposalReviewConflict(
-            "review_claim_required", "A current Review Claim owned by this Operator is required."
-        )
-    if claim.expires_at <= timezone.now():
-        claim.released_at = timezone.now()
-        claim.save(update_fields=("released_at",))
-        raise SourceProposalReviewConflict("review_claim_expired", "The Review Claim expired.")
-    return claim
+    return claim_external_listing_candidate_review(
+        candidate=candidate, actor=actor, for_correction=allow_changes
+    )
 
 
 def record_candidate_transition(

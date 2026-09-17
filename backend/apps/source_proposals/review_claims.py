@@ -1,5 +1,4 @@
 from django.core.exceptions import ValidationError
-from django.utils import timezone
 
 from apps.accounts.models import User
 
@@ -35,17 +34,7 @@ def require_review_claim(
         raise SourceProposalReviewConflict(
             "review_decision_conflict", "Another decision already changed this Source Proposal."
         )
-    claim = active_review_claim(proposal)
-    if claim is None or claim.operator_id != actor.id:
-        raise SourceProposalReviewConflict(
-            "review_claim_required", "A current Review Claim owned by this Operator is required."
-        )
-    if claim.revision != reviewed_revision:
-        raise SourceProposalReviewConflict(
-            "review_revision_conflict", "The Source Proposal revision changed. Refresh it."
-        )
-    if claim.expires_at <= timezone.now():
-        claim.released_at = timezone.now()
-        claim.save(update_fields=("released_at",))
-        raise SourceProposalReviewConflict("review_claim_expired", "The Review Claim expired.")
-    return claim
+    # Ownership is durable; the lease remains internal decision evidence.
+    from .services import claim_source_proposal_review
+
+    return claim_source_proposal_review(proposal=proposal, actor=actor)

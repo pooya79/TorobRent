@@ -1,14 +1,31 @@
-import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { Link, Navigate, useSearchParams, useLocation } from "react-router";
+import { useRef, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  Link,
+  Navigate,
+  useSearchParams,
+  useLocation,
+  useNavigate,
+} from "react-router";
 import { ArrowUpLeft, Globe2, Search } from "lucide-react";
 import { PageMain } from "@/components/layout/PageMain";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { SourceResponsibilityPanel } from "@/features/source-proposals/SourceResponsibilityPanel";
 import { Label } from "@/components/ui/label";
 import { currentUserQuery } from "@/features/session/queries";
-import { operatorSourceProposalsQueryOptions } from "@/features/source-proposals/queries";
+import {
+  claimSourceProposal,
+  operatorSourceProposalsQueryOptions,
+  operatorSourceContextQueryOptions,
+} from "@/features/source-proposals/queries";
 import {
   sourceAssignee,
   sourceDomain,
@@ -17,20 +34,56 @@ import {
 } from "@/features/source-proposals/operator-workflow";
 
 const filters = [
-  { id: "all", label: "همه منابع" },
-  { id: "unassigned", label: "بدون مسئول" },
-  { id: "mine", label: "واگذارشده به من" },
+  { id: "mine", label: "پرونده‌های من" },
+  { id: "unassigned", label: "آماده پذیرش" },
+  { id: "all", label: "همه پرونده‌ها" },
   { id: "url", label: "بررسی نشانی" },
   { id: "profile", label: "بررسی پروفایل" },
   { id: "active", label: "منابع فعال" },
 ];
 export function OperatorSourceProposalPage() {
   const { hash } = useLocation();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const claim = useMutation({
+    mutationFn: claimSourceProposal,
+    onSuccess: (proposal) => {
+      queryClient.setQueryData(
+        operatorSourceContextQueryOptions(proposal.id).queryKey,
+        [proposal],
+      );
+      void queryClient.invalidateQueries({
+        queryKey: ["operator-source-proposals"],
+      });
+      void navigate(
+        `/operator/source-proposals/${proposal.id}#${sourceWorkflow(proposal).section}`,
+      );
+    },
+    onError: () => {
+      void queryClient.invalidateQueries({
+        queryKey: ["operator-source-proposals"],
+      });
+    },
+  });
   const [now] = useState(() => Date.now());
   const proposals = useQuery(operatorSourceProposalsQueryOptions);
   const currentUser = useQuery(currentUserQuery);
+  const transferTrigger = useRef<HTMLButtonElement | null>(null);
+  const [transferred, setTransferred] = useState(false);
+  const [transferId, setTransferId] = useState<string | null>(null);
+  const transferCase = proposals.data?.find(
+    (proposal) => proposal.id === transferId,
+  );
+  const canManage = currentUser.data?.operator_capabilities.includes(
+    "manage_operator_queues",
+  );
   const [params, setParams] = useSearchParams();
-  const selected = params.get("filter") ?? "all";
+  const selected =
+    params.get("filter") ??
+    (currentUser.data &&
+    !currentUser.data.operator_capabilities.includes("review_source_proposals")
+      ? "all"
+      : "mine");
   const search = params.get("q") ?? "";
   const update = (key: string, value: string) => {
     const next = new URLSearchParams(params);
@@ -74,10 +127,19 @@ export function OperatorSourceProposalPage() {
           </p>
           <h1 className="mt-2 text-3xl font-semibold">صف بررسی منابع</h1>
           <p className="text-muted-foreground mt-3">
-            منبع را پیدا کنید، اقدام بعدی را ببینید و پرونده آن را باز کنید.
+            ابتدا مسئولیت یک پرونده را بپذیرید؛ سپس همه مراحل بررسی و نگهداری
+            منبع را در همان پرونده ادامه دهید.
           </p>
         </div>
       </header>
+      {transferred && (
+        <p
+          role="status"
+          className="bg-primary/5 mb-4 rounded-xl border p-4 text-sm"
+        >
+          واگذاری مسئولیت ثبت شد.
+        </p>
+      )}
       <div className="bg-card rounded-xl border shadow-sm">
         <div className="grid gap-5 border-b p-5">
           <div className="max-w-md">
@@ -115,8 +177,8 @@ export function OperatorSourceProposalPage() {
             ))}
           </div>
           <p className="text-muted-foreground text-xs">
-            مسئول، اپراتور مسئول منبع است؛ رزرو موقت بررسی در این فهرست نمایش
-            داده نمی‌شود.
+            مسئولیت زمان پایان ندارد. پرونده‌های دیگران فقط خواندنی هستند؛
+            واگذاری به اپراتور دیگر با مدیر صف است.
           </p>
         </div>
         {proposals.isPending && (
@@ -148,13 +210,20 @@ export function OperatorSourceProposalPage() {
                 />
                 <h2 className="font-semibold">منبعی پیدا نشد</h2>
                 <p className="text-muted-foreground text-sm">
-                  {items.length
+                  {search
                     ? "جست‌وجو یا فیلتر را تغییر دهید."
-                    : "درخواست تازه منابع در این صف نمایش داده می‌شود."}
+                    : selected === "mine"
+                      ? "هنوز پرونده‌ای در اختیار شما نیست. از پرونده‌های آماده پذیرش شروع کنید."
+                      : selected === "unassigned"
+                        ? "در حال حاضر پرونده‌ای برای پذیرش وجود ندارد."
+                        : "درخواست تازه منابع در این صف نمایش داده می‌شود."}
                 </p>
                 {items.length > 0 && (
-                  <Button variant="outline" onClick={() => setParams({})}>
-                    پاک کردن فیلترها
+                  <Button
+                    variant="outline"
+                    onClick={() => setParams({ filter: "unassigned" })}
+                  >
+                    مشاهده پرونده‌های آماده پذیرش
                   </Button>
                 )}
               </div>
@@ -162,6 +231,13 @@ export function OperatorSourceProposalPage() {
             <ul className="divide-y">
               {visible.map((proposal) => {
                 const workflow = sourceWorkflow(proposal);
+                const owner = sourceAssignee(proposal);
+                const mine = owner === currentUser.data?.id;
+                const canTake =
+                  !owner &&
+                  currentUser.data?.operator_capabilities.includes(
+                    "review_source_proposals",
+                  );
                 return (
                   <li
                     key={proposal.id}
@@ -272,15 +348,63 @@ export function OperatorSourceProposalPage() {
                         <p className="text-muted-foreground text-xs">
                           اقدام بعدی
                         </p>
-                        <p className="mt-1 text-sm">{workflow.action}</p>
+                        <p className="mt-1 text-sm">
+                          {!owner
+                            ? "پذیرش مسئولیت برای شروع کار"
+                            : mine
+                              ? workflow.action
+                              : "در اختیار اپراتور دیگر · فقط مشاهده"}
+                        </p>
                       </div>
-                      <Button asChild size="sm" variant="outline">
-                        <Link
-                          to={`/operator/source-proposals/${proposal.id}#${workflow.section}`}
-                        >
-                          باز کردن پرونده <ArrowUpLeft aria-hidden="true" />
-                        </Link>
-                      </Button>
+                      <div className="grid w-full gap-2 sm:w-auto">
+                        {canTake ? (
+                          <Button
+                            size="sm"
+                            disabled={claim.isPending}
+                            onClick={() => claim.mutate(proposal.id)}
+                          >
+                            {claim.isPending && claim.variables === proposal.id
+                              ? "در حال پذیرش…"
+                              : "پذیرش مسئولیت و شروع کار"}
+                            <ArrowUpLeft aria-hidden="true" />
+                          </Button>
+                        ) : (
+                          <Button
+                            asChild
+                            size="sm"
+                            variant={mine ? "default" : "outline"}
+                          >
+                            <Link
+                              to={`/operator/source-proposals/${proposal.id}#${workflow.section}`}
+                            >
+                              {mine ? "ادامه کار روی پرونده" : "مشاهده پرونده"}{" "}
+                              <ArrowUpLeft aria-hidden="true" />
+                            </Link>
+                          </Button>
+                        )}
+                        {canManage && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={(event) => {
+                              transferTrigger.current = event.currentTarget;
+                              setTransferred(false);
+                              setTransferId(proposal.id);
+                            }}
+                          >
+                            واگذاری مسئولیت
+                          </Button>
+                        )}
+                        {claim.isError && claim.variables === proposal.id && (
+                          <p
+                            role="alert"
+                            className="text-destructive max-w-xs text-sm"
+                          >
+                            پذیرش انجام نشد. ممکن است مسئول پرونده تغییر کرده
+                            باشد؛ وضعیت تازه صف را بررسی و دوباره تلاش کنید.
+                          </p>
+                        )}
+                      </div>
                     </div>
                   </li>
                 );
@@ -289,6 +413,40 @@ export function OperatorSourceProposalPage() {
           </>
         )}
       </div>
+      <Dialog
+        open={Boolean(transferCase)}
+        onOpenChange={(open) => {
+          if (!open) setTransferId(null);
+        }}
+      >
+        <DialogContent
+          className="max-h-[85dvh] overflow-y-auto"
+          onCloseAutoFocus={(event) => {
+            event.preventDefault();
+            transferTrigger.current?.focus();
+          }}
+        >
+          <DialogTitle>واگذاری مسئولیت پرونده</DialogTitle>
+          <DialogDescription>
+            {transferCase?.website_name} — مسئول تازه همه مراحل این پرونده را
+            ادامه می‌دهد. دلیل واگذاری در تاریخچه ثبت می‌شود.
+          </DialogDescription>
+          {transferCase && (
+            <SourceResponsibilityPanel
+              key={transferCase.id}
+              proposal={transferCase}
+              canManage={Boolean(canManage)}
+              onUpdate={() => {
+                setTransferId(null);
+                setTransferred(true);
+                void queryClient.invalidateQueries({
+                  queryKey: ["operator-source-proposals"],
+                });
+              }}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </PageMain>
   );
 }

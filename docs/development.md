@@ -291,28 +291,30 @@ proposals remain readable by their Submitter, with review and assignment history
 
 ### Source Operator responsibility
 
-Apply catalog migration 0015 and source-proposal migrations 0026–0027 before starting the new
-application and workers. The data migration copies the approver from retained profile approval
-(or legacy proposal approval) into current Source responsibility, retaining the original evidence.
-Sources without approval evidence remain unassigned; a queue manager can assign an eligible
-Operator on an active case. Drain older application processes during this rollout so they cannot
-continue using original-approver authorization.
+Apply source-proposal migrations 0044–0045 before starting the updated application and workers.
+They move ongoing case ownership onto `SourceProposal`, so responsibility starts in the queue
+before URL approval or Discovery. Existing assignment history is copied without changing approval
+evidence; live onboarding review claims become ongoing ownership. Cases without either remain
+unassigned. Drain older application processes during rollout.
 
-The Source's `responsible_operator` is the destination for future conversation and exception
-notifications. Its `responsibility_revision` protects explicit, reasoned queue-manager
-reassignment. Decision services reread responsibility and capability under the Source lock;
-profile repair also checks the revision after the external call. Reassignment ends existing
-review leases without deleting their history. A successor must claim pending reviews and
-candidate exceptions using the existing time-limited claim workflow. Initial profile approval
-assigns its approver; later profile approvals preserve current responsibility.
+An eligible reviewer takes an unassigned case atomically from the queue. Ownership does not expire
+and survives requests for representative corrections, resubmission, profile approval, and review
+of replacement profiles. The queue defaults to the current Operator's cases. Other reviewers may
+inspect case evidence read-only, but decisions and representative conversations require current
+ownership and capability. Queue managers can transfer ownership with a reason, including before
+Discovery; they do not acquire decision rights automatically.
 
-Responsibility email labels and reassignment history are Operator-only. The representative's
-existing `assignment.review_operator` field now identifies the current responsible Operator;
-approval evidence continues to identify the historical approver.
+The proposal's `responsibility_revision` protects transfers and in-flight profile repair. Transfers
+end existing proposal and candidate review leases without deleting their history. Decision services
+check current ownership and reviewed data revisions under locks, acquiring review evidence
+internally; the UI does not ask the owner to repeatedly claim or renew a 15-minute review.
+Stopping Discovery releases the domain reservation, not ongoing case ownership.
 
-Django Source administration displays responsibility read-only. Additional CDN-host approvals and
-revocations use the same Source responsibility checks; during initial onboarding they require a
-current Review Claim. Source responsibility changes go through the queue-manager action.
+On initial profile approval, `Source.responsible_operator` is set to the case owner for extraction
+and exception notifications. Transfers on active assignments keep that projection current. The
+representative's `assignment.review_operator` follows its own case, including after revocation. Responsibility labels and history remain
+Operator-only. Source administration displays responsibility read-only; changes use the queue-manager
+action. Additional CDN-host decisions enforce the same current case ownership.
 
 ### Source Exclusions
 

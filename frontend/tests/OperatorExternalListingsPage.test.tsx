@@ -153,9 +153,6 @@ test("corrects and publishes a property inside its source using the refreshed re
   const decisions = setup("/operator/source-proposals/source#exceptions");
   await user.click(await screen.findByRole("link", { name: "بررسی و اصلاح" }));
   const dialog = within(screen.getByRole("dialog"));
-  await user.click(
-    dialog.getByRole("button", { name: "شروع بررسی آپارتمان نورگیر" }),
-  );
   await user.type(dialog.getByLabelText("متراژ (متر مربع)"), "95");
   await user.type(dialog.getByLabelText("دلیل اصلاح"), "تطبیق با منبع");
   await user.click(dialog.getByRole("button", { name: "ذخیره اصلاح آگهی" }));
@@ -208,9 +205,6 @@ test("requires saving or discarding local edits before publication", async () =>
     validation_errors: {},
   });
   const dialog = within(await screen.findByRole("dialog"));
-  await user.click(
-    dialog.getByRole("button", { name: "شروع بررسی آپارتمان نورگیر" }),
-  );
   await user.click(dialog.getByText("اصلاح مشخصات و تصاویر این ملک"));
   await user.clear(dialog.getByLabelText("متراژ (متر مربع)"));
   await user.type(dialog.getByLabelText("متراژ (متر مربع)"), "90");

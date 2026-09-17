@@ -263,7 +263,7 @@ def test_repair_requires_bounded_explicit_field_selection(
 @pytest.mark.django_db
 @pytest.mark.parametrize(
     "identity,status",
-    [("representative", 403), ("other", 409), ("self", 400), ("expired", 409), ("revoked", 403)],
+    [("representative", 403), ("other", 400), ("self", 400), ("expired", 200), ("revoked", 403)],
 )
 def test_only_assigned_capable_independent_operator_can_repair(
     api_client, discovered_case, llm_http, identity, status
@@ -303,7 +303,7 @@ def test_only_assigned_capable_independent_operator_can_repair(
         format="json",
     )
     assert response.status_code == status
-    assert llm_http.request.call_count == 0
+    assert llm_http.request.call_count == (1 if identity == "expired" else 0)
 
 
 @pytest.mark.django_db

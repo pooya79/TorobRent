@@ -10,7 +10,7 @@ from rest_framework.exceptions import APIException
 
 from apps.accounts.capabilities import OperatorCapability, has_capability
 from apps.accounts.models import User
-from apps.source_proposals.models import SourceProposal, SourceProposalReviewClaim
+from apps.source_proposals.models import SourceProposal
 
 from .models import SourceConversation, SourceConversationMessage, SourceConversationReadState
 
@@ -26,19 +26,10 @@ def conversation_proposals_for(actor: User) -> QuerySet[SourceProposal]:
     actor = User.objects.get(pk=actor.pk)
     if not actor.is_active or not (actor.email_verified or actor.phone_verified):
         return SourceProposal.objects.none()
-    current_claim = SourceProposalReviewClaim.objects.filter(
-        proposal_id=models.OuterRef("pk"),
-        revision=models.OuterRef("revision"),
-        released_at__isnull=True,
-        expires_at__gt=timezone.now(),
-    ).values("operator_id")[:1]
-    proposals = SourceProposal.objects.annotate(current_reviewer=models.Subquery(current_claim))
+    proposals = SourceProposal.objects.all()
     access = models.Q(submitter=actor)
     if has_capability(actor, OperatorCapability.REVIEW_SOURCE_PROPOSALS):
-        access |= models.Q(source__responsible_operator=actor) | (
-            models.Q(source__responsible_operator__isnull=True)
-            & (models.Q(current_reviewer=actor.pk) | models.Q(current_reviewer__isnull=True))
-        )
+        access |= models.Q(responsible_operator=actor)
     # A correction starts a new draft revision; its operational correspondence stays open.
     return proposals.filter(access).exclude(state="draft", revision=1)
 

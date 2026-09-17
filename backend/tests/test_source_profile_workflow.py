@@ -209,12 +209,12 @@ def test_unacknowledged_limitations_block_approval_but_manual_correction_can(
     "identity,status",
     [
         ("representative", 403),
-        ("other_operator", 409),
+        ("other_operator", 400),
         ("self_operator", 400),
-        ("expired_claim", 409),
+        ("expired_claim", 200),
     ],
 )
-def test_profile_actions_require_independent_current_claim(
+def test_profile_actions_require_current_owner_without_lease_renewal(
     api_client, discovered_case, identity, status
 ):
     from datetime import timedelta
@@ -236,12 +236,12 @@ def test_profile_actions_require_independent_current_claim(
         proposal.review_claims.update(expires_at=timezone.now() - timedelta(seconds=1))
         api_client.force_authenticate(operator)
     payload = {"reviewed_revision": 1, "reviewed_profile_version": version["id"]}
-    assert (
-        api_client.post(
-            f"{base}/profile/edit/", {**payload, "rules": version["rules"]}, format="json"
-        ).status_code
-        == status
+    edited = api_client.post(
+        f"{base}/profile/edit/", {**payload, "rules": version["rules"]}, format="json"
     )
+    assert edited.status_code == status
+    if status == 200:
+        payload["reviewed_profile_version"] = edited.json()["profile_versions"][0]["id"]
     assert (
         api_client.post(
             f"{base}/profile/approve/",

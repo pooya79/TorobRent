@@ -69,6 +69,15 @@ class SourceProposal(models.Model):
         blank=True,
         editable=False,
     )
+    responsible_operator = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="responsible_source_cases",
+        editable=False,
+    )
+    responsibility_revision = models.PositiveIntegerField(default=0, editable=False)
     current_step = models.CharField(
         max_length=16, choices=SourceProposalStep, default=SourceProposalStep.DETAILS
     )
@@ -780,6 +789,38 @@ class CandidateImageVariant(models.Model):
 
     def __str__(self) -> str:
         return f"{self.image_id}: {self.kind}"
+
+
+class SourceCaseResponsibilityChange(ImmutableProfileRecord):
+    proposal = models.ForeignKey(
+        SourceProposal, on_delete=models.PROTECT, related_name="responsibility_history"
+    )
+    operator = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=set_null_in_immutable_history,
+        null=True,
+        related_name="source_case_responsibilities",
+    )
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=set_null_in_immutable_history,
+        null=True,
+        related_name="source_case_responsibility_changes",
+    )
+    revision = models.PositiveIntegerField()
+    reason = models.TextField()
+    created_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        ordering = ("revision",)
+        constraints = [
+            models.UniqueConstraint(
+                fields=("proposal", "revision"), name="unique_source_case_responsibility_revision"
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.proposal_id}: responsibility {self.revision}"
 
 
 class SourceResponsibilityChange(ImmutableProfileRecord):

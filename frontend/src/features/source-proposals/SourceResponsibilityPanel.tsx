@@ -41,7 +41,7 @@ export function SourceResponsibilityPanel({
       });
     },
   });
-  if (!responsibility || proposal.assignment?.state !== "active") return null;
+  if (!responsibility) return null;
   return (
     <section
       aria-label="مسئولیت منبع"
@@ -52,8 +52,8 @@ export function SourceResponsibilityPanel({
         {responsibility.operator_label ?? "مسئول تعیین نشده است"}
       </p>
       <p className="text-muted-foreground text-sm">
-        مسئولیت این منبع محدودیت زمانی ندارد و با پایان مهلت ۱۵ دقیقه‌ای بررسی
-        حذف نمی‌شود. تغییر اپراتور مسئول را مدیر صف انجام می‌دهد.
+        مسئولیت از پذیرش پرونده تا بررسی و نگهداری منبع ادامه دارد و منقضی
+        نمی‌شود. تغییر اپراتور مسئول را مدیر صف انجام می‌دهد.
       </p>
       {canManage && (
         <form

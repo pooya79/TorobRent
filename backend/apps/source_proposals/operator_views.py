@@ -28,13 +28,11 @@ from .serializers import (
     SourceProfileRepairRequestSerializer,
     SourceProposalApprovalSerializer,
     SourceProposalDecisionSerializer,
-    SourceProposalReviewClaimSerializer,
     SourcePublicationModeRequestSerializer,
     SourceResponsibilityRequestSerializer,
     SourceURLApprovalSerializer,
 )
 from .services import (
-    claim_source_proposal_review,
     reject_source_proposal,
     request_source_proposal_changes,
 )
@@ -70,9 +68,17 @@ class OperatorSourceProposalListView(APIView):
         proposals = (
             SourceProposal.objects
             .filter(
-                Q(state__in=(SourceProposalState.PENDING, SourceProposalState.APPROVED))
+                Q(
+                    state__in=(
+                        SourceProposalState.PENDING,
+                        SourceProposalState.APPROVED,
+                        SourceProposalState.CHANGES_REQUESTED,
+                    )
+                )
+                | Q(state=SourceProposalState.DRAFT, revision__gt=1)
                 | Q(sourceassignment__revoked_at__isnull=True, sourceassignment__isnull=False)
             )
+            .filter(discarded_at__isnull=True)
             .distinct()
             .exclude(submitter=cast(User, request.user))
             .prefetch_related("events__actor")
@@ -80,24 +86,24 @@ class OperatorSourceProposalListView(APIView):
         query = SourceProposalContextQuerySerializer(data=request.query_params)
         query.is_valid(raise_exception=True)
         if proposal_id := query.validated_data.get("proposal"):
-            from apps.communications.source_conversations import conversation_proposals_for
-
             proposals = (
-                conversation_proposals_for(cast(User, request.user))
+                SourceProposal.objects
+                .exclude(state=SourceProposalState.DRAFT, revision=1)
                 .filter(pk=proposal_id)
                 .exclude(submitter=cast(User, request.user))
             )
         if candidate_id := query.validated_data.get("candidate"):
-            from apps.communications.source_conversations import conversation_proposals_for
-
             proposals = (
-                conversation_proposals_for(cast(User, request.user))
+                SourceProposal.objects
+                .exclude(state=SourceProposalState.DRAFT, revision=1)
                 .filter(external_listing_candidates__pk=candidate_id)
                 .exclude(submitter=cast(User, request.user))
             )
         return Response(
             OperatorSourceProposalSerializer(
-                proposals.select_related("submitter"),
+                proposals.select_related("submitter", "responsible_operator").prefetch_related(
+                    "responsibility_history__operator", "responsibility_history__actor"
+                ),
                 many=True,
                 context={"include_properties": bool(query.validated_data)},
             ).data
@@ -147,20 +153,22 @@ class OperatorSourceProposalClaimView(APIView):
     permission_classes = (CanReviewSourceProposal,)
 
     @extend_schema(
-        summary="Claim a Source Proposal review",
+        summary="Take ongoing responsibility for a Source case",
         request=None,
-        responses=SourceProposalReviewClaimSerializer,
+        responses=OperatorSourceProposalSerializer,
     )
     def post(self, request: Request, proposal_id: str) -> Response:
         proposal = get_object_or_404(SourceProposal, id=proposal_id)
         try:
-            claim = claim_source_proposal_review(proposal=proposal, actor=cast(User, request.user))
+            from .responsibility import take_responsibility
+
+            proposal = take_responsibility(proposal=proposal, actor=cast(User, request.user))
         except SourceProposalReviewConflict as exc:
             return _workflow_error(exc)
         except DjangoValidationError as exc:
             raise ValidationError(exc.messages[0]) from None
         return Response(
-            SourceProposalReviewClaimSerializer(claim).data,
+            OperatorSourceProposalSerializer(proposal).data,
             status=status.HTTP_201_CREATED,
         )
 

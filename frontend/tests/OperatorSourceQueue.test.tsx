@@ -20,7 +20,7 @@ const source = {
   profile_versions: [],
   authority_declared: true,
 };
-function setup(path = "/operator/source-proposals") {
+function setup(path = "/operator/source-proposals?filter=all") {
   server.use(
     http.get("*/api/v1/users/me/", () =>
       HttpResponse.json({
@@ -83,11 +83,11 @@ test("filters and searches the queue without rendering source review forms or fe
   expect(
     screen.queryByRole("button", { name: "شروع بررسی" }),
   ).not.toBeInTheDocument();
-  await user.click(screen.getByRole("button", { name: /بدون مسئول/ }));
+  await user.click(screen.getByRole("button", { name: /آماده پذیرش/ }));
   expect(
     screen.queryByRole("link", { name: "خانه سبز" }),
   ).not.toBeInTheDocument();
-  await user.click(screen.getByRole("button", { name: /همه منابع/ }));
+  await user.click(screen.getByRole("button", { name: /همه پرونده‌ها/ }));
   await user.type(
     screen.getByLabelText("جست‌وجوی نام یا دامنه"),
     "green.example",
@@ -130,7 +130,7 @@ test("shows a useful empty result when search matches no source", async () => {
     await screen.findByRole("heading", { name: "منبعی پیدا نشد" }),
   ).toBeVisible();
   await userEvent.click(
-    screen.getByRole("button", { name: "پاک کردن فیلترها" }),
+    screen.getByRole("button", { name: "مشاهده پرونده‌های آماده پذیرش" }),
   );
   expect(screen.getByRole("link", { name: "خانه آبی" })).toBeVisible();
 });
@@ -171,7 +171,7 @@ test("keeps flagged sources in their stage filter and identifies the assigned op
   await user.click(screen.getByRole("button", { name: /بررسی نشانی/ }));
   expect(screen.getByRole("link", { name: "خانه آبی" })).toBeVisible();
   expect(screen.getByText("دامنه تکراری")).toBeVisible();
-  await user.click(screen.getByRole("button", { name: /واگذارشده به من/ }));
+  await user.click(screen.getByRole("button", { name: /پرونده‌های من/ }));
   expect(screen.getByRole("link", { name: "منبع من" })).toBeVisible();
   expect(
     screen.queryByRole("link", { name: "خانه آبی" }),
@@ -189,6 +189,7 @@ test("shows submitter identity and keeps only the selected section visible witho
       HttpResponse.json([
         {
           ...source,
+          responsibility: { operator: "me", revision: 1, history: [] },
           submitter: {
             id: "representative",
             display_name: "سارا احمدی",
@@ -211,7 +212,7 @@ test("shows submitter identity and keeps only the selected section visible witho
   ).toBeVisible();
   expect(screen.getAllByRole("tabpanel")).toHaveLength(1);
   await user.click(screen.getByRole("tab", { name: "نشانی و کشف" }));
-  await user.click(screen.getByRole("button", { name: "شروع بررسی" }));
+  await screen.findByText("شما مسئول این پرونده هستید");
   await user.type(screen.getByLabelText("سقف صفحات قابل بررسی"), "50");
   await user.click(screen.getByRole("tab", { name: "نمای کلی" }));
   expect(
@@ -224,4 +225,133 @@ test("shows submitter identity and keeps only the selected section visible witho
   );
   expect(screen.getByLabelText("سقف صفحات قابل بررسی")).toHaveValue(50);
   expect(screen.getAllByRole("tabpanel")).toHaveLength(1);
+});
+
+test("defaults to my cases and takes durable responsibility from the unassigned queue", async () => {
+  let owned = false;
+  let claims = 0;
+  const caseData = () => ({
+    ...source,
+    responsibility: {
+      operator: owned ? "me" : null,
+      operator_label: owned ? "me@example.com" : null,
+      revision: owned ? 1 : 0,
+      history: [],
+    },
+  });
+  server.use(
+    http.get("*/api/v1/operator/source-proposals/", () =>
+      HttpResponse.json([caseData()]),
+    ),
+    http.post("*/api/v1/operator/source-proposals/:id/claim/", () => {
+      owned = true;
+      claims += 1;
+      return HttpResponse.json(caseData(), { status: 201 });
+    }),
+  );
+  setup("/operator/source-proposals");
+  const user = userEvent.setup();
+  expect(
+    await screen.findByRole("button", { name: /پرونده‌های من/ }),
+  ).toHaveAttribute("aria-pressed", "true");
+  expect(
+    screen.queryByRole("link", { name: "خانه آبی" }),
+  ).not.toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: /آماده پذیرش/ }));
+  await user.click(
+    await screen.findByRole("button", { name: "پذیرش مسئولیت و شروع کار" }),
+  );
+  expect(await screen.findByText("شما مسئول این پرونده هستید")).toBeVisible();
+  expect(
+    screen.getByRole("button", { name: "تأیید نشانی و شروع کشف" }),
+  ).toBeVisible();
+  await user.click(screen.getByRole("tab", { name: "پروفایل" }));
+  expect(
+    screen.queryByRole("button", { name: "پذیرش بررسی پروفایل" }),
+  ).not.toBeInTheDocument();
+  expect(claims).toBe(1);
+});
+
+test("keeps another operator's case read-only even through a direct URL", async () => {
+  server.use(
+    http.get("*/api/v1/operator/source-proposals/", () =>
+      HttpResponse.json([
+        {
+          ...source,
+          responsibility: {
+            operator: "other",
+            operator_label: "other@example.com",
+            revision: 1,
+            history: [],
+          },
+        },
+      ]),
+    ),
+  );
+  setup("/operator/source-proposals/source-a#url");
+  expect(await screen.findByText("پرونده فقط خواندنی است")).toBeVisible();
+  expect(
+    screen.queryByRole("button", { name: "تأیید نشانی و شروع کشف" }),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole("button", { name: "پذیرش مسئولیت و شروع کار" }),
+  ).not.toBeInTheDocument();
+});
+
+test("queue managers transfer a case without opening its workspace", async () => {
+  let transferred = false;
+  server.use(
+    http.get("*/api/v1/operator/source-proposals/", () =>
+      HttpResponse.json([
+        {
+          ...source,
+          responsibility: {
+            operator: transferred ? "next" : "me",
+            operator_label: transferred ? "next@example.com" : "me@example.com",
+            revision: transferred ? 2 : 1,
+            history: [],
+          },
+        },
+      ]),
+    ),
+    http.post(
+      "*/api/v1/operator/source-proposals/:id/responsibility/",
+      async ({ request }) => {
+        expect(await request.json()).toEqual({
+          assignee_email: "next@example.com",
+          reason: "تحویل شیفت",
+          reviewed_responsibility_revision: 1,
+        });
+        transferred = true;
+        return HttpResponse.json({ ...source });
+      },
+    ),
+  );
+  setup();
+  server.use(
+    http.get("*/api/v1/users/me/", () =>
+      HttpResponse.json({
+        id: "me",
+        operator_capabilities: [
+          "review_source_proposals",
+          "manage_operator_queues",
+        ],
+      }),
+    ),
+  );
+  const user = userEvent.setup();
+  await user.click(
+    await screen.findByRole("button", { name: "واگذاری مسئولیت" }),
+  );
+  await user.type(
+    screen.getByLabelText("ایمیل اپراتور مقصد"),
+    "next@example.com",
+  );
+  await user.type(screen.getByLabelText("دلیل تغییر مسئول"), "تحویل شیفت");
+  await user.click(
+    screen.getByRole("button", { name: "واگذاری مسئولیت منبع" }),
+  );
+  expect(await screen.findByText("next@example.com")).toBeVisible();
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  expect(screen.getByRole("heading", { name: "صف بررسی منابع" })).toBeVisible();
 });

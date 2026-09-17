@@ -203,10 +203,16 @@ def test_changed_scope_requires_a_fresh_preview(
             == 200
         )
     elif change == "responsibility":
-        from apps.catalog.models import Source
+        from apps.source_proposals.responsibility import reassign_responsibility
+        from tests.test_source_responsibility import queue_manager
 
-        Source.objects.filter(pk=case["assignment"]["source"]["id"]).update(
-            responsible_operator=make_operator(email="new@example.com")
+        successor = make_operator(email="new@example.com")
+        reassign_responsibility(
+            proposal=assigned_case[0],
+            actor=queue_manager(),
+            assignee_email=successor.email,
+            reviewed_responsibility_revision=1,
+            reason="تغییر مسئول",
         )
     else:
         candidate = next(

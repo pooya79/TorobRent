@@ -131,7 +131,7 @@ def test_reassignment_during_profile_review_allows_new_claim_and_refuses_old_cla
     api_client.force_authenticate(manager)
     assert reassign(api_client, proposal, manager).status_code == 200
     api_client.force_authenticate(original)
-    assert api_client.post(f"{base}/claim/", {}).status_code == 400
+    assert api_client.post(f"{base}/claim/", {}).status_code == 409
     api_client.force_authenticate(manager)
     assert api_client.post(f"{base}/claim/", {}).status_code == 201
 
@@ -249,14 +249,13 @@ def test_reassignment_invalidates_candidate_claim_and_stale_capability_cache(
     payload = {
         "reviewed_revision": candidate["revision"],
         "reason": "بررسی",
-        "values": {"area_sqm": 95},
     }
-    assert api_client.post(f"{base}/correct/", payload, format="json").status_code == 400
+    assert api_client.post(f"{base}/reject/", payload, format="json").status_code == 400
     api_client.force_authenticate(manager)
     assert api_client.post(f"{base}/claim/", {}).status_code == 201
     # The APIClient retains its authenticated instance and its permission cache.
     manager.user_permissions.clear()
-    assert api_client.post(f"{base}/correct/", payload, format="json").status_code in (400, 403)
+    assert api_client.post(f"{base}/reject/", payload, format="json").status_code in (400, 403)
 
 
 def grant_source_admin(operator):
@@ -316,7 +315,7 @@ def test_image_host_admin_follows_current_responsibility(client, api_client, ass
 
 
 @pytest.mark.django_db
-def test_pending_image_host_approval_keeps_time_limited_review_claim(client, discovered_case):
+def test_pending_image_host_approval_uses_durable_responsibility(client, discovered_case):
     from datetime import timedelta
 
     from django.utils import timezone
@@ -329,4 +328,29 @@ def test_pending_image_host_approval_keeps_time_limited_review_claim(client, dis
     assert client.post("/admin/source_proposals/sourceimagehost/add/", payload).status_code == 302
     proposal.review_claims.update(expires_at=timezone.now() - timedelta(seconds=1))
     payload["host"] = "next-cdn.example"
-    assert client.post("/admin/source_proposals/sourceimagehost/add/", payload).status_code == 403
+    assert client.post("/admin/source_proposals/sourceimagehost/add/", payload).status_code == 302
+
+
+@pytest.mark.django_db
+def test_transfer_refuses_exclusion_using_proposal_loaded_before_transfer(
+    api_client, assigned_case
+):
+    from django.core.exceptions import ValidationError
+
+    from apps.source_proposals.exclusions import add_exclusion
+    from apps.source_proposals.models import SourceProposal
+
+    proposal, _, original, _, _ = assigned_case
+    stale_proposal = SourceProposal.objects.get(pk=proposal.pk)
+    manager = queue_manager()
+    api_client.force_authenticate(manager)
+    assert reassign(api_client, proposal, manager).status_code == 200
+    with pytest.raises(ValidationError, match="مسئولیت"):
+        add_exclusion(
+            proposal=stale_proposal,
+            actor=original,
+            kind="exact",
+            url="https://khaneh.example/listing/10000",
+            reason="تغییر قدیمی",
+            confirmed=True,
+        )

@@ -156,7 +156,7 @@ class SourceAssignmentSerializer(serializers.ModelSerializer[SourceAssignment]):
         allow_null=True,
     )
     review_operator = serializers.UUIDField(
-        source="source.responsible_operator_id", read_only=True, allow_null=True, default=None
+        source="proposal.responsible_operator_id", read_only=True, allow_null=True, default=None
     )
     exclusions = SourceExclusionSerializer(source="source.exclusions", many=True, read_only=True)
     exceptions = serializers.SerializerMethodField()
@@ -316,7 +316,7 @@ class SourceProposalSerializer(serializers.ModelSerializer[SourceProposal]):
         assignment = (
             SourceAssignment.objects
             .filter(proposal=proposal, representative_id=proposal.submitter_id)
-            .select_related("source", "approval__version__profile")
+            .select_related("source", "proposal", "approval__version__profile")
             .order_by("-created_at")
             .first()
         )
@@ -685,9 +685,7 @@ class SourceProposalSubmitterSerializer(serializers.ModelSerializer[User]):
 
 class OperatorSourceProposalSerializer(SourceProposalSerializer):
     submitter = SourceProposalSubmitterSerializer(read_only=True, allow_null=True)
-    responsibility = SourceResponsibilitySerializer(
-        source="source", read_only=True, allow_null=True
-    )
+    responsibility = SourceResponsibilitySerializer(source="*", read_only=True, allow_null=True)
     properties = serializers.SerializerMethodField()
     needs_reconciliation = serializers.SerializerMethodField()
     discovery = serializers.SerializerMethodField()

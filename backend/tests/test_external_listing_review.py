@@ -52,7 +52,7 @@ def make_operator(email: str) -> User:
 
 
 @pytest.mark.django_db
-def test_each_candidate_has_independent_protected_review_and_external_publication(api_client):
+def test_source_owner_reviews_each_candidate_and_publishes_external_listings(api_client):
     call_command("loaddata", "catalog_seed", verbosity=0)
     representative = make_representative()
     source = Source.objects.create(
@@ -105,6 +105,12 @@ def test_each_candidate_has_independent_protected_review_and_external_publicatio
     assert api_client.post(f"{queue_url}{first.id}/claim/", {}, format="json").status_code == 400
 
     api_client.force_authenticate(first_operator)
+    assert (
+        api_client.post(
+            f"/api/v1/operator/source-proposals/{proposal.pk}/claim/", {}, format="json"
+        ).status_code
+        == 201
+    )
     queue = api_client.get(queue_url)
     assert queue.status_code == 200
     assert [item["id"] for item in queue.data] == [str(first.id), str(second.id)]
@@ -116,8 +122,8 @@ def test_each_candidate_has_independent_protected_review_and_external_publicatio
 
     api_client.force_authenticate(second_operator)
     conflict = api_client.post(f"{queue_url}{first.id}/claim/", {}, format="json")
-    assert conflict.status_code == 409
-    assert conflict.data["code"] == "review_claim_conflict"
+    assert conflict.status_code == 400
+    assert conflict.data["code"] == "validation_error"
 
     api_client.force_authenticate(first_operator)
     changed = api_client.post(
@@ -133,6 +139,8 @@ def test_each_candidate_has_independent_protected_review_and_external_publicatio
     assert api_client.get("/api/v1/catalog/properties/").data["count"] == 0
 
     api_client.force_authenticate(second_operator)
+    assert api_client.post(f"{queue_url}{second.id}/claim/", {}, format="json").status_code == 400
+    api_client.force_authenticate(first_operator)
     assert api_client.post(f"{queue_url}{second.id}/claim/", {}, format="json").status_code == 201
     published = api_client.post(
         f"{queue_url}{second.id}/approve/",

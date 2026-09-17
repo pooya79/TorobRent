@@ -1155,7 +1155,7 @@ export interface paths {
     };
     get?: never;
     put?: never;
-    /** Claim a Source Proposal review */
+    /** Take ongoing responsibility for a Source case */
     post: operations["v1_operator_source_proposals_claim_create"];
     delete?: never;
     options?: never;
@@ -5071,18 +5071,6 @@ export interface components {
      */
     SourceProposalRelationshipEnum:
       "website_owner" | "website_manager" | "authorized_representative";
-    SourceProposalReviewClaim: {
-      /** Format: uuid */
-      readonly id: string;
-      /** Format: email */
-      readonly operator_label: string;
-      /** Format: int64 */
-      revision: number;
-      /** Format: date-time */
-      expires_at: string;
-      /** Format: date-time */
-      readonly created_at: string;
-    };
     /**
      * @description * `draft` - پیش‌نویس
      *     * `pending` - در انتظار بررسی
@@ -8058,7 +8046,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["SourceProposalReviewClaim"];
+          "application/json": components["schemas"]["OperatorSourceProposal"];
         };
       };
     };

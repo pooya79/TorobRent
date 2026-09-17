@@ -96,11 +96,11 @@ function displayField(field: string, value: unknown): string {
 
 export function SourceProfileReview({
   proposal,
-  claimed,
+  canReviewPendingProposal,
   onUpdate,
 }: {
   proposal: OperatorSourceProposal;
-  claimed: boolean;
+  canReviewPendingProposal: boolean;
   onUpdate: (proposal: OperatorSourceProposal) => void;
 }) {
   const versions = proposal.profile_versions ?? [];
@@ -126,7 +126,7 @@ export function SourceProfileReview({
           کنید یا فیلدهای نادرست را اصلاح کنید.
         </p>
       </header>
-      <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]">
+      <div className="grid grid-cols-1 items-start gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]">
         <div className="min-w-0 rounded-xl border p-4">
           <ProfileEvidence version={latest} />
           {parent && (
@@ -162,7 +162,7 @@ export function SourceProfileReview({
           )}
         </div>
         <aside className="bg-card min-w-0 rounded-xl border p-5 xl:sticky xl:top-20">
-          {claimed &&
+          {canReviewPendingProposal &&
             proposal.discovery_stage === "complete" &&
             latest.reservation === proposal.discovery?.id &&
             latest.status === "proposed" && (
@@ -173,7 +173,7 @@ export function SourceProfileReview({
                 onUpdate={onUpdate}
               />
             )}
-          {claimed &&
+          {canReviewPendingProposal &&
             !(
               proposal.discovery_stage === "complete" &&
               latest.reservation === proposal.discovery?.id &&
@@ -185,10 +185,9 @@ export function SourceProfileReview({
                   : "در حال حاضر نسخه‌ای آماده تصمیم‌گیری نیست. وضعیت بررسی منبع را دنبال کنید."}
               </p>
             )}
-          {!claimed && (
+          {!canReviewPendingProposal && (
             <p className="text-muted-foreground text-sm">
-              برای ثبت تصمیم یا اصلاح فیلدها، ابتدا مسئولیت بررسی پروفایل را
-              بپذیرید.
+              ثبت تصمیم و اصلاح فیلدها فقط در اختیار اپراتور مسئول پرونده است.
             </p>
           )}
         </aside>
@@ -459,7 +458,7 @@ function ProfileEvidence({ version }: { version: Version }) {
   const trainingCount = version.validation.training_page_urls.length;
   const validationCount = version.validation.held_out_page_urls.length;
   return (
-    <div className="grid min-w-0 gap-3">
+    <div className="grid min-w-0 grid-cols-1 gap-3 break-words">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h3 className="flex items-center gap-2 font-semibold">
           <ShieldCheck className="text-primary size-5" aria-hidden="true" />
@@ -669,7 +668,7 @@ function ProfileEvidence({ version }: { version: Version }) {
                 )?.media ?? []
               }
             />
-            <dl className="grid gap-3 text-sm sm:grid-cols-2">
+            <dl className="grid min-w-0 grid-cols-1 gap-3 text-sm sm:grid-cols-2">
               {Object.entries(sample.normalized).map(([field, value]) => (
                 <div key={field} className="bg-muted/40 rounded-lg p-3">
                   <dt className="text-muted-foreground mb-1">

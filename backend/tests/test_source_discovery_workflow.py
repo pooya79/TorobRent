@@ -172,7 +172,7 @@ def test_decisions_cancel_discovery_and_keep_notifications(api_client, decision)
 
 
 @pytest.mark.django_db
-def test_claim_renews_and_queue_manager_can_force_release(api_client):
+def test_case_claim_is_idempotent_and_manager_can_stop_discovery(api_client):
     from datetime import timedelta
 
     from django.contrib.auth.models import Permission
@@ -191,7 +191,7 @@ def test_claim_renews_and_queue_manager_can_force_release(api_client):
     old_expiry = timezone.now() + timedelta(seconds=30)
     proposal.review_claims.update(expires_at=old_expiry)
     assert api_client.post(f"{base}/claim/", {}).status_code == 201
-    assert proposal.review_claims.get().expires_at > old_expiry
+    assert proposal.review_claims.get().expires_at == old_expiry
     manager = make_user(email="manager@example.com")
     manager.user_permissions.add(Permission.objects.get(codename="manage_operator_queue"))
     api_client.force_authenticate(manager)

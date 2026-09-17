@@ -26,6 +26,8 @@ class SourceProposalAdmin(ModelAdmin):  # type: ignore[type-arg]
     search_fields = ("website_name", "normalized_domain", "submitter__email", "submitter__phone")
     readonly_fields = (
         "id",
+        "responsible_operator",
+        "responsibility_revision",
         "normalized_domain",
         "needs_reconciliation",
         "pending_since",

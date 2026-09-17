@@ -20,6 +20,7 @@ import {
   type OperatorSourceProposal,
 } from "@/features/source-proposals/queries";
 import {
+  sourceAssignee,
   sourceDomain,
   sourceWorkflow,
 } from "@/features/source-proposals/operator-workflow";
@@ -168,6 +169,31 @@ export function OperatorSourceProposalDetailPage({
                 </Button>
               )}
           </header>
+          <div
+            className="bg-muted/40 mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border p-4"
+            role="status"
+          >
+            <div className="min-w-0 text-sm">
+              <p className="font-medium">
+                {sourceAssignee(proposal) === currentUser.data?.id
+                  ? "شما مسئول این پرونده هستید"
+                  : sourceAssignee(proposal)
+                    ? "پرونده فقط خواندنی است"
+                    : "این پرونده هنوز مسئول ندارد"}
+              </p>
+              <p className="text-muted-foreground mt-1 break-all">
+                {proposal.responsibility?.operator_label ??
+                  "برای شروع کار، مسئولیت را در صف منابع بپذیرید."}
+              </p>
+            </div>
+            {!sourceAssignee(proposal) && (
+              <Button asChild variant="outline" size="sm">
+                <Link to="/operator/source-proposals?filter=unassigned">
+                  رفتن به صف پذیرش
+                </Link>
+              </Button>
+            )}
+          </div>
           {completed && (
             <p role="status" className="bg-primary/10 mb-4 rounded-lg p-3">
               تصمیم ثبت شد.

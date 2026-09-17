@@ -2344,7 +2344,7 @@ paths:
   /api/v1/operator/source-proposals/{proposal_id}/claim/:
     post:
       operationId: v1_operator_source_proposals_claim_create
-      summary: Claim a Source Proposal review
+      summary: Take ongoing responsibility for a Source case
       parameters:
       - in: path
         name: proposal_id
@@ -2361,7 +2361,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SourceProposalReviewClaim'
+                $ref: '#/components/schemas/OperatorSourceProposal'
           description: ''
   /api/v1/operator/source-proposals/{proposal_id}/claim/release/:
     post:
@@ -11260,35 +11260,6 @@ components:
         * `website_owner` - مالک وب‌سایت
         * `website_manager` - مدیر وب‌سایت
         * `authorized_representative` - نماینده مجاز
-    SourceProposalReviewClaim:
-      type: object
-      properties:
-        id:
-          type: string
-          format: uuid
-          readOnly: true
-        operator_label:
-          type: string
-          format: email
-          readOnly: true
-        revision:
-          type: integer
-          maximum: 9223372036854775807
-          minimum: 0
-          format: int64
-        expires_at:
-          type: string
-          format: date-time
-        created_at:
-          type: string
-          format: date-time
-          readOnly: true
-      required:
-      - created_at
-      - expires_at
-      - id
-      - operator_label
-      - revision
     SourceProposalStateEnum:
       enum:
       - draft
