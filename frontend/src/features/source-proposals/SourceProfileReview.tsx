@@ -1,5 +1,8 @@
 import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
+import { Badge } from "@/components/ui/badge";
+import { History, ScanText, ShieldCheck, Sparkles } from "lucide-react";
+import { ProfileRule } from "./ProfileRule";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -51,6 +54,13 @@ const fields: Record<string, string> = {
   image_urls: "نشانی تصاویر",
 };
 const coreFields = Object.keys(fields).slice(0, 8);
+function formatProfileDate(value?: string | null) {
+  if (!value || Number.isNaN(Date.parse(value))) return "ثبت نشده";
+  return new Intl.DateTimeFormat("fa-IR", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(value));
+}
 const selectClass = "border-input bg-background rounded-md border p-2 text-sm";
 function display(value: unknown): string {
   const labels: Record<string, string> = {
@@ -61,7 +71,17 @@ function display(value: unknown): string {
   };
   if (typeof value === "string") return labels[value] ?? value;
   if (typeof value === "number") return value.toLocaleString("fa-IR");
-  return JSON.stringify(value) ?? "—";
+  if (value == null) return "ثبت نشده";
+  if (typeof value === "boolean") return value ? "بله" : "خیر";
+  if (Array.isArray(value)) return value.map(display).join("، ") || "ثبت نشده";
+  if (typeof value === "object")
+    return Object.entries(value)
+      .map(
+        ([key, item]: [string, unknown]) =>
+          `${fields[key] ?? key}: ${display(item)}`,
+      )
+      .join(" · ");
+  return "—";
 }
 
 function displayField(field: string, value: unknown): string {
@@ -91,8 +111,22 @@ export function SourceProfileReview({
       <p role="status">{proposal.discovery.evidence.profile_failure}</p>
     ) : null;
   return (
-    <section className="grid min-w-0 gap-4" aria-label="بررسی پروفایل منبع">
-      <div className="grid items-start gap-5 xl:grid-cols-2">
+    <section
+      className="[&_summary]:focus-visible:outline-ring grid min-w-0 gap-6 [&_summary]:cursor-pointer [&_summary]:rounded-md [&_summary]:py-2 [&_summary]:font-medium [&_summary]:focus-visible:outline-2"
+      aria-label="بررسی پروفایل منبع"
+    >
+      <header className="bg-muted/30 rounded-xl border p-5 sm:p-6">
+        <div className="flex items-center gap-3">
+          <ScanText className="text-primary size-6" aria-hidden="true" />
+          <h2 className="text-xl font-semibold">روش خواندن اطلاعات از سایت</h2>
+        </div>
+        <p className="text-muted-foreground mt-3 max-w-3xl text-sm leading-7">
+          پروفایل مشخص می‌کند اطلاعاتی مثل شهر، متراژ و اجاره از کجای آگهی
+          خوانده شوند. ابتدا کیفیت و نمونه‌ها را بررسی کنید؛ سپس نسخه را تأیید
+          کنید یا فیلدهای نادرست را اصلاح کنید.
+        </p>
+      </header>
+      <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]">
         <div className="min-w-0 rounded-xl border p-4">
           <ProfileEvidence version={latest} />
           {parent && (
@@ -115,27 +149,19 @@ export function SourceProfileReview({
                   <div key={field}>
                     <h4>{fields[field] ?? field}</h4>
                     <p>پیش از اصلاح</p>
-                    <pre dir="ltr" className="overflow-x-auto text-xs">
-                      {JSON.stringify(
-                        (parent.rules as Record<string, unknown>)[field],
-                        null,
-                        2,
-                      ) ?? "—"}
-                    </pre>
+                    <ProfileRule
+                      rule={(parent.rules as Record<string, unknown>)[field]}
+                    />
                     <p>پس از اصلاح</p>
-                    <pre dir="ltr" className="overflow-x-auto text-xs">
-                      {JSON.stringify(
-                        (latest.rules as Record<string, unknown>)[field],
-                        null,
-                        2,
-                      ) ?? "—"}
-                    </pre>
+                    <ProfileRule
+                      rule={(latest.rules as Record<string, unknown>)[field]}
+                    />
                   </div>
                 ))}
             </details>
           )}
         </div>
-        <div className="min-w-0 rounded-xl border p-4">
+        <aside className="bg-card min-w-0 rounded-xl border p-5 xl:sticky xl:top-20">
           {claimed &&
             proposal.discovery_stage === "complete" &&
             latest.reservation === proposal.discovery?.id &&
@@ -147,38 +173,140 @@ export function SourceProfileReview({
                 onUpdate={onUpdate}
               />
             )}
+          {claimed &&
+            !(
+              proposal.discovery_stage === "complete" &&
+              latest.reservation === proposal.discovery?.id &&
+              latest.status === "proposed"
+            ) && (
+              <p className="text-muted-foreground text-sm leading-7">
+                {latest.is_active
+                  ? "این نسخه فعال است و برای خواندن آگهی‌های سایت استفاده می‌شود."
+                  : "در حال حاضر نسخه‌ای آماده تصمیم‌گیری نیست. وضعیت بررسی منبع را دنبال کنید."}
+              </p>
+            )}
           {!claimed && (
             <p className="text-muted-foreground text-sm">
               برای ثبت تصمیم یا اصلاح فیلدها، ابتدا مسئولیت بررسی پروفایل را
               بپذیرید.
             </p>
           )}
-        </div>
+        </aside>
       </div>
-      {(proposal.profile_repairs ?? []).length > 0 && (
-        <div className="grid gap-3" aria-label="تاریخچه اصلاح هوشمند">
-          <h4 className="font-medium">تاریخچه اصلاح هوشمند</h4>
-          {proposal.profile_repairs.map((repair) => (
-            <div key={repair.id} className="rounded-md border p-3 text-sm">
-              <p>
-                {repair.selected_fields
-                  .map((field: string) => fields[field] ?? field)
-                  .join("، ")}
-              </p>
-              <p role="status">{repair.detail}</p>
-              <details>
-                <summary>جزئیات درخواست</summary>
-                <p dir="ltr" className="break-all">
-                  {repair.model} · {repair.started_at}
-                </p>
-                <pre dir="ltr" className="overflow-x-auto text-xs">
-                  {JSON.stringify(repair, null, 2)}
-                </pre>
-              </details>
-            </div>
-          ))}
+      <section
+        className="bg-card rounded-xl border p-5 sm:p-6"
+        aria-label="تاریخچه اصلاح هوشمند"
+      >
+        <div className="mb-5 flex items-start gap-3">
+          <History
+            className="text-muted-foreground mt-1 size-5 shrink-0"
+            aria-hidden="true"
+          />
+          <div>
+            <h4 className="font-semibold">تاریخچه اصلاح هوشمند</h4>
+            <p className="text-muted-foreground mt-1 text-sm leading-7">
+              هر درخواست، روش خواندن فیلدهای انتخاب‌شده از سایت را بازبینی
+              می‌کند. نسخه پیشنهادی فقط پس از بررسی و تأیید شما فعال می‌شود.
+            </p>
+          </div>
+          <Badge variant="secondary">
+            {(proposal.profile_repairs ?? []).length.toLocaleString("fa-IR")}
+          </Badge>
         </div>
-      )}
+        {!proposal.profile_repairs?.length ? (
+          <p className="bg-muted/40 text-muted-foreground rounded-lg p-4 text-sm">
+            هنوز درخواستی برای اصلاح هوشمند ثبت نشده است.
+          </p>
+        ) : (
+          <ol className="grid gap-4">
+            {proposal.profile_repairs.map((repair) => {
+              const result = versions.find(
+                (version) => version.id === repair.result_version,
+              );
+              const labels: Record<string, string> = {
+                pending: "در حال بررسی",
+                succeeded: "نسخه پیشنهادی آماده است",
+                timeout: "پایان مهلت پاسخ",
+                interrupted: "درخواست متوقف شد",
+                stale_review: "نیازمند بررسی دوباره",
+                validation_failed: "اعتبارسنجی ناموفق",
+                not_configured: "سرویس آماده نیست",
+                provider_error: "خطا در سرویس اصلاح",
+                malformed_output: "پاسخ نامعتبر",
+              };
+              return (
+                <li
+                  key={repair.id}
+                  className="grid gap-3 rounded-lg border p-4"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <Badge
+                      variant={
+                        repair.outcome === "succeeded"
+                          ? "secondary"
+                          : repair.outcome === "pending"
+                            ? "outline"
+                            : "destructive"
+                      }
+                    >
+                      {labels[repair.outcome] ?? "اصلاح انجام نشد"}
+                    </Badge>
+                    <time
+                      className="text-muted-foreground text-xs"
+                      dateTime={repair.started_at}
+                    >
+                      {formatProfileDate(repair.started_at)}
+                    </time>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {repair.selected_fields.map((field) => (
+                      <Badge key={field} variant="outline">
+                        {fields[field] ?? field}
+                      </Badge>
+                    ))}
+                  </div>
+                  <p role="status" className="text-sm leading-7">
+                    {repair.detail}
+                  </p>
+                  {result && (
+                    <p className="text-sm">
+                      نسخه {result.number.toLocaleString("fa-IR")} ·{" "}
+                      {result.is_active
+                        ? "نسخه فعال"
+                        : result.status === "proposed"
+                          ? "در انتظار بررسی و تأیید"
+                          : "ثبت‌شده در تاریخچه نسخه‌ها"}
+                    </p>
+                  )}
+                  <details className="text-sm">
+                    <summary>جزئیات درخواست</summary>
+                    <dl className="mt-3 grid gap-3 sm:grid-cols-3">
+                      <div>
+                        <dt className="text-muted-foreground">مدل</dt>
+                        <dd dir="auto" className="break-all">
+                          {repair.model || "ثبت نشده"}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="text-muted-foreground">زمان پایان</dt>
+                        <dd>{formatProfileDate(repair.finished_at)}</dd>
+                      </div>
+                      <div>
+                        <dt className="text-muted-foreground">مدت پردازش</dt>
+                        <dd>
+                          {repair.duration_ms == null
+                            ? "ثبت نشده"
+                            : `${(repair.duration_ms / 1000).toLocaleString("fa-IR", { maximumFractionDigits: 1 })} ثانیه`}
+                        </dd>
+                      </div>
+                    </dl>
+                  </details>
+                </li>
+              );
+            })}
+          </ol>
+        )}
+      </section>
       {versions.length > 1 && (
         <details>
           <summary>تاریخچه نسخه‌های پروفایل</summary>
@@ -264,15 +392,11 @@ function ProfileComparison({ version }: { version: Version }) {
             <div className="grid min-w-0 gap-2 sm:grid-cols-2">
               <div className="min-w-0">
                 <p>پیش از اصلاح</p>
-                <pre dir="ltr" className="overflow-x-auto text-xs">
-                  {JSON.stringify(item.before_rule, null, 2) ?? "—"}
-                </pre>
+                <ProfileRule rule={item.before_rule} />
               </div>
               <div className="min-w-0">
                 <p>پس از اصلاح</p>
-                <pre dir="ltr" className="overflow-x-auto text-xs">
-                  {JSON.stringify(item.after_rule, null, 2) ?? "—"}
-                </pre>
+                <ProfileRule rule={item.after_rule} />
               </div>
             </div>
           </details>
@@ -336,9 +460,19 @@ function ProfileEvidence({ version }: { version: Version }) {
   const validationCount = version.validation.held_out_page_urls.length;
   return (
     <div className="grid min-w-0 gap-3">
-      <h3 className="font-semibold">
-        پروفایل منبع — نسخه {version.number.toLocaleString("fa-IR")}
-      </h3>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h3 className="flex items-center gap-2 font-semibold">
+          <ShieldCheck className="text-primary size-5" aria-hidden="true" />
+          پروفایل منبع — نسخه {version.number.toLocaleString("fa-IR")}
+        </h3>
+        <Badge variant={version.is_active ? "default" : "secondary"}>
+          {version.is_active
+            ? "نسخه فعال"
+            : version.status === "proposed"
+              ? "در انتظار تأیید"
+              : "نسخه پیشین"}
+        </Badge>
+      </div>
       <p className="text-muted-foreground text-sm">
         {version.provenance === "llm"
           ? "اصلاح هوشمند"
@@ -348,7 +482,6 @@ function ProfileEvidence({ version }: { version: Version }) {
         · {version.created_by_label || "سامانه"}
       </p>
       {version.decision_reason && <p>{version.decision_reason}</p>}
-      <ProfileComparison version={version} />
       <p>
         {version.validation.rules_valid === true
           ? "قواعد از نظر فنی معتبر و قابل اجرا هستند."
@@ -356,35 +489,50 @@ function ProfileEvidence({ version }: { version: Version }) {
             ? "قواعد از نظر فنی قابل تأیید نیستند."
             : "اعتبار فنی این نسخه قدیمی هنگام تأیید دوباره بررسی می‌شود."}
       </p>
-      <p>
-        آموزش: {trainingCount.toLocaleString("fa-IR")} صفحه · اعتبارسنجی مستقل:{" "}
-        {validationCount.toLocaleString("fa-IR")} صفحه
-      </p>
-      {validationCount === 0 ? (
-        <p className="font-semibold">بدون اعتبارسنجی مستقل</p>
-      ) : trainingCount + validationCount < 10 ? (
-        <p className="font-semibold">شواهد محدود</p>
-      ) : null}
-      {validationCount > 0 && (
-        <p>
-          {version.validation.quality_passed
-            ? "اعتبارسنجی هشت فیلد اصلی موفق بود."
-            : "کیفیت فیلدهای اصلی محدودیت دارد."}
+      <dl className="grid grid-cols-2 gap-3">
+        <div className="bg-muted/40 rounded-xl p-4">
+          <dt className="text-muted-foreground text-sm">صفحات ساخت قواعد</dt>
+          <dd className="mt-2 text-2xl font-semibold">
+            {trainingCount.toLocaleString("fa-IR")}{" "}
+            <span className="text-sm font-normal">صفحه</span>
+          </dd>
+        </div>
+        <div className="bg-muted/40 rounded-xl p-4">
+          <dt className="text-muted-foreground text-sm">اعتبارسنجی مستقل</dt>
+          <dd className="mt-2 text-2xl font-semibold">
+            {validationCount.toLocaleString("fa-IR")}{" "}
+            <span className="text-sm font-normal">صفحه</span>
+          </dd>
+        </div>
+      </dl>
+      <div className="bg-muted/20 grid gap-2 rounded-xl border p-4 text-sm leading-7">
+        {validationCount === 0 ? (
+          <p className="font-semibold">بدون اعتبارسنجی مستقل</p>
+        ) : trainingCount + validationCount < 10 ? (
+          <p className="font-semibold">شواهد محدود</p>
+        ) : null}
+        {validationCount > 0 && (
+          <p>
+            {version.validation.quality_passed
+              ? "اعتبارسنجی هشت فیلد اصلی موفق بود."
+              : "کیفیت فیلدهای اصلی محدودیت دارد."}
+          </p>
+        )}
+        {version.validation.limitations_present && (
+          <p>
+            نمونه‌ها یا شواهد محدودیت دارند؛ تأیید نیازمند پذیرش محدودیت‌ها و
+            ثبت دلیل است.
+          </p>
+        )}
+        <p className="text-muted-foreground text-sm">
+          این شواهد برای تصمیم شماست؛ اعتبارسنجی تضمین درستی واقعی اطلاعات نیست.
+          هر نتیجه پیش از انتشار جداگانه بررسی می‌شود.
         </p>
-      )}
-      {version.validation.limitations_present && (
-        <p>
-          نمونه‌ها یا شواهد محدودیت دارند؛ تأیید نیازمند پذیرش محدودیت‌ها و ثبت
-          دلیل است.
-        </p>
-      )}
-      <p className="text-muted-foreground text-sm">
-        این شواهد برای تصمیم شماست؛ اعتبارسنجی تضمین درستی واقعی اطلاعات نیست.
-        هر نتیجه پیش از انتشار جداگانه بررسی می‌شود.
-      </p>
-      {version.limitations_acknowledged && (
-        <p>محدودیت‌های کیفیت هنگام تأیید پذیرفته شد.</p>
-      )}
+        {version.limitations_acknowledged && (
+          <p>محدودیت‌های کیفیت هنگام تأیید پذیرفته شد.</p>
+        )}
+      </div>
+      <ProfileComparison version={version} />
       <details>
         <summary>یافته‌های هر صفحه اعتبارسنجی</summary>
         {(version.validation.pages ?? []).map((page) => (
@@ -476,17 +624,37 @@ function ProfileEvidence({ version }: { version: Version }) {
       </details>
       <details>
         <summary>قواعد این نسخه</summary>
-        <pre dir="ltr" className="overflow-x-auto text-xs">
-          {JSON.stringify(version.rules, null, 2)}
-        </pre>
+        <div className="mt-4 grid gap-4 sm:grid-cols-2">
+          {Object.entries((version.rules ?? {}) as Record<string, unknown>).map(
+            ([field, rule]) => (
+              <article key={field} className="min-w-0 rounded-lg border p-4">
+                <h5 className="mb-3 font-medium">{fields[field] ?? field}</h5>
+                <ProfileRule rule={rule} />
+              </article>
+            ),
+          )}
+        </div>
       </details>
       <div>
         <h4 className="font-medium">نمونه‌های استخراج و شواهد فیلدها</h4>
         {version.samples.map((sample, sampleIndex) => (
-          <details key={sample.canonical_url} open={sampleIndex === 0}>
-            <summary className="break-all" dir="ltr">
-              {sample.canonical_url}
+          <details
+            className="mt-3 rounded-xl border p-4"
+            key={sample.canonical_url}
+            open={sampleIndex === 0}
+          >
+            <summary>
+              نمونه {(sampleIndex + 1).toLocaleString("fa-IR")} ·{" "}
+              {typeof sample.normalized.title === "string"
+                ? sample.normalized.title
+                : "آگهی استخراج‌شده"}
             </summary>
+            <p
+              dir="ltr"
+              className="text-muted-foreground my-3 text-xs break-all"
+            >
+              {sample.canonical_url}
+            </p>
             <p className="text-sm">
               فیلدهای حل‌نشده:{" "}
               {sample.unresolved
@@ -501,10 +669,12 @@ function ProfileEvidence({ version }: { version: Version }) {
                 )?.media ?? []
               }
             />
-            <dl className="grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-3">
+            <dl className="grid gap-3 text-sm sm:grid-cols-2">
               {Object.entries(sample.normalized).map(([field, value]) => (
-                <div key={field}>
-                  <dt className="font-medium">{fields[field] ?? field}</dt>
+                <div key={field} className="bg-muted/40 rounded-lg p-3">
+                  <dt className="text-muted-foreground mb-1">
+                    {fields[field] ?? field}
+                  </dt>
                   <dd className="break-words">{displayField(field, value)}</dd>
                 </div>
               ))}
@@ -640,7 +810,10 @@ function ProfileEditor({
   );
   return (
     <div className="grid gap-4">
-      <h3 className="font-semibold">تصمیم درباره این نسخه</h3>
+      <h3 className="flex items-center gap-2 font-semibold">
+        <Sparkles className="text-primary size-4" aria-hidden="true" />
+        تصمیم درباره این نسخه
+      </h3>
       <div
         className="bg-muted flex flex-wrap gap-1 rounded-lg p-1"
         aria-label="اقدام روی پروفایل"
@@ -675,9 +848,12 @@ function ProfileEditor({
             برای مدل ارسال می‌شود. قواعد معتبر حتی با وجود خطای کیفیت، پیش‌نویس
             تازه‌ای می‌سازند که پیش از تأیید باید بررسی کنید.
           </p>
-          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-2 sm:grid-cols-2">
             {Object.entries(fields).map(([name, label]) => (
-              <label key={name} className="flex items-center gap-2 text-sm">
+              <label
+                key={name}
+                className="has-[:checked]:border-primary has-[:checked]:bg-primary/5 flex items-center gap-2 rounded-lg border p-3 text-sm"
+              >
                 <input
                   type="checkbox"
                   aria-label={`اصلاح هوشمند ${label}`}

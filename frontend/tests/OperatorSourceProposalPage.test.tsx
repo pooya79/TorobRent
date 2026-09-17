@@ -457,7 +457,11 @@ test("requires field selection for explicit repair and shows failure history", a
               detail:
                 "مهلت پاسخ مدل تمام شد؛ دوباره درخواست دهید یا دستی اصلاح کنید.",
               model: "test-model",
-              structured_result: null,
+              started_at: "2026-09-17T08:00:00Z",
+              finished_at: "2026-09-17T08:00:30Z",
+              duration_ms: 30000,
+              evidence_sha256: "internal-evidence-hash",
+              structured_result: { internal: "private-provider-result" },
             },
           ],
         });
@@ -500,6 +504,15 @@ test("requires field selection for explicit repair and shows failure history", a
       selected_fields: ["floor_area_sqm"],
     },
   ]);
+  const history = screen.getByRole("region", { name: "تاریخچه اصلاح هوشمند" });
+  expect(within(history).getByText("پایان مهلت پاسخ")).toBeVisible();
+  expect(within(history).getByText("متراژ")).toBeVisible();
+  await user.click(within(history).getByText("جزئیات درخواست"));
+  expect(within(history).getByText("test-model")).toBeVisible();
+  expect(within(history).getByText("۳۰ ثانیه")).toBeVisible();
+  expect(history).not.toHaveTextContent("internal-evidence-hash");
+  expect(history).not.toHaveTextContent("private-provider-result");
+  expect(history.querySelector("pre")).toBeNull();
   expect(screen.getByText("پروفایل منبع — نسخه ۱")).toBeVisible();
 });
 
@@ -1006,11 +1019,16 @@ test.each([
         </MemoryRouter>
       </QueryClientProvider>,
     );
-    expect(
-      await screen.findByText(
-        `آموزش: ${training.toLocaleString("fa-IR")} صفحه · اعتبارسنجی مستقل: ${heldOut.toLocaleString("fa-IR")} صفحه`,
-      ),
-    ).toBeVisible();
+    const trainingLabel = await screen.findByText("صفحات ساخت قواعد");
+    expect(trainingLabel.parentElement).toHaveTextContent(
+      `${training.toLocaleString("fa-IR")} صفحه`,
+    );
+    const validationLabel = screen.getByText("اعتبارسنجی مستقل", {
+      selector: "dt",
+    });
+    expect(validationLabel.parentElement).toHaveTextContent(
+      `${heldOut.toLocaleString("fa-IR")} صفحه`,
+    );
     if (label) expect(screen.getByText(label, { exact: true })).toBeVisible();
     else
       expect(
