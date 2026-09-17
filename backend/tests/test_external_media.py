@@ -73,7 +73,7 @@ def test_candidate_processing_retains_failures_and_first_valid_primary(
 
 
 @pytest.mark.django_db
-def test_review_reorders_excludes_and_explicitly_accepts_property_media(
+def test_approval_keeps_source_media_without_manual_editing(
     api_client, assigned_case, monkeypatch, django_capture_on_commit_callbacks
 ):
     from apps.source_proposals.candidate_serializers import ExternalListingCandidateSerializer
@@ -82,9 +82,6 @@ def test_review_reorders_excludes_and_explicitly_accepts_property_media(
     from tests.test_extraction_publication import execute_run
 
     bad_url = "https://khaneh.example/listing/10000"
-    assigned_case[4].pages[bad_url] = (
-        assigned_case[4].pages[bad_url].replace('class="area">85', 'class="area">95')
-    )
     run = execute_run(api_client, assigned_case, monkeypatch, django_capture_on_commit_callbacks)
     candidate = ExternalListingCandidate.objects.get(
         pk=next(item["id"] for item in run["candidates"] if item["external_url"] == bad_url)
@@ -101,27 +98,17 @@ def test_review_reorders_excludes_and_explicitly_accepts_property_media(
     assert api_client.get(thumbnail).status_code == 200
     base = f"/api/v1/operator/external-listing-candidates/{candidate.pk}"
     assert api_client.post(f"{base}/claim/", {}).status_code == 201
-    choice = [
-        {"id": media[2]["id"], "is_primary": True, "excluded": False, "accept_as_property": True},
-        {"id": media[1]["id"], "is_primary": False, "excluded": True, "accept_as_property": False},
-        {"id": media[0]["id"], "is_primary": False, "excluded": False, "accept_as_property": False},
-    ]
-    corrected = api_client.post(
-        f"{base}/correct/",
-        {
-            "reviewed_revision": 1,
-            "reason": "تصاویر بررسی شد",
-            "values": {"area_sqm": 95},
-            "media": choice,
-        },
-        format="json",
+    assert (
+        api_client.post(
+            f"{base}/correct/",
+            {"reviewed_revision": 1, "reason": "تصاویر", "values": {}, "media": []},
+            format="json",
+        ).status_code
+        == 404
     )
-    assert corrected.status_code == 200, corrected.data
-    assert [item["id"] for item in corrected.data["media"]] == [item["id"] for item in choice]
-    assert str(corrected.data["media"][0]["accepted_by"]) == str(assigned_case[2].pk)
     approved = api_client.post(
         f"{base}/approve/",
-        {"reviewed_revision": corrected.data["revision"], "confirmed": True},
+        {"reviewed_revision": candidate.revision, "confirmed": True},
         format="json",
     )
     assert approved.status_code == 200, approved.data
@@ -136,20 +123,15 @@ def test_review_reorders_excludes_and_explicitly_accepts_property_media(
     api_client.force_authenticate(None)
     detail = api_client.get(f"/api/v1/catalog/properties/{listing.property_id}/")
     assert detail.status_code == 200, detail.data
-    assert (
-        api_client
-        .get("/api/v1/catalog/properties/")
-        .data["results"][0]["primary_image"]["url"]
-        .startswith("/api/v1/catalog/media/")
-    )
+    assert api_client.get("/api/v1/catalog/properties/").data["results"][0]["primary_image"] is None
     public_listing = next(
         item for item in detail.data["listings"] if str(item["id"]) == str(listing.pk)
     )
-    assert len(public_listing["images"]) == 2
+    assert len(public_listing["images"]) == 3
     assert public_listing["media_url"].startswith("/api/v1/catalog/media/")
     assert api_client.get(public_listing["media_url"]).status_code == 200
     assert api_client.get(thumbnail).status_code in (401, 403)
-    assert listing.property.images.count() == 1
+    assert listing.property.images.count() == 0
 
 
 @pytest.mark.django_db

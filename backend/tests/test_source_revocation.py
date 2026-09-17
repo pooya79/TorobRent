@@ -201,28 +201,13 @@ def test_revocation_racing_publication_leaves_no_active_listings(
 
     if connection.vendor != "postgresql":
         pytest.skip("Publication and revocation serialization requires PostgreSQL")
-    if decision == "candidate":
-        url = "https://khaneh.example/listing/10000"
-        assigned_case[4].pages[url] = (
-            assigned_case[4].pages[url].replace('class="area">85', 'class="area">95')
-        )
     run = execute_run(api_client, assigned_case, monkeypatch, django_capture_on_commit_callbacks)
     if decision == "candidate":
-        candidate = next(item for item in run["candidates"] if item["validation_errors"])
+        candidate = run["candidates"][0]
         base = f"/api/v1/operator/external-listing-candidates/{candidate['id']}"
         assert api_client.post(f"{base}/claim/", {}).status_code == 201
-        corrected = api_client.post(
-            f"{base}/correct/",
-            {
-                "reviewed_revision": candidate["revision"],
-                "reason": "بررسی متراژ",
-                "values": {"area_sqm": 95},
-            },
-            format="json",
-        )
-        assert corrected.status_code == 200
         endpoint = f"{base}/approve/"
-        revision = corrected.json()["revision"]
+        revision = candidate["revision"]
     else:
         endpoint = (
             f"/api/v1/operator/source-proposals/{assigned_case[0].pk}/runs/{run['id']}/approve/"

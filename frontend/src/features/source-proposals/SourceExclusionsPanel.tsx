@@ -1,3 +1,4 @@
+import { CaseAudit } from "./CaseAudit";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -17,7 +18,9 @@ type Rule = components["schemas"]["SourceExclusionPreviewRequest"];
 
 export function SourceExclusionsSummary({
   exclusions,
+  proposalId,
 }: {
+  proposalId?: string;
   exclusions: Exclusion[];
 }) {
   return (
@@ -41,6 +44,13 @@ export function SourceExclusionsSummary({
           <time dateTime={rule.created_at}>
             {new Date(rule.created_at).toLocaleString("fa-IR")}
           </time>
+          {proposalId && (
+            <CaseAudit
+              proposalId={proposalId}
+              recordId={rule.id}
+              kind="actions"
+            />
+          )}
           {rule.actions.map((action) => (
             <p key={action.id}>
               {action.action === "remove"

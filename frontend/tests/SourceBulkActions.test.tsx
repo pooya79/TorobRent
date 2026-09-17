@@ -206,9 +206,8 @@ test("discards a stale preview and refreshes outcomes before another attempt", a
   ).toBeEnabled();
 });
 
-test("corrects a valid current candidate directly from its group without recent history", async () => {
+test("shows candidate evidence without editing controls in a group", async () => {
   const user = userEvent.setup();
-  let correction: unknown;
   const candidate = {
     id: "one",
     revision: 1,
@@ -246,50 +245,20 @@ test("corrects a valid current candidate directly from its group without recent 
         ],
       }),
     ),
-    http.post(
-      "*/external-listing-candidates/one/claim/",
-      async ({ request }) => {
-        expect(await request.json()).toEqual({ for_correction: true });
-        return HttpResponse.json({});
-      },
-    ),
-    http.post(
-      "*/external-listing-candidates/one/correct/",
-      async ({ request }) => {
-        correction = await request.json();
-        return HttpResponse.json({ ...candidate, area_sqm: 120, revision: 2 });
-      },
-    ),
   );
   mount();
   await user.click(
     screen.getByRole("checkbox", { name: pages[0]!.canonical_url }),
   );
   await user.click(screen.getByRole("button", { name: "پیش‌نمایش انتخاب" }));
-  await user.click(await screen.findByText("جزئیات و اصلاح همین آگهی"));
+  await user.click(await screen.findByText("جزئیات آگهی"));
   await user.click(screen.getByText("شواهد و اعتبارسنجی"));
   expect(screen.getByText("متراژ اولیه ۸۵")).toBeVisible();
-  await user.click(
-    screen.getByRole("button", { name: "شروع اصلاح همین آگهی" }),
-  );
-  const area = await screen.findByRole("spinbutton", {
-    name: "متراژ (متر مربع)",
-  });
-  await user.clear(area);
-  await user.type(area, "120");
-  await user.type(
-    screen.getByRole("textbox", { name: "دلیل اصلاح" }),
-    "بررسی با منبع",
-  );
-  await user.click(screen.getByRole("button", { name: "ذخیره اصلاح آگهی" }));
-  await waitFor(() =>
-    expect(correction).toEqual({
-      reviewed_revision: 1,
-      reason: "بررسی با منبع",
-      values: { area_sqm: 120 },
-    }),
-  );
+  expect(screen.queryByRole("spinbutton")).not.toBeInTheDocument();
   expect(
-    screen.queryByRole("button", { name: "اجرای اقدام گروهی" }),
+    screen.queryByRole("button", { name: "شروع اصلاح همین آگهی" }),
   ).not.toBeInTheDocument();
+  expect(
+    screen.getByRole("button", { name: "اجرای اقدام گروهی" }),
+  ).toBeInTheDocument();
 });

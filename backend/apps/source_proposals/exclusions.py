@@ -74,6 +74,10 @@ def preview_matches(*, source: Source, kind: str, url: str) -> dict[str, Any]:
             "canonical_url", flat=True
         )
     )
+    for aliases in ExternalListingCandidate.objects.filter(
+        source=source, superseded=False
+    ).values_list("requested_urls", flat=True):
+        known.update(aliases)
     for run in ExtractionRun.objects.filter(request__assignment__source=source):
         known.update(
             item["url"]
@@ -241,7 +245,7 @@ def blocking_exclusion(candidate: ExternalListingCandidate) -> SourceExclusion |
 
 
 def candidate_page_urls(candidate: ExternalListingCandidate) -> set[str]:
-    urls = {candidate.external_url}
+    urls = {candidate.external_url, *candidate.requested_urls}
     if candidate.extraction_run is not None:
         for result in candidate.extraction_run.results:
             if result["canonical_url"] == candidate.external_url:

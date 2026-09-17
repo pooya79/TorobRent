@@ -424,6 +424,11 @@ def run_extraction(request_id: str, generation: int = 0) -> bool:
         from .exceptions import record_exceptions
 
         record_exceptions(run)
+        from .retention import replace_obsolete_results
+
+        replace_obsolete_results(run)
+        run.results = []
+        run.save(update_fields=("results",))
         from .exception_notifications import record_run_health
 
         run.usable_results = run.candidates.filter(

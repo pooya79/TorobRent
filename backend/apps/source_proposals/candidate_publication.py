@@ -48,7 +48,7 @@ def validation_errors(candidate: ExternalListingCandidate) -> dict[str, Any]:
     for field in candidate.conflicts:
         name = FIELD_NAMES.get(field, field)
         if name in required and name not in candidate.corrections:
-            errors[name] = ["شواهد منبع متعارض است؛ اصلاح دستی لازم است."]
+            errors[name] = ["شواهد منبع متعارض است؛ استخراج تازه لازم است."]
     if candidate.extraction_run is not None:
         result: dict[str, Any] = next(
             (
@@ -58,7 +58,9 @@ def validation_errors(candidate: ExternalListingCandidate) -> dict[str, Any]:
             ),
             {},
         )
-        if result.get("structural_drift") and not candidate.corrections.get("_structure_reviewed"):
+        if (
+            candidate.structural_drift or result.get("structural_drift")
+        ) and not candidate.corrections.get("_structure_reviewed"):
             errors["structure"] = ["ساختار صفحه نیازمند بررسی دستی است."]
     return errors
 
@@ -127,6 +129,8 @@ def create_run_candidates(run: ExtractionRun) -> None:
             room_count=_bounded_integer(values.get("bedroom_count"), 32767),
             deposit_rial=_bounded_integer(values.get("deposit_rial"), 2**63 - 1),
             monthly_rent_rial=_bounded_integer(values.get("monthly_rent_rial"), 2**63 - 1),
+            requested_urls=result.get("requested_urls", []),
+            structural_drift=result.get("structural_drift", False),
             source_claims=result["source_claims"],
             evidence=result["evidence"],
             conflicts=result["conflicts"],

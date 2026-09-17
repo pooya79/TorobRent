@@ -51,9 +51,7 @@ test("makes results beyond the first five inspectable with pagination, search, a
   await user.click(screen.getByRole("button", { name: "صفحه بعد" }));
   const row = screen.getByRole("row", { name: /آگهی 25 / });
   expect(row).toHaveTextContent("نیازمند رسیدگی");
-  expect(
-    within(row).getByRole("link", { name: "بررسی و اصلاح" }),
-  ).toHaveAttribute(
+  expect(within(row).getByRole("link", { name: "بررسی آگهی" })).toHaveAttribute(
     "href",
     "/operator/source-proposals/proposal?candidate=candidate-25#exceptions",
   );
@@ -177,7 +175,7 @@ test("history keeps each run's publication breakdown separate", () => {
       },
     },
   ] as unknown as Request[];
-  render(<ExtractionHistory requests={requests} />);
+  render(<ExtractionHistory requests={requests} />, { wrapper: setup() });
   const first = within(screen.getByRole("row", { name: /example.com\/first/ }));
   const second = within(
     screen.getByRole("row", { name: /example.com\/second/ }),
@@ -188,4 +186,45 @@ test("history keeps each run's publication breakdown separate", () => {
     "۱",
   );
   expect(second.getByText("بدون تغییر").parentElement).toHaveTextContent("۹");
+});
+
+test("fetches only the requested result page and sends search and filters to the server", async () => {
+  const { http, HttpResponse } = await import("msw");
+  const { server } = await import("./server");
+  const requests: URL[] = [];
+  server.use(
+    http.get(
+      "*/api/v1/operator/source-proposals/:id/results/",
+      ({ request }) => {
+        const url = new URL(request.url);
+        requests.push(url);
+        const page = Number(url.searchParams.get("page"));
+        return HttpResponse.json({
+          count: 25,
+          results:
+            page === 2 ? run.candidates.slice(20) : run.candidates.slice(0, 20),
+        });
+      },
+    ),
+  );
+  const user = userEvent.setup();
+  render(
+    <ExtractionRunReview
+      remote
+      properties={[]}
+      proposalId="proposal"
+      canApprove={false}
+    />,
+    { wrapper: setup() },
+  );
+  expect(await screen.findByText("آگهی 20")).toBeVisible();
+  expect(screen.queryByText("آگهی 25")).not.toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "صفحه بعد" }));
+  expect(await screen.findByText("آگهی 25")).toBeVisible();
+  expect(requests.at(-1)?.searchParams.get("page")).toBe("2");
+  await user.click(screen.getByRole("button", { name: "نیازمند رسیدگی" }));
+  expect(requests.at(-1)?.searchParams.get("status")).toBe("issues");
+  expect(requests.at(-1)?.searchParams.get("page")).toBe("1");
+  await user.type(screen.getByLabelText("جست‌وجوی عنوان یا نشانی آگهی"), "25");
+  expect(requests.at(-1)?.searchParams.get("q")).toBe("25");
 });

@@ -45,8 +45,8 @@ This describes intended behavior; it is not a claim about current code.
   continue publishing according to the selected mode; failures alone do not automatically pause
   the Source. A run with no usable results gets a prominent warning.
 - Initially, representatives fix their website and request re-extraction, or explain corrections
-  through the Source Conversation. Operators can correct candidates; representatives do not
-  directly edit extracted facts inside TorobRent.
+  through the Source Conversation. Operators approve or reject candidates; neither role directly edits extracted facts or candidate
+  images inside TorobRent.
 - Technically valid LLM repairs are retained as draft Source Profile versions even when field
   validation fails. Review shows before/after improvements, regressions, and affected pages.
   The active version stays unchanged until explicit approval and publication-mode selection.
@@ -76,8 +76,8 @@ This describes intended behavior; it is not a claim about current code.
   history, and fresh results replace their pending review items as they arrive.
 - Fresh extraction that passes candidate checks automatically resolves the URL's extraction
   exception, independently of publication approval. A later failure reopens it with history.
-  Exclusion is labeled Excluded, not successful extraction. Manual candidate correction clears that
-  candidate's blocker without declaring its underlying extraction problem fixed.
+  Exclusion is labeled Excluded, not successful extraction. Invalid candidates require fresh
+  extraction after fixing the source or Source Profile; Operators may reject them.
 - Messages, review decisions, pause/resume, and publication-mode changes generate immediate
   notifications. New, resolved, and reopened exceptions are grouped into one daily source summary
   only when something changed. A run that attempts non-excluded pages but produces no usable
@@ -102,7 +102,7 @@ This describes intended behavior; it is not a claim about current code.
    run history, excluded pages, current exceptions, and Contact review team.
 5. Valid candidates publish according to the mode. Unexpected failures enter a grouped exception
    queue; excluded pages are recorded separately. Operators can approve valid pending results,
-   correct candidates, repair rules, or ask the representative to fix the website and retry.
+   reject candidates, repair rules, or ask the representative to fix the website and retry.
 6. Operators can change publication mode, pause/resume, manage exclusions, and communicate without
    conflating those actions. Withdrawals and replacement of an assigned website are explicit.
 

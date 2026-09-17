@@ -322,23 +322,10 @@ def test_paused_candidate_approval_stays_blocked_after_resume(
     api_client, assigned_case, monkeypatch, django_capture_on_commit_callbacks
 ):
     target = "https://khaneh.example/listing/10000"
-    fetcher = assigned_case[4]
-    fetcher.pages[target] = fetcher.pages[target].replace('class="area">85', 'class="area">95')
     old = execute_run(api_client, assigned_case, monkeypatch, django_capture_on_commit_callbacks)
     candidate = next(c for c in old["candidates"] if c["external_url"] == target)
     endpoint = f"/api/v1/operator/external-listing-candidates/{candidate['id']}"
     assert api_client.post(f"{endpoint}/claim/").status_code == 201
-    corrected = api_client.post(
-        f"{endpoint}/correct/",
-        {
-            "reviewed_revision": candidate["revision"],
-            "reason": "بررسی متراژ",
-            "values": {"area_sqm": 85},
-        },
-        format="json",
-    )
-    assert corrected.status_code == 200, corrected.content
-    assert corrected.json()["validation_errors"] == {}
     assert change_processing(api_client, assigned_case, "pause", 0).status_code == 200
     for state in ("paused", "resumed"):
         if state == "resumed":
@@ -352,7 +339,7 @@ def test_paused_candidate_approval_stays_blocked_after_resume(
             api_client.post(
                 f"{endpoint}/approve/",
                 {
-                    "reviewed_revision": corrected.json()["revision"],
+                    "reviewed_revision": candidate["revision"],
                     "confirmed": True,
                 },
                 format="json",

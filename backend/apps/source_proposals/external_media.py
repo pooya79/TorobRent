@@ -5,8 +5,6 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from apps.accounts.models import User
-
     from .models import SourceReservation
 
 from django.core.files.base import ContentFile
@@ -157,38 +155,6 @@ def process_candidate_image(
     cleanup_owned_image_files(image)
 
 
-def review_candidate_images(
-    candidate: ExternalListingCandidate, actor: User, choices: list[dict[str, object]]
-) -> None:
-    from django.core.exceptions import ValidationError
-
-    images = {str(image.pk): image for image in candidate.images.select_for_update()}
-    ids = [str(choice["id"]) for choice in choices]
-    if len(ids) != len(set(ids)) or set(ids) != set(images):
-        raise ValidationError("همه تصاویر همین آگهی را یک بار انتخاب کنید.")
-    selected = [
-        choice
-        for choice in choices
-        if not choice["excluded"] and images[str(choice["id"])].state == "ready"
-    ]
-    if sum(bool(choice["is_primary"]) for choice in selected) != bool(selected):
-        raise ValidationError("یک تصویر اصلی انتخاب کنید.")
-    candidate.images.update(is_primary=False)
-    for position, choice in enumerate(choices):
-        image = images[str(choice["id"])]
-        if (choice["is_primary"] or choice["accept_as_property"]) and (
-            choice["excluded"] or image.state != "ready"
-        ):
-            raise ValidationError("تصویر ناموفق یا حذف‌شده قابل تأیید نیست.")
-        image.position = position
-        image.is_primary = bool(choice["is_primary"])
-        image.excluded = bool(choice["excluded"])
-        image.accepted_by = actor if choice["accept_as_property"] else None
-        image.accepted_at = timezone.now() if choice["accept_as_property"] else None
-        image.save()
-    candidate.corrections["media"] = [{**choice, "id": str(choice["id"])} for choice in choices]
-
-
 def promote_candidate_images(candidate: ExternalListingCandidate) -> None:
     from apps.catalog.models import (
         ListingImage,
@@ -281,7 +247,8 @@ def stage_run_images(run_id: str) -> None:
             candidate = ExternalListingCandidate.objects.select_for_update().get(pk=candidate.pk)
             # A delayed older run must never replace a newer run's media or a review decision.
             if (
-                candidate.listing is not None
+                not candidate.superseded
+                and candidate.listing is not None
                 and candidate.listing.source_reference == str(candidate.pk)
                 and candidate.state == "published"
                 and not candidate.images.filter(state="pending").exists()

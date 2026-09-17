@@ -52,6 +52,19 @@ class CanReleaseSourceProposal(BasePermission):
 
 
 class SourceProposalContextQuerySerializer(serializers.Serializer[Any]):
+    section = serializers.ChoiceField(
+        choices=(
+            "queue",
+            "overview",
+            "url",
+            "profile",
+            "responsibility",
+            "processing",
+            "exceptions",
+            "history",
+        ),
+        required=False,
+    )
     proposal = serializers.UUIDField(required=False)
     candidate = serializers.UUIDField(required=False)
 
@@ -81,7 +94,6 @@ class OperatorSourceProposalListView(APIView):
             .filter(discarded_at__isnull=True)
             .distinct()
             .exclude(submitter=cast(User, request.user))
-            .prefetch_related("events__actor")
         )
         query = SourceProposalContextQuerySerializer(data=request.query_params)
         query.is_valid(raise_exception=True)
@@ -101,11 +113,12 @@ class OperatorSourceProposalListView(APIView):
             )
         return Response(
             OperatorSourceProposalSerializer(
-                proposals.select_related("submitter", "responsible_operator").prefetch_related(
-                    "responsibility_history__operator", "responsibility_history__actor"
-                ),
+                proposals.select_related("submitter", "responsible_operator"),
                 many=True,
-                context={"include_properties": bool(query.validated_data)},
+                context={
+                    "include_properties": bool(query.validated_data),
+                    "section": query.validated_data.get("section", "full"),
+                },
             ).data
         )
 
@@ -146,7 +159,11 @@ def _decision_response(
         return _workflow_error(exc)
     except DjangoValidationError as exc:
         raise ValidationError(exc.messages[0]) from None
-    return Response(OperatorSourceProposalSerializer(proposal).data)
+    return Response(
+        OperatorSourceProposalSerializer(
+            proposal, context={"section": request.headers.get("X-Source-Case-Section", "full")}
+        ).data
+    )
 
 
 class OperatorSourceProposalClaimView(APIView):
@@ -168,7 +185,9 @@ class OperatorSourceProposalClaimView(APIView):
         except DjangoValidationError as exc:
             raise ValidationError(exc.messages[0]) from None
         return Response(
-            OperatorSourceProposalSerializer(proposal).data,
+            OperatorSourceProposalSerializer(
+                proposal, context={"section": request.headers.get("X-Source-Case-Section", "full")}
+            ).data,
             status=status.HTTP_201_CREATED,
         )
 

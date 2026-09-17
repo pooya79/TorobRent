@@ -96,7 +96,15 @@ def exclusion_transition(
         )
     except DjangoValidationError as exc:
         raise ValidationError(exc.messages) from None
-    return Response(OperatorSourceProposalSerializer(proposal, context={"request": request}).data)
+    return Response(
+        OperatorSourceProposalSerializer(
+            proposal,
+            context={
+                "request": request,
+                "section": request.headers.get("X-Source-Case-Section", "full"),
+            },
+        ).data
+    )
 
 
 class OperatorExclusionWithdrawView(APIView):

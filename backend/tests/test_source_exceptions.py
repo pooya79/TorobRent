@@ -66,7 +66,7 @@ def test_retry_is_bounded_deduplicated_and_assignment_isolated(
 
 @pytest.mark.django_db
 @pytest.mark.parametrize("assigned_case", ["automatic"], indirect=True)
-def test_correction_and_exclusion_do_not_claim_extraction_recovered(
+def test_rejection_and_exclusion_do_not_claim_extraction_recovered(
     api_client, assigned_case, monkeypatch, django_capture_on_commit_callbacks
 ):
     from tests.test_source_exclusions import add_exclusion, exclusion_action
@@ -79,16 +79,15 @@ def test_correction_and_exclusion_do_not_claim_extraction_recovered(
     base = f"/api/v1/operator/external-listing-candidates/{candidate['id']}"
     assert api_client.post(f"{base}/claim/", {}).status_code == 201
     correction = api_client.post(
-        f"{base}/correct/",
+        f"{base}/reject/",
         {
             "reviewed_revision": candidate["revision"],
             "reason": "بررسی متراژ",
-            "values": {"area_sqm": 95},
         },
         format="json",
     )
     assert correction.status_code == 200
-    assert correction.json()["validation_errors"] == {}
+    assert correction.json()["state"] == "rejected"
     assert exceptions(api_client, assigned_case)[0]["state"] == "open"
     added = add_exclusion(api_client, assigned_case, url=BAD_URL, kind="exact")
     rule = added.json()["assignment"]["exclusions"][0]

@@ -91,36 +91,24 @@ def test_exceptions_stay_individually_reviewable_while_other_pages_publish(
     base = f"/api/v1/operator/external-listing-candidates/{candidate['id']}"
     assert api_client.post(f"{base}/claim/", {}).status_code == 201
     case_before = api_client.get("/api/v1/operator/source-proposals/").json()[0]
-    corrected = api_client.post(
-        f"{base}/correct/",
-        {
-            "reviewed_revision": candidate["revision"],
-            "reason": "بررسی مستقل اطلاعات ملک",
-            "values": {
-                **{
-                    name: run["candidates"][1][name]
-                    for name in ("city", "district", "neighborhood")
-                },
-                "property_type": "apartment",
-                "area_sqm": 95,
-                "room_count": 2,
-                "deposit_rial": 5_000_000_000,
-                "monthly_rent_rial": 200_000_000,
-            },
-        },
+    assert (
+        api_client.post(
+            f"{base}/approve/",
+            {"reviewed_revision": candidate["revision"], "confirmed": True},
+            format="json",
+        ).status_code
+        == 400
+    )
+    rejected = api_client.post(
+        f"{base}/reject/",
+        {"reviewed_revision": candidate["revision"], "reason": "اطلاعات منبع نادرست است"},
         format="json",
     )
-    assert corrected.status_code == 200, corrected.data
-    assert corrected.json()["validation_errors"] == {}
-    approved = api_client.post(
-        f"{base}/approve/",
-        {"reviewed_revision": corrected.json()["revision"], "confirmed": True},
-        format="json",
-    )
-    assert approved.status_code == 200, approved.data
+    assert rejected.status_code == 200, rejected.data
+    assert rejected.json()["state"] == "rejected"
     case_after = api_client.get("/api/v1/operator/source-proposals/").json()[0]
     assert case_after["profile_versions"] == case_before["profile_versions"]
-    assert case_after["assignment"]["recent_requests"][0]["run"]["published"] == 10
+    assert case_after["assignment"]["recent_requests"][0]["run"]["published"] == 9
 
 
 @pytest.mark.django_db

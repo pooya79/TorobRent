@@ -1,4 +1,7 @@
-import { useMutation } from "@tanstack/react-query";
+import { CaseRecords } from "./CaseRecords";
+import { api } from "@/lib/api/client";
+import { apiError } from "@/lib/api/errors";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { History, ScanText, ShieldCheck, Sparkles } from "lucide-react";
@@ -212,108 +215,111 @@ export function SourceProfileReview({
             {(proposal.profile_repairs ?? []).length.toLocaleString("fa-IR")}
           </Badge>
         </div>
-        {!proposal.profile_repairs?.length ? (
-          <p className="bg-muted/40 text-muted-foreground rounded-lg p-4 text-sm">
-            هنوز درخواستی برای اصلاح هوشمند ثبت نشده است.
-          </p>
-        ) : (
-          <ol className="grid gap-4">
-            {proposal.profile_repairs.map((repair) => {
-              const result = versions.find(
-                (version) => version.id === repair.result_version,
-              );
-              const labels: Record<string, string> = {
-                pending: "در حال بررسی",
-                succeeded: "نسخه پیشنهادی آماده است",
-                timeout: "پایان مهلت پاسخ",
-                interrupted: "درخواست متوقف شد",
-                stale_review: "نیازمند بررسی دوباره",
-                validation_failed: "اعتبارسنجی ناموفق",
-                not_configured: "سرویس آماده نیست",
-                provider_error: "خطا در سرویس اصلاح",
-                malformed_output: "پاسخ نامعتبر",
-              };
-              return (
-                <li
-                  key={repair.id}
-                  className="grid gap-3 rounded-lg border p-4"
-                >
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <Badge
-                      variant={
-                        repair.outcome === "succeeded"
-                          ? "secondary"
-                          : repair.outcome === "pending"
-                            ? "outline"
-                            : "destructive"
-                      }
-                    >
-                      {labels[repair.outcome] ?? "اصلاح انجام نشد"}
-                    </Badge>
-                    <time
-                      className="text-muted-foreground text-xs"
-                      dateTime={repair.started_at}
-                    >
-                      {formatProfileDate(repair.started_at)}
-                    </time>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {repair.selected_fields.map((field) => (
-                      <Badge key={field} variant="outline">
-                        {fields[field] ?? field}
-                      </Badge>
-                    ))}
-                  </div>
-                  <p role="status" className="text-sm leading-7">
-                    {repair.detail}
-                  </p>
-                  {result && (
-                    <p className="text-sm">
-                      نسخه {result.number.toLocaleString("fa-IR")} ·{" "}
-                      {result.is_active
-                        ? "نسخه فعال"
-                        : result.status === "proposed"
-                          ? "در انتظار بررسی و تأیید"
-                          : "ثبت‌شده در تاریخچه نسخه‌ها"}
-                    </p>
-                  )}
-                  <details className="text-sm">
-                    <summary>جزئیات درخواست</summary>
-                    <dl className="mt-3 grid gap-3 sm:grid-cols-3">
-                      <div>
-                        <dt className="text-muted-foreground">مدل</dt>
-                        <dd dir="auto" className="break-all">
-                          {repair.model || "ثبت نشده"}
-                        </dd>
-                      </div>
-                      <div>
-                        <dt className="text-muted-foreground">زمان پایان</dt>
-                        <dd>{formatProfileDate(repair.finished_at)}</dd>
-                      </div>
-                      <div>
-                        <dt className="text-muted-foreground">مدت پردازش</dt>
-                        <dd>
-                          {repair.duration_ms == null
-                            ? "ثبت نشده"
-                            : `${(repair.duration_ms / 1000).toLocaleString("fa-IR", { maximumFractionDigits: 1 })} ثانیه`}
-                        </dd>
-                      </div>
-                    </dl>
-                  </details>
-                </li>
-              );
-            })}
-          </ol>
-        )}
+        <CaseRecords kind="repairs" proposalId={proposal.id}>
+          {(repairs) => (
+            <>
+              {!repairs?.length ? (
+                <p className="bg-muted/40 text-muted-foreground rounded-lg p-4 text-sm">
+                  هنوز درخواستی برای اصلاح هوشمند ثبت نشده است.
+                </p>
+              ) : (
+                <ol className="grid gap-4">
+                  {repairs.map((repair) => {
+                    const result = versions.find(
+                      (version) => version.id === repair.result_version,
+                    );
+                    const labels: Record<string, string> = {
+                      pending: "در حال بررسی",
+                      succeeded: "نسخه پیشنهادی آماده است",
+                      timeout: "پایان مهلت پاسخ",
+                      interrupted: "درخواست متوقف شد",
+                      stale_review: "نیازمند بررسی دوباره",
+                      validation_failed: "اعتبارسنجی ناموفق",
+                      not_configured: "سرویس آماده نیست",
+                      provider_error: "خطا در سرویس اصلاح",
+                      malformed_output: "پاسخ نامعتبر",
+                    };
+                    return (
+                      <li
+                        key={repair.id}
+                        className="grid gap-3 rounded-lg border p-4"
+                      >
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <Badge
+                            variant={
+                              repair.outcome === "succeeded"
+                                ? "secondary"
+                                : repair.outcome === "pending"
+                                  ? "outline"
+                                  : "destructive"
+                            }
+                          >
+                            {labels[repair.outcome] ?? "اصلاح انجام نشد"}
+                          </Badge>
+                          <time
+                            className="text-muted-foreground text-xs"
+                            dateTime={repair.started_at}
+                          >
+                            {formatProfileDate(repair.started_at)}
+                          </time>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {repair.selected_fields.map((field) => (
+                            <Badge key={field} variant="outline">
+                              {fields[field] ?? field}
+                            </Badge>
+                          ))}
+                        </div>
+                        <p role="status" className="text-sm leading-7">
+                          {repair.detail}
+                        </p>
+                        {result && (
+                          <p className="text-sm">
+                            نسخه {result.number.toLocaleString("fa-IR")} ·{" "}
+                            {result.is_active
+                              ? "نسخه فعال"
+                              : result.status === "proposed"
+                                ? "در انتظار بررسی و تأیید"
+                                : "ثبت‌شده در تاریخچه نسخه‌ها"}
+                          </p>
+                        )}
+                        <details className="text-sm">
+                          <summary>جزئیات درخواست</summary>
+                          <dl className="mt-3 grid gap-3 sm:grid-cols-3">
+                            <div>
+                              <dt className="text-muted-foreground">مدل</dt>
+                              <dd dir="auto" className="break-all">
+                                {repair.model || "ثبت نشده"}
+                              </dd>
+                            </div>
+                            <div>
+                              <dt className="text-muted-foreground">
+                                زمان پایان
+                              </dt>
+                              <dd>{formatProfileDate(repair.finished_at)}</dd>
+                            </div>
+                            <div>
+                              <dt className="text-muted-foreground">
+                                مدت پردازش
+                              </dt>
+                              <dd>
+                                {repair.duration_ms == null
+                                  ? "ثبت نشده"
+                                  : `${(repair.duration_ms / 1000).toLocaleString("fa-IR", { maximumFractionDigits: 1 })} ثانیه`}
+                              </dd>
+                            </div>
+                          </dl>
+                        </details>
+                      </li>
+                    );
+                  })}
+                </ol>
+              )}
+            </>
+          )}
+        </CaseRecords>
       </section>
-      {versions.length > 1 && (
-        <details>
-          <summary>تاریخچه نسخه‌های پروفایل</summary>
-          {versions.slice(1).map((version) => (
-            <ProfileEvidence key={version.id} version={version} />
-          ))}
-        </details>
-      )}
+      <ProfileHistory proposalId={proposal.id} />
     </section>
   );
 }
@@ -1050,5 +1056,73 @@ function ProfileEditor({
         </Alert>
       )}
     </div>
+  );
+}
+
+function ProfileHistory({ proposalId }: { proposalId: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <details onToggle={(e) => setOpen(e.currentTarget.open)}>
+      <summary>تاریخچه نسخه‌های پروفایل</summary>
+      {open && (
+        <CaseRecords kind="profiles" proposalId={proposalId}>
+          {(rows) => (
+            <div className="grid gap-3">
+              {rows.map((row) => (
+                <PastProfile
+                  key={row.id}
+                  proposalId={proposalId}
+                  versionId={row.id}
+                  number={row.number}
+                />
+              ))}
+            </div>
+          )}
+        </CaseRecords>
+      )}
+    </details>
+  );
+}
+function PastProfile({
+  proposalId,
+  versionId,
+  number,
+}: {
+  proposalId: string;
+  versionId: string;
+  number: number;
+}) {
+  const [open, setOpen] = useState(false);
+  const query = useQuery({
+    queryKey: [
+      "operator-source-proposals",
+      proposalId,
+      "profile-version",
+      versionId,
+    ],
+    enabled: open,
+    queryFn: async () => {
+      const { data, error } = await api.GET(
+        "/api/v1/operator/source-proposals/{proposal_id}/profiles/{version_id}/",
+        {
+          params: { path: { proposal_id: proposalId, version_id: versionId } },
+        },
+      );
+      if (error || !data) throw apiError(error);
+      return data;
+    },
+  });
+  return (
+    <details onToggle={(e) => setOpen(e.currentTarget.open)}>
+      <summary>نسخه {number.toLocaleString("fa-IR")}</summary>
+      {open &&
+        (query.data ? (
+          <ProfileEvidence version={query.data} />
+        ) : (
+          <p role={query.isError ? "alert" : "status"}>
+            {query.isError ? "بارگذاری ناموفق بود." : "در حال بارگذاری…"}
+          </p>
+        ))}
+    </details>
   );
 }

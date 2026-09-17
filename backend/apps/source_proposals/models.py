@@ -257,6 +257,8 @@ class ExternalListingCandidate(models.Model):
     publication_outcome = models.CharField(
         max_length=16, choices=PublicationOutcome, blank=True, default="", db_default=""
     )
+    requested_urls = models.JSONField(default=list, db_default=[])
+    structural_drift = models.BooleanField(default=False, db_default=False)
     superseded = models.BooleanField(default=False, db_default=False)
     exclusion_hold = models.ForeignKey(
         "SourceExclusion", on_delete=models.PROTECT, null=True, related_name="held_candidates"

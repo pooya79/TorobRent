@@ -983,8 +983,25 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** List External Listing candidates awaiting review or correction */
+    /** List External Listing candidates awaiting review */
     get: operations["v1_operator_external_listing_candidates_list"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/operator/external-listing-candidates/{candidate_id}/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Operator Candidate Detail View */
+    get: operations["v1_operator_external_listing_candidates_retrieve"];
     put?: never;
     post?: never;
     delete?: never;
@@ -1019,25 +1036,8 @@ export interface paths {
     };
     get?: never;
     put?: never;
-    /** Claim an External Listing candidate review or explicit correction */
+    /** Claim an External Listing candidate review */
     post: operations["v1_operator_external_listing_candidates_claim_create"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/v1/operator/external-listing-candidates/{candidate_id}/correct/": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Correct an extracted External Listing candidate */
-    post: operations["v1_operator_external_listing_candidates_correct_create"];
     delete?: never;
     options?: never;
     head?: never;
@@ -1072,23 +1072,6 @@ export interface paths {
     put?: never;
     /** Reject an External Listing candidate */
     post: operations["v1_operator_external_listing_candidates_reject_create"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/v1/operator/external-listing-candidates/{candidate_id}/request-changes/": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Request changes to an External Listing candidate */
-    post: operations["v1_operator_external_listing_candidates_request_changes_create"];
     delete?: never;
     options?: never;
     head?: never;
@@ -1248,6 +1231,40 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/v1/operator/source-proposals/{proposal_id}/exclusions/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Operator Case Exclusions View */
+    get: operations["v1_operator_source_proposals_exclusions_list"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/operator/source-proposals/{proposal_id}/exclusions/{exclusion_id}/actions/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Operator Case Exclusion Actions View */
+    get: operations["v1_operator_source_proposals_exclusions_actions_list"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/v1/operator/source-proposals/{proposal_id}/exclusions/add/": {
     parameters: {
       query?: never;
@@ -1310,6 +1327,57 @@ export interface paths {
     put?: never;
     /** Explicitly withdraw reviewed Listings matching an active exclusion */
     post: operations["v1_operator_source_proposals_exclusions_withdraw_create"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/operator/source-proposals/{proposal_id}/history/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Operator Case History View */
+    get: operations["v1_operator_source_proposals_history_list"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/operator/source-proposals/{proposal_id}/problems/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List Source page outcomes */
+    get: operations["v1_operator_source_proposals_problems_list"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/operator/source-proposals/{proposal_id}/problems/{exception_id}/attempts/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Operator Case Attempts View */
+    get: operations["v1_operator_source_proposals_problems_attempts_list"];
+    put?: never;
+    post?: never;
     delete?: never;
     options?: never;
     head?: never;
@@ -1401,6 +1469,40 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/v1/operator/source-proposals/{proposal_id}/profiles/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Operator Case Profiles View */
+    get: operations["v1_operator_source_proposals_profiles_list"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/operator/source-proposals/{proposal_id}/profiles/{version_id}/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Operator Case Profile Detail View */
+    get: operations["v1_operator_source_proposals_profiles_retrieve"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/v1/operator/source-proposals/{proposal_id}/publication-mode/": {
     parameters: {
       query?: never;
@@ -1435,6 +1537,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/v1/operator/source-proposals/{proposal_id}/repairs/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Operator Case Repairs View */
+    get: operations["v1_operator_source_proposals_repairs_list"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/v1/operator/source-proposals/{proposal_id}/request-changes/": {
     parameters: {
       query?: never;
@@ -1463,6 +1582,74 @@ export interface paths {
     put?: never;
     /** Reassign Source responsibility */
     post: operations["v1_operator_source_proposals_responsibility_create"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/operator/source-proposals/{proposal_id}/responsibility-history/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Operator Case Responsibility History View */
+    get: operations["v1_operator_source_proposals_responsibility_history_list"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/operator/source-proposals/{proposal_id}/results/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Operator Case Results View */
+    get: operations["v1_operator_source_proposals_results_list"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/operator/source-proposals/{proposal_id}/runs/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Operator Case Runs View */
+    get: operations["v1_operator_source_proposals_runs_list"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/operator/source-proposals/{proposal_id}/runs/{run_id}/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Read selected extraction run details */
+    get: operations["v1_operator_source_proposals_runs_retrieve"];
+    put?: never;
+    post?: never;
     delete?: never;
     options?: never;
     head?: never;
@@ -2451,33 +2638,6 @@ export interface components {
     Band182Enum: "likely" | "possible" | "below_threshold";
     /** @enum {unknown} */
     BlankEnum: "";
-    CandidateCorrection: {
-      reviewed_revision: number;
-      reason: string;
-      values: components["schemas"]["CandidateCorrectionValues"];
-      media?: components["schemas"]["CandidateImageChoice"][];
-    };
-    CandidateCorrectionValues: {
-      /** Format: uuid */
-      city?: string | null;
-      /** Format: uuid */
-      district?: string | null;
-      /** Format: uuid */
-      neighborhood?: string | null;
-      property_type?:
-        | components["schemas"]["PropertyTypeEnum"]
-        | components["schemas"]["BlankEnum"];
-      /** Format: int64 */
-      area_sqm?: number | null;
-      /** Format: int64 */
-      room_count?: number | null;
-      /** Format: int64 */
-      deposit_rial?: number | null;
-      /** Format: int64 */
-      monthly_rent_rial?: number | null;
-      description?: string;
-      title?: string;
-    };
     CandidateImage: {
       /** Format: uuid */
       readonly id: string;
@@ -2497,13 +2657,6 @@ export interface components {
       /** Format: uuid */
       accepted_by?: string | null;
     };
-    CandidateImageChoice: {
-      /** Format: uuid */
-      id: string;
-      excluded: boolean;
-      is_primary: boolean;
-      accept_as_property: boolean;
-    };
     CandidateImageVariant: {
       kind: string;
       /** Format: int64 */
@@ -2513,10 +2666,6 @@ export interface components {
       /** Format: int64 */
       byte_size: number;
       readonly url: string | null;
-    };
-    CandidateReviewClaimRequest: {
-      /** @default false */
-      for_correction: boolean;
     };
     CatalogCurationExactLocation: {
       /** Format: decimal */
@@ -3034,6 +3183,44 @@ export interface components {
      */
     ExternalListingCandidateStateEnum:
       "pending" | "changes_requested" | "rejected" | "published" | "cancelled";
+    ExternalListingCandidateSummary: {
+      readonly superseded: boolean;
+      readonly is_current: boolean;
+      /** Format: uuid */
+      readonly id: string;
+      /** Format: uuid */
+      readonly source_proposal_id: string;
+      /** Format: uuid */
+      readonly extraction_run: string | null;
+      /** Format: uuid */
+      readonly exclusion_hold: string | null;
+      readonly exclusion_reason: string;
+      /** Format: uuid */
+      readonly city: string | null;
+      /** Format: uuid */
+      readonly district: string | null;
+      /** Format: uuid */
+      readonly neighborhood: string | null;
+      readonly conflicts: unknown;
+      readonly validation_errors: unknown;
+      readonly source: components["schemas"]["ExternalCandidateSource"];
+      /** Format: uuid */
+      readonly listing_id: string | null;
+      readonly state: components["schemas"]["ExternalListingCandidateStateEnum"];
+      readonly revision: number;
+      readonly title: string;
+      /** Format: uri */
+      readonly external_url: string;
+      readonly property_type: components["schemas"]["PropertyTypeEnum"];
+      readonly area_sqm: number | null;
+      readonly room_count: number | null;
+      readonly deposit_rial: number | null;
+      readonly monthly_rent_rial: number | null;
+      /** Format: date-time */
+      readonly created_at: string;
+      /** Format: date-time */
+      readonly updated_at: string;
+    };
     ExtractionError: {
       url?: string;
       code: string;
@@ -3071,6 +3258,7 @@ export interface components {
       readonly pipeline_version: string;
       readonly revision: number;
       readonly candidates: components["schemas"]["ExternalListingCandidate"][];
+      readonly ready_count: number;
       readonly decisions: components["schemas"]["ExtractionRunDecision"][];
       readonly state: components["schemas"]["State299Enum"];
       readonly attempts: number;
@@ -3336,6 +3524,12 @@ export interface components {
      * @enum {string}
      */
     Kind472Enum: "exact" | "path_prefix";
+    /**
+     * @description * `exact` - Exact URL
+     *     * `path_prefix` - Path section
+     * @enum {string}
+     */
+    Kind9e4Enum: "exact" | "path_prefix";
     ListingInquiryContext: {
       opening_snapshot: components["schemas"]["ListingInquiryOpeningSnapshot"];
       current_availability: components["schemas"]["ListingInquiryCurrentAvailability"];
@@ -3672,6 +3866,8 @@ export interface components {
       readonly updated_at: string;
       readonly submitter:
         components["schemas"]["SourceProposalSubmitter"] | null;
+      readonly counts: components["schemas"]["SourceCaseCounts"];
+      readonly profile_status: string;
       readonly properties: components["schemas"]["ExternalListingCandidate"][];
       readonly needs_reconciliation: boolean;
       readonly discovery: components["schemas"]["SourceDiscovery"] | null;
@@ -3731,6 +3927,36 @@ export interface components {
       previous?: string | null;
       results: components["schemas"]["ConversationReportQueue"][];
     };
+    PaginatedExternalListingCandidateSummaryList: {
+      /** @example 123 */
+      count: number;
+      /**
+       * Format: uri
+       * @example http://api.example.org/properties/?page=2
+       */
+      next?: string | null;
+      /**
+       * Format: uri
+       * @example http://api.example.org/properties/?page=1
+       */
+      previous?: string | null;
+      results: components["schemas"]["ExternalListingCandidateSummary"][];
+    };
+    PaginatedExtractionRequestList: {
+      /** @example 123 */
+      count: number;
+      /**
+       * Format: uri
+       * @example http://api.example.org/properties/?page=2
+       */
+      next?: string | null;
+      /**
+       * Format: uri
+       * @example http://api.example.org/properties/?page=1
+       */
+      previous?: string | null;
+      results: components["schemas"]["ExtractionRequest"][];
+    };
     PaginatedMessageSummaryList: {
       /** @example 123 */
       count: number;
@@ -3760,6 +3986,126 @@ export interface components {
        */
       previous?: string | null;
       results: components["schemas"]["OperatorSubmissionQueue"][];
+    };
+    PaginatedSourceExceptionAttemptList: {
+      /** @example 123 */
+      count: number;
+      /**
+       * Format: uri
+       * @example http://api.example.org/properties/?page=2
+       */
+      next?: string | null;
+      /**
+       * Format: uri
+       * @example http://api.example.org/properties/?page=1
+       */
+      previous?: string | null;
+      results: components["schemas"]["SourceExceptionAttempt"][];
+    };
+    PaginatedSourceExclusionActionList: {
+      /** @example 123 */
+      count: number;
+      /**
+       * Format: uri
+       * @example http://api.example.org/properties/?page=2
+       */
+      next?: string | null;
+      /**
+       * Format: uri
+       * @example http://api.example.org/properties/?page=1
+       */
+      previous?: string | null;
+      results: components["schemas"]["SourceExclusionAction"][];
+    };
+    PaginatedSourceExclusionSummaryList: {
+      /** @example 123 */
+      count: number;
+      /**
+       * Format: uri
+       * @example http://api.example.org/properties/?page=2
+       */
+      next?: string | null;
+      /**
+       * Format: uri
+       * @example http://api.example.org/properties/?page=1
+       */
+      previous?: string | null;
+      results: components["schemas"]["SourceExclusionSummary"][];
+    };
+    PaginatedSourceProblemSummaryList: {
+      /** @example 123 */
+      count: number;
+      /**
+       * Format: uri
+       * @example http://api.example.org/properties/?page=2
+       */
+      next?: string | null;
+      /**
+       * Format: uri
+       * @example http://api.example.org/properties/?page=1
+       */
+      previous?: string | null;
+      results: components["schemas"]["SourceProblemSummary"][];
+    };
+    PaginatedSourceProfileRepairList: {
+      /** @example 123 */
+      count: number;
+      /**
+       * Format: uri
+       * @example http://api.example.org/properties/?page=2
+       */
+      next?: string | null;
+      /**
+       * Format: uri
+       * @example http://api.example.org/properties/?page=1
+       */
+      previous?: string | null;
+      results: components["schemas"]["SourceProfileRepair"][];
+    };
+    PaginatedSourceProfileSummaryList: {
+      /** @example 123 */
+      count: number;
+      /**
+       * Format: uri
+       * @example http://api.example.org/properties/?page=2
+       */
+      next?: string | null;
+      /**
+       * Format: uri
+       * @example http://api.example.org/properties/?page=1
+       */
+      previous?: string | null;
+      results: components["schemas"]["SourceProfileSummary"][];
+    };
+    PaginatedSourceProposalEventList: {
+      /** @example 123 */
+      count: number;
+      /**
+       * Format: uri
+       * @example http://api.example.org/properties/?page=2
+       */
+      next?: string | null;
+      /**
+       * Format: uri
+       * @example http://api.example.org/properties/?page=1
+       */
+      previous?: string | null;
+      results: components["schemas"]["SourceProposalEvent"][];
+    };
+    PaginatedSourceResponsibilityChangeList: {
+      /** @example 123 */
+      count: number;
+      /**
+       * Format: uri
+       * @example http://api.example.org/properties/?page=2
+       */
+      next?: string | null;
+      /**
+       * Format: uri
+       * @example http://api.example.org/properties/?page=1
+       */
+      previous?: string | null;
+      results: components["schemas"]["SourceResponsibilityChange"][];
     };
     PaginatedSupportRequestQueueList: {
       /** @example 123 */
@@ -4728,6 +5074,12 @@ export interface components {
     SourceBulkResult: {
       affected: number;
     };
+    SourceCaseCounts: {
+      properties: number;
+      runs: number;
+      problems: number;
+      exclusions: number;
+    };
     SourceConversationMessage: {
       /** Format: uuid */
       id: string;
@@ -4803,7 +5155,7 @@ export interface components {
     SourceExclusion: {
       /** Format: uuid */
       readonly id: string;
-      readonly kind: components["schemas"]["SourceExclusionKindEnum"];
+      readonly kind: components["schemas"]["Kind9e4Enum"];
       /** Format: uri */
       readonly url: string;
       readonly reason: string;
@@ -4838,12 +5190,6 @@ export interface components {
       reason: string;
       confirmed: boolean;
     };
-    /**
-     * @description * `exact` - Exact URL
-     *     * `path_prefix` - Path section
-     * @enum {string}
-     */
-    SourceExclusionKindEnum: "exact" | "path_prefix";
     SourceExclusionPreview: {
       kind: components["schemas"]["Kind472Enum"];
       url: string;
@@ -4855,6 +5201,17 @@ export interface components {
     SourceExclusionPreviewRequest: {
       kind: components["schemas"]["Kind472Enum"];
       url: string;
+    };
+    SourceExclusionSummary: {
+      /** Format: uuid */
+      readonly id: string;
+      kind: components["schemas"]["Kind9e4Enum"];
+      /** Format: uri */
+      url: string;
+      reason: string;
+      /** Format: date-time */
+      readonly created_at: string;
+      readonly active: boolean;
     };
     SourceExclusionWithdraw: {
       /** Format: uuid */
@@ -4885,6 +5242,24 @@ export interface components {
       source_reference?: string;
       source_claims?: unknown;
       provenance_note?: string;
+    };
+    SourceProblemSummary: {
+      /** Format: uuid */
+      readonly id: string;
+      /** Format: uri */
+      canonical_url: string;
+      /** Format: date-time */
+      first_occurrence?: string | null;
+      readonly state: string;
+      problem?: string;
+      detail?: string;
+      /** Format: uuid */
+      last_run: string;
+      /** Format: int64 */
+      last_attempt: number;
+      /** Format: date-time */
+      last_attempt_at: string;
+      readonly exclusion_reason: string;
     };
     SourceProcessingRequest: {
       action: components["schemas"]["SourceProcessingRequestActionEnum"];
@@ -4951,6 +5326,23 @@ export interface components {
       /** Format: uuid */
       reviewed_profile_version: string;
       selected_fields: string[];
+    };
+    SourceProfileSummary: {
+      /** Format: uuid */
+      readonly id: string;
+      /** Format: int64 */
+      number: number;
+      /** Format: uuid */
+      parent?: string | null;
+      readonly status: string;
+      readonly is_active: boolean;
+      /** Format: date-time */
+      readonly created_at: string;
+      /** @default  */
+      readonly created_by_label: string;
+      provenance: components["schemas"]["ProvenanceEnum"];
+      /** @default  */
+      readonly review_mode: string;
     };
     SourceProfileVersion: {
       /** Format: uuid */
@@ -5120,7 +5512,7 @@ export interface components {
       operator: string | null;
       operator_label?: string | null;
       revision: number;
-      history: components["schemas"]["SourceResponsibilityChange"][];
+      readonly history: components["schemas"]["SourceResponsibilityChange"][];
     };
     SourceResponsibilityChange: {
       operator_label?: string | null;
@@ -7809,6 +8201,27 @@ export interface operations {
       };
     };
   };
+  v1_operator_external_listing_candidates_retrieve: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        candidate_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ExternalListingCandidate"];
+        };
+      };
+    };
+  };
   v1_operator_external_listing_candidates_approve_create: {
     parameters: {
       query?: never;
@@ -7843,13 +8256,7 @@ export interface operations {
       };
       cookie?: never;
     };
-    requestBody?: {
-      content: {
-        "application/json": components["schemas"]["CandidateReviewClaimRequest"];
-        "application/x-www-form-urlencoded": components["schemas"]["CandidateReviewClaimRequest"];
-        "multipart/form-data": components["schemas"]["CandidateReviewClaimRequest"];
-      };
-    };
+    requestBody?: never;
     responses: {
       200: {
         headers: {
@@ -7857,31 +8264,6 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["ExternalListingCandidateReviewClaim"];
-        };
-      };
-    };
-  };
-  v1_operator_external_listing_candidates_correct_create: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        candidate_id: string;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        "application/json": components["schemas"]["CandidateCorrection"];
-      };
-    };
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ExternalListingCandidate"];
         };
       };
     };
@@ -7933,36 +8315,30 @@ export interface operations {
       };
     };
   };
-  v1_operator_external_listing_candidates_request_changes_create: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        candidate_id: string;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        "application/json": components["schemas"]["SourceProposalDecision"];
-      };
-    };
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ExternalListingCandidate"];
-        };
-      };
-    };
-  };
   v1_operator_source_proposals_list: {
     parameters: {
       query?: {
         candidate?: string;
         proposal?: string;
+        /**
+         * @description * `queue` - queue
+         *     * `overview` - overview
+         *     * `url` - url
+         *     * `profile` - profile
+         *     * `responsibility` - responsibility
+         *     * `processing` - processing
+         *     * `exceptions` - exceptions
+         *     * `history` - history
+         */
+        section?:
+          | "queue"
+          | "overview"
+          | "url"
+          | "profile"
+          | "responsibility"
+          | "processing"
+          | "exceptions"
+          | "history";
       };
       header?: never;
       path?: never;
@@ -8176,6 +8552,63 @@ export interface operations {
       };
     };
   };
+  v1_operator_source_proposals_exclusions_list: {
+    parameters: {
+      query?: {
+        /** @description Number of results to return per page. */
+        ""?: number;
+        /** @description A page number within the paginated result set. */
+        page?: number;
+        /** @description A search term. */
+        q?: string;
+      };
+      header?: never;
+      path: {
+        proposal_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PaginatedSourceExclusionSummaryList"];
+        };
+      };
+    };
+  };
+  v1_operator_source_proposals_exclusions_actions_list: {
+    parameters: {
+      query?: {
+        /** @description Number of results to return per page. */
+        ""?: number;
+        /** @description A page number within the paginated result set. */
+        page?: number;
+        /** @description A search term. */
+        q?: string;
+      };
+      header?: never;
+      path: {
+        exclusion_id: string;
+        proposal_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PaginatedSourceExclusionActionList"];
+        };
+      };
+    };
+  };
   v1_operator_source_proposals_exclusions_add_create: {
     parameters: {
       query?: never;
@@ -8272,6 +8705,98 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["OperatorSourceProposal"];
+        };
+      };
+    };
+  };
+  v1_operator_source_proposals_history_list: {
+    parameters: {
+      query?: {
+        /** @description Number of results to return per page. */
+        ""?: number;
+        /** @description A page number within the paginated result set. */
+        page?: number;
+        /** @description A search term. */
+        q?: string;
+      };
+      header?: never;
+      path: {
+        proposal_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PaginatedSourceProposalEventList"];
+        };
+      };
+    };
+  };
+  v1_operator_source_proposals_problems_list: {
+    parameters: {
+      query?: {
+        /** @description Number of results to return per page. */
+        ""?: number;
+        /** @description A page number within the paginated result set. */
+        page?: number;
+        /** @description A search term. */
+        q?: string;
+        /**
+         * @description * `all` - all
+         *     * `open` - open
+         *     * `excluded` - excluded
+         *     * `resolved` - resolved
+         */
+        state?: "all" | "open" | "excluded" | "resolved";
+      };
+      header?: never;
+      path: {
+        proposal_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PaginatedSourceProblemSummaryList"];
+        };
+      };
+    };
+  };
+  v1_operator_source_proposals_problems_attempts_list: {
+    parameters: {
+      query?: {
+        /** @description Number of results to return per page. */
+        ""?: number;
+        /** @description A page number within the paginated result set. */
+        page?: number;
+        /** @description A search term. */
+        q?: string;
+      };
+      header?: never;
+      path: {
+        exception_id: string;
+        proposal_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PaginatedSourceExceptionAttemptList"];
         };
       };
     };
@@ -8401,6 +8926,56 @@ export interface operations {
       };
     };
   };
+  v1_operator_source_proposals_profiles_list: {
+    parameters: {
+      query?: {
+        /** @description Number of results to return per page. */
+        ""?: number;
+        /** @description A page number within the paginated result set. */
+        page?: number;
+        /** @description A search term. */
+        q?: string;
+      };
+      header?: never;
+      path: {
+        proposal_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PaginatedSourceProfileSummaryList"];
+        };
+      };
+    };
+  };
+  v1_operator_source_proposals_profiles_retrieve: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        proposal_id: string;
+        version_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SourceProfileVersion"];
+        };
+      };
+    };
+  };
   v1_operator_source_proposals_publication_mode_create: {
     parameters: {
       query?: never;
@@ -8451,6 +9026,34 @@ export interface operations {
       };
     };
   };
+  v1_operator_source_proposals_repairs_list: {
+    parameters: {
+      query?: {
+        /** @description Number of results to return per page. */
+        ""?: number;
+        /** @description A page number within the paginated result set. */
+        page?: number;
+        /** @description A search term. */
+        q?: string;
+      };
+      header?: never;
+      path: {
+        proposal_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PaginatedSourceProfileRepairList"];
+        };
+      };
+    };
+  };
   v1_operator_source_proposals_request_changes_create: {
     parameters: {
       query?: never;
@@ -8497,6 +9100,120 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["OperatorSourceProposal"];
+        };
+      };
+    };
+  };
+  v1_operator_source_proposals_responsibility_history_list: {
+    parameters: {
+      query?: {
+        /** @description Number of results to return per page. */
+        ""?: number;
+        /** @description A page number within the paginated result set. */
+        page?: number;
+        /** @description A search term. */
+        q?: string;
+      };
+      header?: never;
+      path: {
+        proposal_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PaginatedSourceResponsibilityChangeList"];
+        };
+      };
+    };
+  };
+  v1_operator_source_proposals_results_list: {
+    parameters: {
+      query?: {
+        /** @description Number of results to return per page. */
+        ""?: number;
+        /** @description A page number within the paginated result set. */
+        page?: number;
+        q?: string;
+        run?: string;
+        /**
+         * @description * `all` - all
+         *     * `ready` - ready
+         *     * `issues` - issues
+         *     * `published` - published
+         *     * `archived` - archived
+         */
+        status?: "all" | "ready" | "issues" | "published" | "archived";
+      };
+      header?: never;
+      path: {
+        proposal_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PaginatedExternalListingCandidateSummaryList"];
+        };
+      };
+    };
+  };
+  v1_operator_source_proposals_runs_list: {
+    parameters: {
+      query?: {
+        /** @description Number of results to return per page. */
+        ""?: number;
+        /** @description A page number within the paginated result set. */
+        page?: number;
+        /** @description A search term. */
+        q?: string;
+      };
+      header?: never;
+      path: {
+        proposal_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PaginatedExtractionRequestList"];
+        };
+      };
+    };
+  };
+  v1_operator_source_proposals_runs_retrieve: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        proposal_id: string;
+        run_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ExtractionRequest"];
         };
       };
     };

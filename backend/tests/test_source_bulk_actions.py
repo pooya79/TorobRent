@@ -380,7 +380,7 @@ def test_concurrent_bulk_confirmation_publishes_once(
 
 
 @pytest.mark.django_db
-def test_group_candidate_can_be_corrected_with_evidence_retained_and_preview_invalidated(
+def test_group_candidate_rejects_manual_edits_without_changing_preview(
     api_client, assigned_case, monkeypatch, django_capture_on_commit_callbacks
 ):
     execute_run(api_client, assigned_case, monkeypatch, django_capture_on_commit_callbacks)
@@ -391,7 +391,7 @@ def test_group_candidate_can_be_corrected_with_evidence_retained_and_preview_inv
     preview = api_client.post(f"{root}/preview/", body, format="json").data
     candidate = preview["items"][0]["candidate"]
     endpoint = f"/api/v1/operator/external-listing-candidates/{candidate['id']}"
-    claim = api_client.post(f"{endpoint}/claim/", {"for_correction": True}, format="json")
+    claim = api_client.post(f"{endpoint}/claim/", {}, format="json")
     assert claim.status_code == 201, claim.data
     corrected = api_client.post(
         f"{endpoint}/correct/",
@@ -402,26 +402,13 @@ def test_group_candidate_can_be_corrected_with_evidence_retained_and_preview_inv
         },
         format="json",
     )
-    assert corrected.status_code == 200, corrected.data
-    assert corrected.data["evidence"] == candidate["evidence"]
-    assert corrected.data["area_sqm"] == 120
-    assert (
-        api_client.post(
-            f"{root}/apply/", {"token": preview["token"], "confirmed": True}, format="json"
-        ).status_code
-        == 409
-    )
+    assert corrected.status_code == 404
     fresh = api_client.post(f"{root}/preview/", body, format="json").data
-    assert fresh["items"][0]["status"] == "eligible"
-    assert fresh["items"][0]["candidate"]["area_sqm"] == 120
+    assert fresh["items"][0]["candidate"]["area_sqm"] == candidate["area_sqm"]
+    assert fresh["items"][0]["candidate"]["evidence"] == candidate["evidence"]
     assert (
         api_client.post(
             f"{root}/apply/", {"token": fresh["token"], "confirmed": True}, format="json"
         ).data["affected"]
         == 1
-    )
-    after = api_client.get("/api/v1/operator/source-proposals/").json()[0]
-    assert (
-        after["assignment"]["active_profile_version"]["id"]
-        == case["assignment"]["active_profile_version"]["id"]
     )

@@ -158,12 +158,21 @@ class SourceAssignmentSerializer(serializers.ModelSerializer[SourceAssignment]):
     review_operator = serializers.UUIDField(
         source="proposal.responsible_operator_id", read_only=True, allow_null=True, default=None
     )
-    exclusions = SourceExclusionSerializer(source="source.exclusions", many=True, read_only=True)
+    exclusions = serializers.SerializerMethodField()
+
+    @extend_schema_field(SourceExclusionSerializer(many=True))
+    def get_exclusions(self, assignment: SourceAssignment) -> list[dict[str, Any]]:
+        if self.context.get("section", "full") != "full":
+            return []
+        return list(SourceExclusionSerializer(assignment.source.exclusions.all(), many=True).data)
+
     exceptions = serializers.SerializerMethodField()
     current_results = serializers.SerializerMethodField()
 
     @extend_schema_field(SourceExtractionExceptionSerializer(many=True))
     def get_current_results(self, assignment: SourceAssignment) -> list[dict[str, Any]]:
+        if self.context.get("section", "full") != "full":
+            return []
         if assignment.revoked_at:
             return []
         return list(
@@ -175,6 +184,8 @@ class SourceAssignmentSerializer(serializers.ModelSerializer[SourceAssignment]):
 
     @extend_schema_field(SourceExtractionExceptionSerializer(many=True))
     def get_exceptions(self, assignment: SourceAssignment) -> list[dict[str, Any]]:
+        if self.context.get("section", "full") != "full":
+            return []
         if assignment.revoked_at:
             return []
         return list(
@@ -191,9 +202,15 @@ class SourceAssignmentSerializer(serializers.ModelSerializer[SourceAssignment]):
 
     @extend_schema_field(ExtractionRequestSerializer(many=True))
     def get_recent_requests(self, assignment: SourceAssignment) -> list[dict[str, Any]]:
+        if self.context.get("section", "full") not in ("full", "processing"):
+            return []
         return list(
             ExtractionRequestSerializer(
-                assignment.requests.select_related("run")[:10], many=True
+                assignment.requests.select_related("run")[
+                    : (1 if self.context.get("section") == "processing" else 10)
+                ],
+                many=True,
+                context={"summary": self.context.get("section") == "processing"},
             ).data
         )
 
@@ -320,7 +337,11 @@ class SourceProposalSerializer(serializers.ModelSerializer[SourceProposal]):
             .order_by("-created_at")
             .first()
         )
-        return dict(SourceAssignmentSerializer(assignment).data) if assignment else None
+        return (
+            dict(SourceAssignmentSerializer(assignment, context=self.context).data)
+            if assignment
+            else None
+        )
 
     def to_representation(self, instance: SourceProposal) -> dict[str, Any]:
         data = super().to_representation(instance)
@@ -356,6 +377,8 @@ class SourceProposalSerializer(serializers.ModelSerializer[SourceProposal]):
 
     @extend_schema_field(SourceProposalEventSerializer(many=True))
     def get_history(self, proposal: SourceProposal) -> list[dict[str, Any]]:
+        if self.context.get("section", "full") != "full":
+            return []
         return list(SourceProposalEventSerializer(proposal.events.all(), many=True).data)
 
 
@@ -671,7 +694,17 @@ class SourceResponsibilitySerializer(serializers.Serializer[Any]):
         source="responsible_operator.email", allow_null=True, default=None
     )
     revision = serializers.IntegerField(source="responsibility_revision")
-    history = SourceResponsibilityChangeSerializer(source="responsibility_history", many=True)
+    history = serializers.SerializerMethodField()
+
+    @extend_schema_field(SourceResponsibilityChangeSerializer(many=True))
+    def get_history(self, proposal: SourceProposal) -> list[dict[str, Any]]:
+        if self.context.get("section", "full") != "full":
+            return []
+        return list(
+            SourceResponsibilityChangeSerializer(
+                proposal.responsibility_history.all(), many=True
+            ).data
+        )
 
 
 class SourceProposalSubmitterSerializer(serializers.ModelSerializer[User]):
@@ -683,7 +716,47 @@ class SourceProposalSubmitterSerializer(serializers.ModelSerializer[User]):
         read_only_fields = fields
 
 
+class SourceCaseCountsSerializer(serializers.Serializer[Any]):
+    properties = serializers.IntegerField()
+    runs = serializers.IntegerField()
+    problems = serializers.IntegerField()
+    exclusions = serializers.IntegerField()
+
+
 class OperatorSourceProposalSerializer(SourceProposalSerializer):
+    counts = serializers.SerializerMethodField()
+    profile_status = serializers.SerializerMethodField()
+
+    @extend_schema_field(SourceCaseCountsSerializer)
+    def get_counts(self, proposal: SourceProposal) -> dict[str, int]:
+        assignment = (
+            SourceAssignment.objects.filter(proposal=proposal).order_by("-created_at").first()
+        )
+        return {
+            "properties": proposal.external_listing_candidates
+            .filter(discovery_version__isnull=True, superseded=False)
+            .values("external_url")
+            .distinct()
+            .count(),
+            "runs": assignment.requests.count() if assignment else 0,
+            "problems": assignment.source.exceptions.filter(state="open").count()
+            if assignment
+            else 0,
+            "exclusions": assignment.source.exclusions.exclude(actions__action="remove").count()
+            if assignment
+            else 0,
+        }
+
+    def get_profile_status(self, proposal: SourceProposal) -> str:
+        version = (
+            SourceProfileVersion.objects
+            .filter(reservation__proposal=proposal)
+            .order_by("-number")
+            .values("decision__event__new_state")
+            .first()
+        )
+        return (version["decision__event__new_state"] or "proposed") if version else ""
+
     submitter = SourceProposalSubmitterSerializer(read_only=True, allow_null=True)
     responsibility = SourceResponsibilitySerializer(source="*", read_only=True, allow_null=True)
     properties = serializers.SerializerMethodField()
@@ -695,6 +768,8 @@ class OperatorSourceProposalSerializer(SourceProposalSerializer):
     class Meta(SourceProposalSerializer.Meta):
         fields = SourceProposalSerializer.Meta.fields + (  # type: ignore[assignment]
             "submitter",
+            "counts",
+            "profile_status",
             "properties",
             "needs_reconciliation",
             "discovery",
@@ -705,7 +780,9 @@ class OperatorSourceProposalSerializer(SourceProposalSerializer):
 
     @extend_schema_field(ExternalListingCandidateSerializer(many=True))
     def get_properties(self, proposal: SourceProposal) -> list[dict[str, Any]]:
-        if not self.context.get("include_properties", True):
+        if self.context.get("section", "full") != "full" or not self.context.get(
+            "include_properties", True
+        ):
             return []
         latest_candidate = (
             ExternalListingCandidate.objects
@@ -735,20 +812,35 @@ class OperatorSourceProposalSerializer(SourceProposalSerializer):
 
     @extend_schema_field(SourceProfileRepairSerializer(many=True))
     def get_profile_repairs(self, proposal: SourceProposal) -> list[dict[str, Any]]:
+        if self.context.get("section", "full") not in ("full", "profile"):
+            return []
         repairs = SourceProfileRepair.objects.filter(
             parent__reservation__proposal=proposal
         ).select_related("result")
-        return list(SourceProfileRepairSerializer(repairs, many=True).data)
+        return list(
+            SourceProfileRepairSerializer(
+                repairs if self.context.get("section", "full") == "full" else repairs[:1], many=True
+            ).data
+        )
 
     @extend_schema_field(SourceProfileVersionSerializer(many=True))
     def get_profile_versions(self, proposal: SourceProposal) -> list[dict[str, Any]]:
+        if self.context.get("section", "full") not in ("full", "profile"):
+            return []
         versions = SourceProfileVersion.objects.filter(
             reservation__proposal=proposal
         ).select_related("profile", "parent", "decision__event", "created_by")
-        return list(SourceProfileVersionSerializer(versions, many=True).data)
+        return list(
+            SourceProfileVersionSerializer(
+                versions if self.context.get("section", "full") == "full" else versions[:1],
+                many=True,
+            ).data
+        )
 
     @extend_schema_field(SourceDiscoverySerializer(allow_null=True))
     def get_discovery(self, proposal: SourceProposal) -> dict[str, Any] | None:
+        if self.context.get("section", "full") not in ("full", "url", "profile"):
+            return None
         reservation = proposal.reservations.filter(revision=proposal.revision).first()
         return dict(SourceDiscoverySerializer(reservation).data) if reservation else None
 

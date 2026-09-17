@@ -387,9 +387,7 @@ def _active_candidate_claim(
     return candidate.review_claims.filter(released_at__isnull=True).first()
 
 
-def _lock_candidate(
-    candidate: ExternalListingCandidate, *, for_correction: bool = False
-) -> ExternalListingCandidate:
+def _lock_candidate(candidate: ExternalListingCandidate) -> ExternalListingCandidate:
     # Match batch publication and assignment revocation lock order.
     Source.objects.select_for_update().get(pk=candidate.source_id)
     candidate = ExternalListingCandidate.objects.select_for_update().get(pk=candidate.pk)
@@ -407,9 +405,9 @@ def _lock_candidate(
 
 @transaction.atomic
 def claim_external_listing_candidate_review(
-    *, candidate: ExternalListingCandidate, actor: User, for_correction: bool = False
+    *, candidate: ExternalListingCandidate, actor: User
 ) -> ExternalListingCandidateReviewClaim:
-    candidate = _lock_candidate(candidate, for_correction=for_correction)
+    candidate = _lock_candidate(candidate)
     _require_candidate_review_authority(candidate=candidate, actor=actor)
     if candidate.state not in (
         ExternalListingCandidateState.PENDING,
@@ -442,21 +440,19 @@ def _current_candidate_claim(
     candidate: ExternalListingCandidate,
     actor: User,
     reviewed_revision: int,
-    allow_changes: bool = False,
 ) -> ExternalListingCandidateReviewClaim:
     if candidate.revision != reviewed_revision:
         raise SourceProposalReviewConflict(
             "review_revision_conflict", "The candidate revision changed. Refresh it."
         )
-    if candidate.state != ExternalListingCandidateState.PENDING and not (
-        allow_changes and candidate.state == ExternalListingCandidateState.CHANGES_REQUESTED
+    if candidate.state not in (
+        ExternalListingCandidateState.PENDING,
+        ExternalListingCandidateState.CHANGES_REQUESTED,
     ):
         raise SourceProposalReviewConflict(
             "review_decision_conflict", "Another decision already changed this candidate."
         )
-    return claim_external_listing_candidate_review(
-        candidate=candidate, actor=actor, for_correction=allow_changes
-    )
+    return claim_external_listing_candidate_review(candidate=candidate, actor=actor)
 
 
 def record_candidate_transition(
@@ -513,26 +509,8 @@ def _record_candidate_decision(
 def _candidate_reason(reason: str) -> str:
     reason = reason.strip()
     if not reason:
-        raise ValidationError("A rejection or Request Changes decision requires a reason.")
+        raise ValidationError("A rejection requires a reason.")
     return reason
-
-
-@transaction.atomic
-def request_external_listing_candidate_changes(
-    *, candidate: ExternalListingCandidate, actor: User, reviewed_revision: int, reason: str
-) -> ExternalListingCandidate:
-    candidate = _lock_candidate(candidate)
-    _require_candidate_review_authority(candidate=candidate, actor=actor)
-    claim = _current_candidate_claim(
-        candidate=candidate, actor=actor, reviewed_revision=reviewed_revision
-    )
-    return _record_candidate_decision(
-        candidate=candidate,
-        actor=actor,
-        claim=claim,
-        new_state=ExternalListingCandidateState.CHANGES_REQUESTED,
-        reason=_candidate_reason(reason),
-    )
 
 
 @transaction.atomic
@@ -573,46 +551,3 @@ def approve_external_listing_candidate(
         claim=claim,
         new_state=ExternalListingCandidateState.PUBLISHED,
     )
-
-
-@transaction.atomic
-def correct_external_listing_candidate(
-    *,
-    candidate: ExternalListingCandidate,
-    actor: User,
-    reviewed_revision: int,
-    reason: str,
-    values: dict[str, object],
-    media: list[dict[str, object]] | None = None,
-) -> ExternalListingCandidate:
-    from .candidate_publication import validation_errors
-
-    candidate = _lock_candidate(candidate, for_correction=True)
-    _require_candidate_review_authority(candidate=candidate, actor=actor)
-    claim = _current_candidate_claim(
-        candidate=candidate, actor=actor, reviewed_revision=reviewed_revision, allow_changes=True
-    )
-    reason = _candidate_reason(reason)
-    if candidate.extraction_run is None or (not values and media is None):
-        raise ValidationError("اصلاح نتیجه استخراج به مقادیر تازه نیاز دارد.")
-    for name, value in values.items():
-        setattr(candidate, name, value)
-        candidate.corrections[name] = str(value.pk) if hasattr(value, "pk") else value
-    if values:
-        candidate.corrections["_structure_reviewed"] = True
-    if media is not None:
-        from .external_media import review_candidate_images
-
-        review_candidate_images(candidate, actor, media)
-    candidate.validation_errors = validation_errors(candidate)
-    candidate.revision += 1
-    candidate.save()
-    candidate = _record_candidate_decision(
-        candidate=candidate,
-        actor=actor,
-        claim=claim,
-        new_state=ExternalListingCandidateState.PENDING,
-        reason=reason,
-    )
-    claim_external_listing_candidate_review(candidate=candidate, actor=actor)
-    return candidate

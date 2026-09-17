@@ -1,4 +1,10 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { api } from "@/lib/api/client";
+import { apiError } from "@/lib/api/errors";
+import {
+  keepPreviousData,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { useEffect, useState, useRef } from "react";
 import { Link, useParams, useLocation, useNavigate } from "react-router";
 import { PageMain } from "@/components/layout/PageMain";
@@ -46,19 +52,31 @@ export function OperatorSourceProposalDetailPage({
     });
   };
   const id = explicitId ?? proposalId ?? "";
-  const options = operatorSourceContextQueryOptions(id);
-  const proposals = useQuery({ ...options, enabled: Boolean(id) });
+  const options = operatorSourceContextQueryOptions(id, null, activeSection);
+  const proposals = useQuery({
+    ...options,
+    enabled: Boolean(id),
+    placeholderData: keepPreviousData,
+  });
   const currentUser = useQuery(currentUserQuery);
   const queryClient = useQueryClient();
   const [completed, setCompleted] = useState(false);
   const returnFocus = useRef<HTMLElement | null>(null);
   const proposal = proposals.data?.find((item) => item.id === id);
   const candidateId = new URLSearchParams(search).get("candidate");
-  const candidate =
-    proposal?.properties?.find((item) => item.id === candidateId) ??
-    proposal?.assignment?.recent_requests
-      ?.flatMap((request) => request.run?.candidates ?? [])
-      .find((item) => item.id === candidateId);
+  const candidateQuery = useQuery({
+    queryKey: ["operator-external-listing-candidates", candidateId],
+    enabled: Boolean(candidateId),
+    queryFn: async () => {
+      const { data, error } = await api.GET(
+        "/api/v1/operator/external-listing-candidates/{candidate_id}/",
+        { params: { path: { candidate_id: candidateId! } } },
+      );
+      if (error || !data) throw apiError(error);
+      return data;
+    },
+  });
+  const candidate = candidateQuery.data;
   const closeCandidate = () => {
     const params = new URLSearchParams(search);
     params.delete("candidate");
@@ -95,6 +113,11 @@ export function OperatorSourceProposalDetailPage({
       (current) =>
         current?.map((item) => (item.id === updated.id ? updated : item)),
     );
+    void queryClient.invalidateQueries({
+      predicate: (query) =>
+        query.queryKey[0] === "operator-source-proposals" &&
+        JSON.stringify(query.queryKey) !== JSON.stringify(options.queryKey),
+    });
     setCompleted(true);
     void queryClient.invalidateQueries({
       queryKey: ["operator-source-proposals"],
@@ -293,7 +316,7 @@ export function OperatorSourceProposalDetailPage({
                 {candidate?.title || "بررسی ملک"}
               </DialogTitle>
               <DialogDescription>
-                نتیجه دریافت‌شده از {proposal.website_name}؛ اصلاح و تصمیم فقط
+                نتیجه دریافت‌شده از {proposal.website_name}؛ تأیید یا رد فقط
                 برای همین صفحه اعمال می‌شود.
               </DialogDescription>
               {candidate ? (
@@ -329,8 +352,9 @@ export function OperatorSourceProposalDetailPage({
                 </>
               ) : (
                 <p role="status">
-                  این ملک پیدا نشد یا با نتیجه تازه جایگزین شده است. فهرست
-                  ملک‌های وب‌سایت را بررسی کنید.
+                  {candidateQuery.isPending
+                    ? "در حال بارگذاری ملک…"
+                    : "این ملک پیدا نشد یا بارگذاری آن ناموفق بود."}
                 </p>
               )}
               <Button variant="outline" onClick={closeCandidate}>

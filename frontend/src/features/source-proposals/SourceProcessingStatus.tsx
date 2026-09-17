@@ -219,10 +219,12 @@ export function SourceProcessingStatus({
               </time>
             </p>
           )}
-          {latest.run?.candidates?.some(
-            (candidate) =>
-              candidate.state === "pending" && !candidate.superseded,
-          ) &&
+          {(latest.run?.ready_count ??
+            latest.run?.candidates?.filter(
+              (candidate) =>
+                candidate.state === "pending" && !candidate.superseded,
+            ).length ??
+            0) > 0 &&
             latest.is_current !== false &&
             active &&
             !paused && (

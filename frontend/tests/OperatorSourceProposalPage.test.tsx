@@ -8,10 +8,68 @@ import { beforeEach, expect, test } from "vitest";
 import { OperatorSourceProposalDetailPage } from "@/pages/OperatorSourceProposalDetailPage";
 import { server } from "./server";
 
+import type { OperatorSourceProposal } from "@/features/source-proposals/queries";
+let currentCase: OperatorSourceProposal | undefined;
+function caseJson(
+  body: Parameters<typeof HttpResponse.json>[0],
+  init?: ResponseInit,
+) {
+  const value = Array.isArray(body) ? body[0] : body;
+  if (value && typeof value === "object" && "website_url" in value)
+    currentCase = value as unknown as OperatorSourceProposal;
+  return HttpResponse.json(body, init);
+}
+
 beforeEach(() => {
+  currentCase = undefined;
   server.use(
+    http.get(
+      "*/api/v1/operator/source-proposals/:id/:resource/",
+      ({ params, request }) => {
+        const q = new URL(request.url);
+        const records =
+          params.resource === "runs"
+            ? currentCase?.assignment?.recent_requests
+            : params.resource === "repairs"
+              ? currentCase?.profile_repairs
+              : params.resource === "profiles"
+                ? currentCase?.profile_versions
+                : params.resource === "history"
+                  ? currentCase?.history
+                  : params.resource === "responsibility-history"
+                    ? currentCase?.responsibility?.history
+                    : params.resource === "problems"
+                      ? (currentCase?.assignment?.current_results ??
+                        currentCase?.assignment?.exceptions)
+                      : params.resource === "exclusions"
+                        ? currentCase?.assignment?.exclusions
+                        : params.resource === "results"
+                          ? q.searchParams.get("run")
+                            ? currentCase?.assignment?.recent_requests?.find(
+                                (r) => r.run?.id === q.searchParams.get("run"),
+                              )?.run?.candidates
+                            : currentCase?.properties
+                          : [];
+        const rows = records ?? [];
+        const page = Number(q.searchParams.get("page") ?? 1);
+        return HttpResponse.json({
+          count: rows.length,
+          results: rows.slice((page - 1) * 20, page * 20),
+        });
+      },
+    ),
+    http.get(
+      "*/api/v1/operator/external-listing-candidates/:id/",
+      ({ params }) =>
+        HttpResponse.json(
+          currentCase?.properties?.find((c) => c.id === params.id) ??
+            currentCase?.assignment?.recent_requests
+              ?.flatMap((r) => r.run?.candidates ?? [])
+              .find((c) => c.id === params.id),
+        ),
+    ),
     http.get("*/api/v1/users/me/", () =>
-      HttpResponse.json({
+      caseJson({
         id: "operator",
         operator_capabilities: ["review_source_proposals"],
       }),
@@ -59,12 +117,10 @@ test("inspects an owned case and requests changes to a Source Proposal", async (
   let claimed = false;
   let requestedReason = "";
   server.use(
-    http.get("*/api/v1/operator/source-proposals/", () =>
-      HttpResponse.json([proposal]),
-    ),
+    http.get("*/api/v1/operator/source-proposals/", () => caseJson([proposal])),
     http.post("*/api/v1/operator/source-proposals/:proposalId/claim/", () => {
       claimed = true;
-      return HttpResponse.json(
+      return caseJson(
         {
           id: "20000000-0000-4000-8000-000000000088",
           operator_label: "operator@example.com",
@@ -80,7 +136,7 @@ test("inspects an owned case and requests changes to a Source Proposal", async (
       async ({ request }) => {
         const body = (await request.json()) as { reason: string };
         requestedReason = body.reason;
-        return HttpResponse.json({
+        return caseJson({
           ...proposal,
           state: "changes_requested",
         });
@@ -166,12 +222,10 @@ test("URL approval keeps the case visible with Discovery evidence and ongoing re
     },
   };
   server.use(
-    http.get("*/api/v1/operator/source-proposals/", () =>
-      HttpResponse.json([proposal]),
-    ),
+    http.get("*/api/v1/operator/source-proposals/", () => caseJson([proposal])),
     http.post("*/api/v1/operator/source-proposals/:proposalId/claim/", () => {
       claimCount += 1;
-      return HttpResponse.json(
+      return caseJson(
         { expires_at: new Date(Date.now() + 900_000).toISOString() },
         { status: 201 },
       );
@@ -185,7 +239,7 @@ test("URL approval keeps the case visible with Discovery evidence and ongoing re
           max_pages: 250,
           target_detail_pages: 200,
         });
-        return HttpResponse.json(completed);
+        return caseJson(completed);
       },
     ),
   );
@@ -238,7 +292,7 @@ test("URL approval keeps the case visible with Discovery evidence and ongoing re
   server.use(
     http.post(
       "*/api/v1/operator/source-proposals/:proposalId/claim/release/",
-      () => HttpResponse.json({ ...completed, discovery_stage: "released" }),
+      () => caseJson({ ...completed, discovery_stage: "released" }),
     ),
   );
   await user.type(screen.getByLabelText("دلیل تصمیم"), "بررسی متوقف شد");
@@ -301,18 +355,16 @@ test("reviews profile evidence, edits a field, and approves only a validated ver
   const edits: unknown[] = [];
   let approved = false;
   server.use(
-    http.get("*/api/v1/operator/source-proposals/", () =>
-      HttpResponse.json([caseData]),
-    ),
+    http.get("*/api/v1/operator/source-proposals/", () => caseJson([caseData])),
     http.post("*/api/v1/operator/source-proposals/:proposalId/claim/", () =>
-      HttpResponse.json({}, { status: 201 }),
+      caseJson({}, { status: 201 }),
     ),
     http.post(
       "*/api/v1/operator/source-proposals/:proposalId/profile/edit/",
       async ({ request }) => {
         const body = (await request.json()) as { rules: unknown };
         edits.push(body);
-        return HttpResponse.json({
+        return caseJson({
           ...caseData,
           profile_versions: [
             {
@@ -350,7 +402,7 @@ test("reviews profile evidence, edits a field, and approves only a validated ver
           reason: "",
         });
         approved = true;
-        return HttpResponse.json({ ...caseData, state: "approved" });
+        return caseJson({ ...caseData, state: "approved" });
       },
     ),
   );
@@ -440,17 +492,15 @@ test("requires field selection for explicit repair and shows failure history", a
   };
   const calls: unknown[] = [];
   server.use(
-    http.get("*/api/v1/operator/source-proposals/", () =>
-      HttpResponse.json([caseData]),
-    ),
+    http.get("*/api/v1/operator/source-proposals/", () => caseJson([caseData])),
     http.post("*/api/v1/operator/source-proposals/:proposalId/claim/", () =>
-      HttpResponse.json({}, { status: 201 }),
+      caseJson({}, { status: 201 }),
     ),
     http.post(
       "*/api/v1/operator/source-proposals/:proposalId/profile/repair/",
       async ({ request }) => {
         calls.push(await request.json());
-        return HttpResponse.json({
+        return caseJson({
           ...caseData,
           profile_repairs: [
             {
@@ -524,13 +574,13 @@ test("keeps approved Source cases available for run monitoring", async () => {
   let reviewBody: unknown;
   server.use(
     http.post("*/api/v1/operator/source-proposals/:proposalId/claim/", () =>
-      HttpResponse.json(
+      caseJson(
         { expires_at: new Date(Date.now() + 900_000).toISOString() },
         { status: 201 },
       ),
     ),
     http.get("*/api/v1/users/me/", () =>
-      HttpResponse.json({
+      caseJson({
         id: "operator",
         operator_capabilities: ["review_source_proposals"],
       }),
@@ -539,7 +589,7 @@ test("keeps approved Source cases available for run monitoring", async () => {
       "*/api/v1/operator/source-proposals/:proposalId/profile/review/",
       async ({ request }) => {
         reviewBody = await request.json();
-        return HttpResponse.json({
+        return caseJson({
           ...proposal,
           revision: 2,
           discovery_stage: "queued",
@@ -547,7 +597,7 @@ test("keeps approved Source cases available for run monitoring", async () => {
       },
     ),
     http.get("*/api/v1/operator/source-proposals/", () =>
-      HttpResponse.json([
+      caseJson([
         {
           ...proposal,
           state: "approved",
@@ -581,7 +631,7 @@ test("keeps approved Source cases available for run monitoring", async () => {
       ]),
     ),
     http.get("*/api/v1/operator/external-listing-candidates/", () =>
-      HttpResponse.json([]),
+      caseJson([]),
     ),
   );
   render(
@@ -594,6 +644,9 @@ test("keeps approved Source cases available for run monitoring", async () => {
         <OperatorSourceProposalDetailPage proposalId={proposal.id} />
       </MemoryRouter>
     </QueryClientProvider>,
+  );
+  await user.click(
+    await screen.findByRole("button", { name: /تاریخچه استخراج/ }),
   );
   expect(
     await within(await screen.findByRole("tabpanel")).findByText(
@@ -675,16 +728,16 @@ test.each(["approval_required", "automatic"])(
     };
     server.use(
       http.get("*/api/v1/users/me/", () =>
-        HttpResponse.json({
+        caseJson({
           id: "operator",
           operator_capabilities: ["review_source_proposals"],
         }),
       ),
       http.get("*/api/v1/operator/external-listing-candidates/", () =>
-        HttpResponse.json([]),
+        caseJson([]),
       ),
       http.get("*/api/v1/operator/source-proposals/", () =>
-        HttpResponse.json([
+        caseJson([
           {
             ...proposal,
             state: "approved",
@@ -722,7 +775,7 @@ test.each(["approval_required", "automatic"])(
         async ({ request }) => {
           bodies.push(await request.json());
           approved = true;
-          return HttpResponse.json({ ...run, published: 1, revision: 5 });
+          return caseJson({ ...run, published: 1, revision: 5 });
         },
       ),
     );
@@ -736,6 +789,9 @@ test.each(["approval_required", "automatic"])(
           <OperatorSourceProposalDetailPage proposalId={proposal.id} />
         </MemoryRouter>
       </QueryClientProvider>,
+    );
+    await user.click(
+      await screen.findByRole("button", { name: /تاریخچه استخراج/ }),
     );
     expect(await screen.findByText("آپارتمان معتبر")).toBeVisible();
     expect(screen.getByText("متراژ: متراژ الزامی است")).toBeVisible();
@@ -759,13 +815,13 @@ test("revokes an assignment with a reason and the reviewed revision", async () =
   let body: unknown;
   server.use(
     http.get("*/api/v1/users/me/", () =>
-      HttpResponse.json({
+      caseJson({
         id: "operator",
         operator_capabilities: ["review_source_proposals"],
       }),
     ),
     http.get("*/api/v1/operator/source-proposals/", () =>
-      HttpResponse.json([
+      caseJson([
         {
           ...proposal,
           state: "approved",
@@ -782,13 +838,13 @@ test("revokes an assignment with a reason and the reviewed revision", async () =
       ]),
     ),
     http.get("*/api/v1/operator/external-listing-candidates/", () =>
-      HttpResponse.json([]),
+      caseJson([]),
     ),
     http.post(
       "*/api/v1/operator/source-proposals/:proposalId/assignment/revoke/",
       async ({ request }) => {
         body = await request.json();
-        return HttpResponse.json({
+        return caseJson({
           ...proposal,
           state: "revoked",
           revision: 2,
@@ -878,16 +934,16 @@ test.each([
     const approvals: unknown[] = [];
     server.use(
       http.get("*/api/v1/operator/source-proposals/", () =>
-        HttpResponse.json([caseData]),
+        caseJson([caseData]),
       ),
       http.post("*/api/v1/operator/source-proposals/:proposalId/claim/", () =>
-        HttpResponse.json({}, { status: 201 }),
+        caseJson({}, { status: 201 }),
       ),
       http.post(
         "*/api/v1/operator/source-proposals/:proposalId/profile/approve/",
         async ({ request }) => {
           approvals.push(await request.json());
-          return HttpResponse.json({
+          return caseJson({
             ...caseData,
             state: "approved",
             profile_versions: [{ ...version, status: "approved" }],
@@ -992,10 +1048,10 @@ test.each([
     };
     server.use(
       http.post("*/api/v1/operator/source-proposals/:proposalId/claim/", () =>
-        HttpResponse.json({}, { status: 201 }),
+        caseJson({}, { status: 201 }),
       ),
       http.get("*/api/v1/operator/source-proposals/", () =>
-        HttpResponse.json([
+        caseJson([
           {
             ...proposal,
             discovery_stage: "complete",
@@ -1162,16 +1218,14 @@ test("compares imperfect repair evidence and requires a fresh explicit approval"
   };
   let approvalBody: unknown;
   server.use(
-    http.get("*/api/v1/operator/source-proposals/", () =>
-      HttpResponse.json([caseData]),
-    ),
+    http.get("*/api/v1/operator/source-proposals/", () => caseJson([caseData])),
     http.post("*/api/v1/operator/source-proposals/:proposalId/claim/", () =>
-      HttpResponse.json({}, { status: 201 }),
+      caseJson({}, { status: 201 }),
     ),
     http.post(
       "*/api/v1/operator/source-proposals/:proposalId/profile/repair/",
       () =>
-        HttpResponse.json({
+        caseJson({
           ...caseData,
           profile_versions: [draft, parent],
         }),
@@ -1180,7 +1234,7 @@ test("compares imperfect repair evidence and requires a fresh explicit approval"
       "*/api/v1/operator/source-proposals/:proposalId/profile/approve/",
       async ({ request }) => {
         approvalBody = await request.json();
-        return HttpResponse.json(
+        return caseJson(
           { detail: "نسخه پروفایل تغییر کرده است؛ پرونده را تازه کنید." },
           { status: 409 },
         );
@@ -1259,10 +1313,10 @@ test("requires explicit legacy conflict resolution before URL approval", async (
   const user = userEvent.setup();
   server.use(
     http.get("*/api/v1/operator/source-proposals/", () =>
-      HttpResponse.json([{ ...proposal, current_website_conflict: true }]),
+      caseJson([{ ...proposal, current_website_conflict: true }]),
     ),
     http.post("*/api/v1/operator/source-proposals/:id/claim/", () =>
-      HttpResponse.json({ id: "claim", revision: 1 }, { status: 201 }),
+      caseJson({ id: "claim", revision: 1 }, { status: 201 }),
     ),
   );
   render(
@@ -1291,7 +1345,7 @@ test.each(["changes_requested", "rejected"])(
   async (state) => {
     server.use(
       http.get("*/api/v1/operator/source-proposals/", () =>
-        HttpResponse.json([
+        caseJson([
           {
             ...proposal,
             state,
@@ -1361,23 +1415,21 @@ test("queue manager reassigns Source responsibility with a reason and reviewed r
   };
   server.use(
     http.get("*/api/v1/users/me/", () =>
-      HttpResponse.json({
+      caseJson({
         id: "manager",
         email: "manager@example.com",
         operator_capabilities: ["manage_operator_queues"],
       }),
     ),
-    http.get("*/api/v1/operator/source-proposals/", () =>
-      HttpResponse.json([caseData]),
-    ),
+    http.get("*/api/v1/operator/source-proposals/", () => caseJson([caseData])),
     http.get("*/api/v1/operator/external-listing-candidates/", () =>
-      HttpResponse.json([]),
+      caseJson([]),
     ),
     http.post(
       "*/api/v1/operator/source-proposals/:proposalId/responsibility/",
       async ({ request }) => {
         body = await request.json();
-        return HttpResponse.json({
+        return caseJson({
           ...caseData,
           responsibility: {
             ...caseData.responsibility,
@@ -1437,10 +1489,10 @@ test.each([
   async (id, capabilities, allowed) => {
     server.use(
       http.get("*/api/v1/users/me/", () =>
-        HttpResponse.json({ id, operator_capabilities: capabilities }),
+        caseJson({ id, operator_capabilities: capabilities }),
       ),
       http.get("*/api/v1/operator/source-proposals/", () =>
-        HttpResponse.json([
+        caseJson([
           {
             ...proposal,
             state: "approved",
@@ -1465,7 +1517,7 @@ test.each([
         ]),
       ),
       http.get("*/api/v1/operator/external-listing-candidates/", () =>
-        HttpResponse.json([]),
+        caseJson([]),
       ),
     );
     render(
@@ -1540,19 +1592,19 @@ test("stale reassignment reports the conflict and refreshes current responsibili
   });
   server.use(
     http.get("*/api/v1/users/me/", () =>
-      HttpResponse.json({
+      caseJson({
         id: "manager",
         operator_capabilities: ["manage_operator_queues"],
       }),
     ),
     http.get("*/api/v1/operator/source-proposals/", () =>
-      HttpResponse.json([makeCase()]),
+      caseJson([makeCase()]),
     ),
     http.post(
       "*/api/v1/operator/source-proposals/:proposalId/responsibility/",
       () => {
         revision = 2;
-        return HttpResponse.json(
+        return caseJson(
           {
             code: "responsibility_conflict",
             detail: "مسئول منبع تغییر کرده است",
@@ -1617,16 +1669,14 @@ test("responsible operator switches publication mode using the reviewed profile 
   };
   server.use(
     http.get("*/api/v1/users/me/", () =>
-      HttpResponse.json({
+      caseJson({
         id: "operator",
         operator_capabilities: ["review_source_proposals"],
       }),
     ),
-    http.get("*/api/v1/operator/source-proposals/", () =>
-      HttpResponse.json([caseData]),
-    ),
+    http.get("*/api/v1/operator/source-proposals/", () => caseJson([caseData])),
     http.get("*/api/v1/operator/external-listing-candidates/", () =>
-      HttpResponse.json([]),
+      caseJson([]),
     ),
     http.post(
       "*/api/v1/operator/source-proposals/:proposalId/publication-mode/",
@@ -1641,7 +1691,7 @@ test("responsible operator switches publication mode using the reviewed profile 
             mode_revision: caseData.assignment.mode_revision + 1,
           },
         };
-        return HttpResponse.json(caseData);
+        return caseJson(caseData);
       },
     ),
   );
@@ -1706,16 +1756,14 @@ test("pauses a Source separately and resumes with explicit fresh publication mod
   };
   server.use(
     http.get("*/api/v1/users/me/", () =>
-      HttpResponse.json({
+      caseJson({
         id: "operator",
         operator_capabilities: ["review_source_proposals"],
       }),
     ),
-    http.get("*/api/v1/operator/source-proposals/", () =>
-      HttpResponse.json([caseData]),
-    ),
+    http.get("*/api/v1/operator/source-proposals/", () => caseJson([caseData])),
     http.get("*/api/v1/operator/external-listing-candidates/", () =>
-      HttpResponse.json([]),
+      caseJson([]),
     ),
     http.post(
       "*/api/v1/operator/source-proposals/:proposalId/processing/",
@@ -1738,7 +1786,7 @@ test("pauses a Source separately and resumes with explicit fresh publication mod
             },
           },
         };
-        return HttpResponse.json(caseData);
+        return caseJson(caseData);
       },
     ),
   );
@@ -1787,12 +1835,10 @@ test("lets the responsible operator work across tabs without claiming or renewin
   const user = userEvent.setup();
   let claims = 0;
   server.use(
-    http.get("*/api/v1/operator/source-proposals/", () =>
-      HttpResponse.json([proposal]),
-    ),
+    http.get("*/api/v1/operator/source-proposals/", () => caseJson([proposal])),
     http.post("*/api/v1/operator/source-proposals/:id/claim/", () => {
       claims += 1;
-      return HttpResponse.json(
+      return caseJson(
         {
           expires_at: new Date(
             Date.now() + (claims === 1 ? -1000 : 900_000),
@@ -1862,14 +1908,12 @@ function renderCrawlControls(exceptions: unknown[] = []) {
   };
   server.use(
     http.get("*/api/v1/users/me/", () =>
-      HttpResponse.json({
+      caseJson({
         id: "operator",
         operator_capabilities: ["review_source_proposals"],
       }),
     ),
-    http.get("*/api/v1/operator/source-proposals/", () =>
-      HttpResponse.json([caseData]),
-    ),
+    http.get("*/api/v1/operator/source-proposals/", () => caseJson([caseData])),
     http.post(
       "*/api/v1/operator/source-proposals/:proposalId/crawl/",
       async ({ request }) => {
@@ -1891,7 +1935,7 @@ function renderCrawlControls(exceptions: unknown[] = []) {
               },
             },
           };
-        return HttpResponse.json(caseData);
+        return caseJson(caseData);
       },
     ),
   );
@@ -1950,7 +1994,7 @@ test("opens page exclusions from processing controls", async () => {
   expect(await screen.findByText("فقط اجرای دستی")).toBeVisible();
   await user.click(screen.getByRole("button", { name: "مدیریت صفحات مسدود" }));
   expect(
-    screen.getByRole("heading", { name: "مدیریت محدودیت‌ها" }),
+    await screen.findByRole("heading", { name: "مدیریت محدودیت‌ها" }),
   ).toBeVisible();
 });
 
@@ -1973,7 +2017,7 @@ test("reopening a page exclusion resets an edited URL and its confirmed preview"
       "*/api/v1/operator/source-proposals/:proposalId/exclusions/preview/",
       async ({ request }) => {
         const rule = (await request.json()) as { kind: string; url: string };
-        return HttpResponse.json({
+        return caseJson({
           ...rule,
           known_page_count: 0,
           known_pages: [],
@@ -2012,4 +2056,81 @@ test("reopening a page exclusion resets an edited URL and its confirmed preview"
   expect(
     screen.queryByText("https://khaneh.example/listing/b"),
   ).not.toBeInTheDocument();
+});
+
+test("loads the selected section and fetches listing evidence only when opened", async () => {
+  const requests: string[] = [];
+  server.use(
+    http.get("*/api/v1/operator/source-proposals/", ({ request }) => {
+      requests.push(
+        new URL(request.url).searchParams.get("section") ?? "missing",
+      );
+      return HttpResponse.json([
+        {
+          ...proposal,
+          needs_reconciliation: false,
+          assignment: {
+            id: 1,
+            state: "active",
+            source: {},
+            recent_requests: [],
+            exceptions: [],
+            exclusions: [],
+          },
+          properties: [],
+          profile_versions: [],
+          counts: { properties: 1, runs: 1, problems: 0, exclusions: 0 },
+        },
+      ]);
+    }),
+    http.get("*/api/v1/operator/source-proposals/:id/results/", () => {
+      requests.push("results");
+      return HttpResponse.json({
+        count: 1,
+        results: [
+          {
+            id: "candidate-lazy",
+            title: "ملک تازه",
+            external_url: "https://example.com/one",
+            state: "pending",
+            validation_errors: {},
+          },
+        ],
+      });
+    }),
+    http.get("*/api/v1/operator/external-listing-candidates/:id/", () => {
+      requests.push("candidate");
+      return HttpResponse.json({
+        id: "candidate-lazy",
+        title: "ملک تازه",
+        external_url: "https://example.com/one",
+        state: "rejected",
+        validation_errors: {},
+        media: [],
+        history: [],
+        source: {},
+        evidence: {},
+      });
+    }),
+  );
+  const user = userEvent.setup();
+  render(
+    <QueryClientProvider
+      client={
+        new QueryClient({ defaultOptions: { queries: { retry: false } } })
+      }
+    >
+      <MemoryRouter>
+        <OperatorSourceProposalDetailPage proposalId={proposal.id} />
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+  await screen.findByRole("heading", { name: "خانه‌یاب" });
+  expect(requests).toEqual(["overview"]);
+  await user.click(screen.getByRole("tab", { name: "ملک‌ها و نتایج" }));
+  await screen.findByText("ملک تازه");
+  expect(requests).toEqual(["overview", "exceptions", "results"]);
+  await user.click(screen.getByRole("link", { name: "بررسی آگهی" }));
+  await screen.findByRole("dialog");
+  await waitFor(() => expect(requests).toContain("candidate"));
 });

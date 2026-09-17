@@ -68,19 +68,6 @@ function setup(path: string, overrides = {}) {
       HttpResponse.json({ revision: 1 }, { status: 201 }),
     ),
     http.post(
-      "*/api/v1/operator/external-listing-candidates/:id/correct/",
-      async ({ request }) => {
-        decisions.push(await request.json());
-        candidate = {
-          ...candidate,
-          area_sqm: 95,
-          revision: 2,
-          validation_errors: {},
-        };
-        return HttpResponse.json(candidate);
-      },
-    ),
-    http.post(
       "*/api/v1/operator/external-listing-candidates/:id/approve/",
       async ({ request }) => {
         decisions.push(await request.json());
@@ -140,25 +127,24 @@ test("redirects a bookmarked property into its source review dialog", async () =
 
 test("redirects the retired queue and source-scoped links", async () => {
   setup("/operator/external-listings?proposal=source");
-  expect(
-    await screen.findByRole("link", { name: "بررسی و اصلاح" }),
-  ).toBeVisible();
+  expect(await screen.findByRole("link", { name: "بررسی آگهی" })).toBeVisible();
   expect(screen.getByTestId("location")).toHaveTextContent(
     "/operator/source-proposals/source#exceptions",
   );
 });
 
-test("corrects and publishes a property inside its source using the refreshed revision", async () => {
+test("publishes a valid extracted property without editing it", async () => {
   const user = userEvent.setup();
-  const decisions = setup("/operator/source-proposals/source#exceptions");
-  await user.click(await screen.findByRole("link", { name: "بررسی و اصلاح" }));
+  const decisions = setup("/operator/source-proposals/source#exceptions", {
+    area_sqm: 95,
+    validation_errors: {},
+  });
+  await user.click(await screen.findByRole("link", { name: "بررسی آگهی" }));
   const dialog = within(screen.getByRole("dialog"));
-  await user.type(dialog.getByLabelText("متراژ (متر مربع)"), "95");
-  await user.type(dialog.getByLabelText("دلیل اصلاح"), "تطبیق با منبع");
-  await user.click(dialog.getByRole("button", { name: "ذخیره اصلاح آگهی" }));
-  await waitFor(() =>
-    expect(dialog.queryByText("متراژ: متراژ ثبت نشده")).not.toBeInTheDocument(),
-  );
+  expect(dialog.queryByRole("spinbutton")).not.toBeInTheDocument();
+  expect(
+    dialog.queryByRole("button", { name: /درخواست اصلاح/ }),
+  ).not.toBeInTheDocument();
   await user.click(dialog.getByLabelText("تأیید انتشار آپارتمان نورگیر"));
   await user.click(
     dialog.getByRole("button", { name: "تأیید و انتشار آپارتمان نورگیر" }),
@@ -166,10 +152,7 @@ test("corrects and publishes a property inside its source using the refreshed re
   await waitFor(() =>
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
   );
-  expect(decisions).toEqual([
-    { reviewed_revision: 1, reason: "تطبیق با منبع", values: { area_sqm: 95 } },
-    { reviewed_revision: 2, confirmed: true },
-  ]);
+  expect(decisions).toEqual([{ reviewed_revision: 1, confirmed: true }]);
   expect(await screen.findByRole("link", { name: "مشاهده ملک" })).toBeVisible();
 });
 
@@ -198,30 +181,37 @@ test("explains a missing old property instead of silently opening an empty queue
   ).toBeVisible();
 });
 
-test("requires saving or discarding local edits before publication", async () => {
+test("invalid extracted data can be rejected but cannot be edited or approved", async () => {
   const user = userEvent.setup();
-  setup("/operator/source-proposals/source?candidate=property#exceptions", {
-    area_sqm: 85,
-    validation_errors: {},
-  });
+  let rejection: unknown;
+  server.use(
+    http.post(
+      "*/api/v1/operator/external-listing-candidates/:id/reject/",
+      async ({ request }) => {
+        rejection = await request.json();
+        return HttpResponse.json({ ...property, state: "rejected" });
+      },
+    ),
+  );
+  setup("/operator/source-proposals/source?candidate=property#exceptions");
   const dialog = within(await screen.findByRole("dialog"));
-  await user.click(dialog.getByText("اصلاح مشخصات و تصاویر این ملک"));
-  await user.clear(dialog.getByLabelText("متراژ (متر مربع)"));
-  await user.type(dialog.getByLabelText("متراژ (متر مربع)"), "90");
+  expect(dialog.queryByRole("spinbutton")).not.toBeInTheDocument();
+  expect(
+    dialog.queryByText("اصلاح مشخصات و تصاویر این ملک"),
+  ).not.toBeInTheDocument();
   await user.click(dialog.getByLabelText("تأیید انتشار آپارتمان نورگیر"));
   expect(
     dialog.getByRole("button", { name: "تأیید و انتشار آپارتمان نورگیر" }),
   ).toBeDisabled();
-  expect(
-    dialog.getByText(
-      "پیش از ثبت تصمیم، اصلاحات را ذخیره کنید یا از آن‌ها انصراف دهید.",
-    ),
-  ).toBeVisible();
-  await user.click(
-    dialog.getByRole("button", { name: "انصراف از اصلاحات ذخیره‌نشده" }),
+  await user.type(
+    dialog.getByLabelText("دلیل رد آپارتمان نورگیر"),
+    "اطلاعات نادرست",
   );
-  expect(dialog.getByLabelText("متراژ (متر مربع)")).toHaveValue(85);
-  expect(
-    dialog.getByRole("button", { name: "تأیید و انتشار آپارتمان نورگیر" }),
-  ).toBeEnabled();
+  await user.click(dialog.getByRole("button", { name: "رد آپارتمان نورگیر" }));
+  await waitFor(() =>
+    expect(rejection).toEqual({
+      reviewed_revision: 1,
+      reason: "اطلاعات نادرست",
+    }),
+  );
 });

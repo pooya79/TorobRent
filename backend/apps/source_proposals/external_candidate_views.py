@@ -7,17 +7,12 @@ from drf_spectacular.utils import extend_schema
 from rest_framework import status
 from rest_framework.exceptions import ValidationError
 from rest_framework.generics import get_object_or_404
-from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.accounts.models import User
 
-from .candidate_serializers import (
-    CandidateCorrectionSerializer,
-    CandidateReviewClaimRequestSerializer,
-)
 from .models import ExternalListingCandidate, ExternalListingCandidateState
 from .operator_views import CanReviewSourceProposal
 from .review_claims import SourceProposalReviewConflict
@@ -30,9 +25,7 @@ from .serializers import (
 from .services import (
     approve_external_listing_candidate,
     claim_external_listing_candidate_review,
-    correct_external_listing_candidate,
     reject_external_listing_candidate,
-    request_external_listing_candidate_changes,
 )
 
 
@@ -40,7 +33,7 @@ class OperatorExternalListingCandidateListView(APIView):
     permission_classes = (CanReviewSourceProposal,)
 
     @extend_schema(
-        summary="List External Listing candidates awaiting review or correction",
+        summary="List External Listing candidates awaiting review",
         responses=ExternalListingCandidateSerializer(many=True),
     )
     def get(self, request: Request) -> Response:
@@ -77,22 +70,18 @@ def _workflow_error(exc: SourceProposalReviewConflict) -> Response:
 
 class OperatorExternalListingCandidateClaimView(APIView):
     permission_classes = (CanReviewSourceProposal,)
-    parser_classes = (JSONParser, FormParser, MultiPartParser)
 
     @extend_schema(
-        summary="Claim an External Listing candidate review or explicit correction",
-        request=CandidateReviewClaimRequestSerializer,
+        summary="Claim an External Listing candidate review",
+        request=None,
         responses=ExternalListingCandidateReviewClaimSerializer,
     )
     def post(self, request: Request, candidate_id: str) -> Response:
-        serializer = CandidateReviewClaimRequestSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
         candidate = get_object_or_404(ExternalListingCandidate, id=candidate_id)
         try:
             claim = claim_external_listing_candidate_review(
                 candidate=candidate,
                 actor=cast(User, request.user),
-                for_correction=serializer.validated_data["for_correction"],
             )
         except SourceProposalReviewConflict as exc:
             return _workflow_error(exc)
@@ -104,11 +93,7 @@ class OperatorExternalListingCandidateClaimView(APIView):
         )
 
 
-DecisionSerializer = type[
-    SourceProposalDecisionSerializer
-    | SourceProposalApprovalSerializer
-    | CandidateCorrectionSerializer
-]
+DecisionSerializer = type[SourceProposalDecisionSerializer | SourceProposalApprovalSerializer]
 
 
 def _decision_response(
@@ -132,23 +117,6 @@ def _decision_response(
     except DjangoValidationError as exc:
         raise ValidationError(exc.messages[0]) from None
     return Response(ExternalListingCandidateSerializer(candidate).data)
-
-
-class OperatorExternalListingCandidateRequestChangesView(APIView):
-    permission_classes = (CanReviewSourceProposal,)
-
-    @extend_schema(
-        summary="Request changes to an External Listing candidate",
-        request=SourceProposalDecisionSerializer,
-        responses=ExternalListingCandidateSerializer,
-    )
-    def post(self, request: Request, candidate_id: str) -> Response:
-        return _decision_response(
-            request=request,
-            candidate_id=candidate_id,
-            serializer_class=SourceProposalDecisionSerializer,
-            transition=request_external_listing_candidate_changes,
-        )
 
 
 class OperatorExternalListingCandidateRejectView(APIView):
@@ -182,21 +150,4 @@ class OperatorExternalListingCandidateApproveView(APIView):
             candidate_id=candidate_id,
             serializer_class=SourceProposalApprovalSerializer,
             transition=approve_external_listing_candidate,
-        )
-
-
-class OperatorExternalListingCandidateCorrectView(APIView):
-    permission_classes = (CanReviewSourceProposal,)
-
-    @extend_schema(
-        summary="Correct an extracted External Listing candidate",
-        request=CandidateCorrectionSerializer,
-        responses=ExternalListingCandidateSerializer,
-    )
-    def post(self, request: Request, candidate_id: str) -> Response:
-        return _decision_response(
-            request=request,
-            candidate_id=candidate_id,
-            serializer_class=CandidateCorrectionSerializer,
-            transition=correct_external_listing_candidate,
         )

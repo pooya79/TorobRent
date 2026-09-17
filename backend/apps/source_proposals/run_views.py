@@ -42,4 +42,8 @@ class OperatorRunApproveView(APIView):
             return Response({"code": exc.code, "detail": str(exc)}, status=409)
         except DjangoValidationError as exc:
             raise ValidationError(exc.messages) from None
-        return Response(ExtractionRunSerializer(run).data)
+        return Response(
+            ExtractionRunSerializer(
+                run, context={"summary": bool(request.headers.get("X-Source-Case-Section"))}
+            ).data
+        )

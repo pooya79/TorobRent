@@ -1,3 +1,4 @@
+import { CaseRecords } from "./CaseRecords";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
@@ -19,6 +20,7 @@ export function SourceResponsibilityPanel({
   canManage: boolean;
   onUpdate: (proposal: OperatorSourceProposal) => void;
 }) {
+  const [historyOpen, setHistoryOpen] = useState(false);
   const [email, setEmail] = useState("");
   const [reason, setReason] = useState("");
   const queryClient = useQueryClient();
@@ -100,24 +102,33 @@ export function SourceResponsibilityPanel({
           )}
         </p>
       )}
-      <details>
+      <details onToggle={(event) => setHistoryOpen(event.currentTarget.open)}>
         <summary className="cursor-pointer">تاریخچه مسئولیت</summary>
-        <ol className="mt-3 grid gap-3 text-sm">
-          {responsibility.history.map((change) => (
-            <li key={change.revision} className="grid gap-1 border-t pt-2">
-              <time dateTime={change.created_at}>
-                {new Date(change.created_at).toLocaleString("fa-IR")}
-              </time>
-              <p>{change.reason}</p>
-              <p className="break-all">
-                مسئول: {change.operator_label ?? "حساب حذف شده"}
-              </p>
-              <p className="break-all">
-                ثبت‌کننده: {change.actor_label ?? "حساب حذف شده"}
-              </p>
-            </li>
-          ))}
-        </ol>
+        {historyOpen && (
+          <CaseRecords kind="responsibility-history" proposalId={proposal.id}>
+            {(rows) => (
+              <ol className="mt-3 grid gap-3 text-sm">
+                {rows.map((change) => (
+                  <li
+                    key={change.revision}
+                    className="grid gap-1 border-t pt-2"
+                  >
+                    <time dateTime={change.created_at}>
+                      {new Date(change.created_at).toLocaleString("fa-IR")}
+                    </time>
+                    <p>{change.reason}</p>
+                    <p className="break-all">
+                      مسئول: {change.operator_label ?? "حساب حذف شده"}
+                    </p>
+                    <p className="break-all">
+                      ثبت‌کننده: {change.actor_label ?? "حساب حذف شده"}
+                    </p>
+                  </li>
+                ))}
+              </ol>
+            )}
+          </CaseRecords>
+        )}
       </details>
     </section>
   );

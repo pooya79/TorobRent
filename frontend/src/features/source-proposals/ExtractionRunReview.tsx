@@ -1,3 +1,4 @@
+import { useCaseRecords } from "./CaseRecords";
 import { candidateValidationMessages } from "./candidate-validation";
 import { useState } from "react";
 import { Link } from "react-router";
@@ -29,7 +30,9 @@ export function ExtractionRunReview({
   proposalId,
   canApprove,
   properties,
+  remote = false,
 }: {
+  remote?: boolean;
   run?: components["schemas"]["ExtractionRun"];
   proposalId: string;
   canApprove: boolean;
@@ -40,7 +43,9 @@ export function ExtractionRunReview({
   );
   const confirmed = confirmedRevision === run?.revision;
   const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState("all");
+  const [filter, setFilter] = useState<
+    "all" | "ready" | "issues" | "published" | "archived"
+  >("all");
   const [page, setPage] = useState(0);
   const queryClient = useQueryClient();
   const approval = useMutation({
@@ -69,18 +74,36 @@ export function ExtractionRunReview({
       );
     },
   });
-  const candidates = properties ?? run?.candidates ?? [];
+  const records = useCaseRecords("results", proposalId, page, search, {
+    enabled: remote,
+    status: filter,
+    run: run?.id,
+  });
+  const candidates = remote
+    ? (records.data?.results ?? []).map((c) => ({
+        ...c,
+        media: [],
+        history: [],
+      }))
+    : (properties ?? run?.candidates ?? []);
   const pending = candidates.filter(readyForRunPublication);
-  const filtered = candidates.filter(
-    (candidate) =>
-      (filter === "all" || runResultGroup(candidate) === filter) &&
-      normalizeListingSearch(
-        `${candidate.title} ${candidate.external_url}`,
-      ).includes(normalizeListingSearch(search)),
-  );
-  const lastPage = Math.max(0, Math.ceil(filtered.length / 20) - 1);
+  const filtered = remote
+    ? candidates
+    : candidates.filter(
+        (candidate) =>
+          (filter === "all" || runResultGroup(candidate) === filter) &&
+          normalizeListingSearch(
+            `${candidate.title} ${candidate.external_url}`,
+          ).includes(normalizeListingSearch(search)),
+      );
+  const total = remote ? (records.data?.count ?? 0) : filtered.length;
+  const pendingCount =
+    remote && run ? (run.ready_count ?? pending.length) : pending.length;
+  const lastPage = Math.max(0, Math.ceil(total / 20) - 1);
   const currentPage = Math.min(page, lastPage);
-  const visible = filtered.slice(currentPage * 20, (currentPage + 1) * 20);
+  const visible = remote
+    ? filtered
+    : filtered.slice(currentPage * 20, (currentPage + 1) * 20);
   return (
     <section className="grid gap-4" aria-label="بررسی نتایج استخراج">
       {!properties && (
@@ -101,17 +124,23 @@ export function ExtractionRunReview({
               variant={filter === value ? "default" : "outline"}
               aria-pressed={filter === value}
               onClick={() => {
-                setFilter(value!);
+                setFilter(value as typeof filter);
                 setPage(0);
               }}
             >
-              {label} ·{" "}
-              {(value === "all"
-                ? candidates.length
-                : candidates.filter(
-                    (candidate) => runResultGroup(candidate) === value,
-                  ).length
-              ).toLocaleString("fa-IR")}
+              {label}
+              {!remote && (
+                <>
+                  {" "}
+                  ·{" "}
+                  {(value === "all"
+                    ? candidates.length
+                    : candidates.filter(
+                        (candidate) => runResultGroup(candidate) === value,
+                      ).length
+                  ).toLocaleString("fa-IR")}
+                </>
+              )}
             </Button>
           ),
         )}
@@ -130,10 +159,17 @@ export function ExtractionRunReview({
         />
       </div>
       <p role="status" className="text-muted-foreground text-sm">
-        {filtered.length.toLocaleString("fa-IR")} نتیجه مطابق فیلتر ·{" "}
-        {pending.length.toLocaleString("fa-IR")}{" "}
+        {total.toLocaleString("fa-IR")} نتیجه مطابق فیلتر ·{" "}
+        {pendingCount.toLocaleString("fa-IR")}{" "}
         {properties ? "ملک آماده تأیید" : "نتیجه آماده تأیید در کل این نوبت"}
       </p>
+      {remote && records.isPending && <p role="status">در حال بارگذاری…</p>}
+      {remote && records.isError && (
+        <p role="alert">
+          بارگذاری نتایج ناموفق بود.{" "}
+          <Button onClick={() => void records.refetch()}>تلاش دوباره</Button>
+        </p>
+      )}
       {!visible.length ? (
         <p className="rounded-xl border border-dashed p-6 text-center text-sm">
           {candidates.length
@@ -242,7 +278,7 @@ export function ExtractionRunReview({
                         >
                           {group === "published" || group === "archived"
                             ? "مشاهده ملک"
-                            : "بررسی و اصلاح"}
+                            : "بررسی آگهی"}
                         </Link>
                       </Button>
                     </td>
@@ -253,7 +289,7 @@ export function ExtractionRunReview({
           </table>
         </div>
       )}
-      {filtered.length > 20 && (
+      {total > 20 && (
         <div className="flex items-center justify-between gap-3">
           <Button
             variant="outline"
@@ -275,7 +311,7 @@ export function ExtractionRunReview({
           </Button>
         </div>
       )}
-      {run && !canApprove && pending.length > 0 && (
+      {run && !canApprove && pendingCount > 0 && (
         <p className="text-muted-foreground rounded-xl border p-3 text-sm">
           انتشار از این نوبت در دسترس نیست. به مسئولیت منبع، پردازش فعال و
           درخواست جاری نیاز دارید.
@@ -286,11 +322,11 @@ export function ExtractionRunReview({
           انتشار گروهی پس از پایان موفق استخراج در دسترس قرار می‌گیرد.
         </p>
       )}
-      {run && canApprove && run.state === "complete" && pending.length > 0 && (
+      {run && canApprove && run.state === "complete" && pendingCount > 0 && (
         <div className="bg-primary/5 grid gap-3 rounded-xl border p-4">
           <h5 className="font-semibold">تأیید انتشار این نوبت</h5>
           <p className="text-sm">
-            این اقدام همه {pending.length.toLocaleString("fa-IR")} نتیجه آماده
+            این اقدام همه {pendingCount.toLocaleString("fa-IR")} نتیجه آماده
             تأیید در این نوبت را شامل می‌شود، حتی ردیف‌های خارج از فیلتر یا صفحه
             فعلی. اعتبار نتایج هنگام انتشار دوباره بررسی می‌شود.
           </p>

@@ -52,7 +52,10 @@ def make_operator(email: str) -> User:
 
 
 @pytest.mark.django_db
-def test_source_owner_reviews_each_candidate_and_publishes_external_listings(api_client):
+@pytest.mark.parametrize("initial_state", ["pending", "changes_requested"])
+def test_source_owner_reviews_each_candidate_and_publishes_external_listings(
+    api_client, initial_state
+):
     call_command("loaddata", "catalog_seed", verbosity=0)
     representative = make_representative()
     source = Source.objects.create(
@@ -77,6 +80,7 @@ def test_source_owner_reviews_each_candidate_and_publishes_external_listings(api
             source_proposal=proposal,
             source=source,
             title=f"Result {number}",
+            state=initial_state,
             external_url=f"https://khaneh.example/listing/{number}",
             city=neighborhood.district.city,
             district=neighborhood.district,
@@ -127,14 +131,14 @@ def test_source_owner_reviews_each_candidate_and_publishes_external_listings(api
 
     api_client.force_authenticate(first_operator)
     changed = api_client.post(
-        f"{queue_url}{first.id}/request-changes/",
+        f"{queue_url}{first.id}/reject/",
         {"reviewed_revision": 1, "reason": "جزئیات این مورد نیازمند اصلاح است."},
         format="json",
     )
     assert changed.status_code == 200
-    assert changed.data["state"] == "changes_requested"
+    assert changed.data["state"] == "rejected"
     second.refresh_from_db()
-    assert second.state == "pending"
+    assert second.state == initial_state
     assert Listing.objects.count() == 0
     assert api_client.get("/api/v1/catalog/properties/").data["count"] == 0
 

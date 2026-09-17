@@ -1,3 +1,6 @@
+import { useQuery } from "@tanstack/react-query";
+import { api } from "@/lib/api/client";
+import { apiError } from "@/lib/api/errors";
 import { PublicationOutcomes } from "./PublicationOutcomes";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -18,7 +21,9 @@ const stateLabels: Record<string, string> = {
 export function ExtractionHistory({
   requests,
   review,
+  remote = false,
 }: {
+  remote?: boolean;
   review?: { proposalId: string; canApprove: boolean };
   requests: components["schemas"]["ExtractionRequest"][];
 }) {
@@ -32,10 +37,38 @@ export function ExtractionHistory({
       (request) =>
         request.is_current !== false &&
         request.state === "complete" &&
-        request.run?.candidates?.some(readyForRunPublication),
+        (request.run?.ready_count ??
+          request.run?.candidates?.filter(readyForRunPublication).length ??
+          0) > 0,
     ) ??
     sorted.find((request) => request.is_current !== false) ??
     sorted[0];
+  const [technicalOpen, setTechnicalOpen] = useState(false);
+  const technical = useQuery({
+    queryKey: [
+      "operator-source-proposals",
+      review?.proposalId,
+      "run-details",
+      selected?.run?.id,
+    ],
+    enabled: remote && technicalOpen && Boolean(selected?.run && review),
+    queryFn: async () => {
+      const { data, error } = await api.GET(
+        "/api/v1/operator/source-proposals/{proposal_id}/runs/{run_id}/",
+        {
+          params: {
+            path: {
+              proposal_id: review!.proposalId,
+              run_id: selected!.run!.id,
+            },
+          },
+        },
+      );
+      if (error || !data) throw apiError(error);
+      return data;
+    },
+  });
+  const technicalRun = remote ? technical.data?.run : selected?.run;
   const number = (value: number | undefined | null) =>
     value == null ? "—" : value.toLocaleString("fa-IR");
   return (
@@ -135,9 +168,10 @@ export function ExtractionHistory({
                     {request.is_current === false
                       ? "—"
                       : number(
-                          request.run?.candidates?.filter(
-                            readyForRunPublication,
-                          ).length,
+                          request.run?.ready_count ??
+                            request.run?.candidates?.filter(
+                              readyForRunPublication,
+                            ).length,
                         )}
                   </td>
                   <td className="p-3">
@@ -183,7 +217,10 @@ export function ExtractionHistory({
               </p>
             </div>
           ) : null}
-          <details className="text-sm">
+          <details
+            className="text-sm"
+            onToggle={(e) => setTechnicalOpen(e.currentTarget.open)}
+          >
             <summary className="text-muted-foreground cursor-pointer">
               جزئیات فنی این نوبت و صفحات کنارگذاشته‌شده
             </summary>
@@ -194,23 +231,23 @@ export function ExtractionHistory({
                   بررسی: {number(selected.max_pages)} صفحه
                 </p>
               )}
-              {selected.run && (
+              {technicalRun && (
                 <>
                   <p>
-                    تعداد تلاش: {number(selected.run.attempts)} · صفحه
-                    بررسی‌شده: {number(selected.run.attempted_pages)}
+                    تعداد تلاش: {number(technicalRun.attempts)} · صفحه
+                    بررسی‌شده: {number(technicalRun.attempted_pages)}
                   </p>
-                  {selected.run.discovery_stop_reason && (
+                  {technicalRun.discovery_stop_reason && (
                     <p>
-                      {discoveryStopLabels[selected.run.discovery_stop_reason]}
+                      {discoveryStopLabels[technicalRun.discovery_stop_reason]}
                     </p>
                   )}
-                  {(selected.run.skipped_pages ?? []).map((page) => (
+                  {(technicalRun.skipped_pages ?? []).map((page) => (
                     <p key={page.url}>
                       کنار گذاشته شده: <bdi>{page.url}</bdi> · {page.reason}
                     </p>
                   ))}
-                  {selected.run.errors?.map((error, index) => (
+                  {technicalRun.errors?.map((error, index) => (
                     <p key={index}>
                       {error.transient ? "خطای موقت: " : ""}
                       {error.detail}
@@ -224,6 +261,7 @@ export function ExtractionHistory({
             <ExtractionRunReview
               key={selected.run.id}
               run={selected.run}
+              remote={remote}
               {...review}
               canApprove={review.canApprove && selected.is_current !== false}
             />

@@ -1,6 +1,8 @@
 from django.urls import path
 
+from . import case_reads
 from .bulk_views import SourceBulkApplyView, SourceBulkPreviewView
+from .case_reads import OperatorCaseResultsView, OperatorCaseRunsView
 from .exception_views import OperatorSourceExceptionRetryView
 from .exclusion_views import (
     OperatorExclusionAddView,
@@ -29,6 +31,58 @@ from .run_views import OperatorRunApproveView
 app_name = "operator-source-proposals"
 
 urlpatterns = [
+    path(
+        "<uuid:proposal_id>/runs/<uuid:run_id>/",
+        case_reads.OperatorCaseRunDetailView.as_view(),
+        name="run-detail",
+    ),
+    path(
+        "<uuid:proposal_id>/history/",
+        case_reads.OperatorCaseHistoryView.as_view(),
+        name="case-history-0",
+    ),
+    path(
+        "<uuid:proposal_id>/responsibility-history/",
+        case_reads.OperatorCaseResponsibilityHistoryView.as_view(),
+        name="case-responsibility-history-1",
+    ),
+    path(
+        "<uuid:proposal_id>/profiles/",
+        case_reads.OperatorCaseProfilesView.as_view(),
+        name="case-profiles-2",
+    ),
+    path(
+        "<uuid:proposal_id>/profiles/<uuid:version_id>/",
+        case_reads.OperatorCaseProfileDetailView.as_view(),
+        name="case-profiles-3",
+    ),
+    path(
+        "<uuid:proposal_id>/repairs/",
+        case_reads.OperatorCaseRepairsView.as_view(),
+        name="case-repairs-4",
+    ),
+    path(
+        "<uuid:proposal_id>/problems/",
+        case_reads.OperatorCaseProblemsView.as_view(),
+        name="case-problems-5",
+    ),
+    path(
+        "<uuid:proposal_id>/problems/<uuid:exception_id>/attempts/",
+        case_reads.OperatorCaseAttemptsView.as_view(),
+        name="case-problems-6",
+    ),
+    path(
+        "<uuid:proposal_id>/exclusions/",
+        case_reads.OperatorCaseExclusionsView.as_view(),
+        name="case-exclusions-7",
+    ),
+    path(
+        "<uuid:proposal_id>/exclusions/<uuid:exclusion_id>/actions/",
+        case_reads.OperatorCaseExclusionActionsView.as_view(),
+        name="case-exclusions-8",
+    ),
+    path("<uuid:proposal_id>/runs/", OperatorCaseRunsView.as_view(), name="run-history"),
+    path("<uuid:proposal_id>/results/", OperatorCaseResultsView.as_view(), name="results"),
     path(
         "<uuid:proposal_id>/crawl/", OperatorSourceCrawlControlView.as_view(), name="crawl-control"
     ),

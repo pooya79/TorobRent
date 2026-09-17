@@ -363,7 +363,9 @@ problem or exclusion has occurred. Repeated task delivery does not append duplic
 History labels attempts that were stale on arrival; current state is displayed separately.
 
 Fresh candidates passing mandatory checks resolve their page exception before publication approval.
-Manual correction changes only the candidate. Active exclusions override the visible current state;
+Operators can approve or reject candidates, but cannot edit extracted values or images. Invalid
+candidates require fresh extraction after the source or profile is fixed. Active exclusions override
+the visible current state;
 a skipped page remains Excluded after removal until another attempt supplies fresh evidence.
 Neither exceptions nor retry requests pause a Source or withdraw published Listings.
 

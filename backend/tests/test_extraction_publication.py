@@ -54,10 +54,9 @@ def test_source_proposal_to_publication_journey_preserves_evidence_and_publishes
 
 
 @pytest.mark.django_db
-def test_exceptions_do_not_block_batch_and_can_be_corrected_without_profile_changes(
+def test_exceptions_do_not_block_batch_and_can_be_rejected_without_profile_changes(
     api_client, assigned_case, monkeypatch, django_capture_on_commit_callbacks
 ):
-    from apps.catalog.models import Listing
     from apps.source_proposals.models import SourceProfileVersion
 
     fetcher = assigned_case[4]
@@ -86,26 +85,23 @@ def test_exceptions_do_not_block_batch_and_can_be_corrected_without_profile_chan
         },
         format="json",
     )
-    assert corrected.status_code == 200, corrected.data
-    assert corrected.json()["validation_errors"] == {}
-    assert corrected.json()["evidence"] == bad["evidence"]
-    assert corrected.json()["conflicts"] == bad["conflicts"]
+    assert corrected.status_code == 404
     result = api_client.post(
-        f"{base}/approve/",
-        {"reviewed_revision": corrected.json()["revision"], "confirmed": True},
+        f"{base}/reject/",
+        {"reviewed_revision": bad["revision"], "reason": "اطلاعات منبع نادرست است"},
         format="json",
     )
     assert result.status_code == 200, result.data
-    assert Listing.objects.get(pk=result.json()["listing_id"]).property.area_sqm == 95
+    assert result.json()["state"] == "rejected"
+    assert result.json()["evidence"] == bad["evidence"]
     assert SourceProfileVersion.objects.count() == profile_count
     api_client.force_authenticate(assigned_case[3])
     messages = api_client.get("/api/v1/messages/").json()
     assert "نتایج معتبر استخراج منتشر شد" in str(messages)
-    assert "نتیجه استخراج منتشر شد" in str(messages)
 
 
 @pytest.mark.django_db
-def test_later_run_refreshes_identity_and_preserves_old_evidence(
+def test_later_run_refreshes_identity_and_discards_old_evidence(
     api_client, assigned_case, monkeypatch, django_capture_on_commit_callbacks
 ):
     from apps.catalog.models import Listing, Property, RentalTerms
@@ -164,8 +160,8 @@ def test_later_run_refreshes_identity_and_preserves_old_evidence(
     ).json()[0]
     assert len(proposal["properties"]) == 10
     assert {item["extraction_run"] for item in proposal["properties"]} == {second["id"]}
-    retained = ExtractionRun.objects.get(pk=first["id"]).results[0]
-    assert retained["normalized"]["monthly_rent_rial"] == 200_000_000
+    assert ExtractionRun.objects.get(pk=first["id"]).results == []
+    assert all(c.evidence == {} for c in ExtractionRun.objects.get(pk=first["id"]).candidates.all())
 
 
 @pytest.mark.django_db
@@ -323,7 +319,7 @@ def test_required_fields_quarantine_only_the_affected_result(
 
 
 @pytest.mark.django_db
-def test_exception_request_changes_correction_and_rejection_are_audited(
+def test_removed_edit_actions_leave_rejection_audited(
     api_client, assigned_case, monkeypatch, django_capture_on_commit_callbacks
 ):
     from django.core.exceptions import ValidationError
@@ -343,19 +339,17 @@ def test_exception_request_changes_correction_and_rejection_are_audited(
         {"reviewed_revision": 1, "reason": "متراژ را بررسی کنید"},
         format="json",
     )
-    assert requested.status_code == 200
-    assert requested.json()["state"] == "changes_requested"
+    assert requested.status_code == 404
     assert api_client.post(f"{base}/claim/", {}).status_code == 201
     corrected = api_client.post(
         f"{base}/correct/",
         {"reviewed_revision": 1, "reason": "بررسی سند", "values": {"area_sqm": 95}},
         format="json",
     )
-    assert corrected.status_code == 200
-    assert corrected.json()["history"][-1]["corrections"]["area_sqm"] == 95
+    assert corrected.status_code == 404
     rejected = api_client.post(
         f"{base}/reject/",
-        {"reviewed_revision": 2, "reason": "اطلاعات منبع قابل تأیید نیست"},
+        {"reviewed_revision": 1, "reason": "اطلاعات منبع قابل تأیید نیست"},
         format="json",
     )
     assert rejected.status_code == 200

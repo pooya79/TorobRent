@@ -2070,7 +2070,7 @@ paths:
   /api/v1/operator/external-listing-candidates/:
     get:
       operationId: v1_operator_external_listing_candidates_list
-      summary: List External Listing candidates awaiting review or correction
+      summary: List External Listing candidates awaiting review
       tags:
       - v1
       security:
@@ -2083,6 +2083,28 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/ExternalListingCandidate'
+          description: ''
+  /api/v1/operator/external-listing-candidates/{candidate_id}/:
+    get:
+      operationId: v1_operator_external_listing_candidates_retrieve
+      summary: Operator Candidate Detail View
+      parameters:
+      - in: path
+        name: candidate_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExternalListingCandidate'
           description: ''
   /api/v1/operator/external-listing-candidates/{candidate_id}/approve/:
     post:
@@ -2115,7 +2137,7 @@ paths:
   /api/v1/operator/external-listing-candidates/{candidate_id}/claim/:
     post:
       operationId: v1_operator_external_listing_candidates_claim_create
-      summary: Claim an External Listing candidate review or explicit correction
+      summary: Claim an External Listing candidate review
       parameters:
       - in: path
         name: candidate_id
@@ -2125,17 +2147,6 @@ paths:
         required: true
       tags:
       - v1
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CandidateReviewClaimRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/CandidateReviewClaimRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/CandidateReviewClaimRequest'
       security:
       - cookieAuth: []
       responses:
@@ -2144,34 +2155,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ExternalListingCandidateReviewClaim'
-          description: ''
-  /api/v1/operator/external-listing-candidates/{candidate_id}/correct/:
-    post:
-      operationId: v1_operator_external_listing_candidates_correct_create
-      summary: Correct an extracted External Listing candidate
-      parameters:
-      - in: path
-        name: candidate_id
-        schema:
-          type: string
-          format: uuid
-        required: true
-      tags:
-      - v1
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CandidateCorrection'
-        required: true
-      security:
-      - cookieAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ExternalListingCandidate'
           description: ''
   /api/v1/operator/external-listing-candidates/{candidate_id}/media/{variant_id}/:
     get:
@@ -2229,34 +2212,6 @@ paths:
               schema:
                 $ref: '#/components/schemas/ExternalListingCandidate'
           description: ''
-  /api/v1/operator/external-listing-candidates/{candidate_id}/request-changes/:
-    post:
-      operationId: v1_operator_external_listing_candidates_request_changes_create
-      summary: Request changes to an External Listing candidate
-      parameters:
-      - in: path
-        name: candidate_id
-        schema:
-          type: string
-          format: uuid
-        required: true
-      tags:
-      - v1
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/SourceProposalDecision'
-        required: true
-      security:
-      - cookieAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ExternalListingCandidate'
-          description: ''
   /api/v1/operator/source-proposals/:
     get:
       operationId: v1_operator_source_proposals_list
@@ -2272,6 +2227,29 @@ paths:
         schema:
           type: string
           format: uuid
+      - in: query
+        name: section
+        schema:
+          enum:
+          - queue
+          - overview
+          - url
+          - profile
+          - responsibility
+          - processing
+          - exceptions
+          - history
+          type: string
+          minLength: 1
+        description: |-
+          * `queue` - queue
+          * `overview` - overview
+          * `url` - url
+          * `profile` - profile
+          * `responsibility` - responsibility
+          * `processing` - processing
+          * `exceptions` - exceptions
+          * `history` - history
       tags:
       - v1
       security:
@@ -2505,6 +2483,92 @@ paths:
                 items:
                   $ref: '#/components/schemas/ExtractionRequest'
           description: ''
+  /api/v1/operator/source-proposals/{proposal_id}/exclusions/:
+    get:
+      operationId: v1_operator_source_proposals_exclusions_list
+      summary: Operator Case Exclusions View
+      parameters:
+      - name: ''
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - in: path
+        name: proposal_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - name: q
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedSourceExclusionSummaryList'
+          description: ''
+  /api/v1/operator/source-proposals/{proposal_id}/exclusions/{exclusion_id}/actions/:
+    get:
+      operationId: v1_operator_source_proposals_exclusions_actions_list
+      summary: Operator Case Exclusion Actions View
+      parameters:
+      - name: ''
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - in: path
+        name: exclusion_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - in: path
+        name: proposal_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - name: q
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedSourceExclusionActionList'
+          description: ''
   /api/v1/operator/source-proposals/{proposal_id}/exclusions/add/:
     post:
       operationId: v1_operator_source_proposals_exclusions_add_create
@@ -2616,6 +2680,147 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/OperatorSourceProposal'
+          description: ''
+  /api/v1/operator/source-proposals/{proposal_id}/history/:
+    get:
+      operationId: v1_operator_source_proposals_history_list
+      summary: Operator Case History View
+      parameters:
+      - name: ''
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - in: path
+        name: proposal_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - name: q
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedSourceProposalEventList'
+          description: ''
+  /api/v1/operator/source-proposals/{proposal_id}/problems/:
+    get:
+      operationId: v1_operator_source_proposals_problems_list
+      summary: List Source page outcomes
+      parameters:
+      - name: ''
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - in: path
+        name: proposal_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - name: q
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      - in: query
+        name: state
+        schema:
+          enum:
+          - all
+          - open
+          - excluded
+          - resolved
+          type: string
+          minLength: 1
+        description: |-
+          * `all` - all
+          * `open` - open
+          * `excluded` - excluded
+          * `resolved` - resolved
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedSourceProblemSummaryList'
+          description: ''
+  /api/v1/operator/source-proposals/{proposal_id}/problems/{exception_id}/attempts/:
+    get:
+      operationId: v1_operator_source_proposals_problems_attempts_list
+      summary: Operator Case Attempts View
+      parameters:
+      - name: ''
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - in: path
+        name: exception_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - in: path
+        name: proposal_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - name: q
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedSourceExceptionAttemptList'
           description: ''
   /api/v1/operator/source-proposals/{proposal_id}/processing/:
     post:
@@ -2757,6 +2962,74 @@ paths:
               schema:
                 $ref: '#/components/schemas/OperatorSourceProposal'
           description: ''
+  /api/v1/operator/source-proposals/{proposal_id}/profiles/:
+    get:
+      operationId: v1_operator_source_proposals_profiles_list
+      summary: Operator Case Profiles View
+      parameters:
+      - name: ''
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - in: path
+        name: proposal_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - name: q
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedSourceProfileSummaryList'
+          description: ''
+  /api/v1/operator/source-proposals/{proposal_id}/profiles/{version_id}/:
+    get:
+      operationId: v1_operator_source_proposals_profiles_retrieve
+      summary: Operator Case Profile Detail View
+      parameters:
+      - in: path
+        name: proposal_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: version_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SourceProfileVersion'
+          description: ''
   /api/v1/operator/source-proposals/{proposal_id}/publication-mode/:
     post:
       operationId: v1_operator_source_proposals_publication_mode_create
@@ -2813,6 +3086,46 @@ paths:
               schema:
                 $ref: '#/components/schemas/OperatorSourceProposal'
           description: ''
+  /api/v1/operator/source-proposals/{proposal_id}/repairs/:
+    get:
+      operationId: v1_operator_source_proposals_repairs_list
+      summary: Operator Case Repairs View
+      parameters:
+      - name: ''
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - in: path
+        name: proposal_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - name: q
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedSourceProfileRepairList'
+          description: ''
   /api/v1/operator/source-proposals/{proposal_id}/request-changes/:
     post:
       operationId: v1_operator_source_proposals_request_changes_create
@@ -2868,6 +3181,175 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/OperatorSourceProposal'
+          description: ''
+  /api/v1/operator/source-proposals/{proposal_id}/responsibility-history/:
+    get:
+      operationId: v1_operator_source_proposals_responsibility_history_list
+      summary: Operator Case Responsibility History View
+      parameters:
+      - name: ''
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - in: path
+        name: proposal_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - name: q
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedSourceResponsibilityChangeList'
+          description: ''
+  /api/v1/operator/source-proposals/{proposal_id}/results/:
+    get:
+      operationId: v1_operator_source_proposals_results_list
+      summary: Operator Case Results View
+      parameters:
+      - name: ''
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - in: path
+        name: proposal_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: query
+        name: q
+        schema:
+          type: string
+          maxLength: 200
+      - in: query
+        name: run
+        schema:
+          type: string
+          format: uuid
+      - in: query
+        name: status
+        schema:
+          enum:
+          - all
+          - ready
+          - issues
+          - published
+          - archived
+          type: string
+          minLength: 1
+        description: |-
+          * `all` - all
+          * `ready` - ready
+          * `issues` - issues
+          * `published` - published
+          * `archived` - archived
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedExternalListingCandidateSummaryList'
+          description: ''
+  /api/v1/operator/source-proposals/{proposal_id}/runs/:
+    get:
+      operationId: v1_operator_source_proposals_runs_list
+      summary: Operator Case Runs View
+      parameters:
+      - name: ''
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - in: path
+        name: proposal_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - name: q
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedExtractionRequestList'
+          description: ''
+  /api/v1/operator/source-proposals/{proposal_id}/runs/{run_id}/:
+    get:
+      operationId: v1_operator_source_proposals_runs_retrieve
+      summary: Read selected extraction run details
+      parameters:
+      - in: path
+        name: proposal_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: run_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExtractionRequest'
           description: ''
   /api/v1/operator/source-proposals/{proposal_id}/runs/{run_id}/approve/:
     post:
@@ -4792,80 +5274,6 @@ components:
     BlankEnum:
       enum:
       - ''
-    CandidateCorrection:
-      type: object
-      properties:
-        reviewed_revision:
-          type: integer
-          minimum: 1
-        reason:
-          type: string
-          maxLength: 2000
-        values:
-          $ref: '#/components/schemas/CandidateCorrectionValues'
-        media:
-          type: array
-          items:
-            $ref: '#/components/schemas/CandidateImageChoice'
-      required:
-      - reason
-      - reviewed_revision
-      - values
-    CandidateCorrectionValues:
-      type: object
-      properties:
-        city:
-          type:
-          - string
-          - 'null'
-          format: uuid
-        district:
-          type:
-          - string
-          - 'null'
-          format: uuid
-        neighborhood:
-          type:
-          - string
-          - 'null'
-          format: uuid
-        property_type:
-          oneOf:
-          - $ref: '#/components/schemas/PropertyTypeEnum'
-          - $ref: '#/components/schemas/BlankEnum'
-        area_sqm:
-          type:
-          - integer
-          - 'null'
-          maximum: 9223372036854775807
-          minimum: 0
-          format: int64
-        room_count:
-          type:
-          - integer
-          - 'null'
-          maximum: 9223372036854775807
-          minimum: 0
-          format: int64
-        deposit_rial:
-          type:
-          - integer
-          - 'null'
-          maximum: 9223372036854775807
-          minimum: 0
-          format: int64
-        monthly_rent_rial:
-          type:
-          - integer
-          - 'null'
-          maximum: 9223372036854775807
-          minimum: 0
-          format: int64
-        description:
-          type: string
-        title:
-          type: string
-          maxLength: 200
     CandidateImage:
       type: object
       properties:
@@ -4919,23 +5327,6 @@ components:
       - position
       - source_order
       - variants
-    CandidateImageChoice:
-      type: object
-      properties:
-        id:
-          type: string
-          format: uuid
-        excluded:
-          type: boolean
-        is_primary:
-          type: boolean
-        accept_as_property:
-          type: boolean
-      required:
-      - accept_as_property
-      - excluded
-      - id
-      - is_primary
     CandidateImageVariant:
       type: object
       properties:
@@ -4968,12 +5359,6 @@ components:
       - kind
       - url
       - width
-    CandidateReviewClaimRequest:
-      type: object
-      properties:
-        for_correction:
-          type: boolean
-          default: false
     CatalogCurationExactLocation:
       type: object
       properties:
@@ -6156,6 +6541,142 @@ components:
         * `rejected` - ردشده
         * `published` - منتشرشده
         * `cancelled` - لغوشده
+    ExternalListingCandidateSummary:
+      type: object
+      properties:
+        superseded:
+          type: boolean
+          readOnly: true
+        is_current:
+          type: boolean
+          readOnly: true
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        source_proposal_id:
+          type: string
+          format: uuid
+          readOnly: true
+        extraction_run:
+          type:
+          - string
+          - 'null'
+          format: uuid
+          readOnly: true
+        exclusion_hold:
+          type:
+          - string
+          - 'null'
+          format: uuid
+          readOnly: true
+        exclusion_reason:
+          type: string
+          readOnly: true
+        city:
+          type:
+          - string
+          - 'null'
+          format: uuid
+          readOnly: true
+        district:
+          type:
+          - string
+          - 'null'
+          format: uuid
+          readOnly: true
+        neighborhood:
+          type:
+          - string
+          - 'null'
+          format: uuid
+          readOnly: true
+        conflicts:
+          readOnly: true
+        validation_errors:
+          readOnly: true
+        source:
+          allOf:
+          - $ref: '#/components/schemas/ExternalCandidateSource'
+          readOnly: true
+        listing_id:
+          type:
+          - string
+          - 'null'
+          format: uuid
+          readOnly: true
+        state:
+          allOf:
+          - $ref: '#/components/schemas/ExternalListingCandidateStateEnum'
+          readOnly: true
+        revision:
+          type: integer
+          readOnly: true
+        title:
+          type: string
+          readOnly: true
+        external_url:
+          type: string
+          format: uri
+          readOnly: true
+        property_type:
+          allOf:
+          - $ref: '#/components/schemas/PropertyTypeEnum'
+          readOnly: true
+        area_sqm:
+          type:
+          - integer
+          - 'null'
+          readOnly: true
+        room_count:
+          type:
+          - integer
+          - 'null'
+          readOnly: true
+        deposit_rial:
+          type:
+          - integer
+          - 'null'
+          readOnly: true
+        monthly_rent_rial:
+          type:
+          - integer
+          - 'null'
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - area_sqm
+      - city
+      - conflicts
+      - created_at
+      - deposit_rial
+      - district
+      - exclusion_hold
+      - exclusion_reason
+      - external_url
+      - extraction_run
+      - id
+      - is_current
+      - listing_id
+      - monthly_rent_rial
+      - neighborhood
+      - property_type
+      - revision
+      - room_count
+      - source
+      - source_proposal_id
+      - state
+      - superseded
+      - title
+      - updated_at
+      - validation_errors
     ExtractionError:
       type: object
       properties:
@@ -6265,6 +6786,9 @@ components:
           items:
             $ref: '#/components/schemas/ExternalListingCandidate'
           readOnly: true
+        ready_count:
+          type: integer
+          readOnly: true
         decisions:
           type: array
           items:
@@ -6351,6 +6875,7 @@ components:
       - profile_version
       - publication_outcomes
       - published
+      - ready_count
       - rejected
       - revision
       - skipped_pages
@@ -6984,6 +7509,14 @@ components:
       description: |-
         * `exact` - exact
         * `path_prefix` - path_prefix
+    Kind9e4Enum:
+      enum:
+      - exact
+      - path_prefix
+      type: string
+      description: |-
+        * `exact` - Exact URL
+        * `path_prefix` - Path section
     ListingInquiryContext:
       type: object
       properties:
@@ -7782,6 +8315,13 @@ components:
           - $ref: '#/components/schemas/SourceProposalSubmitter'
           - type: 'null'
           readOnly: true
+        counts:
+          allOf:
+          - $ref: '#/components/schemas/SourceCaseCounts'
+          readOnly: true
+        profile_status:
+          type: string
+          readOnly: true
         properties:
           type: array
           items:
@@ -7813,6 +8353,7 @@ components:
       required:
       - assignment
       - available_actions
+      - counts
       - created_at
       - current_website_conflict
       - discarded_at
@@ -7826,6 +8367,7 @@ components:
       - pending_since
       - preview
       - profile_repairs
+      - profile_status
       - profile_versions
       - properties
       - responsibility
@@ -7938,6 +8480,56 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/ConversationReportQueue'
+    PaginatedExternalListingCandidateSummaryList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type:
+          - string
+          - 'null'
+          format: uri
+          example: http://api.example.org/properties/?page=2
+        previous:
+          type:
+          - string
+          - 'null'
+          format: uri
+          example: http://api.example.org/properties/?page=1
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/ExternalListingCandidateSummary'
+    PaginatedExtractionRequestList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type:
+          - string
+          - 'null'
+          format: uri
+          example: http://api.example.org/properties/?page=2
+        previous:
+          type:
+          - string
+          - 'null'
+          format: uri
+          example: http://api.example.org/properties/?page=1
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/ExtractionRequest'
     PaginatedMessageSummaryList:
       type: object
       required:
@@ -7988,6 +8580,206 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/OperatorSubmissionQueue'
+    PaginatedSourceExceptionAttemptList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type:
+          - string
+          - 'null'
+          format: uri
+          example: http://api.example.org/properties/?page=2
+        previous:
+          type:
+          - string
+          - 'null'
+          format: uri
+          example: http://api.example.org/properties/?page=1
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/SourceExceptionAttempt'
+    PaginatedSourceExclusionActionList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type:
+          - string
+          - 'null'
+          format: uri
+          example: http://api.example.org/properties/?page=2
+        previous:
+          type:
+          - string
+          - 'null'
+          format: uri
+          example: http://api.example.org/properties/?page=1
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/SourceExclusionAction'
+    PaginatedSourceExclusionSummaryList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type:
+          - string
+          - 'null'
+          format: uri
+          example: http://api.example.org/properties/?page=2
+        previous:
+          type:
+          - string
+          - 'null'
+          format: uri
+          example: http://api.example.org/properties/?page=1
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/SourceExclusionSummary'
+    PaginatedSourceProblemSummaryList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type:
+          - string
+          - 'null'
+          format: uri
+          example: http://api.example.org/properties/?page=2
+        previous:
+          type:
+          - string
+          - 'null'
+          format: uri
+          example: http://api.example.org/properties/?page=1
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/SourceProblemSummary'
+    PaginatedSourceProfileRepairList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type:
+          - string
+          - 'null'
+          format: uri
+          example: http://api.example.org/properties/?page=2
+        previous:
+          type:
+          - string
+          - 'null'
+          format: uri
+          example: http://api.example.org/properties/?page=1
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/SourceProfileRepair'
+    PaginatedSourceProfileSummaryList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type:
+          - string
+          - 'null'
+          format: uri
+          example: http://api.example.org/properties/?page=2
+        previous:
+          type:
+          - string
+          - 'null'
+          format: uri
+          example: http://api.example.org/properties/?page=1
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/SourceProfileSummary'
+    PaginatedSourceProposalEventList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type:
+          - string
+          - 'null'
+          format: uri
+          example: http://api.example.org/properties/?page=2
+        previous:
+          type:
+          - string
+          - 'null'
+          format: uri
+          example: http://api.example.org/properties/?page=1
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/SourceProposalEvent'
+    PaginatedSourceResponsibilityChangeList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type:
+          - string
+          - 'null'
+          format: uri
+          example: http://api.example.org/properties/?page=2
+        previous:
+          type:
+          - string
+          - 'null'
+          format: uri
+          example: http://api.example.org/properties/?page=1
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/SourceResponsibilityChange'
     PaginatedSupportRequestQueueList:
       type: object
       required:
@@ -10353,6 +11145,22 @@ components:
           type: integer
       required:
       - affected
+    SourceCaseCounts:
+      type: object
+      properties:
+        properties:
+          type: integer
+        runs:
+          type: integer
+        problems:
+          type: integer
+        exclusions:
+          type: integer
+      required:
+      - exclusions
+      - problems
+      - properties
+      - runs
     SourceConversationMessage:
       type: object
       properties:
@@ -10537,7 +11345,7 @@ components:
           readOnly: true
         kind:
           allOf:
-          - $ref: '#/components/schemas/SourceExclusionKindEnum'
+          - $ref: '#/components/schemas/Kind9e4Enum'
           readOnly: true
         url:
           type: string
@@ -10632,14 +11440,6 @@ components:
       - confirmed
       - exclusion_id
       - reason
-    SourceExclusionKindEnum:
-      enum:
-      - exact
-      - path_prefix
-      type: string
-      description: |-
-        * `exact` - Exact URL
-        * `path_prefix` - Path section
     SourceExclusionPreview:
       type: object
       properties:
@@ -10677,6 +11477,36 @@ components:
           maxLength: 1000
       required:
       - kind
+      - url
+    SourceExclusionSummary:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        kind:
+          $ref: '#/components/schemas/Kind9e4Enum'
+        url:
+          type: string
+          format: uri
+          maxLength: 1000
+        reason:
+          type: string
+          maxLength: 2000
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        active:
+          type: boolean
+          readOnly: true
+      required:
+      - active
+      - created_at
+      - id
+      - kind
+      - reason
       - url
     SourceExclusionWithdraw:
       type: object
@@ -10767,6 +11597,52 @@ components:
         source_claims: {}
         provenance_note:
           type: string
+    SourceProblemSummary:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        canonical_url:
+          type: string
+          format: uri
+          maxLength: 1000
+        first_occurrence:
+          type:
+          - string
+          - 'null'
+          format: date-time
+        state:
+          type: string
+          readOnly: true
+        problem:
+          type: string
+          maxLength: 64
+        detail:
+          type: string
+        last_run:
+          type: string
+          format: uuid
+        last_attempt:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 0
+          format: int64
+        last_attempt_at:
+          type: string
+          format: date-time
+        exclusion_reason:
+          type: string
+          readOnly: true
+      required:
+      - canonical_url
+      - exclusion_reason
+      - id
+      - last_attempt
+      - last_attempt_at
+      - last_run
+      - state
     SourceProcessingRequest:
       type: object
       properties:
@@ -10946,6 +11822,52 @@ components:
       - reviewed_profile_version
       - reviewed_revision
       - selected_fields
+    SourceProfileSummary:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        number:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 0
+          format: int64
+        parent:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        status:
+          type: string
+          readOnly: true
+        is_active:
+          type: boolean
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        created_by_label:
+          type: string
+          readOnly: true
+          default: ''
+        provenance:
+          $ref: '#/components/schemas/ProvenanceEnum'
+        review_mode:
+          type: string
+          readOnly: true
+          default: ''
+      required:
+      - created_at
+      - created_by_label
+      - id
+      - is_active
+      - number
+      - provenance
+      - review_mode
+      - status
     SourceProfileVersion:
       type: object
       properties:
@@ -11358,6 +12280,7 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/SourceResponsibilityChange'
+          readOnly: true
       required:
       - history
       - operator

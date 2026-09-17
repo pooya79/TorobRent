@@ -277,12 +277,6 @@ def test_exclusion_does_not_erase_failure_evidence_or_allow_individual_approval(
     bad = next(c for c in run["candidates"] if c["external_url"] == target)
     base = f"/api/v1/operator/external-listing-candidates/{bad['id']}"
     assert api_client.post(f"{base}/claim/", {}).status_code == 201
-    corrected = api_client.post(
-        f"{base}/correct/",
-        {"reviewed_revision": bad["revision"], "reason": "بررسی متراژ", "values": {"area_sqm": 95}},
-        format="json",
-    )
-    assert corrected.status_code == 200
     added = add_exclusion(api_client, assigned_case, url=target, kind="exact")
     held = next(
         c
@@ -295,7 +289,7 @@ def test_exclusion_does_not_erase_failure_evidence_or_allow_individual_approval(
     assert (
         api_client.post(
             f"{base}/approve/",
-            {"reviewed_revision": corrected.json()["revision"], "confirmed": True},
+            {"reviewed_revision": bad["revision"], "confirmed": True},
             format="json",
         ).status_code
         == 400

@@ -1,3 +1,4 @@
+import { CaseAudit } from "./CaseAudit";
 import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -28,7 +29,9 @@ export function SourceExceptionsPanel({
   canRetry,
   operator = false,
   onBlock,
+  paged = false,
 }: {
+  paged?: boolean;
   exceptions: Exception[];
   proposalId: string;
   canRetry: boolean;
@@ -39,13 +42,15 @@ export function SourceExceptionsPanel({
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all");
   const [selected, setSelected] = useState<string[]>([]);
-  const visible = exceptions.filter(
-    (page) =>
-      (filter === "all" || page.state === filter) &&
-      `${page.canonical_url} ${page.detail} ${page.exclusion_reason ?? ""}`
-        .toLocaleLowerCase()
-        .includes(search.trim().toLocaleLowerCase()),
-  );
+  const visible = paged
+    ? exceptions
+    : exceptions.filter(
+        (page) =>
+          (filter === "all" || page.state === filter) &&
+          `${page.canonical_url} ${page.detail} ${page.exclusion_reason ?? ""}`
+            .toLocaleLowerCase()
+            .includes(search.trim().toLocaleLowerCase()),
+      );
   const retryIds = selected.filter((id) =>
     visible.some((page) => page.id === id && !page.exclusion_reason),
   );
@@ -86,9 +91,8 @@ export function SourceExceptionsPanel({
           .length.toLocaleString("fa-IR")}
       </p>
       <p>
-        اصلاح دستی یک نتیجه، مشکل استخراج منبع را رفع نمی‌کند. پس از بررسی
-        وب‌سایت، استخراج دوباره درخواست کنید. هر بار حداکثر ۲۰ صفحه را انتخاب
-        می‌کنیم.
+        پس از رفع مشکل وب‌سایت یا پروفایل، استخراج دوباره درخواست کنید. هر بار
+        حداکثر ۲۰ صفحه را انتخاب می‌کنیم.
       </p>
       <p>
         {operator
@@ -96,46 +100,53 @@ export function SourceExceptionsPanel({
           : "این فهرست برای بررسی صفحه‌های منبع است. درخواست اقدام فقط در گفت‌وگوی منبع و با پیام اپراتور مسئول مطرح می‌شود."}
       </p>
       <div className="bg-muted/20 grid gap-4 rounded-xl border p-4">
-        <div className="flex flex-wrap gap-2" aria-label="فیلتر وضعیت مشکلات">
-          {[
-            ["all", "همه"],
-            ["open", "نیازمند رسیدگی"],
-            ["excluded", "کنار گذاشته شده"],
-            ["resolved", "رفع شده"],
-          ].map(([value, label]) => (
-            <Button
-              key={value}
-              size="sm"
-              variant={filter === value ? "default" : "outline"}
-              aria-pressed={filter === value}
-              onClick={() => {
-                setFilter(value!);
-                setSelected([]);
-              }}
+        {!paged && (
+          <>
+            <div
+              className="flex flex-wrap gap-2"
+              aria-label="فیلتر وضعیت مشکلات"
             >
-              {label} ·{" "}
-              {(value === "all"
-                ? exceptions.length
-                : exceptions.filter((page) => page.state === value).length
-              ).toLocaleString("fa-IR")}
-            </Button>
-          ))}
-        </div>
-        <div>
-          <Label htmlFor={`exception-search-${proposalId}`}>
-            جست‌وجوی نشانی یا خطا
-          </Label>
-          <Input
-            className="mt-2"
-            id={`exception-search-${proposalId}`}
-            value={search}
-            onChange={(event) => {
-              setSearch(event.target.value);
-              setSelected([]);
-            }}
-            placeholder="نشانی صفحه یا متن مشکل"
-          />
-        </div>
+              {[
+                ["all", "همه"],
+                ["open", "نیازمند رسیدگی"],
+                ["excluded", "کنار گذاشته شده"],
+                ["resolved", "رفع شده"],
+              ].map(([value, label]) => (
+                <Button
+                  key={value}
+                  size="sm"
+                  variant={filter === value ? "default" : "outline"}
+                  aria-pressed={filter === value}
+                  onClick={() => {
+                    setFilter(value!);
+                    setSelected([]);
+                  }}
+                >
+                  {label} ·{" "}
+                  {(value === "all"
+                    ? exceptions.length
+                    : exceptions.filter((page) => page.state === value).length
+                  ).toLocaleString("fa-IR")}
+                </Button>
+              ))}
+            </div>
+            <div>
+              <Label htmlFor={`exception-search-${proposalId}`}>
+                جست‌وجوی نشانی یا خطا
+              </Label>
+              <Input
+                className="mt-2"
+                id={`exception-search-${proposalId}`}
+                value={search}
+                onChange={(event) => {
+                  setSearch(event.target.value);
+                  setSelected([]);
+                }}
+                placeholder="نشانی صفحه یا متن مشکل"
+              />
+            </div>
+          </>
+        )}
         {canRetry && (
           <div className="flex flex-wrap items-center gap-3">
             <Button
@@ -245,28 +256,36 @@ export function SourceExceptionsPanel({
                       <time dateTime={page.last_attempt_at}>
                         {date(page.last_attempt_at)}
                       </time>
-                      <details className="mt-3">
-                        <summary className="text-muted-foreground cursor-pointer">
-                          تاریخچه تلاش‌ها
-                        </summary>
-                        {page.first_occurrence && (
-                          <p className="mt-2">
-                            اولین رخداد: {date(page.first_occurrence)}
-                          </p>
-                        )}
-                        <ol className="mt-2 grid gap-2">
-                          {page.history.map((attempt) => (
-                            <li key={`${attempt.run}-${attempt.attempt}`}>
-                              {date(attempt.attempted_at)} · تلاش{" "}
-                              {attempt.attempt.toLocaleString("fa-IR")} ·{" "}
-                              {labels[attempt.state] ?? attempt.state} ·{" "}
-                              {attempt.detail}
-                              {!attempt.is_current &&
-                                " · نتیجه قدیمی؛ وضعیت فعلی را تغییر نداده است"}
-                            </li>
-                          ))}
-                        </ol>
-                      </details>
+                      {operator ? (
+                        <CaseAudit
+                          proposalId={proposalId}
+                          recordId={page.id}
+                          kind="attempts"
+                        />
+                      ) : (
+                        <details className="mt-3">
+                          <summary className="text-muted-foreground cursor-pointer">
+                            تاریخچه تلاش‌ها
+                          </summary>
+                          {page.first_occurrence && (
+                            <p className="mt-2">
+                              اولین رخداد: {date(page.first_occurrence)}
+                            </p>
+                          )}
+                          <ol className="mt-2 grid gap-2">
+                            {page.history.map((attempt) => (
+                              <li key={`${attempt.run}-${attempt.attempt}`}>
+                                {date(attempt.attempted_at)} · تلاش{" "}
+                                {attempt.attempt.toLocaleString("fa-IR")} ·{" "}
+                                {labels[attempt.state] ?? attempt.state} ·{" "}
+                                {attempt.detail}
+                                {!attempt.is_current &&
+                                  " · نتیجه قدیمی؛ وضعیت فعلی را تغییر نداده است"}
+                              </li>
+                            ))}
+                          </ol>
+                        </details>
+                      )}
                     </td>
                     <td className="p-3">
                       {canRetry && !page.exclusion_reason ? (

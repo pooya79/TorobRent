@@ -2,12 +2,9 @@
 
 from typing import Any
 
-from django.db.models import Q
-
 from apps.source_extraction.normalization import normalize_url
 
 from .models import (
-    ExternalListingCandidate,
     ExtractionRun,
     SourceExceptionAttempt,
     SourceExtractionException,
@@ -66,23 +63,6 @@ def record_exceptions(run: ExtractionRun) -> None:
                 "is_current": current,
             },
         )
-        candidates = ExternalListingCandidate.objects.filter(
-            source=run.request.assignment.source,
-            external_url=url,
-            state__in=("pending", "changes_requested"),
-            discovery_version__isnull=True,
-        )
-        if current:
-            candidates.filter(
-                Q(extraction_run__isnull=True)
-                | Q(extraction_run__request__created_at__lt=run.request.created_at)
-                | Q(
-                    extraction_run__request__created_at=run.request.created_at,
-                    extraction_run__request_id__lt=run.request_id,
-                )
-            ).update(superseded=True)
-        else:
-            candidates.filter(extraction_run=run).update(superseded=True)
         if not recorded:
             continue
         if (current and state != exception.state) or created:

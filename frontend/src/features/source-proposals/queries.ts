@@ -173,7 +173,7 @@ export async function claimExternalListingCandidate(candidateId: string) {
 
 export async function decideExternalListingCandidate(
   candidateId: string,
-  decision: "request-changes" | "reject" | "approve",
+  decision: "reject" | "approve",
   revision: number,
   reason: string,
 ) {
@@ -189,9 +189,7 @@ export async function decideExternalListingCandidate(
     return data;
   }
   const path =
-    decision === "reject"
-      ? "/api/v1/operator/external-listing-candidates/{candidate_id}/reject/"
-      : "/api/v1/operator/external-listing-candidates/{candidate_id}/request-changes/";
+    "/api/v1/operator/external-listing-candidates/{candidate_id}/reject/";
   const { data, error } = await api.POST(path, {
     params: { path: { candidate_id: candidateId } },
     body: { reviewed_revision: revision, reason },
@@ -372,24 +370,38 @@ export async function withdrawExcludedListings(
 export function operatorSourceContextQueryOptions(
   proposalId: string | null,
   candidateId?: string | null,
+  section:
+    | "queue"
+    | "overview"
+    | "url"
+    | "profile"
+    | "responsibility"
+    | "processing"
+    | "exceptions"
+    | "history" = proposalId || candidateId ? "overview" : "queue",
 ) {
   return queryOptions({
     queryKey: proposalId
-      ? ["operator-source-proposals", proposalId]
+      ? ["operator-source-proposals", proposalId, section]
       : candidateId
         ? ["operator-source-proposals", "candidate", candidateId]
         : ["operator-source-proposals"],
-    refetchInterval: 5000,
+    refetchInterval: ["queue", "overview", "processing"].includes(section)
+      ? 5000
+      : false,
     queryFn: async () => {
       const { data, error } = await api.GET(
         "/api/v1/operator/source-proposals/",
         {
           params: {
-            query: proposalId
-              ? { proposal: proposalId }
-              : candidateId
-                ? { candidate: candidateId }
-                : {},
+            query: {
+              section,
+              ...(proposalId
+                ? { proposal: proposalId }
+                : candidateId
+                  ? { candidate: candidateId }
+                  : {}),
+            },
           },
         },
       );

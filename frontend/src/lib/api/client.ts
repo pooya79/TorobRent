@@ -18,6 +18,22 @@ export function createApiClient(baseUrl: string) {
       ) {
         request.headers.set("X-CSRFToken", csrfToken);
       }
+      if (
+        request.method !== "GET" &&
+        new URL(request.url).pathname.startsWith(
+          "/api/v1/operator/source-proposals/",
+        )
+      ) {
+        const path = new URL(request.url).pathname;
+        const section = path.includes("/profile/")
+          ? "profile"
+          : /\/(processing|crawl|publication-mode)\/$/.test(path)
+            ? "processing"
+            : path.endsWith("/approve/") && !path.includes("/runs/")
+              ? "url"
+              : "overview";
+        request.headers.set("X-Source-Case-Section", section);
+      }
       return request;
     },
   });

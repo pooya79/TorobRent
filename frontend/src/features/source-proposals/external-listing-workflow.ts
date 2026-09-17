@@ -18,10 +18,10 @@ export function candidateStatus(candidate: ExternalListingCandidate) {
   if (candidate.state === "cancelled") return "لغو شده";
   if (candidate.is_current === false) return "استخراج غیرفعال";
   if (candidate.exclusion_reason) return "محدودیت انتشار";
-  if (candidateNeedsAttention(candidate)) return "نیازمند اصلاح";
+  if (candidateNeedsAttention(candidate)) return "نیازمند بررسی";
   return {
     pending: "در انتظار بررسی",
-    changes_requested: "نیازمند اصلاح",
+    changes_requested: "نیازمند بررسی",
     published: "منتشر شده",
     rejected: "رد شده",
     cancelled: "لغو شده",

@@ -102,7 +102,6 @@ export function SourceBulkActions({
       <a href={`#source-profile-${proposalId}`} className="underline">
         بررسی و تعمیر پروفایل منبع
       </a>
-      <p>اصلاح یک آگهی، پروفایل استخراج را تعمیر نمی‌کند.</p>
       <fieldset disabled={busy} className="grid min-w-0 gap-3">
         {[...groups].map(([group, items]) => (
           <div key={group} className="grid gap-2 rounded border p-3">
@@ -225,10 +224,7 @@ export function SourceBulkActions({
                   </p>
                 )}
                 {item.candidate && (
-                  <BulkCandidateDetails
-                    candidate={item.candidate}
-                    onCorrected={reset}
-                  />
+                  <BulkCandidateDetails candidate={item.candidate} />
                 )}
               </li>
             ))}

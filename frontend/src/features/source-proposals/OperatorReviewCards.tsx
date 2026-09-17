@@ -1,6 +1,7 @@
 import { SourceCrawlPanel } from "./SourceCrawlPanel";
 import { candidateValidationMessages } from "./candidate-validation";
 import { SourceProcessingStatus } from "./SourceProcessingStatus";
+import { CaseRecords } from "./CaseRecords";
 import { caseSections, type CaseSectionId } from "./case-sections";
 import {
   ArrowLeft,
@@ -15,7 +16,6 @@ import { SourceConversationButton } from "@/features/source-proposals/SourceConv
 import { SourceExclusionsPanel } from "@/features/source-proposals/SourceExclusionsPanel";
 import { SourcePublicationModePanel } from "@/features/source-proposals/SourcePublicationModePanel";
 import { SourceResponsibilityPanel } from "@/features/source-proposals/SourceResponsibilityPanel";
-import { CandidateCorrectionForm } from "@/features/source-proposals/CandidateCorrectionForm";
 import { CandidateEvidence } from "@/features/source-proposals/CandidateEvidence";
 import { ExtractionRunReview } from "./ExtractionRunReview";
 import { ExtractionHistory } from "./ExtractionHistory";
@@ -733,26 +733,34 @@ export function ProposalReviewCard({
                     [
                       "properties",
                       "ملک‌های وب‌سایت",
-                      proposal.properties?.length ?? 0,
+                      proposal.counts?.properties ??
+                        proposal.properties?.length ??
+                        0,
                     ],
                     [
                       "runs",
                       "تاریخچه استخراج",
-                      proposal.assignment.recent_requests?.length ?? 0,
+                      proposal.counts?.runs ??
+                        proposal.assignment.recent_requests?.length ??
+                        0,
                     ],
                     [
                       "problems",
                       "مشکلات صفحات",
-                      proposal.assignment.exceptions?.filter(
-                        (item) => item.state === "open",
-                      ).length ?? 0,
+                      proposal.counts?.problems ??
+                        proposal.assignment.exceptions?.filter(
+                          (item) => item.state === "open",
+                        ).length ??
+                        0,
                     ],
                     [
                       "exclusions",
                       "محدودیت‌های فعال",
-                      proposal.assignment.exclusions?.filter(
-                        (item) => item.active,
-                      ).length ?? 0,
+                      proposal.counts?.exclusions ??
+                        proposal.assignment.exclusions?.filter(
+                          (item) => item.active,
+                        ).length ??
+                        0,
                     ],
                   ].map(([value, label, count]) => (
                     <button
@@ -769,83 +777,111 @@ export function ProposalReviewCard({
                     </button>
                   ))}
                 </div>
-                <div
-                  className={
-                    resultView === "properties" ? "grid gap-4" : "hidden"
-                  }
-                >
-                  <ExtractionRunReview
-                    properties={proposal.properties ?? []}
-                    proposalId={proposal.id}
-                    canApprove={false}
-                  />
-                </div>
-                <div
-                  className={resultView === "runs" ? "grid gap-4" : "hidden"}
-                >
-                  <ExtractionHistory
-                    requests={proposal.assignment.recent_requests ?? []}
-                    review={{
-                      proposalId: proposal.id,
-                      canApprove:
-                        proposal.assignment.state === "active" &&
-                        canDecideSource &&
-                        !proposal.assignment.source.processing_paused,
-                    }}
-                  />
-                </div>
-                <div
-                  className={
-                    resultView === "problems" ? "grid gap-4" : "hidden"
-                  }
-                >
-                  <SourceExceptionsPanel
-                    exceptions={proposal.assignment.exceptions ?? []}
-                    proposalId={proposal.id}
-                    operator
-                    onBlock={
-                      proposal.assignment.state === "active" && canDecideSource
-                        ? (url) => {
-                            setExclusionUrl(url);
-                            setExclusionDraft((draft) => draft + 1);
-                            setResultView("exclusions");
-                          }
-                        : undefined
-                    }
-                    canRetry={
-                      proposal.assignment.state === "active" &&
-                      canDecideSource &&
-                      !proposal.assignment.source.processing_paused &&
-                      Boolean(proposal.assignment.active_profile_version)
-                    }
-                  />
-                  {proposal.assignment.state === "active" &&
-                    canDecideSource && (
-                      <SourceBulkActions
-                        proposalId={proposal.id}
-                        pages={proposal.assignment.current_results ?? []}
-                      />
-                    )}
-                </div>
-                <div
-                  className={
-                    resultView === "exclusions" ? "grid gap-4" : "hidden"
-                  }
-                >
-                  {proposal.assignment.state === "active" && canDecideSource ? (
-                    <SourceExclusionsPanel
-                      key={exclusionDraft}
-                      initialUrl={exclusionUrl}
+                {resultView === "properties" && (
+                  <div className="grid gap-4">
+                    <ExtractionRunReview
+                      remote
+                      properties={proposal.properties ?? []}
                       proposalId={proposal.id}
-                      exclusions={proposal.assignment.exclusions ?? []}
-                      onUpdate={onDecisionSuccess}
+                      canApprove={false}
                     />
-                  ) : (
-                    <SourceExclusionsSummary
-                      exclusions={proposal.assignment.exclusions ?? []}
-                    />
-                  )}
-                </div>
+                  </div>
+                )}
+                {resultView === "runs" && (
+                  <div className="grid gap-4">
+                    <CaseRecords kind="runs" proposalId={proposal.id}>
+                      {(rows) => (
+                        <ExtractionHistory
+                          remote
+                          requests={rows}
+                          review={{
+                            proposalId: proposal.id,
+                            canApprove:
+                              proposal.assignment.state === "active" &&
+                              canDecideSource &&
+                              !proposal.assignment.source.processing_paused,
+                          }}
+                        />
+                      )}
+                    </CaseRecords>{" "}
+                  </div>
+                )}
+                {resultView === "problems" && (
+                  <div className="grid gap-4">
+                    <CaseRecords kind="problems" proposalId={proposal.id}>
+                      {(rows) => (
+                        <>
+                          <SourceExceptionsPanel
+                            paged
+                            exceptions={rows.map((row) => ({
+                              ...row,
+                              history: [],
+                            }))}
+                            proposalId={proposal.id}
+                            operator
+                            onBlock={
+                              proposal.assignment.state === "active" &&
+                              canDecideSource
+                                ? (url) => {
+                                    setExclusionUrl(url);
+                                    setExclusionDraft((draft) => draft + 1);
+                                    setResultView("exclusions");
+                                  }
+                                : undefined
+                            }
+                            canRetry={
+                              proposal.assignment.state === "active" &&
+                              canDecideSource &&
+                              !proposal.assignment.source.processing_paused &&
+                              Boolean(
+                                proposal.assignment.active_profile_version,
+                              )
+                            }
+                          />
+                          {proposal.assignment.state === "active" &&
+                            canDecideSource && (
+                              <SourceBulkActions
+                                proposalId={proposal.id}
+                                pages={rows.map((row) => ({
+                                  ...row,
+                                  history: [],
+                                }))}
+                              />
+                            )}
+                        </>
+                      )}
+                    </CaseRecords>{" "}
+                  </div>
+                )}
+                {resultView === "exclusions" && (
+                  <CaseRecords kind="exclusions" proposalId={proposal.id}>
+                    {(rows) => (
+                      <div className="grid gap-4">
+                        {proposal.assignment.state === "active" &&
+                        canDecideSource ? (
+                          <SourceExclusionsPanel
+                            key={exclusionDraft}
+                            initialUrl={exclusionUrl}
+                            proposalId={proposal.id}
+                            exclusions={rows.map((row) => ({
+                              ...row,
+                              actions: [],
+                            }))}
+                            onUpdate={onDecisionSuccess}
+                          />
+                        ) : (
+                          <SourceExclusionsSummary
+                            proposalId={proposal.id}
+                            exclusions={rows.map((row) => ({
+                              ...row,
+                              actions: [],
+                            }))}
+                          />
+                        )}
+                      </div>
+                    )}
+                  </CaseRecords>
+                )}
               </>
             ) : proposal.properties?.length ? (
               <ExtractionRunReview
@@ -878,29 +914,38 @@ export function ProposalReviewCard({
                 گفت‌وگو با نماینده در اختیار اپراتور مسئول پرونده است.
               </p>
             )}
-            {proposal.history.length === 0 && (
-              <p className="text-muted-foreground text-sm">
-                رویدادی ثبت نشده است.
-              </p>
-            )}
-            <ol className="grid gap-4">
-              {proposal.history.map((event) => (
-                <li key={event.id} className="border-s-2 ps-4 text-sm">
-                  <p className="font-medium">
-                    {proposalStateLabels[event.new_state]} · {event.actor_label}
-                  </p>
-                  <time
-                    className="text-muted-foreground"
-                    dateTime={event.created_at}
-                  >
-                    {new Date(event.created_at).toLocaleString("fa-IR")}
-                  </time>
-                  {event.reason && (
-                    <p className="mt-2 whitespace-pre-wrap">{event.reason}</p>
+            <CaseRecords kind="history" proposalId={proposal.id}>
+              {(rows) => (
+                <>
+                  {rows.length === 0 && (
+                    <p className="text-muted-foreground text-sm">
+                      رویدادی ثبت نشده است.
+                    </p>
                   )}
-                </li>
-              ))}
-            </ol>
+                  <ol className="grid gap-4">
+                    {rows.map((event) => (
+                      <li key={event.id} className="border-s-2 ps-4 text-sm">
+                        <p className="font-medium">
+                          {proposalStateLabels[event.new_state]} ·{" "}
+                          {event.actor_label}
+                        </p>
+                        <time
+                          className="text-muted-foreground"
+                          dateTime={event.created_at}
+                        >
+                          {new Date(event.created_at).toLocaleString("fa-IR")}
+                        </time>
+                        {event.reason && (
+                          <p className="mt-2 whitespace-pre-wrap">
+                            {event.reason}
+                          </p>
+                        )}
+                      </li>
+                    ))}
+                  </ol>
+                </>
+              )}
+            </CaseRecords>
           </CaseSection>
         </div>
       </div>
@@ -931,14 +976,13 @@ export function ExternalListingCandidateCard({
     candidate.state === "published" ||
     candidate.state === "rejected" ||
     candidate.state === "cancelled";
-  const [dirty, setDirty] = useState(false);
   const [confirmedRevision, setConfirmedRevision] = useState<number | null>(
     null,
   );
   const confirmed = confirmedRevision === candidate.revision;
   const [reason, setReason] = useState("");
   const decision = useMutation({
-    mutationFn: (kind: "request-changes" | "reject" | "approve") =>
+    mutationFn: (kind: "reject" | "approve") =>
       decideExternalListingCandidate(
         candidate.id,
         kind,
@@ -966,7 +1010,7 @@ export function ExternalListingCandidateCard({
           </AlertTitle>
           <AlertDescription>
             {canDecide
-              ? "اطلاعات را با صفحه اصلی مقایسه کنید. در صورت نیاز اصلاح کنید و سپس درباره انتشار تصمیم بگیرید."
+              ? "اطلاعات را با صفحه اصلی مقایسه کنید و آگهی را تأیید یا رد کنید."
               : "این نما فقط برای مشاهده است."}
           </AlertDescription>
         </Alert>
@@ -974,7 +1018,7 @@ export function ExternalListingCandidateCard({
           Object.keys(candidate.validation_errors ?? {}).length > 0 && (
             <Alert variant="destructive">
               <AlertTitle aria-level={4}>
-                پیش از انتشار، اطلاعات آگهی را اصلاح کنید
+                این آگهی به دلیل خطاهای اطلاعات قابل انتشار نیست
               </AlertTitle>
               <AlertDescription>
                 {Object.keys(
@@ -1022,28 +1066,11 @@ export function ExternalListingCandidateCard({
         </dl>
         <p className="text-muted-foreground text-sm">{candidate.description}</p>
 
-        {canDecide && candidate.extraction_run && (
-          <details
-            open={
-              Object.keys(candidate.validation_errors ?? {}).length > 0 ||
-              undefined
-            }
-            className="rounded-lg border p-3"
-          >
-            <summary className="cursor-pointer font-medium">
-              اصلاح مشخصات و تصاویر این ملک
-            </summary>
-            <CandidateCorrectionForm
-              candidate={candidate}
-              onDirtyChange={setDirty}
-            />
-          </details>
-        )}
         {canDecide && (
           <div className="grid gap-4">
             <div className="grid gap-2">
               <Label htmlFor={`candidate-reason-${candidate.id}`}>
-                دلیل رد یا درخواست اصلاح {candidate.title}
+                دلیل رد {candidate.title}
               </Label>
               <Input
                 id={`candidate-reason-${candidate.id}`}
@@ -1052,8 +1079,7 @@ export function ExternalListingCandidateCard({
               />
             </div>
             <p className="text-muted-foreground text-xs">
-              دلیل فقط برای رد یا درخواست اصلاح لازم است. تأیید انتشار به دلیل
-              نیاز ندارد.
+              دلیل فقط برای رد لازم است. تأیید انتشار به دلیل نیاز ندارد.
             </p>
             <label className="flex items-start gap-2 text-sm">
               <input
@@ -1069,23 +1095,10 @@ export function ExternalListingCandidateCard({
               تأیید می‌کنم این آگهی استخراج‌شده مستقلاً بررسی شده و ادامه آن فقط
               از پیوند اصلی آگهی خواهد بود.
             </label>
-            {dirty && (
-              <p role="status" className="text-sm">
-                پیش از ثبت تصمیم، اصلاحات را ذخیره کنید یا از آن‌ها انصراف دهید.
-              </p>
-            )}
             <div className="flex flex-wrap gap-2">
               <Button
-                variant="outline"
-                disabled={dirty || decision.isPending || !reason.trim()}
-                onClick={() => decision.mutate("request-changes")}
-                aria-label={`درخواست اصلاح ${candidate.title}`}
-              >
-                درخواست اصلاح
-              </Button>
-              <Button
                 variant="destructive"
-                disabled={dirty || decision.isPending || !reason.trim()}
+                disabled={decision.isPending || !reason.trim()}
                 onClick={() => decision.mutate("reject")}
                 aria-label={`رد ${candidate.title}`}
               >
@@ -1093,10 +1106,11 @@ export function ExternalListingCandidateCard({
               </Button>
               <Button
                 disabled={
-                  dirty ||
                   !confirmed ||
                   decision.isPending ||
-                  candidate.state !== "pending" ||
+                  !["pending", "changes_requested"].includes(
+                    candidate.state ?? "",
+                  ) ||
                   Boolean(candidate.exclusion_reason) ||
                   Object.keys(candidate.validation_errors ?? {}).length > 0
                 }
@@ -1132,6 +1146,7 @@ function CaseSection({
   const active = useContext(ActiveSectionContext) === id;
   const section = caseSections.find((section) => section.id === id)!;
   const Icon = section.icon;
+  if (!active) return null;
   return (
     <section
       id={`panel-${id}`}

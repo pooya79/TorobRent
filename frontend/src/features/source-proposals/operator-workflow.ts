@@ -40,7 +40,10 @@ function workflowStage(proposal: OperatorSourceProposal) {
       section: "url",
       filter: "warning",
     };
-  if (proposal.profile_versions?.[0]?.status === "proposed")
+  if (
+    (proposal.profile_status || proposal.profile_versions?.[0]?.status) ===
+    "proposed"
+  )
     return {
       stage: "بررسی پروفایل",
       action: "بررسی و تأیید پروفایل منبع",

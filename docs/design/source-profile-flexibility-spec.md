@@ -42,7 +42,7 @@ same semantics available to future scheduled runs; schedule configuration is a s
 15. As an Operator, I want to start with publication approval and later enable automation, so that oversight can decrease as confidence grows.
 16. As an Operator, I want automation authorization scoped to one Source and profile version, so that trust does not silently transfer to other websites or changed rules.
 17. As an Operator, I want valid pending candidates available for explicit bulk approval, so that supervision does not require repetitive individual actions.
-18. As an Operator, I want invalid candidates excluded from bulk publication until corrected, so that bulk actions preserve publication checks.
+18. As an Operator, I want invalid candidates excluded from bulk publication until fresh extraction passes validation, so that bulk actions preserve publication checks.
 19. As an Operator, I want enabling automation to leave existing results pending, so that a mode switch does not unexpectedly publish a backlog.
 20. As an Operator, I want disabling automation to affect queued and running work immediately, so that no further automatic publication escapes the restriction.
 21. As an Operator, I want technically valid LLM repairs saved as draft versions despite validation failures, so that useful improvements are not discarded.
@@ -70,7 +70,7 @@ same semantics available to future scheduled runs; schedule configuration is a s
 43. As an Operator, I want valid candidates to continue according to publication mode despite other failures, so that one broken page does not disable the Source.
 44. As a Source Representative, I want to inspect affected pages, fix my website, and request re-extraction, so that a fix can improve future runs as well as the current result.
 45. As a Source Representative, I want to explain correct values in the Source Conversation, so that an Operator can help without giving me direct editing of extracted facts.
-46. As an Operator, I want to correct a candidate without marking its extraction rule fixed, so that manual publication work does not hide recurring problems.
+46. As an Operator, I want to approve or reject a candidate without editing its extracted values or images, so that publication review preserves the source result.
 47. As an Operator, I want fresh successful extraction to resolve an exception independently of publication, so that waiting approval is not confused with extraction failure.
 48. As an Operator, I want recurring failures to reopen the same exception with history, so that regressions remain understandable.
 49. As an Operator, I want excluded pages labeled Excluded rather than successfully extracted, so that reporting remains honest.
@@ -148,10 +148,10 @@ same semantics available to future scheduled runs; schedule configuration is a s
   instead of generating duplicate work.
 - Fresh extraction passing candidate checks resolves the extraction exception, not necessarily
   publication approval. Later failure reopens it with history. Exclusion is a separate visible outcome.
-  Manual candidate correction clears that candidate's blocker without declaring the source rule fixed.
+  Invalid candidates remain blocked until fresh extraction passes validation; Operators may reject them.
 - Representatives can inspect affected pages, fix the source website, request re-extraction, and
   explain corrections through Source Conversation. They cannot directly edit extracted facts in this
-  initial implementation. Operators retain candidate correction capability.
+  initial implementation. Operators likewise cannot edit candidate values or images.
 - Deliver messages, review decisions, pause/resume, and mode-change notifications immediately.
   Deliver at most one daily source exception summary when new/resolved/reopened exceptions exist;
   unchanged repeats do not notify. Alert the responsible Operator immediately when a run attempts
@@ -194,7 +194,7 @@ same semantics available to future scheduled runs; schedule configuration is a s
   isolation, conversation replies and notifications, and the fact that messaging alone never changes
   extraction or approval state.
 - Cover exception deduplication, grouping, automatic resolution, reopening, Excluded outcomes,
-  candidate-only corrections, and stale completion versus newer results. Assert no duplicate current
+  removed candidate-edit endpoints, and stale completion versus newer results. Assert no duplicate current
   review work across retries or repeated runs.
 - Use a controlled clock for daily summaries and no-usable-result alerts. Assert unchanged-repeat
   suppression, recovery/re-alert behavior, excluded-only runs, current-operator routing, and no
