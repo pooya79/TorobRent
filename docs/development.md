@@ -124,6 +124,11 @@ a PostgreSQL-backed test.
 
 ## Migrations and jobs
 
+The application migrations were rebased to fresh initial migrations before production. Existing
+development databases using the earlier migration history must be discarded and recreated; there
+is no upgrade path from that history. Run `make migrate` on an empty PostgreSQL database, then
+`make seed-dev` if local personas are needed.
+
 Migrations must be backwards compatible with the currently deployed application during rolling
 deployments. Separate destructive schema cleanup from the release that stops using the data.
 
@@ -149,16 +154,14 @@ recorded inside the publication transaction, so approval-required runs receive t
 when approved, and later runs do not rewrite earlier outcomes.
 
 The latest extraction report and extraction history show this breakdown alongside total successful
-publications. Publications predating this change remain explicitly unclassified; the migration
-does not infer historical outcomes from the current catalog.
+publications. New databases start without historical publications.
 
 ## Source Discovery limits
 
 URL approval and explicit profile re-review require the Operator to choose `max_pages` and
 `target_detail_pages`, using the representative's displayed inventory estimate. Both are positive
 integers; the detail target cannot exceed the page budget. Each Source Reservation retains the
-chosen limits and exposes them with Discovery evidence. Existing reservations retain their previous
-50-page/30-detail limits through migration defaults; new API approvals require explicit values.
+chosen limits and exposes them with Discovery evidence. New API approvals require explicit values.
 Both initial Discovery and later Extraction Runs use the limits retained with the approved Source
 Profile version. The target counts unique rental-detail pages found, not publishable candidates.
 Discovery follows recognized pagination links without spending ordinary navigation depth, while
@@ -175,9 +178,7 @@ terminal or expired checkpoints. Final profile grouping/evaluation still runs wi
 remaining time budget; exceptionally large targets are not a guarantee of completion. The fetcher's 50-URL per-batch limit is
 separate: Discovery fetches one URL per call and can visit more than 50 URLs in total.
 
-Migration 0040 adds checkpoint and generation fields with database defaults for older writers.
-Apply it before starting updated workers. Drain or restart older workers before using continuation
-jobs, whose task arguments include a generation number. Checkpoints are private operational data,
+Continuation jobs carry a generation number. Checkpoints are private operational data,
 never exposed by the response serializers, and are cleared on completion/cancellation or by bounded
 retention (30 days for abandoned Extraction Runs).
 
@@ -269,10 +270,7 @@ model-call audits remain durable. Fetch adapters currently store no screenshots.
 `cleanup_external_images` visits the least-recently checked records first, including retired
 records whose file deletion may need retry, so retained images cannot starve later cleanup work.
 
-Deploy source-proposal migrations 0022 and 0023 before switching application workers. Simulation
-retirement preserves history and leaves its unused physical column with a default for compatibility;
-a future release may drop that column after old workers are drained. Do not run old simulation
-producers after retirement.
+The current schema has no simulation column or simulated-candidate workflow.
 
 ### One current website per Submitter
 
@@ -280,7 +278,7 @@ No schema or data migration is needed: introduction, proposal editing, URL appro
 approval serialize on the existing Submitter account row before locking the proposal. An open
 proposal (draft, pending, or changes requested) or an active assignment occupies the slot; a
 profile review and its assignment count as the same case. The compatibility `start_new` hint
-cannot bypass this rule. Drain old application workers when deploying this behavior.
+cannot bypass this rule.
 
 Existing conflicting cases are preserved and flagged in the Submitter dashboard and Operator
 queue. Creation returns 409 and editing/approval is blocked until explicit resolution. The
@@ -291,11 +289,8 @@ proposals remain readable by their Submitter, with review and assignment history
 
 ### Source Operator responsibility
 
-Apply source-proposal migrations 0044–0045 before starting the updated application and workers.
-They move ongoing case ownership onto `SourceProposal`, so responsibility starts in the queue
-before URL approval or Discovery. Existing assignment history is copied without changing approval
-evidence; live onboarding review claims become ongoing ownership. Cases without either remain
-unassigned. Drain older application processes during rollout.
+Ongoing case ownership lives on `SourceProposal`, so responsibility starts in the queue before
+URL approval or Discovery. New cases without a reviewer remain unassigned.
 
 An eligible reviewer takes an unassigned case atomically from the queue. Ownership does not expire
 and survives requests for representative corrections, resubmission, profile approval, and review
@@ -318,10 +313,8 @@ action. Additional CDN-host decisions enforce the same current case ownership.
 
 ### Source Exclusions
 
-Apply source-proposal migrations 0029–0030 before starting the application and workers. They add
-separate immutable restriction/action records, nullable candidate holds, and a default empty list of
-skipped pages; historical Discovery exclusions and profile validation remain unchanged. Drain older
-workers during rollout so they cannot publish without the new exclusion checks.
+Source exclusions use immutable restriction and action records, candidate holds, and recorded
+skipped pages.
 
 The responsible Operator previews a normalized exact URL or a path section on the assigned host,
 then supplies a reason and explicit confirmation. Exact URLs retain meaningful query parameters;
@@ -350,11 +343,8 @@ active rule. Only those IDs are withdrawn; for more than 100 matches, preview an
 
 ### Current Source extraction exceptions
 
-Apply source-proposal migrations 0031–0032 before starting the new application and workers.
-They add a unique Source/canonical-URL outcome, retained per-run attempt history, and a nullable
-request initiator audit reference. Drain old workers during rollout. Existing runs, candidates,
-corrections and exclusion history remain unchanged; current exception tracking starts with fresh
-worker attempts rather than guessing original validation from manually corrected historical facts.
+Current extraction exceptions retain a unique Source/canonical-URL outcome, per-run attempt
+history, and a nullable request initiator audit reference.
 
 Worker completion records page outcomes under the Source lock. Request creation order and attempt
 number fence older completions, including when the newer page succeeded without any prior failure.
@@ -385,10 +375,7 @@ first occurrence backward without replacing the latest outcome.
 
 ### Source processing pause and fresh work
 
-Apply catalog migration 0016 and source-proposal migrations 0033–0034 before starting the new
-application and workers. Existing Sources default to processing enabled at revision zero; existing
-requests retain that revision and historical candidates remain unchanged. Drain old application
-and Celery workers during rollout so they cannot publish without the new revision checks.
+New Sources default to processing enabled at revision zero.
 
 The responsible Operator pauses processing independently of Source Assignment revocation and
 Listing withdrawal. Pause blocks new extraction and unfinished publication, including explicit
@@ -414,9 +401,8 @@ retired from pending review when the processing revision changes.
 
 ### Operator crawl controls and schedules
 
-Apply catalog migration 0018 and source-proposal migration 0041 before starting the updated
-application, then restart Celery workers and Beat. `dispatch_scheduled_crawls` checks due Sources every minute, processing at most 100 per
-invocation in due-time order. Existing Sources default to manual-only; no recurring fetch is
+`dispatch_scheduled_crawls` checks due Sources every minute, processing at most 100 per
+invocation in due-time order. New Sources default to manual-only; no recurring fetch is
 silently enabled. The responsible Operator can choose hourly, 6-hour, 12-hour, daily, 3-day, or
 weekly fetching, or disable the schedule. Schedule changes use a separate revision and retain an
 Operator event; changing a schedule does not invalidate in-flight extraction.
@@ -439,18 +425,15 @@ Initial Extraction Request delivery is durable: the request and its pending-deli
 together before broker publication. The same minute task retries up to 100 pending deliveries,
 oldest attempt first, with a one-minute retry interval. Broker failure is retained as a private
 request `delivery_error` visible beside its queued status. Successful delivery clears that error.
-The migration also marks existing queued requests without a run for recovery. Delivery is at least
-once; existing worker request/generation checks fence duplicates if publication succeeds but the
+Delivery is at least once; existing worker request/generation checks fence duplicates if publication succeeds but the
 process exits before recording it. Existing Source Discovery continuation recovery remains active.
 The responsible Operator can disable a schedule even after its representative or executable
 profile becomes unavailable; starting extraction still requires both.
 
 ### Manual Property match approval
 
-Apply catalog migration 0021 before starting the updated application. Existing Properties,
-Listings and images retain their data. Property Images gain a nullable retirement timestamp;
-retired images retain asset references for recovery and remain available only to Catalog Curators.
-Drain older application processes so they cannot publish retired images or bypass grouping locks.
+Property Images have a nullable retirement timestamp; retired images retain asset references
+for recovery and remain available only to Catalog Curators.
 
 Opening a manual comparison does not claim work. Starting review reserves both Properties for ten
 minutes; the Operator can renew it. Overlapping reviews, expired claims, changed evidence and
@@ -470,7 +453,7 @@ exercise competing claims, duplicate approvals, Favorite races and database-fail
 
 ### Scheduled Property match review
 
-Apply catalog migrations 0025 and 0026 after the suggestion migrations. Scheduled suggestions reuse
+Scheduled suggestions reuse
 the manual comparison claim and approval boundary, while also allowing an Operator to record that
 the Properties differ or to snooze the pair for 1, 7, or 30 days. Seven days is the API default.
 
@@ -492,8 +475,7 @@ Listings.
 
 ### Grouped Property consistency
 
-Apply catalog migration 0027 before enabling the grouped-Property reconciliation schedule. The
-nightly task walks current Properties with more than one Listing in deterministic UUID pages and
+The nightly task walks current Properties with more than one Listing in deterministic UUID pages and
 stores one idempotent measurement per group revision and scoring version. It includes every Listing
 state because identity audit history is independent of publication activity.
 
@@ -505,7 +487,7 @@ and Property Match Decisions remain the source of audit history and approved gra
 
 ### Grouped Property partitioning
 
-Apply catalog migration 0028 before enabling partition decisions. An Operator with Catalog Curation starts from a
+An Operator with Catalog Curation starts from a
 Grouped Property, selects a non-empty proper subset of its Listings, reviews the retained evidence
 and resulting groups, then takes a renewable ten-minute claim before confirmation. The preview and
 confirmation revision includes normalized facts, Listings and Rental Terms, Listing and Property
@@ -530,7 +512,7 @@ rollback as well as the ordinary API behavior.
 
 ### Django administration break-glass grouping
 
-Apply catalog migration 0030 before using the reviewed administration repairs. Property merging
+Property merging
 and Listing reassignment remain available only to active superusers; Django `is_staff` and Catalog
 Curation continue to be independent grants. Ordinary Operators use the React Catalog Curation
 workspace.
@@ -550,8 +532,7 @@ partition suites to exercise behavioral equivalence and rollback at the service 
 
 ### Catalog matching backfill and rescore operations
 
-Apply catalog migration 0029 before running the initial matching backfill or a scoring-version
-rescore. Start an operation with a stable UUID so the same command can be retried safely:
+Start a matching backfill or scoring-version rescore operation with a stable UUID so the same command can be retried safely:
 
 ```bash
 cd backend

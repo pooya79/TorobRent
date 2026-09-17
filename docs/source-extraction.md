@@ -93,14 +93,9 @@ changes require a reason and retain a version-specific immutable decision. Profi
 approval reject stale version IDs. Expired evidence requires new explicit URL approval and Discovery.
 Extraction Runs create real candidates; explicit LLM repair remains a separate Operator action.
 
-Migration 0025 adds acknowledgement with a database default of false for existing decisions and
-older workers. It does not rewrite historical validation JSON or invent acknowledgements. New
-evidence separates `rules_valid`, `quality_passed`, and `approval_enabled`; the last describes
+New evidence separates `rules_valid`, `quality_passed`, and `approval_enabled`; the last describes
 technical eligibility, still subject to the live review gates. `limitations_present` also considers
 training samples and partial page failures even when the aggregate quality threshold passes.
-Historical evidence exposes unknown
-technical validity and retains its original quality outcome; approval rechecks the actual rules.
-Apply the migration before deploying the updated API workers.
 
 ## Source Assignment approval and dashboard
 
@@ -118,9 +113,7 @@ before confirming profile approval. The approval transaction rechecks reservatio
 validation and the Source lock, and links assignment, decision, activation, reservation release,
 and notification in the same commit.
 
-The migration links existing assignments only where a matching recorded profile approval exists.
-Legacy assignments without that evidence retain unknown approval provenance and review mode;
-the migration does not invent approval history.
+
 
 ## Publishable result
 
@@ -212,12 +205,8 @@ The staged workflow above is the supported Source path. The submission `preview`
 no-fetch confirmation summary; it never estimates discovered inventory or generates candidates.
 The public contract has no simulation flag or sample-listing fields.
 
-Migration 0022 retires historical simulated candidates, releases their Review Claims, and withdraws
-any published Listings they produced. Candidate values, URLs, decisions, and original proposal
-preview JSON remain retained privately; `legacy_simulation` in candidate evidence identifies this
-history. The API renders the current confirmation summary even for an older proposal. The unused
-physical simulation column stays for rolling-deployment compatibility, with a database default for
-new inserts. Drop it in a later deployment after all old workers have stopped.
+The current schema does not include simulated candidates. The API renders the current
+confirmation summary for proposals.
 
 ## Assigned Extraction Requests and Runs
 

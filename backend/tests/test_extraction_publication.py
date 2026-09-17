@@ -429,65 +429,6 @@ def test_valid_results_support_individual_review_by_responsible_operator(
 
 
 @pytest.mark.django_db
-def test_previous_workers_can_insert_runs_candidates_and_events_after_migration(
-    api_client, assigned_case
-):
-    from django.db import connection
-    from django.db.migrations.loader import MigrationLoader
-    from django.utils import timezone
-
-    from apps.catalog.models import Neighborhood
-    from apps.source_proposals.models import ExternalListingCandidateEvent, ExtractionRun
-
-    proposal, assignment, operator, _, _ = assigned_case
-    request = api_client.post(
-        f"/api/v1/source-proposals/{proposal.pk}/extraction-requests/",
-        {"assignment": assignment["id"], "url": proposal.website_url},
-        format="json",
-    ).json()
-    old_apps = (
-        MigrationLoader(connection)
-        .project_state([("source_proposals", "0012_merge_20260905_0823")])
-        .apps
-    )
-    old_run = old_apps.get_model("source_proposals", "ExtractionRun").objects.create(
-        request_id=request["id"],
-        profile_version_id=request["profile_version"],
-        pipeline_version="old-worker",
-        started_at=timezone.now(),
-    )
-    assert ExtractionRun.objects.get(pk=old_run.pk).revision == 1
-    neighborhood = Neighborhood.objects.get(name_fa="سعادت‌آباد")
-    old_candidate = old_apps.get_model(
-        "source_proposals", "ExternalListingCandidate"
-    ).objects.create(
-        source_proposal_id=proposal.pk,
-        source_id=assignment["source"]["id"],
-        title="Legacy worker result",
-        external_url="https://khaneh.example/legacy",
-        city_id=neighborhood.district.city_id,
-        district_id=neighborhood.district_id,
-        neighborhood_id=neighborhood.pk,
-        property_type="apartment",
-        area_sqm=85,
-        room_count=2,
-        deposit_rial=5_000_000_000,
-        monthly_rent_rial=200_000_000,
-    )
-    old_event = old_apps.get_model(
-        "source_proposals", "ExternalListingCandidateEvent"
-    ).objects.create(
-        candidate_id=old_candidate.pk,
-        actor_id=operator.pk,
-        revision=1,
-        prior_state="pending",
-        new_state="rejected",
-        reason="Legacy review",
-    )
-    assert ExternalListingCandidateEvent.objects.get(pk=old_event.pk).corrections == {}
-
-
-@pytest.mark.django_db
 def test_source_properties_remain_inspectable_outside_recent_run_history(
     api_client, assigned_case, monkeypatch, django_capture_on_commit_callbacks
 ):

@@ -171,39 +171,6 @@ def test_concurrent_reassignments_accept_only_one_reviewed_responsibility(
     assert len(result["history"]) == 2
 
 
-@pytest.mark.django_db(transaction=True)
-@pytest.mark.parametrize("legacy_approval", [False, True])
-def test_existing_approval_backfills_responsibility_without_changing_evidence(
-    api_client, assigned_case, legacy_approval
-):
-    from django.db import connection
-    from django.db.migrations.executor import MigrationExecutor
-
-    proposal, _, operator, _, _ = assigned_case
-    api_client.force_authenticate(operator)
-    before = api_client.get("/api/v1/operator/source-proposals/").json()[0]
-    if legacy_approval:
-        from apps.source_proposals.models import SourceAssignment
-
-        SourceAssignment.objects.filter(proposal=proposal).update(approval=None)
-    executor = MigrationExecutor(connection)
-    latest = executor.loader.graph.leaf_nodes()
-    try:
-        executor.migrate([
-            ("source_proposals", "0025_sourceprofiledecision_limitations_acknowledged"),
-            ("catalog", "0014_reference_common_media_asset"),
-        ])
-        MigrationExecutor(connection).migrate(latest)
-        after = api_client.get("/api/v1/operator/source-proposals/").json()[0]
-        assert after["responsibility"]["operator"] == str(operator.pk)
-        assert after["responsibility"]["revision"] == 1
-        assert after["responsibility"]["history"][0]["actor"] == str(operator.pk)
-        assert after["profile_versions"] == before["profile_versions"]
-        assert after["history"] == before["history"]
-    finally:
-        MigrationExecutor(connection).migrate(latest)
-
-
 @pytest.mark.django_db
 def test_responsibility_fences_revocation_and_profile_review(api_client, assigned_case):
     proposal, _, original, _, _ = assigned_case

@@ -1,12 +1,10 @@
 import asyncio
 from datetime import timedelta
-from importlib import import_module
 from io import BytesIO
 from pathlib import Path
 from typing import Any
 
 import pytest
-from django.apps import apps as django_apps
 from django.conf import settings
 from django.contrib import admin
 from django.contrib.auth.models import Permission
@@ -1327,53 +1325,6 @@ def test_listing_images_enforce_unique_positions_and_primary_selection():
             height=360,
             byte_size=100,
         )
-
-
-@pytest.mark.django_db(transaction=True)
-def test_media_asset_backfill_deduplicates_legacy_shared_files():
-    first_submitter = User.objects.create_user(
-        email="legacy-first@example.com",
-        password="correct-horse-battery",
-    )
-    second_submitter = User.objects.create_user(
-        email="legacy-second@example.com",
-        password="correct-horse-battery",
-    )
-    shared_file = "submission-media/legacy/shared.webp"
-    variants = []
-    for submitter in (first_submitter, second_submitter):
-        submission = Submission.objects.create(submitter=submitter, role="owner")
-        image = SubmissionImage.objects.create(
-            submission=submission,
-            status=SubmissionImageStatus.READY,
-            position=0,
-            is_primary=True,
-        )
-        variants.append(
-            SubmissionImageVariant.objects.create(
-                image=image,
-                kind="small",
-                file=shared_file,
-                width=480,
-                height=360,
-                byte_size=100,
-                asset=None,
-            )
-        )
-    migration = import_module("apps.submissions.migrations.0003_share_processed_media_assets")
-
-    class LegacyMigrationApps:
-        @staticmethod
-        def get_model(app_label: str, model_name: str):
-            if (app_label, model_name) == ("submissions", "MediaAsset"):
-                return MediaAsset
-            return django_apps.get_model(app_label, model_name)
-
-    migration.create_assets_for_submission_variants(LegacyMigrationApps(), None)
-
-    asset_ids = {SubmissionImageVariant.objects.get(id=variant.id).asset_id for variant in variants}
-    assert len(asset_ids) == 1
-    assert MediaAsset.objects.filter(file=shared_file).count() == 1
 
 
 @pytest.mark.django_db(transaction=True)
