@@ -19,6 +19,7 @@ async function chooseTheme(
   currentLabel: string,
   nextLabel: string,
 ) {
+  await page.waitForLoadState("networkidle");
   await page
     .getByRole("combobox", { name: `پوسته نمایش: ${currentLabel}` })
     .click();
@@ -81,6 +82,7 @@ test("restores protected Contact Support composition after login", async ({
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/contact");
+  await page.waitForLoadState("networkidle");
   await page.getByRole("link", { name: "ایجاد درخواست پشتیبانی" }).click();
   await expect(page).toHaveURL(
     /\/login\?returnTo=%2Fmessages%2Fnew%2Fsupport$/,

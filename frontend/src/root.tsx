@@ -115,6 +115,13 @@ export function Layout({ children }: { children: React.ReactNode }) {
           media="(prefers-color-scheme: dark)"
         />
         <script dangerouslySetInnerHTML={{ __html: THEME_BOOTSTRAP_SCRIPT }} />
+        <link
+          rel="preload"
+          href="/fonts/vazirmatn/Vazirmatn-v33.003-variable.woff2"
+          as="font"
+          type="font/woff2"
+          crossOrigin="anonymous"
+        />
         <link rel="icon" href="/favicon.png?v=d8539055" type="image/png" />
         <Meta />
         <Links />

@@ -54,6 +54,7 @@ export function useCaseRecords<K extends keyof CaseRecordTypes>(
     ],
     enabled: options.enabled ?? true,
     queryFn: async () => {
+      // Each path shares these parameters; the generated client cannot narrow a keyed path.
       const { data, error } = await api.GET(paths[kind], {
         params: {
           path: { proposal_id: proposalId },
@@ -65,10 +66,11 @@ export function useCaseRecords<K extends keyof CaseRecordTypes>(
             state: options.state,
           },
         },
-      });
+      } as never);
       if (error || !data) throw apiError(error);
       // The path map and record map describe the same API resources.
-      return data as Page<CaseRecordTypes[K]>;
+      const records: unknown = data;
+      return records as Page<CaseRecordTypes[K]>;
     },
   });
 }

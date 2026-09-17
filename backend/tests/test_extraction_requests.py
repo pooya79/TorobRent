@@ -350,7 +350,9 @@ def test_interrupted_worker_recovery_is_bounded(api_client, assigned_case, monke
     run.refresh_from_db()
     assert run.attempts == 2
     assert run.state == "complete"
-    assert len(run.results) == 10
+    assert run.extracted == 10
+    assert run.candidates.count() == 10
+    assert run.results == []
 
 
 @pytest.mark.django_db

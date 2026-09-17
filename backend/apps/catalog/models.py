@@ -943,7 +943,7 @@ class PropertyGroupConsistencyMeasurement(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     property = models.ForeignKey(
         Property,
-        on_delete=models.PROTECT,
+        on_delete=models.CASCADE,
         related_name="consistency_measurements",
     )
     group_revision = models.CharField(max_length=64)

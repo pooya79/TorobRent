@@ -64,6 +64,19 @@ function setup(path: string, overrides = {}) {
         },
       ]),
     ),
+    http.get("*/api/v1/operator/source-proposals/:id/results/", () =>
+      HttpResponse.json({ count: 1, results: [candidate] }),
+    ),
+    http.get("*/api/v1/operator/external-listing-candidates/", () =>
+      HttpResponse.json([candidate]),
+    ),
+    http.get(
+      "*/api/v1/operator/external-listing-candidates/:id/",
+      ({ params }) =>
+        params.id === candidate.id
+          ? HttpResponse.json(candidate)
+          : new HttpResponse(null, { status: 404 }),
+    ),
     http.post("*/api/v1/operator/external-listing-candidates/:id/claim/", () =>
       HttpResponse.json({ revision: 1 }, { status: 201 }),
     ),

@@ -97,7 +97,7 @@ def test_resume_requires_mode_and_fetches_fresh_without_replaying_old_permission
 
 
 @pytest.mark.django_db
-def test_fresh_results_replace_pending_queue_but_retain_old_run_evidence(
+def test_fresh_results_replace_pending_queue_and_retire_old_run_evidence(
     api_client, assigned_case, monkeypatch, django_capture_on_commit_callbacks
 ):
     fetcher = assigned_case[4]
@@ -114,7 +114,7 @@ def test_fresh_results_replace_pending_queue_but_retain_old_run_evidence(
     historical = case["assignment"]["recent_requests"][1]["run"]
     assert historical["id"] == old["id"]
     assert all(c["superseded"] for c in historical["candidates"])
-    assert historical["candidates"][0]["evidence"] == old["candidates"][0]["evidence"]
+    assert all(c["evidence"] == {} for c in historical["candidates"])
     stale_candidate = next(c for c in old["candidates"] if c["external_url"] == target)
     assert api_client.post(f"{queue}{stale_candidate['id']}/claim/").status_code == 400
 

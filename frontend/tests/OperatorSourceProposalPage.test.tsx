@@ -14,7 +14,7 @@ function caseJson(
   body: Parameters<typeof HttpResponse.json>[0],
   init?: ResponseInit,
 ) {
-  const value = Array.isArray(body) ? body[0] : body;
+  const value: unknown = Array.isArray(body) ? (body as unknown[])[0] : body;
   if (value && typeof value === "object" && "website_url" in value)
     currentCase = value as unknown as OperatorSourceProposal;
   return HttpResponse.json(body, init);

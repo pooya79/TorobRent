@@ -797,9 +797,9 @@ export function ProposalReviewCard({
                           review={{
                             proposalId: proposal.id,
                             canApprove:
-                              proposal.assignment.state === "active" &&
+                              proposal.assignment?.state === "active" &&
                               canDecideSource &&
-                              !proposal.assignment.source.processing_paused,
+                              !proposal.assignment?.source.processing_paused,
                           }}
                         />
                       )}
@@ -815,12 +815,15 @@ export function ProposalReviewCard({
                             paged
                             exceptions={rows.map((row) => ({
                               ...row,
+                              first_occurrence: row.first_occurrence ?? null,
+                              problem: row.problem ?? "",
+                              detail: row.detail ?? "",
                               history: [],
                             }))}
                             proposalId={proposal.id}
                             operator
                             onBlock={
-                              proposal.assignment.state === "active" &&
+                              proposal.assignment?.state === "active" &&
                               canDecideSource
                                 ? (url) => {
                                     setExclusionUrl(url);
@@ -830,20 +833,24 @@ export function ProposalReviewCard({
                                 : undefined
                             }
                             canRetry={
-                              proposal.assignment.state === "active" &&
+                              proposal.assignment?.state === "active" &&
                               canDecideSource &&
-                              !proposal.assignment.source.processing_paused &&
+                              !proposal.assignment?.source.processing_paused &&
                               Boolean(
-                                proposal.assignment.active_profile_version,
+                                proposal.assignment?.active_profile_version,
                               )
                             }
                           />
-                          {proposal.assignment.state === "active" &&
+                          {proposal.assignment?.state === "active" &&
                             canDecideSource && (
                               <SourceBulkActions
                                 proposalId={proposal.id}
                                 pages={rows.map((row) => ({
                                   ...row,
+                                  first_occurrence:
+                                    row.first_occurrence ?? null,
+                                  problem: row.problem ?? "",
+                                  detail: row.detail ?? "",
                                   history: [],
                                 }))}
                               />
@@ -857,7 +864,7 @@ export function ProposalReviewCard({
                   <CaseRecords kind="exclusions" proposalId={proposal.id}>
                     {(rows) => (
                       <div className="grid gap-4">
-                        {proposal.assignment.state === "active" &&
+                        {proposal.assignment?.state === "active" &&
                         canDecideSource ? (
                           <SourceExclusionsPanel
                             key={exclusionDraft}
