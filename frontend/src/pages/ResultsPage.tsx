@@ -606,20 +606,20 @@ export function ResultsPage({ mapAdapter }: { mapAdapter?: MapAdapter }) {
   };
 
   return (
-    <PageMain className="flex h-full min-h-0 flex-col py-3 sm:py-4">
+    <PageMain className="flex h-full min-h-0 flex-col pt-0 pb-2 sm:pt-0 sm:pb-3">
       <header className="shrink-0">
         <SearchToolbar
           searchParams={searchParams}
           setSearchParams={setSearchParams}
           facets={searchData?.facets}
         />
-        <h1 className="mb-3 text-2xl font-semibold tracking-tight">
+        <h1 className="sr-only">
           {resultsCopy.heading} در {location}
         </h1>
       </header>
       {activeFilters.length > 0 && (
         <div
-          className="mb-3 flex shrink-0 flex-nowrap gap-2 overflow-x-auto pb-1"
+          className="mb-2 flex shrink-0 flex-nowrap gap-2 overflow-x-auto pb-1"
           aria-label="فیلترهای اعمال‌شده"
         >
           {activeFilters.map(([name, label]) => (
@@ -656,7 +656,7 @@ export function ResultsPage({ mapAdapter }: { mapAdapter?: MapAdapter }) {
         </p>
       )}
       <div className="flex min-h-0 flex-1 flex-col">
-        <div className="mb-3 flex shrink-0 flex-wrap items-center justify-between gap-2">
+        <div className="mb-2 flex shrink-0 flex-wrap items-center justify-between gap-2">
           <p className="text-muted-foreground text-sm" aria-live="polite">
             {searchData ? (
               resultSearchParams.has("viewport_north") ? (

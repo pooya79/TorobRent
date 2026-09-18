@@ -45,7 +45,7 @@ export function SearchToolbar({
 
   return (
     <section
-      className="border-border bg-background/95 sticky top-[4.75rem] z-20 -mx-4 mb-3 border-y px-4 py-2 shadow-sm backdrop-blur sm:-mx-6 sm:px-6 lg:-mx-10 lg:px-10"
+      className="border-border bg-background/95 z-20 -mx-4 mb-2 border-b px-4 py-1 shadow-sm sm:-mx-6 sm:px-6 lg:-mx-10 lg:px-10"
       role="search"
       aria-label="نوار جست‌وجوی ملک"
     >

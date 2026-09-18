@@ -35,7 +35,7 @@ export function QuickFilters({
   };
 
   return (
-    <fieldset className="mt-2 flex items-center gap-2 overflow-x-auto pb-1">
+    <fieldset className="mt-1 flex items-center gap-2 overflow-x-auto pb-1">
       <legend className="sr-only">فیلترهای سریع</legend>
       {quickFilterOptions[category].map((filter) => {
         const selectedValue =
