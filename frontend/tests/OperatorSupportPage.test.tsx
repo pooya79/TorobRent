@@ -253,7 +253,7 @@ test("claims an open request and lets its assignee release it", async () => {
   ).toBeVisible();
 });
 
-test("sends queue filters to the server", async () => {
+test("applies queue filters immediately without action buttons", async () => {
   const user = userEvent.setup();
   let requestedStatus: string | null = null;
   server.use(
@@ -280,7 +280,12 @@ test("sends queue filters to the server", async () => {
   renderPage();
 
   await user.click(await screen.findByRole("radio", { name: "در حال رسیدگی" }));
-  await user.click(screen.getByRole("button", { name: "اعمال فیلترها" }));
+  expect(
+    screen.queryByRole("button", { name: "اعمال فیلترها" }),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole("button", { name: "پاک کردن فیلترها" }),
+  ).not.toBeInTheDocument();
 
   await waitFor(() => expect(requestedStatus).toBe("in_progress"));
 });

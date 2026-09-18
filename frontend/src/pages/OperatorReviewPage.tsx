@@ -278,12 +278,11 @@ export function OperatorReviewPage() {
 
   return (
     <PageMain>
-      <header className="mb-6 border-b pb-6">
-        <p className="text-muted-foreground mb-2 text-sm">فضای اپراتور</p>
-        <h1 className="text-3xl font-semibold tracking-tight">
+      <header className="mb-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+        <h1 className="text-xl font-semibold tracking-tight">
           صف بررسی آگهی‌ها
         </h1>
-        <p className="text-muted-foreground mt-2">
+        <p className="text-muted-foreground text-sm">
           {queue.isPending
             ? "در حال دریافت درخواست‌ها…"
             : queue.data
@@ -335,11 +334,15 @@ export function OperatorReviewPage() {
           </AlertDescription>
         </Alert>
       )}
-      <div className="grid gap-6 xl:grid-cols-[20rem_minmax(0,1fr)_20rem]">
-        <section className="space-y-3" aria-label="صف ارسال‌ها">
+      <div className="grid items-start gap-5 lg:grid-cols-[17rem_minmax(0,1fr)]">
+        <section
+          className="divide-border max-h-80 overflow-y-auto rounded-lg border lg:sticky lg:top-4 lg:max-h-[calc(100dvh-2rem)] lg:overflow-y-auto"
+          aria-label="صف ارسال‌ها"
+        >
           {queueItems.map((submission) => (
             <button
-              className={`border-border min-h-24 w-full rounded-xl border p-4 text-start ${submission.id === selected?.id ? "border-primary bg-primary/5" : "bg-card"}`}
+              className={`focus-visible:ring-ring w-full border-s-2 border-b px-3 py-3 text-start transition-colors focus-visible:ring-2 focus-visible:outline-none ${submission.id === activeId ? "border-s-primary bg-primary/5" : "hover:bg-muted/60 border-s-transparent"}`}
+              aria-pressed={submission.id === activeId}
               key={submission.id}
               onClick={() => {
                 setSelectedId(submission.id);
@@ -350,7 +353,7 @@ export function OperatorReviewPage() {
             >
               <span className="mb-2 flex items-center justify-between gap-2 font-semibold">
                 {submissionTitle(submission)}
-                <Badge>
+                <Badge variant="secondary">
                   {submissionStateLabels[submission.state ?? "draft"]}
                 </Badge>
               </span>
@@ -372,7 +375,7 @@ export function OperatorReviewPage() {
           {queueItems.length === 0 && (
             <p className="text-muted-foreground">موردی در صف نیست.</p>
           )}
-          <div className="flex justify-between gap-3">
+          <div className="flex justify-between gap-2 p-3">
             <Button
               variant="outline"
               disabled={!queue.data?.previous}
@@ -398,16 +401,16 @@ export function OperatorReviewPage() {
         </section>
 
         {selected ? (
-          <Card className="shadow-none">
-            <CardHeader>
+          <Card className="min-w-0 rounded-none border-0 bg-transparent shadow-none">
+            <CardHeader className="px-0 pt-1 pb-4">
               <CardTitle>{submissionTitle(selected)}</CardTitle>
               <p className="text-muted-foreground text-sm">
                 {selected.location?.address}
               </p>
             </CardHeader>
-            <CardContent className="space-y-6">
-              <dl className="grid gap-4 text-sm sm:grid-cols-2">
-                <div className="bg-muted rounded-lg p-4">
+            <CardContent className="space-y-5 px-0">
+              <dl className="[&_dt]:text-muted-foreground grid gap-x-6 gap-y-3 border-y py-4 text-sm sm:grid-cols-2 [&_dd]:mt-1 [&_dt]:text-xs">
+                <div className="min-w-0 break-words">
                   <dt>نوع و دسته ملک</dt>
                   <dd className="font-semibold">
                     {selected.property_facts?.property_type_label}
@@ -416,7 +419,7 @@ export function OperatorReviewPage() {
                     {selected.property_facts?.property_category_label}
                   </dd>
                 </div>
-                <div className="bg-muted rounded-lg p-4">
+                <div className="min-w-0 break-words">
                   <dt>متراژ</dt>
                   <dd className="font-semibold">
                     {selected.property_facts?.area_sqm.toLocaleString("fa-IR")}{" "}
@@ -424,7 +427,7 @@ export function OperatorReviewPage() {
                   </dd>
                 </div>
                 {selected.property_facts?.room_count != null && (
-                  <div className="bg-muted rounded-lg p-4">
+                  <div className="min-w-0 break-words">
                     <dt>
                       {
                         roomCountLabels[
@@ -439,7 +442,7 @@ export function OperatorReviewPage() {
                     </dd>
                   </div>
                 )}
-                <div className="bg-muted rounded-lg p-4">
+                <div className="min-w-0 break-words">
                   <dt>شرایط اجاره</dt>
                   <dd className="font-semibold">
                     {selected.rental_terms?.deposit_toman.toLocaleString(
@@ -448,11 +451,11 @@ export function OperatorReviewPage() {
                     تومان رهن
                   </dd>
                 </div>
-                <div className="bg-muted rounded-lg p-4">
+                <div className="min-w-0 break-words">
                   <dt>تماس</dt>
                   <dd className="font-semibold">{selected.contact?.phone}</dd>
                 </div>
-                <div className="bg-muted rounded-lg p-4">
+                <div className="min-w-0 break-words">
                   <dt>توضیحات</dt>
                   <dd className="font-semibold">{selected.description}</dd>
                 </div>
@@ -732,12 +735,15 @@ export function OperatorReviewPage() {
             </CardContent>
           </Card>
         ) : (
-          <Card className="shadow-none">
+          <Card className="min-w-0 rounded-none border-0 bg-transparent shadow-none">
             <CardContent>یک درخواست ثبت آگهی را انتخاب کنید.</CardContent>
           </Card>
         )}
 
-        <aside aria-labelledby="status-history-title">
+        <aside
+          className="border-t pt-4 lg:col-start-2"
+          aria-labelledby="status-history-title"
+        >
           <h2 id="status-history-title" className="mb-4 text-lg font-semibold">
             تاریخچه وضعیت
           </h2>

@@ -235,12 +235,11 @@ export function OperatorSupportPage() {
 
   return (
     <PageMain>
-      <header className="mb-6 border-b pb-6">
-        <p className="text-muted-foreground mb-2 text-sm">فضای اپراتور</p>
-        <h1 className="text-3xl font-semibold tracking-tight">
+      <header className="mb-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+        <h1 className="text-xl font-semibold tracking-tight">
           صف درخواست‌های پشتیبانی
         </h1>
-        <p className="text-muted-foreground mt-2">
+        <p className="text-muted-foreground text-sm">
           {queue.isPending
             ? "در حال دریافت درخواست‌ها…"
             : queue.data
@@ -277,12 +276,15 @@ export function OperatorSupportPage() {
         </Alert>
       )}
 
-      <div className="grid gap-6 lg:grid-cols-[20rem_minmax(0,1fr)]">
-        <section className="space-y-3" aria-label="صف درخواست‌های پشتیبانی">
+      <div className="grid items-start gap-5 lg:grid-cols-[17rem_minmax(0,1fr)]">
+        <section
+          className="divide-border max-h-80 overflow-y-auto rounded-lg border lg:sticky lg:top-4 lg:max-h-[calc(100dvh-2rem)] lg:overflow-y-auto"
+          aria-label="صف درخواست‌های پشتیبانی"
+        >
           {queueItems.map((supportRequest) => (
             <button
-              className={`border-border focus-visible:ring-ring min-h-24 w-full rounded-2xl border p-4 text-start transition-colors focus-visible:ring-2 focus-visible:outline-none ${supportRequest.id === selected?.id ? "border-primary bg-primary/5 ring-primary/20 ring-1" : "bg-card hover:bg-muted/60"}`}
-              aria-pressed={supportRequest.id === selected?.id}
+              className={`focus-visible:ring-ring w-full border-s-2 border-b px-3 py-3 text-start transition-colors focus-visible:ring-2 focus-visible:outline-none ${supportRequest.id === activeId ? "border-s-primary bg-primary/5" : "hover:bg-muted/60 border-s-transparent"}`}
+              aria-pressed={supportRequest.id === activeId}
               key={supportRequest.id}
               onClick={() => {
                 setSelectedId(supportRequest.id);
@@ -292,7 +294,7 @@ export function OperatorSupportPage() {
             >
               <span className="mb-2 flex items-center justify-between gap-2 font-semibold">
                 {requestTitle(supportRequest)}
-                <Badge>
+                <Badge variant="secondary">
                   {statusLabels[supportRequest.status ?? "open"] ??
                     supportRequest.status}
                 </Badge>
@@ -319,7 +321,7 @@ export function OperatorSupportPage() {
           {!queue.isPending && !queue.isError && queueItems.length === 0 && (
             <p className="text-muted-foreground">موردی در صف نیست.</p>
           )}
-          <div className="flex justify-between gap-3">
+          <div className="flex justify-between gap-2 p-3">
             <Button
               variant="outline"
               disabled={!queue.data?.previous}
@@ -345,20 +347,23 @@ export function OperatorSupportPage() {
         </section>
 
         {selected ? (
-          <Card key={selected.id} className="rounded-2xl shadow-none">
-            <CardHeader>
+          <Card
+            key={selected.id}
+            className="min-w-0 rounded-none border-0 bg-transparent shadow-none"
+          >
+            <CardHeader className="px-0 pt-1 pb-4">
               <CardTitle>{requestTitle(selected)}</CardTitle>
               <p className="text-muted-foreground text-sm">{selected.email}</p>
             </CardHeader>
-            <CardContent className="space-y-6">
-              <dl className="grid gap-4 text-sm sm:grid-cols-2">
-                <div className="bg-muted rounded-lg p-4">
+            <CardContent className="space-y-5 px-0">
+              <dl className="[&_dt]:text-muted-foreground grid gap-x-6 gap-y-3 border-y py-4 text-sm sm:grid-cols-2 [&_dd]:mt-1 [&_dt]:text-xs">
+                <div className="min-w-0 break-words">
                   <dt>نوع درخواست اولیه</dt>
                   <dd className="mt-1 font-semibold">
                     {intakeKindLabels[selected.intake_kind]}
                   </dd>
                 </div>
-                <div className="bg-muted rounded-lg p-4">
+                <div className="min-w-0 break-words">
                   <dt>دسته‌بندی درخواست</dt>
                   <dd className="mt-1 font-semibold">
                     {supportClassificationLabels[
@@ -366,7 +371,7 @@ export function OperatorSupportPage() {
                     ] ?? selected.classification}
                   </dd>
                 </div>
-                <div className="bg-muted rounded-lg p-4">
+                <div className="min-w-0 break-words">
                   <dt>اولویت</dt>
                   <dd className="mt-1 font-semibold">
                     {priorityLabels[selected.priority ?? "normal"]}
@@ -374,7 +379,7 @@ export function OperatorSupportPage() {
                 </div>
                 {(selected.escalation_destination ||
                   selected.required_capability) && (
-                  <div className="bg-muted rounded-lg p-4">
+                  <div className="min-w-0 break-words">
                     <dt>مسیر تخصصی</dt>
                     <dd className="mt-1 font-semibold">
                       {selected.escalation_destination ||
@@ -385,14 +390,14 @@ export function OperatorSupportPage() {
                     </dd>
                   </div>
                 )}
-                <div className="bg-muted rounded-lg p-4 sm:col-span-2">
+                <div className="min-w-0 break-words sm:col-span-2">
                   <dt>متن درخواست</dt>
                   <dd className="mt-1 font-semibold whitespace-pre-wrap">
                     {selected.message}
                   </dd>
                 </div>
                 {selected.assigned_at && (
-                  <div className="bg-muted rounded-lg p-4 sm:col-span-2">
+                  <div className="min-w-0 break-words sm:col-span-2">
                     <dt>زمان واگذاری</dt>
                     <dd className="mt-1 flex flex-wrap items-center gap-2 font-semibold">
                       <Clock3 className="size-4" aria-hidden="true" />
@@ -428,7 +433,7 @@ export function OperatorSupportPage() {
               {selected.status === "in_progress" &&
                 selected.assignee_id === currentUser.data?.id && (
                   <section
-                    className="rounded-xl border p-4"
+                    className="border-b pb-5"
                     aria-labelledby="support-reply-title"
                   >
                     <h2 id="support-reply-title" className="font-semibold">
@@ -638,7 +643,7 @@ export function OperatorSupportPage() {
             </CardContent>
           </Card>
         ) : (
-          <Card className="rounded-2xl shadow-none">
+          <Card className="min-w-0 rounded-none border-0 bg-transparent shadow-none">
             <CardContent className="text-muted-foreground py-10 text-center">
               یک درخواست پشتیبانی را برای مشاهده جزئیات انتخاب کنید.
             </CardContent>

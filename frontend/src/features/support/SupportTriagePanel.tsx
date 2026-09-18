@@ -86,14 +86,15 @@ export function SupportTriagePanel({
 
   return (
     <div className="space-y-4">
-      <Card className="gap-4 rounded-2xl shadow-none">
-        <CardHeader>
+      <Card className="rounded-none border-0 border-t bg-transparent pt-4 shadow-none">
+        <CardHeader className="px-0 pt-0 pb-3">
           <CardTitle className="text-base">دسته‌بندی و مسیر رسیدگی</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="px-0">
           <form className="grid gap-4 sm:grid-cols-2" onSubmit={submitTriage}>
             <div className="sm:col-span-2">
               <ChoiceButtons
+                compact
                 label="دسته‌بندی عملیاتی"
                 name="triage-classification"
                 value={classification}
@@ -108,6 +109,7 @@ export function SupportTriagePanel({
             </div>
             <div className="sm:col-span-2">
               <ChoiceButtons
+                compact
                 label="اولویت"
                 name="triage-priority"
                 value={priority}
@@ -129,6 +131,7 @@ export function SupportTriagePanel({
             </div>
             <div className="sm:col-span-2">
               <ChoiceButtons
+                compact
                 label="مسیر رسیدگی"
                 name="triage-routing"
                 value={routing}
@@ -144,6 +147,7 @@ export function SupportTriagePanel({
             {routing === "escalated" && (
               <div className="bg-muted/40 space-y-4 rounded-xl border p-4 sm:col-span-2">
                 <ChoiceButtons
+                  compact
                   label="تخصص مورد نیاز"
                   name="triage-capability"
                   value={requiredCapability}
@@ -189,13 +193,13 @@ export function SupportTriagePanel({
       {canManageQueue &&
         supportRequest.status === "in_progress" &&
         supportRequest.assignee_id && (
-          <Card className="gap-4 rounded-2xl shadow-none">
-            <CardHeader>
+          <Card className="rounded-none border-0 border-t bg-transparent pt-4 shadow-none">
+            <CardHeader className="px-0 pt-0 pb-3">
               <CardTitle className="text-base">
                 واگذاری مجدد کار رهاشده
               </CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="px-0">
               <form
                 className="grid gap-4 sm:grid-cols-2"
                 onSubmit={submitReassignment}

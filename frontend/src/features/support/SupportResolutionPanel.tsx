@@ -78,10 +78,7 @@ export function SupportResolutionPanel({
 
       {canRecord && (
         <div className="grid gap-5 lg:grid-cols-2">
-          <form
-            className="border-border rounded-lg border p-4"
-            onSubmit={submitNote}
-          >
+          <form className="min-w-0 border-t pt-4" onSubmit={submitNote}>
             <Label className="grid gap-2">
               یادداشت داخلی
               <textarea
@@ -108,7 +105,7 @@ export function SupportResolutionPanel({
           </form>
 
           <form
-            className="border-border rounded-lg border p-4"
+            className="min-w-0 border-t pt-4"
             onSubmit={(event) => {
               event.preventDefault();
               onRecordExternalContact({

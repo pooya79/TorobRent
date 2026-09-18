@@ -1,9 +1,8 @@
 import { ChoiceButtons } from "@/components/ChoiceButtons";
 import { useQuery } from "@tanstack/react-query";
-import { RotateCcw, SlidersHorizontal } from "lucide-react";
+import { SlidersHorizontal } from "lucide-react";
 import { useState } from "react";
 
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -43,69 +42,84 @@ export function SubmissionQueueFilters({
     draft.pending_before &&
     draft.pending_after > draft.pending_before,
   );
-  const update = (patch: Partial<OperatorQueueFilters>) =>
-    setDraft((previous) => ({ ...previous, ...patch }));
+  const update = (patch: Partial<OperatorQueueFilters>) => {
+    const next = { ...draft, ...patch };
+    setDraft(next);
+    if (
+      next.pending_after &&
+      next.pending_before &&
+      next.pending_after > next.pending_before
+    )
+      return;
+    if (
+      next.age_days !== undefined &&
+      (!Number.isInteger(next.age_days) || next.age_days < 0)
+    )
+      return;
+    onApply({ ...next, page: 1 });
+  };
   return (
-    <form
-      className="bg-card mb-6 rounded-2xl border shadow-sm"
-      onSubmit={(event) => {
-        event.preventDefault();
-        if (!invalidRange) onApply({ ...draft, page: 1 });
-      }}
-    >
-      <div className="flex items-center gap-2 border-b px-5 py-4">
-        <SlidersHorizontal className="text-primary size-5" aria-hidden="true" />
-        <h2 className="font-semibold">فیلتر درخواست‌ها</h2>
-        {activeFilterCount > 0 && (
-          <span className="bg-primary/10 text-primary ms-auto rounded-full px-3 py-1 text-xs">
-            {activeFilterCount.toLocaleString("fa-IR")} فیلتر فعال
-          </span>
-        )}
-      </div>
-      <div className="space-y-6 p-5">
-        <ChoiceButtons
-          label="وضعیت درخواست"
-          name="submission-state"
-          value={draft.state ?? ""}
-          onChange={(state) => update({ state: state || undefined })}
-          options={[
-            ["", "همه"],
-            ["pending", "در انتظار بررسی"],
-            ["changes_requested", "نیازمند اصلاح"],
-            ["published", "منتشرشده"],
-            ["rejected", "ردشده"],
-          ]}
-        />
-        <div className="grid gap-6 xl:grid-cols-[1fr_auto]">
+    <div className="mb-5 border-y py-3">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div className="space-y-3">
           <ChoiceButtons
-            label="مسئول بررسی"
-            name="submission-assignee"
-            value={draft.assignee ?? ""}
-            onChange={(assignee) => update({ assignee: assignee || undefined })}
+            compact
+            label="وضعیت درخواست"
+            name="submission-state"
+            value={draft.state ?? ""}
+            onChange={(state) => update({ state: state || undefined })}
             options={[
               ["", "همه"],
-              ["unclaimed", "بدون مسئول"],
-              ["mine", "در اختیار من"],
-              ["other", "در اختیار دیگران"],
-            ]}
-          />
-          <ChoiceButtons
-            label="ترتیب نمایش"
-            name="submission-order"
-            value={draft.ordering ?? "oldest"}
-            onChange={(ordering) =>
-              update({ ordering: ordering as "oldest" | "newest" })
-            }
-            options={[
-              ["oldest", "قدیمی‌ترین"],
-              ["newest", "تازه‌ترین"],
+              ["pending", "در انتظار بررسی"],
+              ["changes_requested", "نیازمند اصلاح"],
+              ["published", "منتشرشده"],
+              ["rejected", "ردشده"],
             ]}
           />
         </div>
-        <details className="border-t pt-4">
-          <summary className="focus-visible:outline-ring cursor-pointer rounded-md py-2 text-sm font-medium">
+      </div>
+      <div className="mt-2">
+        <details className="group">
+          <summary className="text-muted-foreground focus-visible:outline-ring flex w-fit cursor-pointer list-none items-center gap-2 rounded-md py-2 text-sm font-medium [&::-webkit-details-marker]:hidden">
+            <SlidersHorizontal className="size-4" aria-hidden="true" />
             محدوده، تاریخ و فیلترهای بیشتر
+            {activeFilterCount > 0 && (
+              <span className="text-primary text-xs">
+                ({activeFilterCount.toLocaleString("fa-IR")} فیلتر فعال)
+              </span>
+            )}
           </summary>
+          <div className="flex flex-wrap gap-x-8 gap-y-3">
+            <ChoiceButtons
+              compact
+              label="مسئول بررسی"
+              name="submission-assignee"
+              value={draft.assignee ?? ""}
+              onChange={(assignee) =>
+                update({ assignee: assignee || undefined })
+              }
+              options={[
+                ["", "همه"],
+                ["unclaimed", "بدون مسئول"],
+                ["mine", "در اختیار من"],
+                ["other", "در اختیار دیگران"],
+              ]}
+            />
+            <ChoiceButtons
+              compact
+              label="ترتیب نمایش"
+              name="submission-order"
+              value={draft.ordering ?? "oldest"}
+              onChange={(ordering) =>
+                update({ ordering: ordering as "oldest" | "newest" })
+              }
+              options={[
+                ["oldest", "قدیمی‌ترین"],
+                ["newest", "تازه‌ترین"],
+              ]}
+            />
+          </div>
+
           <div className="mt-4 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
             <div className="space-y-2">
               <Label htmlFor="queue-city">شهر</Label>
@@ -218,29 +232,6 @@ export function SubmissionQueueFilters({
           </p>
         )}
       </div>
-      <div className="bg-muted/30 flex flex-wrap items-center gap-3 rounded-b-2xl border-t px-5 py-4">
-        <Button type="submit" className="rounded-xl" disabled={invalidRange}>
-          اعمال فیلترها
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          className="rounded-xl"
-          onClick={() => {
-            const cleared = { ordering: "oldest" as const };
-            setDraft(cleared);
-            setDistrict([]);
-            setNeighborhood([]);
-            onApply(cleared);
-          }}
-        >
-          <RotateCcw className="size-4" aria-hidden="true" />
-          پاک کردن فیلترها
-        </Button>
-        <p className="text-muted-foreground text-xs sm:ms-auto">
-          پس از انتخاب، فیلترها را اعمال کنید.
-        </p>
-      </div>
-    </form>
+    </div>
   );
 }

@@ -458,3 +458,38 @@ test("preserves decision drafts and requires refresh and reclaim after a stale c
   );
   expect(approvalAttempts).toBe(1);
 });
+
+test("applies submission filters immediately and resets pagination", async () => {
+  const user = userEvent.setup();
+  let params = new URLSearchParams();
+  serveSubmission();
+  server.use(
+    http.get("*/api/v1/operator/submissions/", ({ request }) => {
+      params = new URL(request.url).searchParams;
+      return HttpResponse.json({
+        count: 0,
+        next: null,
+        previous: null,
+        results: [],
+      });
+    }),
+  );
+  renderPage();
+  await user.click(await screen.findByRole("radio", { name: "ردشده" }));
+  await waitFor(() => {
+    expect(params.get("state")).toBe("rejected");
+    expect(params.get("page")).toBe("1");
+  });
+  expect(
+    screen.queryByRole("button", { name: "اعمال فیلترها" }),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole("button", { name: "پاک کردن فیلترها" }),
+  ).not.toBeInTheDocument();
+  await user.click(screen.getByText("محدوده، تاریخ و فیلترهای بیشتر"));
+  await user.click(screen.getByRole("radio", { name: "در اختیار من" }));
+  await waitFor(() => {
+    expect(params.get("state")).toBe("rejected");
+    expect(params.get("assignee")).toBe("mine");
+  });
+});
