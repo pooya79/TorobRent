@@ -473,7 +473,9 @@ export function ProductShell({ children }: { children: ReactNode }) {
     <div
       className={cn(
         "overflow-x-clip",
-        isSearchPage ? "flex h-dvh flex-col overflow-y-hidden" : "min-h-screen",
+        isSearchPage
+          ? "flex h-dvh flex-col overflow-y-hidden"
+          : "flex min-h-screen flex-col",
       )}
     >
       <header
@@ -534,8 +536,14 @@ export function ProductShell({ children }: { children: ReactNode }) {
         </div>
       </header>
 
-      <div className={isSearchPage ? "min-h-0 flex-1 overflow-hidden" : ""}>
-        {children}
+      <div
+        className={
+          isSearchPage
+            ? "min-h-0 flex-1 overflow-hidden"
+            : "flex flex-1 flex-col"
+        }
+      >
+        {isSearchPage ? children : <div className="flex-1">{children}</div>}
         {!isSearchPage && (
           <footer className="border-info/20 bg-info-soft mt-16 w-full border-t">
             <div className="mx-auto grid w-full max-w-432 gap-8 px-4 py-10 text-sm sm:px-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)] lg:px-10">
