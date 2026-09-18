@@ -47,7 +47,7 @@ import {
 import { errorMessage } from "@/lib/api/errors";
 
 const sourceProposalStateLabels = {
-  draft: "پیش‌نویس",
+  draft: "ارسال‌نشده",
   pending: "در انتظار بررسی",
   changes_requested: "نیازمند اصلاح",
   rejected: "ردشده",
@@ -625,7 +625,9 @@ export function SubmitterDashboardPage() {
                     {proposal.is_current &&
                       !proposal.current_website_conflict && (
                         <Button asChild variant="outline">
-                          <Link to={`/dashboard/website?proposal=${proposal.id}`}>
+                          <Link
+                            to={`/dashboard/website?proposal=${proposal.id}`}
+                          >
                             مشاهده وب‌سایت جاری
                           </Link>
                         </Button>
@@ -642,15 +644,18 @@ export function SubmitterDashboardPage() {
                       <Button asChild variant="outline">
                         <Link
                           to={`/dashboard/website?proposal=${proposal.id}`}
-                          aria-label={`${state === "changes_requested" ? "اصلاح" : "ادامه"} پیشنهاد وب‌سایت ${title}`}
+                          aria-label={`${state === "changes_requested" ? "اصلاح" : "تکمیل و ارسال"} پیشنهاد وب‌سایت ${title}`}
                         >
-                          {state === "changes_requested" ? "اصلاح" : "ادامه"}{" "}
+                          {state === "changes_requested"
+                            ? "اصلاح"
+                            : "تکمیل و ارسال"}{" "}
                           <ArrowLeft aria-hidden="true" />
                         </Link>
                       </Button>
                     )}
                     {canDelete && (
                       <DeleteDraftDialog
+                        website
                         label={title}
                         pending={draftRemoval.isPending}
                         onDelete={() =>
@@ -673,6 +678,7 @@ export function SubmitterDashboardPage() {
 }
 
 function DeleteDraftDialog({
+  website = false,
   label,
   pending,
   onDelete,
@@ -680,12 +686,13 @@ function DeleteDraftDialog({
   label: string;
   pending: boolean;
   onDelete: () => void;
+  website?: boolean;
 }) {
   return (
     <AlertDialog>
       <AlertDialogTrigger asChild>
         <Button
-          aria-label={`حذف پیش‌نویس ${label}`}
+          aria-label={`${website ? "انصراف از پیشنهاد" : "حذف پیش‌نویس"} ${label}`}
           disabled={pending}
           type="button"
           variant="outline"
@@ -695,9 +702,15 @@ function DeleteDraftDialog({
       </AlertDialogTrigger>
       <AlertDialogContent dir="rtl">
         <AlertDialogHeader>
-          <AlertDialogTitle>پیش‌نویس حذف شود؟</AlertDialogTitle>
+          <AlertDialogTitle>
+            {website
+              ? "از معرفی این وب‌سایت منصرف می‌شوید؟"
+              : "پیش‌نویس حذف شود؟"}
+          </AlertDialogTitle>
           <AlertDialogDescription>
-            پیش‌نویس «{label}» برای همیشه حذف می‌شود و قابل بازیابی نیست.
+            {website
+              ? `پیشنهاد «${label}» بسته می‌شود و سوابق آن باقی می‌ماند.`
+              : `پیش‌نویس «${label}» برای همیشه حذف می‌شود و قابل بازیابی نیست.`}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
@@ -707,7 +720,7 @@ function DeleteDraftDialog({
             disabled={pending}
             onClick={onDelete}
           >
-            حذف پیش‌نویس
+            {website ? "انصراف از پیشنهاد" : "حذف پیش‌نویس"}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

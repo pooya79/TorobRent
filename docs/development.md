@@ -276,9 +276,16 @@ The current schema has no simulation column or simulated-candidate workflow.
 
 No schema or data migration is needed: introduction, proposal editing, URL approval, and profile
 approval serialize on the existing Submitter account row before locking the proposal. An open
-proposal (draft, pending, or changes requested) or an active assignment occupies the slot; a
-profile review and its assignment count as the same case. The compatibility `start_new` hint
-cannot bypass this rule.
+proposal (including a retained legacy draft) or an active assignment occupies the slot; a
+profile review and its assignment count as the same case.
+
+Website introduction is a single validated POST containing all website and authority details.
+It creates a pending proposal atomically; invalid input creates no record. The dashboard form
+keeps edits only in memory until submission. Draft autosave, detail PATCH, and preview endpoints
+are removed. Corrections use the same complete payload at the proposal submit endpoint and move
+directly from changes requested to pending in one transaction, incrementing the revision once.
+Existing drafts remain readable and may be submitted or discarded; none are automatically sent
+for review or deleted. Direct-property Submission drafts are unchanged.
 
 Existing conflicting cases are preserved and flagged in the Submitter dashboard and Operator
 queue. Creation returns 409 and editing/approval is blocked until explicit resolution. The

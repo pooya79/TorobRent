@@ -2093,7 +2093,7 @@ export interface paths {
     /** List the current Submitter's Source Proposals */
     get: operations["v1_source_proposals_list"];
     put?: never;
-    /** Resume the current website or create a Source Proposal when the slot is free */
+    /** Submit a complete website for Operator review */
     post: operations["v1_source_proposals_create"];
     delete?: never;
     options?: never;
@@ -2108,33 +2108,15 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** Resume a Source Proposal */
+    /** Read a Source Proposal */
     get: operations["v1_source_proposals_retrieve"];
     put?: never;
     post?: never;
-    /** Discard a Source Proposal draft */
+    /** Discard an unsubmitted or changes-requested Source Proposal */
     delete: operations["v1_source_proposals_destroy"];
     options?: never;
     head?: never;
-    /** Save Source Proposal website and authority details */
-    patch: operations["v1_source_proposals_partial_update"];
-    trace?: never;
-  };
-  "/api/v1/source-proposals/{proposal_id}/draft/": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    /** Autosave Source Proposal draft fields */
-    patch: operations["v1_source_proposals_draft_partial_update"];
+    patch?: never;
     trace?: never;
   };
   "/api/v1/source-proposals/{proposal_id}/exceptions/retry/": {
@@ -2171,23 +2153,6 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/api/v1/source-proposals/{proposal_id}/preview/": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Prepare the no-fetch Source Proposal summary */
-    post: operations["v1_source_proposals_preview_create"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
   "/api/v1/source-proposals/{proposal_id}/submit/": {
     parameters: {
       query?: never;
@@ -2197,7 +2162,7 @@ export interface paths {
     };
     get?: never;
     put?: never;
-    /** Confirm the URL summary and submit for Operator review */
+    /** Submit complete website corrections for Operator review */
     post: operations["v1_source_proposals_submit_create"];
     delete?: never;
     options?: never;
@@ -4136,29 +4101,6 @@ export interface components {
     PatchedMessageReadUpdate: {
       read?: boolean;
     };
-    PatchedSourceProposalDetails: {
-      website_name?: string;
-      /** Format: uri */
-      website_url?: string;
-      relationship?: components["schemas"]["SourceProposalRelationshipEnum"];
-      inventory_range?: components["schemas"]["SourceProposalInventoryRangeEnum"];
-      sitemap_url?: string;
-      operator_note?: string;
-      authority_declared?: boolean;
-    };
-    PatchedSourceProposalDraft: {
-      website_name?: string;
-      website_url?: string;
-      relationship?:
-        | components["schemas"]["SourceProposalRelationshipEnum"]
-        | components["schemas"]["BlankEnum"];
-      inventory_range?:
-        | components["schemas"]["SourceProposalInventoryRangeEnum"]
-        | components["schemas"]["BlankEnum"];
-      sitemap_url?: string;
-      operator_note?: string;
-      authority_declared?: boolean;
-    };
     PatchedSubmissionImageOrder: {
       image_ids?: string[];
       /** Format: uuid */
@@ -5417,16 +5359,20 @@ export interface components {
       reviewed_revision: number;
       confirmed: boolean;
     };
-    SourceProposalCreate: {
-      /**
-       * @description Compatibility hint; the current website is always resumed.
-       * @default false
-       */
-      start_new: boolean;
-    };
     SourceProposalDecision: {
       reviewed_revision: number;
       reason: string;
+    };
+    SourceProposalDetails: {
+      website_name: string;
+      /** Format: uri */
+      website_url: string;
+      relationship: components["schemas"]["SourceProposalRelationshipEnum"];
+      inventory_range: components["schemas"]["SourceProposalInventoryRangeEnum"];
+      sitemap_url?: string;
+      /** @default  */
+      operator_note: string;
+      authority_declared: boolean;
     };
     SourceProposalEvent: {
       /** Format: uuid */
@@ -5485,9 +5431,6 @@ export interface components {
      * @enum {string}
      */
     SourceProposalStepEnum: "details" | "preview";
-    SourceProposalSubmit: {
-      preview_confirmed: boolean;
-    };
     SourceProposalSubmitter: {
       /** Format: uuid */
       readonly id: string;
@@ -9930,20 +9873,12 @@ export interface operations {
       path?: never;
       cookie?: never;
     };
-    requestBody?: {
+    requestBody: {
       content: {
-        "application/json": components["schemas"]["SourceProposalCreate"];
+        "application/json": components["schemas"]["SourceProposalDetails"];
       };
     };
     responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["SourceProposal"];
-        };
-      };
       201: {
         headers: {
           [name: string]: unknown;
@@ -10003,56 +9938,6 @@ export interface operations {
       };
     };
   };
-  v1_source_proposals_partial_update: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        proposal_id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: {
-      content: {
-        "application/json": components["schemas"]["PatchedSourceProposalDetails"];
-      };
-    };
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["SourceProposal"];
-        };
-      };
-    };
-  };
-  v1_source_proposals_draft_partial_update: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        proposal_id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: {
-      content: {
-        "application/json": components["schemas"]["PatchedSourceProposalDraft"];
-      };
-    };
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["SourceProposal"];
-        };
-      };
-    };
-  };
   v1_source_proposals_exceptions_retry_create: {
     parameters: {
       query?: never;
@@ -10103,27 +9988,6 @@ export interface operations {
       };
     };
   };
-  v1_source_proposals_preview_create: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        proposal_id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["SourceProposal"];
-        };
-      };
-    };
-  };
   v1_source_proposals_submit_create: {
     parameters: {
       query?: never;
@@ -10135,7 +9999,7 @@ export interface operations {
     };
     requestBody: {
       content: {
-        "application/json": components["schemas"]["SourceProposalSubmit"];
+        "application/json": components["schemas"]["SourceProposalDetails"];
       };
     };
     responses: {

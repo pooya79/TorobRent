@@ -4200,24 +4200,18 @@ paths:
           description: ''
     post:
       operationId: v1_source_proposals_create
-      summary: Resume the current website or create a Source Proposal when the slot
-        is free
+      summary: Submit a complete website for Operator review
       tags:
       - v1
       requestBody:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/SourceProposalCreate'
+              $ref: '#/components/schemas/SourceProposalDetails'
+        required: true
       security:
       - cookieAuth: []
       responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SourceProposal'
-          description: ''
         '201':
           content:
             application/json:
@@ -4233,7 +4227,7 @@ paths:
   /api/v1/source-proposals/{proposal_id}/:
     get:
       operationId: v1_source_proposals_retrieve
-      summary: Resume a Source Proposal
+      summary: Read a Source Proposal
       parameters:
       - in: path
         name: proposal_id
@@ -4243,32 +4237,6 @@ paths:
         required: true
       tags:
       - v1
-      security:
-      - cookieAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SourceProposal'
-          description: ''
-    patch:
-      operationId: v1_source_proposals_partial_update
-      summary: Save Source Proposal website and authority details
-      parameters:
-      - in: path
-        name: proposal_id
-        schema:
-          type: string
-          format: uuid
-        required: true
-      tags:
-      - v1
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/PatchedSourceProposalDetails'
       security:
       - cookieAuth: []
       responses:
@@ -4280,7 +4248,7 @@ paths:
           description: ''
     delete:
       operationId: v1_source_proposals_destroy
-      summary: Discard a Source Proposal draft
+      summary: Discard an unsubmitted or changes-requested Source Proposal
       parameters:
       - in: path
         name: proposal_id
@@ -4295,33 +4263,6 @@ paths:
       responses:
         '204':
           description: No response body
-  /api/v1/source-proposals/{proposal_id}/draft/:
-    patch:
-      operationId: v1_source_proposals_draft_partial_update
-      summary: Autosave Source Proposal draft fields
-      parameters:
-      - in: path
-        name: proposal_id
-        schema:
-          type: string
-          format: uuid
-        required: true
-      tags:
-      - v1
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/PatchedSourceProposalDraft'
-      security:
-      - cookieAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SourceProposal'
-          description: ''
   /api/v1/source-proposals/{proposal_id}/exceptions/retry/:
     post:
       operationId: v1_source_proposals_exceptions_retry_create
@@ -4380,32 +4321,10 @@ paths:
               schema:
                 $ref: '#/components/schemas/ExtractionRequest'
           description: ''
-  /api/v1/source-proposals/{proposal_id}/preview/:
-    post:
-      operationId: v1_source_proposals_preview_create
-      summary: Prepare the no-fetch Source Proposal summary
-      parameters:
-      - in: path
-        name: proposal_id
-        schema:
-          type: string
-          format: uuid
-        required: true
-      tags:
-      - v1
-      security:
-      - cookieAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SourceProposal'
-          description: ''
   /api/v1/source-proposals/{proposal_id}/submit/:
     post:
       operationId: v1_source_proposals_submit_create
-      summary: Confirm the URL summary and submit for Operator review
+      summary: Submit complete website corrections for Operator review
       parameters:
       - in: path
         name: proposal_id
@@ -4419,7 +4338,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/SourceProposalSubmit'
+              $ref: '#/components/schemas/SourceProposalDetails'
         required: true
       security:
       - cookieAuth: []
@@ -8835,65 +8754,6 @@ components:
       properties:
         read:
           type: boolean
-    PatchedSourceProposalDetails:
-      type: object
-      properties:
-        website_name:
-          type: string
-          maxLength: 200
-        website_url:
-          type: string
-          format: uri
-          maxLength: 1000
-        relationship:
-          $ref: '#/components/schemas/SourceProposalRelationshipEnum'
-        inventory_range:
-          $ref: '#/components/schemas/SourceProposalInventoryRangeEnum'
-        sitemap_url:
-          oneOf:
-          - type: string
-            format: uri
-            maxLength: 1000
-          - type: string
-            maxLength: 0
-        operator_note:
-          type: string
-          maxLength: 5000
-        authority_declared:
-          type: boolean
-    PatchedSourceProposalDraft:
-      type: object
-      properties:
-        website_name:
-          type: string
-          maxLength: 200
-        website_url:
-          oneOf:
-          - type: string
-            format: uri
-            maxLength: 1000
-          - type: string
-            maxLength: 0
-        relationship:
-          oneOf:
-          - $ref: '#/components/schemas/SourceProposalRelationshipEnum'
-          - $ref: '#/components/schemas/BlankEnum'
-        inventory_range:
-          oneOf:
-          - $ref: '#/components/schemas/SourceProposalInventoryRangeEnum'
-          - $ref: '#/components/schemas/BlankEnum'
-        sitemap_url:
-          oneOf:
-          - type: string
-            format: uri
-            maxLength: 1000
-          - type: string
-            maxLength: 0
-        operator_note:
-          type: string
-          maxLength: 5000
-        authority_declared:
-          type: boolean
     PatchedSubmissionImageOrder:
       type: object
       properties:
@@ -12094,13 +11954,6 @@ components:
       required:
       - confirmed
       - reviewed_revision
-    SourceProposalCreate:
-      type: object
-      properties:
-        start_new:
-          type: boolean
-          default: false
-          description: Compatibility hint; the current website is always resumed.
     SourceProposalDecision:
       type: object
       properties:
@@ -12113,6 +11966,40 @@ components:
       required:
       - reason
       - reviewed_revision
+    SourceProposalDetails:
+      type: object
+      properties:
+        website_name:
+          type: string
+          maxLength: 200
+        website_url:
+          type: string
+          format: uri
+          maxLength: 1000
+        relationship:
+          $ref: '#/components/schemas/SourceProposalRelationshipEnum'
+        inventory_range:
+          $ref: '#/components/schemas/SourceProposalInventoryRangeEnum'
+        sitemap_url:
+          oneOf:
+          - type: string
+            format: uri
+            default: ''
+            maxLength: 1000
+          - type: string
+            maxLength: 0
+        operator_note:
+          type: string
+          default: ''
+          maxLength: 5000
+        authority_declared:
+          type: boolean
+      required:
+      - authority_declared
+      - inventory_range
+      - relationship
+      - website_name
+      - website_url
     SourceProposalEvent:
       type: object
       properties:
@@ -12206,13 +12093,6 @@ components:
       description: |-
         * `details` - اطلاعات وب‌سایت
         * `preview` - بازبینی اطلاعات
-    SourceProposalSubmit:
-      type: object
-      properties:
-        preview_confirmed:
-          type: boolean
-      required:
-      - preview_confirmed
     SourceProposalSubmitter:
       type: object
       properties:

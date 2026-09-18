@@ -81,23 +81,25 @@ test("shows Source Proposals separately with status and next action", async () =
   );
   expect(screen.queryByRole("link", { name: "معرفی وب‌سایت" })).toBeNull();
   expect(await screen.findByText("خانه‌یاب")).toBeVisible();
-  expect(screen.getAllByText("پیش‌نویس")[0]).toBeVisible();
+  expect(screen.getByText("ارسال‌نشده")).toBeVisible();
   expect(screen.queryByText("در انتظار تأیید نشانی")).toBeNull();
   expect(
-    screen.getByRole("link", { name: "ادامه پیشنهاد وب‌سایت خانه‌یاب" }),
+    screen.getByRole("link", {
+      name: "تکمیل و ارسال پیشنهاد وب‌سایت خانه‌یاب",
+    }),
   ).toHaveAttribute(
     "href",
     "/dashboard/website?proposal=10000000-0000-4000-8000-000000000087",
   );
 
   await user.click(
-    screen.getByRole("button", { name: "حذف پیش‌نویس خانه‌یاب" }),
+    screen.getByRole("button", { name: "انصراف از پیشنهاد خانه‌یاب" }),
   );
-  await user.click(screen.getByRole("button", { name: "حذف پیش‌نویس" }));
+  await user.click(screen.getByRole("button", { name: "انصراف از پیشنهاد" }));
 
   expect(
     await screen.findByText(
-      "این پیش‌نویس حذف شده است و در سوابق باقی می‌ماند.",
+      "این پیشنهاد بسته شده است و در سوابق باقی می‌ماند.",
     ),
   ).toBeVisible();
 });
@@ -860,7 +862,7 @@ test("surfaces legacy conflicts and keeps explicit draft removal available", asy
   );
   expect(await screen.findByText("تعارض وب‌سایت‌های جاری")).toBeVisible();
   expect(
-    screen.getByRole("button", { name: "حذف پیش‌نویس وب‌سایت اضافی" }),
+    screen.getByRole("button", { name: "انصراف از پیشنهاد وب‌سایت اضافی" }),
   ).toBeEnabled();
   expect(
     screen.queryByRole("link", { name: "معرفی وب‌سایت تازه" }),

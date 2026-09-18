@@ -1,6 +1,7 @@
 import pytest
 
 from tests.test_source_proposal_review import make_operator, make_pending_proposal, make_user
+from tests.test_source_proposals import website_details
 
 
 @pytest.mark.django_db
@@ -338,13 +339,13 @@ def test_conversation_stays_available_while_correcting_requested_changes(api_cli
     opened = api_client.post(
         "/api/v1/messages/source-conversations/", {"proposal_id": str(proposal.pk)}, format="json"
     ).json()
-    edited = api_client.patch(
-        f"/api/v1/source-proposals/{proposal.pk}/draft/",
-        {"website_name": "نام اصلاح‌شده"},
+    edited = api_client.post(
+        f"/api/v1/source-proposals/{proposal.pk}/submit/",
+        {**website_details(), "website_name": "نام اصلاح‌شده"},
         format="json",
     )
     assert edited.status_code == 200
-    assert edited.json()["state"] == "draft"
+    assert edited.json()["state"] == "pending"
     assert api_client.get(f"/api/v1/messages/{opened['id']}/").status_code == 200
     assert (
         api_client.post(
@@ -363,5 +364,5 @@ def test_conversation_stays_available_while_correcting_requested_changes(api_cli
         api_client.get(f"/api/v1/operator/source-proposals/?proposal={proposal.pk}").json()[0][
             "state"
         ]
-        == "draft"
+        == "pending"
     )

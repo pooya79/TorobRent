@@ -38,28 +38,6 @@ class CurrentWebsiteConflictSerializer(serializers.Serializer[Any]):
     detail = serializers.CharField()
 
 
-class SourceProposalCreateSerializer(serializers.Serializer[Any]):
-    start_new = serializers.BooleanField(
-        required=False,
-        default=False,
-        help_text="Compatibility hint; the current website is always resumed.",
-    )
-
-
-class SourceProposalDraftSerializer(serializers.Serializer[Any]):
-    website_name = serializers.CharField(max_length=200, required=False, allow_blank=True)
-    website_url = serializers.URLField(max_length=1000, required=False, allow_blank=True)
-    relationship = serializers.ChoiceField(
-        choices=SourceRepresentativeRelationship.choices, required=False, allow_blank=True
-    )
-    inventory_range = serializers.ChoiceField(
-        choices=InventoryRange.choices, required=False, allow_blank=True
-    )
-    sitemap_url = serializers.URLField(max_length=1000, required=False, allow_blank=True)
-    operator_note = serializers.CharField(max_length=5000, required=False, allow_blank=True)
-    authority_declared = serializers.BooleanField(required=False)
-
-
 class SourceProposalDetailsSerializer(serializers.Serializer[Any]):
     website_name = serializers.CharField(
         max_length=200,
@@ -80,22 +58,17 @@ class SourceProposalDetailsSerializer(serializers.Serializer[Any]):
         choices=InventoryRange.choices,
         error_messages={"required": REQUIRED_ERROR, "invalid_choice": "بازه انتخاب‌شده معتبر نیست."},
     )
-    sitemap_url = serializers.URLField(max_length=1000, required=False, allow_blank=True)
-    operator_note = serializers.CharField(max_length=5000, required=False, allow_blank=True)
+    sitemap_url = serializers.URLField(
+        max_length=1000, required=False, allow_blank=True, default=""
+    )
+    operator_note = serializers.CharField(
+        max_length=5000, required=False, allow_blank=True, default=""
+    )
     authority_declared = serializers.BooleanField(error_messages={"required": REQUIRED_ERROR})
 
     def validate_authority_declared(self, value: bool) -> bool:
         if not value:
             raise serializers.ValidationError("اعلام اختیار برای معرفی وب‌سایت الزامی است.")
-        return value
-
-
-class SourceProposalSubmitSerializer(serializers.Serializer[Any]):
-    preview_confirmed = serializers.BooleanField(error_messages={"required": REQUIRED_ERROR})
-
-    def validate_preview_confirmed(self, value: bool) -> bool:
-        if not value:
-            raise serializers.ValidationError("تأیید اطلاعات وب‌سایت الزامی است.")
         return value
 
 

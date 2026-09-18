@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { MemoryRouter, useLocation } from "react-router";
@@ -14,241 +14,186 @@ function LocationSearch() {
   return <output data-testid="location-search">{useLocation().search}</output>;
 }
 
-test("does not create a Source Proposal draft merely by opening the empty form", async () => {
-  let createCount = 0;
+function renderForm(path = "/dashboard/website?new=1") {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  render(
+    <QueryClientProvider client={client}>
+      <MemoryRouter initialEntries={[path]}>
+        <SourceProposalPage />
+        <LocationSearch />
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+  return client;
+}
+
+const details = {
+  website_name: "خانه‌یاب",
+  website_url: "https://khaneh.example/rentals",
+  relationship: "website_owner",
+  inventory_range: "unknown",
+  sitemap_url: "",
+  operator_note: "",
+  authority_declared: true,
+};
+
+test("opening, typing and blurring do not persist a website draft", async () => {
+  const user = userEvent.setup();
+  const mutations: string[] = [];
   server.use(
     http.get("*/api/v1/source-proposals/", () => HttpResponse.json([])),
     http.post("*/api/v1/source-proposals/", () => {
-      createCount += 1;
+      mutations.push("create");
+      return HttpResponse.json({});
+    }),
+    http.patch("*/api/v1/source-proposals/:id/draft/", () => {
+      mutations.push("autosave");
+      return HttpResponse.json({});
+    }),
+  );
+  renderForm();
+  await user.type(
+    await screen.findByLabelText("نام وب‌سایت"),
+    details.website_name,
+  );
+  await user.type(
+    screen.getByLabelText("نشانی صفحه اصلی یا کاتالوگ"),
+    details.website_url,
+  );
+  await user.tab();
+  expect(mutations).toEqual([]);
+  expect(
+    screen.queryByRole("button", { name: /ذخیره|پیش‌نمایش/ }),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.getByRole("button", { name: "ارسال برای بررسی" }),
+  ).toBeDisabled();
+});
+
+test("submits all details once and opens the pending review status", async () => {
+  const user = userEvent.setup();
+  const requests: unknown[] = [];
+  server.use(
+    http.get("*/api/v1/source-proposals/", () => HttpResponse.json([])),
+    http.post("*/api/v1/source-proposals/", async ({ request }) => {
+      requests.push(await request.json());
       return HttpResponse.json(
         {
           id: proposalId,
-          state: "draft",
-          current_step: "details",
-          website_name: "",
-          website_url: "",
-          relationship: "",
-          inventory_range: "",
-          sitemap_url: "",
-          operator_note: "",
-          authority_declared: false,
-          preview: null,
-          preview_confirmed: false,
-          available_actions: ["edit", "delete"],
+          ...details,
+          state: "pending",
+          is_current: true,
+          available_actions: [],
         },
         { status: 201 },
       );
     }),
   );
-
-  render(
-    <QueryClientProvider
-      client={
-        new QueryClient({ defaultOptions: { queries: { retry: false } } })
-      }
-    >
-      <MemoryRouter initialEntries={["/dashboard/website?new=1"]}>
-        <SourceProposalPage />
-      </MemoryRouter>
-    </QueryClientProvider>,
+  renderForm();
+  await user.type(
+    await screen.findByLabelText("نام وب‌سایت"),
+    details.website_name,
   );
-
-  expect(
-    await screen.findByRole("heading", { name: "معرفی وب‌سایت اجاره" }),
-  ).toBeVisible();
-  expect(createCount).toBe(0);
-});
-
-test("cleans up a new empty draft when the first details save is rejected", async () => {
-  const user = userEvent.setup();
-  let removed = false;
-  server.use(
-    http.get("*/api/v1/source-proposals/", () => HttpResponse.json([])),
-    http.post("*/api/v1/source-proposals/", () =>
-      HttpResponse.json(
-        {
-          id: proposalId,
-          state: "draft",
-          current_step: "details",
-          website_name: "",
-          website_url: "",
-          available_actions: ["edit", "delete"],
-        },
-        { status: 201 },
-      ),
-    ),
-    http.patch("*/api/v1/source-proposals/:proposalId/", () =>
-      HttpResponse.json({ detail: "نشانی عمومی معتبر نیست." }, { status: 400 }),
-    ),
-    http.delete("*/api/v1/source-proposals/:proposalId/", () => {
-      removed = true;
-      return new HttpResponse(null, { status: 204 });
-    }),
-  );
-  render(
-    <QueryClientProvider
-      client={
-        new QueryClient({
-          defaultOptions: {
-            queries: { retry: false },
-            mutations: { retry: false },
-          },
-        })
-      }
-    >
-      <MemoryRouter initialEntries={["/dashboard/website?new=1"]}>
-        <SourceProposalPage />
-      </MemoryRouter>
-    </QueryClientProvider>,
-  );
-
-  const name = await screen.findByLabelText("نام وب‌سایت");
-  const url = screen.getByLabelText("نشانی صفحه اصلی یا کاتالوگ");
-  await user.type(name, "خانه‌یاب");
-  await user.type(url, "https://unsafe.example/catalog");
-  await user.click(screen.getByLabelText(/اختیار معرفی این وب‌سایت/));
-  await user.click(
-    screen.getByRole("button", { name: "ذخیره و مشاهده پیش‌نمایش" }),
-  );
-
-  expect(await screen.findByText("نشانی عمومی معتبر نیست.")).toBeVisible();
-  await waitFor(() => expect(removed).toBe(true));
-  expect(name).toHaveValue("خانه‌یاب");
-  expect(url).toHaveValue("https://unsafe.example/catalog");
-});
-
-test("saves website details and confirms the no-fetch summary", async () => {
-  const user = userEvent.setup();
-  let savedBody: unknown;
-  let submittedBody: unknown;
-  const base = {
-    id: proposalId,
-    state: "draft" as const,
-    current_step: "details" as const,
-    website_name: "",
-    website_url: "",
-    relationship: "",
-    inventory_range: "",
-    sitemap_url: "",
-    operator_note: "",
-    authority_declared: false,
-    preview: {},
-    preview_confirmed: false,
-    pending_since: null,
-    available_actions: ["edit"],
-    created_at: "2026-08-31T08:00:00Z",
-    updated_at: "2026-08-31T08:00:00Z",
-  };
-  server.use(
-    http.get("*/api/v1/source-proposals/", () => HttpResponse.json([])),
-    http.post("*/api/v1/source-proposals/", () =>
-      HttpResponse.json(base, { status: 201 }),
-    ),
-    http.patch("*/api/v1/source-proposals/:proposalId/draft/", () =>
-      HttpResponse.json(base),
-    ),
-    http.patch(
-      "*/api/v1/source-proposals/:proposalId/",
-      async ({ request }) => {
-        savedBody = await request.json();
-        return HttpResponse.json({ ...base, current_step: "preview" });
-      },
-    ),
-    http.post("*/api/v1/source-proposals/:proposalId/preview/", () =>
-      HttpResponse.json({
-        ...base,
-        current_step: "preview",
-        preview: {
-          title: "بازبینی اطلاعات وب‌سایت",
-          disclaimer:
-            "تا پیش از تأیید نشانی توسط اپراتور هیچ درخواستی به وب‌سایت ارسال نمی‌شود.",
-        },
-      }),
-    ),
-    http.post(
-      "*/api/v1/source-proposals/:proposalId/submit/",
-      async ({ request }) => {
-        submittedBody = await request.json();
-        return HttpResponse.json({
-          ...base,
-          state: "pending",
-          current_step: "preview",
-          preview_confirmed: true,
-          pending_since: "2026-08-31T09:00:00Z",
-          available_actions: [],
-        });
-      },
-    ),
-  );
-  const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
-  });
-  render(
-    <QueryClientProvider client={queryClient}>
-      <MemoryRouter>
-        <SourceProposalPage />
-      </MemoryRouter>
-    </QueryClientProvider>,
-  );
-
-  await user.type(await screen.findByLabelText("نام وب‌سایت"), "خانه‌یاب");
   await user.type(
     screen.getByLabelText("نشانی صفحه اصلی یا کاتالوگ"),
-    "https://khaneh.example/rentals",
-  );
-  await user.selectOptions(
-    screen.getByLabelText("رابطه شما با وب‌سایت"),
-    "website_manager",
-  );
-  await user.selectOptions(
-    screen.getByLabelText("تعداد تقریبی ملک‌ها"),
-    "51_200",
+    details.website_url,
   );
   await user.click(screen.getByLabelText(/اختیار معرفی این وب‌سایت/));
-  await user.click(
-    screen.getByRole("button", { name: "ذخیره و مشاهده پیش‌نمایش" }),
-  );
-
-  expect(await screen.findByText("بازبینی اطلاعات وب‌سایت")).toBeVisible();
-  expect(screen.getByText(/هیچ درخواستی به وب‌سایت/)).toBeVisible();
-  expect(screen.getByText(/تعداد قطعی یا تضمین‌شده‌ای/)).toBeVisible();
-  expect(savedBody).toMatchObject({
-    website_name: "خانه‌یاب",
-    website_url: "https://khaneh.example/rentals",
-    relationship: "website_manager",
-    inventory_range: "51_200",
-    authority_declared: true,
-  });
-
-  await user.click(screen.getByLabelText(/این اطلاعات را بررسی کردم/));
   await user.click(screen.getByRole("button", { name: "ارسال برای بررسی" }));
-
   expect(await screen.findByText("در انتظار بررسی اپراتور")).toBeVisible();
-  expect(submittedBody).toEqual({ preview_confirmed: true });
-  server.use(
-    http.get("*/api/v1/source-proposals/", () =>
-      HttpResponse.json([
-        {
-          ...base,
-          state: "approved",
-          is_current: true,
-          website_name: "خانه‌یاب",
-          assignment: {
-            id: 12,
-            state: "active",
-            source: { processing_paused: false },
-            recent_requests: [],
-          },
-        },
-      ]),
-    ),
+  expect(requests).toEqual([details]);
+  expect(screen.getByTestId("location-search")).toHaveTextContent(
+    `?proposal=${proposalId}`,
   );
-  await act(() =>
-    queryClient.invalidateQueries({ queryKey: ["source-proposal-resume"] }),
-  );
-  expect(await screen.findByText("وب‌سایت تأیید شده است")).toBeVisible();
-  expect(screen.queryByText("در انتظار بررسی اپراتور")).not.toBeInTheDocument();
+  expect(screen.queryByLabelText("نام وب‌سایت")).not.toBeInTheDocument();
 });
+
+test("failed submission retains entered details and can be retried", async () => {
+  const user = userEvent.setup();
+  let attempts = 0;
+  server.use(
+    http.get("*/api/v1/source-proposals/", () => HttpResponse.json([])),
+    http.post("*/api/v1/source-proposals/", () => {
+      attempts++;
+      return attempts === 1
+        ? HttpResponse.json(
+            { detail: "نشانی عمومی معتبر نیست." },
+            { status: 400 },
+          )
+        : HttpResponse.json(
+            {
+              id: proposalId,
+              ...details,
+              state: "pending",
+              is_current: true,
+              available_actions: [],
+            },
+            { status: 201 },
+          );
+    }),
+  );
+  renderForm();
+  const name = await screen.findByLabelText("نام وب‌سایت");
+  await user.type(name, details.website_name);
+  await user.type(
+    screen.getByLabelText("نشانی صفحه اصلی یا کاتالوگ"),
+    details.website_url,
+  );
+  await user.click(screen.getByLabelText(/اختیار معرفی این وب‌سایت/));
+  await user.click(screen.getByRole("button", { name: "ارسال برای بررسی" }));
+  expect(await screen.findByText("نشانی عمومی معتبر نیست.")).toBeVisible();
+  expect(name).toHaveValue(details.website_name);
+  expect(screen.getByLabelText("نشانی صفحه اصلی یا کاتالوگ")).toHaveValue(
+    details.website_url,
+  );
+  await user.click(screen.getByRole("button", { name: "ارسال برای بررسی" }));
+  expect(await screen.findByText("در انتظار بررسی اپراتور")).toBeVisible();
+  expect(attempts).toBe(2);
+});
+
+test.each(["changes_requested", "draft"])(
+  "submits an existing %s case without autosaving edits",
+  async (state) => {
+    const user = userEvent.setup();
+    let submitted: unknown;
+    let saves = 0;
+    const existing = {
+      id: proposalId,
+      ...details,
+      state,
+      is_current: true,
+      available_actions: ["edit"],
+    };
+    server.use(
+      http.get("*/api/v1/source-proposals/:id/", () =>
+        HttpResponse.json(existing),
+      ),
+      http.patch("*/api/v1/source-proposals/:id/draft/", () => {
+        saves++;
+        return HttpResponse.json(existing);
+      }),
+      http.post(
+        "*/api/v1/source-proposals/:id/submit/",
+        async ({ request }) => {
+          submitted = await request.json();
+          return HttpResponse.json({ ...existing, state: "pending" });
+        },
+      ),
+    );
+    renderForm(`/dashboard/website?proposal=${proposalId}`);
+    const note = await screen.findByLabelText("یادداشت برای اپراتور (اختیاری)");
+    await user.type(note, "اصلاح شد");
+    await user.tab();
+    expect(saves).toBe(0);
+    await user.click(
+      screen.getByRole("button", { name: "ارسال مجدد برای بررسی" }),
+    );
+    expect(await screen.findByText("در انتظار بررسی اپراتور")).toBeVisible();
+    expect(submitted).toEqual({ ...details, operator_note: "اصلاح شد" });
+  },
+);
 
 test("restores a pending Source Proposal with actionable discovery feedback", async () => {
   server.use(
@@ -346,299 +291,6 @@ test("resumes the Source Proposal selected from the dashboard", async () => {
     "همین پیشنهاد باید باز شود.",
   );
   expect(createCalled).toBe(false);
-});
-
-test("creates a draft from valid details and replaces the one-shot new flag", async () => {
-  const user = userEvent.setup();
-  let createBody: unknown;
-  const created = {
-    id: proposalId,
-    state: "draft" as const,
-    current_step: "details" as const,
-    website_name: "",
-    website_url: "",
-    relationship: "",
-    inventory_range: "",
-    sitemap_url: "",
-    operator_note: "",
-    authority_declared: false,
-    preview: null,
-    preview_confirmed: false,
-    pending_since: null,
-    available_actions: ["edit"],
-    created_at: "2026-08-31T08:00:00Z",
-    updated_at: "2026-08-31T08:00:00Z",
-  };
-  server.use(
-    http.get("*/api/v1/source-proposals/", () => HttpResponse.json([])),
-    http.post("*/api/v1/source-proposals/", async ({ request }) => {
-      createBody = await request.json();
-      return HttpResponse.json(created, { status: 201 });
-    }),
-    http.patch("*/api/v1/source-proposals/:proposalId/", () =>
-      HttpResponse.json({
-        ...created,
-        website_name: "خانه‌یاب",
-        website_url: "https://khaneh.example/",
-        authority_declared: true,
-      }),
-    ),
-    http.post("*/api/v1/source-proposals/:proposalId/preview/", () =>
-      HttpResponse.json({
-        ...created,
-        preview: {
-          title: "بازبینی اطلاعات وب‌سایت",
-          disclaimer: "هیچ درخواستی به وب‌سایت ارسال نمی‌شود.",
-        },
-      }),
-    ),
-  );
-  const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
-  });
-  render(
-    <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={["/dashboard/website?new=1"]}>
-        <SourceProposalPage />
-        <LocationSearch />
-      </MemoryRouter>
-    </QueryClientProvider>,
-  );
-
-  expect(
-    await screen.findByRole("heading", {
-      name: "معرفی وب‌سایت اجاره",
-    }),
-  ).toBeVisible();
-  expect(createBody).toBeUndefined();
-  await user.type(screen.getByLabelText("نام وب‌سایت"), "خانه‌یاب");
-  await user.type(
-    screen.getByLabelText("نشانی صفحه اصلی یا کاتالوگ"),
-    "https://khaneh.example/",
-  );
-  await user.click(screen.getByLabelText(/اختیار معرفی این وب‌سایت/));
-  await user.click(
-    screen.getByRole("button", { name: "ذخیره و مشاهده پیش‌نمایش" }),
-  );
-  expect(createBody).toEqual({ start_new: true });
-  await waitFor(() =>
-    expect(screen.getByTestId("location-search")).toHaveTextContent(
-      `?proposal=${proposalId}`,
-    ),
-  );
-});
-
-test("keeps entered details available when URL validation fails", async () => {
-  const user = userEvent.setup();
-  const existing = {
-    id: proposalId,
-    state: "draft",
-    is_current: true,
-    current_step: "details",
-    website_name: "",
-    website_url: "",
-    relationship: "",
-    inventory_range: "",
-    sitemap_url: "",
-    operator_note: "",
-    authority_declared: false,
-    preview: {},
-    preview_confirmed: false,
-    pending_since: null,
-    available_actions: ["edit"],
-    created_at: "2026-08-31T08:00:00Z",
-    updated_at: "2026-08-31T08:00:00Z",
-  };
-  server.use(
-    http.get("*/api/v1/source-proposals/", () => HttpResponse.json([existing])),
-    http.patch("*/api/v1/source-proposals/:proposalId/", () =>
-      HttpResponse.json({ detail: "نشانی عمومی معتبر نیست." }, { status: 400 }),
-    ),
-    http.patch("*/api/v1/source-proposals/:proposalId/draft/", () =>
-      HttpResponse.json({
-        id: proposalId,
-        state: "draft",
-        current_step: "details",
-        website_name: "خانه‌یاب",
-        website_url: "https://unsafe.example/catalog",
-        relationship: "website_owner",
-        inventory_range: "unknown",
-        sitemap_url: "",
-        operator_note: "",
-        authority_declared: true,
-        preview: null,
-        preview_confirmed: false,
-        pending_since: null,
-        available_actions: ["edit"],
-        created_at: "2026-08-31T08:00:00Z",
-        updated_at: "2026-08-31T08:00:00Z",
-      }),
-    ),
-  );
-  const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
-  });
-  render(
-    <QueryClientProvider client={queryClient}>
-      <MemoryRouter>
-        <SourceProposalPage />
-      </MemoryRouter>
-    </QueryClientProvider>,
-  );
-
-  const name = await screen.findByLabelText("نام وب‌سایت");
-  const url = screen.getByLabelText("نشانی صفحه اصلی یا کاتالوگ");
-  await user.type(name, "خانه‌یاب");
-  await user.type(url, "https://unsafe.example/catalog");
-  await user.click(screen.getByLabelText(/اختیار معرفی این وب‌سایت/));
-  await user.click(
-    screen.getByRole("button", { name: "ذخیره و مشاهده پیش‌نمایش" }),
-  );
-
-  expect(await screen.findByText(/نشانی عمومی معتبر نیست/)).toBeVisible();
-  expect(name).toHaveValue("خانه‌یاب");
-  expect(url).toHaveValue("https://unsafe.example/catalog");
-});
-
-test("shows one actionable error without autosaving the URL when submit receives focus", async () => {
-  const user = userEvent.setup();
-  const existing = {
-    id: proposalId,
-    state: "draft",
-    is_current: true,
-    current_step: "details",
-    website_name: "خانه روشن",
-    website_url: "https://old.example/",
-    relationship: "website_owner",
-    inventory_range: "more_than_200",
-    sitemap_url: "",
-    operator_note: "",
-    authority_declared: true,
-    preview: {},
-    preview_confirmed: false,
-    pending_since: null,
-    available_actions: ["edit"],
-    created_at: "2026-08-31T08:00:00Z",
-    updated_at: "2026-08-31T08:00:00Z",
-  };
-  const autosavedBodies: unknown[] = [];
-  const problem = {
-    type: "https://example.com/problems/validation_error",
-    title: "Bad request",
-    status: 400,
-    detail:
-      "این نشانی فقط برای پیش‌نمایش مرورگر است. برای ثبت منبع از http://jsonld.demo.example.com/rentals/ استفاده کنید.",
-    code: "validation_error",
-  };
-  server.use(
-    http.get("*/api/v1/source-proposals/", () => HttpResponse.json([existing])),
-    http.patch(
-      "*/api/v1/source-proposals/:proposalId/draft/",
-      async ({ request }) => {
-        autosavedBodies.push(await request.json());
-        return HttpResponse.json(problem, { status: 400 });
-      },
-    ),
-    http.patch("*/api/v1/source-proposals/:proposalId/", () =>
-      HttpResponse.json(problem, { status: 400 }),
-    ),
-  );
-  render(
-    <QueryClientProvider
-      client={
-        new QueryClient({
-          defaultOptions: {
-            queries: { retry: false },
-            mutations: { retry: false },
-          },
-        })
-      }
-    >
-      <MemoryRouter>
-        <SourceProposalPage />
-      </MemoryRouter>
-    </QueryClientProvider>,
-  );
-
-  const url = await screen.findByLabelText("نشانی صفحه اصلی یا کاتالوگ");
-  await user.clear(url);
-  await user.type(url, "http://jsonld.localhost:8088/rentals/");
-  await user.click(
-    screen.getByRole("button", { name: "ذخیره و مشاهده پیش‌نمایش" }),
-  );
-
-  expect(await screen.findByText(/فقط برای پیش‌نمایش مرورگر/)).toBeVisible();
-  expect(screen.getAllByText(/فقط برای پیش‌نمایش مرورگر/)).toHaveLength(1);
-  expect(autosavedBodies).not.toContainEqual({
-    website_url: "http://jsonld.localhost:8088/rentals/",
-  });
-});
-
-test("clears an old autosave error after a successful explicit save", async () => {
-  const user = userEvent.setup();
-  const existing = {
-    id: proposalId,
-    state: "draft",
-    is_current: true,
-    current_step: "details",
-    website_name: "خانه روشن",
-    website_url: "https://old.example/",
-    relationship: "website_owner",
-    inventory_range: "more_than_200",
-    sitemap_url: "",
-    operator_note: "",
-    authority_declared: true,
-    preview: {},
-    preview_confirmed: false,
-    available_actions: ["edit"],
-  };
-  server.use(
-    http.get("*/api/v1/source-proposals/", () => HttpResponse.json([existing])),
-    http.patch("*/api/v1/source-proposals/:proposalId/draft/", () =>
-      HttpResponse.json({ detail: "خطای ذخیره خودکار" }, { status: 400 }),
-    ),
-    http.patch("*/api/v1/source-proposals/:proposalId/", () =>
-      HttpResponse.json({ ...existing, current_step: "preview" }),
-    ),
-    http.post("*/api/v1/source-proposals/:proposalId/preview/", () =>
-      HttpResponse.json({
-        ...existing,
-        current_step: "preview",
-        preview: {
-          title: "بازبینی اطلاعات وب‌سایت",
-          disclaimer: "هیچ درخواستی به وب‌سایت ارسال نمی‌شود.",
-        },
-      }),
-    ),
-  );
-  render(
-    <QueryClientProvider
-      client={
-        new QueryClient({
-          defaultOptions: {
-            queries: { retry: false },
-            mutations: { retry: false },
-          },
-        })
-      }
-    >
-      <MemoryRouter>
-        <SourceProposalPage />
-      </MemoryRouter>
-    </QueryClientProvider>,
-  );
-
-  const url = await screen.findByLabelText("نشانی صفحه اصلی یا کاتالوگ");
-  await user.clear(url);
-  await user.type(url, "https://valid.example/");
-  await user.tab();
-  expect(await screen.findByText("خطای ذخیره خودکار")).toBeVisible();
-  await user.click(
-    screen.getByRole("button", { name: "ذخیره و مشاهده پیش‌نمایش" }),
-  );
-
-  expect(await screen.findByText("بازبینی اطلاعات وب‌سایت")).toBeVisible();
-  expect(screen.queryByText("خطای ذخیره خودکار")).not.toBeInTheDocument();
 });
 
 test.each([

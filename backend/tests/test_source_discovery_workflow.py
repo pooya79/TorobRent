@@ -122,8 +122,6 @@ def test_no_fetch_validation_preserves_exact_host(api_client, monkeypatch):
 
     monkeypatch.setattr(socket, "getaddrinfo", forbidden)
     authenticate_submitter(api_client)
-    proposal = api_client.post("/api/v1/source-proposals/", {}, format="json").data
-    url = f"/api/v1/source-proposals/{proposal['id']}/"
     details = {
         "website_name": "وب‌سایت",
         "website_url": "https://WWW.Khaneh.example./rentals#top",
@@ -132,15 +130,12 @@ def test_no_fetch_validation_preserves_exact_host(api_client, monkeypatch):
         "inventory_range": "unknown",
         "authority_declared": True,
     }
-    response = api_client.patch(url, details, format="json")
-    assert response.status_code == 200
+    invalid = {**details, "sitemap_url": "https://khaneh.example/sitemap.xml"}
+    assert api_client.post("/api/v1/source-proposals/", invalid, format="json").status_code == 400
+    response = api_client.post("/api/v1/source-proposals/", details, format="json")
+    assert response.status_code == 201
     assert response.data["website_url"] == "https://www.khaneh.example/rentals"
-    details["sitemap_url"] = "https://khaneh.example/sitemap.xml"
-    assert api_client.patch(url, details, format="json").status_code == 400
-    assert api_client.post(f"{url}preview/", {}, format="json").status_code == 200
-    submitted = api_client.post(f"{url}submit/", {"preview_confirmed": True}, format="json")
-    assert submitted.status_code == 200
-    assert submitted.data["discovery_stage"] == "awaiting_url"
+    assert response.data["discovery_stage"] == "awaiting_url"
 
 
 @pytest.mark.django_db
@@ -367,7 +362,7 @@ def test_running_discovery_stops_after_abandonment_and_cannot_overwrite_case(
 
 @pytest.mark.django_db
 def test_resubmitted_revision_waits_for_its_own_url_approval(api_client):
-    from tests.test_source_proposals import complete_details, submit_proposal
+    from tests.test_source_proposals import website_details
 
     representative = make_user(email="rep@example.com", submitter=True)
     proposal = make_pending_proposal(submitter=representative)
@@ -385,8 +380,14 @@ def test_resubmitted_revision_waits_for_its_own_url_approval(api_client):
         format="json",
     )
     api_client.force_authenticate(representative)
-    assert complete_details(api_client, proposal.pk, proposal.website_url).status_code == 200
-    submit_proposal(api_client, proposal.pk)
+    assert (
+        api_client.post(
+            f"/api/v1/source-proposals/{proposal.pk}/submit/",
+            website_details(),
+            format="json",
+        ).status_code
+        == 200
+    )
     case = api_client.get(f"/api/v1/source-proposals/{proposal.pk}/").data
     assert case["revision"] == 2
     assert case["discovery_stage"] == "awaiting_url"

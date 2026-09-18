@@ -6,9 +6,7 @@ import type { components } from "@/lib/api/schema";
 
 export type SourceProposal = components["schemas"]["SourceProposal"];
 export type SourceProposalDetails =
-  components["schemas"]["PatchedSourceProposalDetails"];
-export type SourceProposalDraft =
-  components["schemas"]["PatchedSourceProposalDraft"];
+  components["schemas"]["SourceProposalDetails"];
 export type OperatorSourceProposal =
   components["schemas"]["OperatorSourceProposal"];
 export type ExternalListingCandidate =
@@ -26,15 +24,10 @@ export const sourceProposalsQueryOptions = queryOptions({
   queryFn: listSourceProposals,
 });
 
-export async function resumeOrCreateSourceProposal(startNew = false) {
-  const { data, error, response } = await api.POST(
-    "/api/v1/source-proposals/",
-    {
-      body: { start_new: startNew },
-    },
-  );
+export async function createSourceProposal(body: SourceProposalDetails) {
+  const { data, error } = await api.POST("/api/v1/source-proposals/", { body });
   if (error || !data) throw apiError(error);
-  return { proposal: data, created: response.status === 201 };
+  return data;
 }
 
 export async function getSourceProposal(proposalId: string) {
@@ -54,46 +47,13 @@ export async function removeSourceProposalDraft(proposalId: string) {
   if (error) throw apiError(error);
 }
 
-export async function autosaveSourceProposalDraft(
-  proposalId: string,
-  body: SourceProposalDraft,
-) {
-  const { data, error } = await api.PATCH(
-    "/api/v1/source-proposals/{proposal_id}/draft/",
-    { params: { path: { proposal_id: proposalId } }, body },
-  );
-  if (error || !data) throw apiError(error);
-  return data;
-}
-
-export async function saveSourceProposalDetails(
+export async function submitSourceProposal(
   proposalId: string,
   body: SourceProposalDetails,
 ) {
-  const { data, error } = await api.PATCH(
-    "/api/v1/source-proposals/{proposal_id}/",
-    { params: { path: { proposal_id: proposalId } }, body },
-  );
-  if (error || !data) throw apiError(error);
-  return data;
-}
-
-export async function generateSourceProposalPreview(proposalId: string) {
-  const { data, error } = await api.POST(
-    "/api/v1/source-proposals/{proposal_id}/preview/",
-    { params: { path: { proposal_id: proposalId } } },
-  );
-  if (error || !data) throw apiError(error);
-  return data;
-}
-
-export async function submitSourceProposal(proposalId: string) {
   const { data, error } = await api.POST(
     "/api/v1/source-proposals/{proposal_id}/submit/",
-    {
-      params: { path: { proposal_id: proposalId } },
-      body: { preview_confirmed: true },
-    },
+    { params: { path: { proposal_id: proposalId } }, body },
   );
   if (error || !data) throw apiError(error);
   return data;

@@ -4,9 +4,7 @@ from .exception_views import SourceExceptionRetryView
 from .views import (
     ExtractionRequestCreateView,
     SourceProposalDetailView,
-    SourceProposalDraftView,
     SourceProposalListCreateView,
-    SourceProposalPreviewView,
     SourceProposalSubmitView,
 )
 
@@ -25,7 +23,5 @@ urlpatterns = [
     ),
     path("", SourceProposalListCreateView.as_view(), name="list-create"),
     path("<uuid:proposal_id>/", SourceProposalDetailView.as_view(), name="detail"),
-    path("<uuid:proposal_id>/preview/", SourceProposalPreviewView.as_view(), name="preview"),
-    path("<uuid:proposal_id>/draft/", SourceProposalDraftView.as_view(), name="draft"),
     path("<uuid:proposal_id>/submit/", SourceProposalSubmitView.as_view(), name="submit"),
 ]

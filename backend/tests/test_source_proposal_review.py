@@ -8,6 +8,7 @@ from apps.accounts.models import User
 from apps.catalog.models import Listing, Source
 from apps.communications.models import SystemNotification
 from apps.source_proposals.models import ExternalListingCandidate, SourceProposal
+from tests.test_source_proposals import website_details
 
 
 def make_user(*, email: str, submitter: bool = False) -> User:
@@ -145,9 +146,9 @@ def test_operator_claims_and_requests_changes_then_representative_resumes(
 
     api_client.force_authenticate(representative)
     dashboard = api_client.get("/api/v1/source-proposals/")
-    resumed = api_client.patch(
-        f"/api/v1/source-proposals/{proposal.id}/draft/",
-        {"operator_note": "اختیار مدیریت طبق قرارداد نمایندگی است."},
+    resumed = api_client.post(
+        f"/api/v1/source-proposals/{proposal.id}/submit/",
+        {**website_details(), "operator_note": "اختیار مدیریت طبق قرارداد نمایندگی است."},
         format="json",
     )
 
@@ -157,11 +158,11 @@ def test_operator_claims_and_requests_changes_then_representative_resumes(
         "مدرک اختیار مدیریت وب‌سایت را توضیح دهید."
     )
     assert resumed.status_code == 200
-    assert resumed.data["state"] == "draft"
+    assert resumed.data["state"] == "pending"
     assert resumed.data["revision"] == 2
     assert [event["new_state"] for event in resumed.data["history"]] == [
         "changes_requested",
-        "draft",
+        "pending",
     ]
 
 

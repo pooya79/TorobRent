@@ -6,6 +6,7 @@ import pytest
 from django.utils import timezone
 
 from tests.test_source_proposal_review import make_operator, make_pending_proposal, make_user
+from tests.test_source_proposals import website_details
 from tests.test_source_responsibility import queue_manager
 
 
@@ -95,7 +96,7 @@ def test_two_operators_cannot_claim_the_same_unassigned_case(api_client):
 
 
 @pytest.mark.django_db
-def test_correction_drafts_stay_in_queue_but_discarded_cases_cannot_be_claimed(api_client):
+def test_resubmitted_corrections_stay_in_queue_but_discarded_cases_cannot_be_claimed(api_client):
     representative = make_user(email="owner@example.com", submitter=True)
     proposal = make_pending_proposal(submitter=representative)
     operator = make_operator()
@@ -111,13 +112,13 @@ def test_correction_drafts_stay_in_queue_but_discarded_cases_cannot_be_claimed(a
         == 200
     )
     api_client.force_authenticate(representative)
-    edited = api_client.patch(
-        f"/api/v1/source-proposals/{proposal.pk}/draft/",
-        {"website_name": "نام اصلاح‌شده"},
+    edited = api_client.post(
+        f"/api/v1/source-proposals/{proposal.pk}/submit/",
+        {**website_details(), "website_name": "نام اصلاح‌شده"},
         format="json",
     )
     assert edited.status_code == 200, edited.content
-    assert edited.json()["state"] == "draft"
+    assert edited.json()["state"] == "pending"
     api_client.force_authenticate(operator)
     queued = api_client.get("/api/v1/operator/source-proposals/").json()
     assert queued[0]["responsibility"]["operator"] == str(operator.pk)

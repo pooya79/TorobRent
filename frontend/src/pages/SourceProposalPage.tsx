@@ -3,28 +3,23 @@ import { CurrentWebsiteStatus } from "@/features/source-proposals/CurrentWebsite
 import { SourceAssignmentSummary } from "@/features/source-proposals/SourceAssignmentSummary";
 import { AccountWorkspace } from "@/features/account/AccountWorkspace";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CheckCircle2, Globe2, ShieldCheck } from "lucide-react";
+import { CheckCircle2, ShieldCheck } from "lucide-react";
 import { useState, type FormEvent, type ReactNode } from "react";
 import { Link, useSearchParams } from "react-router";
 
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
-  autosaveSourceProposalDraft,
-  generateSourceProposalPreview,
+  createSourceProposal,
   getSourceProposal,
   listSourceProposals,
-  removeSourceProposalDraft,
-  resumeOrCreateSourceProposal,
-  saveSourceProposalDetails,
   submitSourceProposal,
   type SourceProposal,
   type SourceProposalDetails,
-  type SourceProposalDraft,
 } from "@/features/source-proposals/queries";
 import { errorMessage } from "@/lib/api/errors";
 
@@ -69,10 +64,8 @@ export function SourceProposalPage() {
   const [startNew] = useState(
     () => !proposalId && searchParams.get("new") === "1",
   );
-  const [proposalOverride, setProposal] = useState<SourceProposal>();
   const [detailsOverride, setDetails] =
     useState<Required<SourceProposalDetails>>();
-  const [previewConfirmed, setPreviewConfirmed] = useState(false);
   const resume = useQuery({
     queryKey: ["source-proposal-resume", proposalId, startNew],
     queryFn: async () => {
@@ -91,69 +84,22 @@ export function SourceProposalPage() {
         : false,
     retry: false,
   });
-  const proposal = proposalOverride ?? resume.data;
+  const proposal = resume.data;
   const details =
     detailsOverride ??
     (proposal ? detailsFromProposal(proposal) : emptyDetails);
-  const autosave = useMutation({
-    mutationFn: ({
-      proposalId: id,
-      body,
-    }: {
-      proposalId: string;
-      body: SourceProposalDraft;
-    }) => autosaveSourceProposalDraft(id, body),
-    onSuccess: (data) => setProposal(data),
-  });
-  const preview = useMutation({
-    mutationFn: async () => {
-      let activeProposal = proposal;
-      let created = false;
-      if (!activeProposal) {
-        const result = await resumeOrCreateSourceProposal(startNew);
-        activeProposal = result.proposal;
-        created = result.created;
-      }
-      let saved: SourceProposal;
-      try {
-        saved = await saveSourceProposalDetails(activeProposal.id, details);
-      } catch (error) {
-        if (created) {
-          await removeSourceProposalDraft(activeProposal.id).catch(
-            () => undefined,
-          );
-        }
-        throw error;
-      }
-      if (!proposal) {
-        setProposal(saved);
-        setSearchParams({ proposal: saved.id }, { replace: true });
-      }
-      return generateSourceProposalPreview(saved.id);
-    },
-    onSuccess: (data) => {
-      setProposal(data);
-      setPreviewConfirmed(false);
-    },
-  });
   const submit = useMutation({
-    mutationFn: async () => {
-      if (!proposal) throw new Error("پیشنهاد وب‌سایت هنوز آماده نیست.");
-      return submitSourceProposal(proposal.id);
-    },
+    mutationFn: () =>
+      proposal
+        ? submitSourceProposal(proposal.id, details)
+        : createSourceProposal(details),
     onSuccess: (data) => {
       queryClient.setQueryData(
         ["source-proposal-resume", proposalId, startNew],
         data,
       );
-      setProposal(undefined);
-      queryClient.setQueryData<SourceProposal[]>(
-        ["source-proposals"],
-        (current) =>
-          current
-            ? current.map((item) => (item.id === data.id ? data : item))
-            : [data],
-      );
+      setSearchParams({ proposal: data.id }, { replace: true });
+      void queryClient.invalidateQueries({ queryKey: ["source-proposals"] });
     },
   });
 
@@ -241,24 +187,13 @@ export function SourceProposalPage() {
     );
   }
 
-  const previewData = proposal?.preview;
-  const showPreview = !!previewData;
   const setField = <K extends keyof typeof details>(
     key: K,
     value: (typeof details)[K],
   ) => setDetails((current) => ({ ...(current ?? details), [key]: value }));
-  const autosaveField = <K extends keyof SourceProposalDraft>(
-    key: K,
-    value: SourceProposalDraft[K],
-  ) => {
-    if (proposal) {
-      autosave.mutate({ proposalId: proposal.id, body: { [key]: value } });
-    }
-  };
   const handleDetails = (event: FormEvent) => {
     event.preventDefault();
-    autosave.reset();
-    preview.mutate();
+    submit.mutate();
   };
 
   return (
@@ -276,8 +211,8 @@ export function SourceProposalPage() {
           معرفی وب‌سایت اجاره
         </h1>
         <p className="text-muted-foreground mt-3 leading-8">
-          اطلاعات وب‌سایت و رابطه خود را ثبت کنید. دریافت صفحات تنها پس از تأیید
-          نشانی توسط اپراتور آغاز می‌شود.
+          اطلاعات وب‌سایت و رابطه خود را کامل کنید و برای بررسی بفرستید. دریافت
+          صفحات تنها پس از تأیید نشانی توسط اپراتور آغاز می‌شود.
         </p>
       </header>
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(20rem,0.75fr)]">
@@ -295,9 +230,6 @@ export function SourceProposalPage() {
                   onChange={(event) =>
                     setField("website_name", event.target.value)
                   }
-                  onBlur={() =>
-                    autosaveField("website_name", details.website_name)
-                  }
                 />
               </Field>
               <Field label="نشانی صفحه اصلی یا کاتالوگ" htmlFor="website-url">
@@ -310,16 +242,6 @@ export function SourceProposalPage() {
                   onChange={(event) =>
                     setField("website_url", event.target.value)
                   }
-                  onBlur={(event) => {
-                    const nextElement = event.relatedTarget;
-                    if (
-                      nextElement instanceof HTMLButtonElement &&
-                      nextElement.type === "submit"
-                    ) {
-                      return;
-                    }
-                    autosaveField("website_url", details.website_url);
-                  }}
                 />
               </Field>
               <Field label="رابطه شما با وب‌سایت" htmlFor="relationship">
@@ -331,7 +253,6 @@ export function SourceProposalPage() {
                     const value = event.target
                       .value as typeof details.relationship;
                     setField("relationship", value);
-                    autosaveField("relationship", value);
                   }}
                 >
                   <option value="website_owner">مالک وب‌سایت</option>
@@ -350,7 +271,6 @@ export function SourceProposalPage() {
                     const value = event.target
                       .value as typeof details.inventory_range;
                     setField("inventory_range", value);
-                    autosaveField("inventory_range", value);
                   }}
                 >
                   <option value="1_10">۱ تا ۱۰</option>
@@ -372,9 +292,6 @@ export function SourceProposalPage() {
                   onChange={(event) =>
                     setField("sitemap_url", event.target.value)
                   }
-                  onBlur={() =>
-                    autosaveField("sitemap_url", details.sitemap_url)
-                  }
                 />
               </Field>
               <Field
@@ -388,9 +305,6 @@ export function SourceProposalPage() {
                   onChange={(event) =>
                     setField("operator_note", event.target.value)
                   }
-                  onBlur={() =>
-                    autosaveField("operator_note", details.operator_note)
-                  }
                 />
               </Field>
               <div className="flex items-start gap-3">
@@ -400,7 +314,6 @@ export function SourceProposalPage() {
                   onCheckedChange={(checked) => {
                     const value = checked === true;
                     setField("authority_declared", value);
-                    autosaveField("authority_declared", value);
                   }}
                 />
                 <Label htmlFor="authority" className="leading-6">
@@ -408,23 +321,16 @@ export function SourceProposalPage() {
                   دارم.
                 </Label>
               </div>
-              {preview.isError ? (
-                <ErrorAlert error={preview.error} />
-              ) : (
-                autosave.isError && <ErrorAlert error={autosave.error} />
-              )}
-              {autosave.isSuccess && (
-                <p className="text-muted-foreground text-sm" role="status">
-                  پیش‌نویس ذخیره شد.
-                </p>
-              )}
+              {submit.isError && <ErrorAlert error={submit.error} />}
               <Button
                 type="submit"
-                disabled={preview.isPending || !details.authority_declared}
+                disabled={submit.isPending || !details.authority_declared}
               >
-                {preview.isPending
-                  ? "در حال ساخت پیش‌نمایش…"
-                  : "ذخیره و مشاهده پیش‌نمایش"}
+                {submit.isPending
+                  ? "در حال ارسال…"
+                  : proposal
+                    ? "ارسال مجدد برای بررسی"
+                    : "ارسال برای بررسی"}
               </Button>
             </form>
           </CardContent>
@@ -432,48 +338,22 @@ export function SourceProposalPage() {
         <Card className="h-fit shadow-none">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Globe2 aria-hidden="true" /> پیش‌نمایش
+              <ShieldCheck aria-hidden="true" /> پس از ارسال چه می‌شود؟
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-5">
-            {!showPreview && (
-              <p className="text-muted-foreground">
-                پس از ذخیره، اطلاعات وب‌سایت برای تأیید نهایی نمایش داده می‌شود.
-              </p>
-            )}
-            {showPreview && (
-              <>
-                <Alert>
-                  <ShieldCheck aria-hidden="true" />
-                  <AlertTitle>{previewData.title}</AlertTitle>
-                  <AlertDescription>{previewData.disclaimer}</AlertDescription>
-                </Alert>
-                <p className="text-sm">
-                  این بازه فقط اطلاعات برنامه‌ریزی است؛ تعداد قطعی یا
-                  تضمین‌شده‌ای برای کشف اعلام نمی‌شود.
-                </p>
-                <div className="flex items-start gap-3">
-                  <Checkbox
-                    id="preview-confirmed"
-                    checked={previewConfirmed}
-                    onCheckedChange={(checked) =>
-                      setPreviewConfirmed(checked === true)
-                    }
-                  />
-                  <Label htmlFor="preview-confirmed" className="leading-6">
-                    این اطلاعات را بررسی کردم و می‌خواهم پیشنهاد را ارسال کنم.
-                  </Label>
-                </div>
-                {submit.isError && <ErrorAlert error={submit.error} />}
-                <Button
-                  type="button"
-                  disabled={!previewConfirmed || submit.isPending}
-                  onClick={() => submit.mutate()}
-                >
-                  ارسال برای بررسی
-                </Button>
-              </>
-            )}
+          <CardContent className="space-y-4 text-sm leading-7">
+            <p>
+              پیشنهاد شما مستقیماً برای بررسی اپراتور ثبت می‌شود. نتیجه و
+              درخواست اصلاح را در داشبورد می‌بینید.
+            </p>
+            <p>
+              تا پیش از تأیید نشانی توسط اپراتور هیچ درخواستی به وب‌سایت ارسال
+              نمی‌شود.
+            </p>
+            <p className="text-muted-foreground">
+              تعداد تقریبی ملک‌ها فقط برای برنامه‌ریزی است و تعداد قطعی یا
+              تضمین‌شده کشف نیست.
+            </p>
           </CardContent>
         </Card>
       </div>
@@ -504,7 +384,7 @@ function ErrorAlert({ error }: { error: unknown }) {
       <AlertDescription>
         {errorMessage(
           error,
-          "ذخیره پیشنهاد وب‌سایت انجام نشد. اطلاعات واردشده حفظ شده است.",
+          "ارسال پیشنهاد وب‌سایت انجام نشد. اطلاعات واردشده حفظ شده است.",
         )}
       </AlertDescription>
     </Alert>

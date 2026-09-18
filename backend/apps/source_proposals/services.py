@@ -9,7 +9,7 @@ from apps.accounts.models import User
 from apps.catalog.models import Source
 from apps.communications.services import create_source_proposal_review_notification
 
-from .current_website import CONFLICT_MESSAGE, current_website_cases, lock_current_website
+from .current_website import current_website_cases, lock_current_website
 from .models import (
     DiscoveryStage,
     ExternalListingCandidate,
@@ -38,6 +38,10 @@ class SourceProposalAccessDenied(Exception):
     pass
 
 
+class CurrentWebsiteExists(Exception):
+    pass
+
+
 def _lock_editable_source_proposal(*, proposal: SourceProposal, actor: User) -> SourceProposal:
     lock_current_website(proposal)
     locked = SourceProposal.objects.select_for_update().get(id=proposal.id)
@@ -51,42 +55,7 @@ def _lock_editable_source_proposal(*, proposal: SourceProposal, actor: User) -> 
         )
     ):
         raise SourceProposalAccessDenied("این Source Proposal قابل ویرایش نیست.")
-    if locked.state == SourceProposalState.CHANGES_REQUESTED:
-        prior_state = locked.state
-        locked.revision += 1
-        locked.state = SourceProposalState.DRAFT
-        locked.pending_since = None
-        locked.discovery_stage = DiscoveryStage.AWAITING_URL
-        locked.save(
-            update_fields=("revision", "state", "pending_since", "discovery_stage", "updated_at")
-        )
-        SourceProposalEvent.objects.create(
-            proposal=locked,
-            actor=actor,
-            revision=locked.revision,
-            prior_state=prior_state,
-            new_state=SourceProposalState.DRAFT,
-            reason="نسخه جدید برای ویرایش ایجاد شد.",
-        )
     return locked
-
-
-@transaction.atomic
-def resume_or_create_source_proposal(
-    *, submitter: User, start_new: bool = False
-) -> tuple[SourceProposal, bool]:
-    if not submitter.is_submitter or not submitter.phone_verified:
-        raise SourceProposalAccessDenied(
-            "برای معرفی وب‌سایت ابتدا شماره تلفن حساب ارسال‌کننده را تأیید کنید."
-        )
-    # start_new is retained for older clients but never bypasses the current website.
-    User.objects.select_for_update(no_key=True).get(pk=submitter.pk)
-    current = list(current_website_cases(submitter.pk))
-    if len(current) > 1:
-        raise ValidationError(CONFLICT_MESSAGE)
-    if current:
-        return current[0], False
-    return SourceProposal.objects.create(submitter=submitter), True
 
 
 @transaction.atomic
@@ -103,7 +72,7 @@ def _ensure_account_domain_available(
 ) -> None:
     if (
         SourceAssignment.objects
-        .filter(proposal=proposal, revoked_at__isnull=True)
+        .filter(proposal_id=proposal.pk, revoked_at__isnull=True)
         .exclude(source__domain=normalized_domain)
         .exists()
     ):
@@ -129,57 +98,41 @@ def _ensure_account_domain_available(
 
 
 @transaction.atomic
-def save_source_proposal_draft(
-    *, proposal: SourceProposal, actor: User, validated_data: dict[str, object]
+def submit_source_proposal(
+    *, actor: User, validated_data: dict[str, object], proposal: SourceProposal | None = None
 ) -> SourceProposal:
-    locked = _lock_editable_source_proposal(proposal=proposal, actor=actor)
-    if "website_url" in validated_data:
-        website_url = str(validated_data["website_url"])
-        normalized_domain = normalize_public_domain(website_url) if website_url else ""
-        _ensure_account_domain_available(
-            proposal=locked,
-            actor=actor,
-            normalized_domain=normalized_domain,
+    """Validate and submit all details atomically; never persist an editable draft."""
+    if not actor.is_submitter or not actor.phone_verified:
+        raise SourceProposalAccessDenied(
+            "برای معرفی وب‌سایت ابتدا شماره تلفن حساب ارسال‌کننده را تأیید کنید."
         )
-        locked.normalized_domain = normalized_domain
-    sitemap_url = str(validated_data.get("sitemap_url", locked.sitemap_url))
-    website_url = str(validated_data.get("website_url", locked.website_url))
-    if sitemap_url and (
-        not website_url
-        or normalize_public_domain(sitemap_url) != normalize_public_domain(website_url)
-    ):
-        raise ValidationError("نشانی نقشه یا خوراک باید متعلق به همان دامنه وب‌سایت باشد.")
-    for field, value in validated_data.items():
-        if field in ("website_url", "sitemap_url") and value:
-            value = normalize_public_url(str(value))
-        setattr(locked, field, value)
-    locked.current_step = SourceProposalStep.DETAILS
-    locked.preview = {}
-    locked.preview_confirmed = False
-    locked.save()
-    return locked
-
-
-@transaction.atomic
-def save_source_proposal_details(
-    *, proposal: SourceProposal, actor: User, validated_data: dict[str, object]
-) -> SourceProposal:
-    locked = _lock_editable_source_proposal(proposal=proposal, actor=actor)
+    User.objects.select_for_update(no_key=True).get(pk=actor.pk)
+    if proposal is None:
+        if current_website_cases(actor.pk).exists():
+            raise CurrentWebsiteExists(
+                "وب‌سایت جاری دارید. ابتدا وضعیت آن را در داشبورد پیگیری کنید."
+            )
+        locked = SourceProposal(submitter=actor)
+    else:
+        locked = _lock_editable_source_proposal(proposal=proposal, actor=actor)
     normalized_domain = normalize_public_domain(str(validated_data["website_url"]))
-    sitemap_url = str(validated_data.get("sitemap_url", locked.sitemap_url))
+    sitemap_url = str(validated_data.get("sitemap_url", ""))
     if sitemap_url and normalize_public_domain(sitemap_url) != normalized_domain:
         raise ValidationError("نشانی نقشه یا خوراک باید متعلق به همان دامنه وب‌سایت باشد.")
     _ensure_account_domain_available(
         proposal=locked, actor=actor, normalized_domain=normalized_domain
     )
+    prior_state = locked.state
+    if prior_state == SourceProposalState.CHANGES_REQUESTED:
+        locked.revision += 1
     for field, value in validated_data.items():
         if field in ("website_url", "sitemap_url") and value:
             value = normalize_public_url(str(value))
         setattr(locked, field, value)
     locked.normalized_domain = normalized_domain
     locked.current_step = SourceProposalStep.PREVIEW
-    locked.preview = {}
-    locked.preview_confirmed = False
+    locked.preview = locked.confirmation_summary()
+    locked.preview_confirmed = True
     locked.needs_reconciliation = (
         SourceProposal.objects
         .filter(
@@ -194,31 +147,10 @@ def save_source_proposal_details(
         .exclude(submitter=actor)
         .exists()
     )
-    locked.save()
-    return locked
-
-
-@transaction.atomic
-def generate_proposal_preview(*, proposal: SourceProposal, actor: User) -> SourceProposal:
-    locked = _lock_editable_source_proposal(proposal=proposal, actor=actor)
-    if locked.current_step != SourceProposalStep.PREVIEW or not locked.normalized_domain:
-        raise ValidationError("ابتدا اطلاعات وب‌سایت را کامل کنید.")
-    locked.preview = locked.confirmation_summary()
-    locked.preview_confirmed = False
-    locked.save(update_fields=("preview", "preview_confirmed", "updated_at"))
-    return locked
-
-
-@transaction.atomic
-def submit_source_proposal(*, proposal: SourceProposal, actor: User) -> SourceProposal:
-    locked = _lock_editable_source_proposal(proposal=proposal, actor=actor)
-    if not locked.preview or locked.current_step != SourceProposalStep.PREVIEW:
-        raise ValidationError("ابتدا اطلاعات وب‌سایت را بازبینی کنید.")
-    prior_state = locked.state
-    locked.preview_confirmed = True
     locked.state = SourceProposalState.PENDING
+    locked.discovery_stage = DiscoveryStage.AWAITING_URL
     locked.pending_since = timezone.now()
-    locked.save(update_fields=("preview_confirmed", "state", "pending_since", "updated_at"))
+    locked.save()
     SourceProposalEvent.objects.create(
         proposal=locked,
         actor=actor,

@@ -14,19 +14,13 @@ from apps.accounts.models import User
 from .models import SourceProposal
 from .serializers import (
     CurrentWebsiteConflictSerializer,
-    SourceProposalCreateSerializer,
     SourceProposalDetailsSerializer,
-    SourceProposalDraftSerializer,
     SourceProposalSerializer,
-    SourceProposalSubmitSerializer,
 )
 from .services import (
+    CurrentWebsiteExists,
     SourceProposalAccessDenied,
     delete_source_proposal_draft,
-    generate_proposal_preview,
-    resume_or_create_source_proposal,
-    save_source_proposal_details,
-    save_source_proposal_draft,
     submit_source_proposal,
 )
 
@@ -43,29 +37,30 @@ class SourceProposalListCreateView(APIView):
         return Response(SourceProposalSerializer(proposals, many=True).data)
 
     @extend_schema(
-        summary="Resume the current website or create a Source Proposal when the slot is free",
-        request=SourceProposalCreateSerializer,
+        summary="Submit a complete website for Operator review",
+        request=SourceProposalDetailsSerializer,
         responses={
-            200: SourceProposalSerializer,
             201: SourceProposalSerializer,
             409: CurrentWebsiteConflictSerializer,
         },
     )
     def post(self, request: Request) -> Response:
-        serializer = SourceProposalCreateSerializer(data=request.data)
+        serializer = SourceProposalDetailsSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         try:
-            proposal, created = resume_or_create_source_proposal(
-                submitter=cast(User, request.user),
-                start_new=serializer.validated_data["start_new"],
+            proposal = submit_source_proposal(
+                actor=cast(User, request.user),
+                validated_data=serializer.validated_data,
             )
         except SourceProposalAccessDenied as exc:
             raise PermissionDenied(str(exc)) from None
+        except CurrentWebsiteExists as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_409_CONFLICT)
         except DjangoValidationError as exc:
-            return Response({"detail": exc.messages[0]}, status=status.HTTP_409_CONFLICT)
+            raise ValidationError(exc.messages[0]) from None
         return Response(
             SourceProposalSerializer(proposal).data,
-            status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
+            status=status.HTTP_201_CREATED,
         )
 
 
@@ -77,12 +72,12 @@ class SourceProposalDetailView(APIView):
             submitter=request.user,
         )
 
-    @extend_schema(summary="Resume a Source Proposal", responses=SourceProposalSerializer)
+    @extend_schema(summary="Read a Source Proposal", responses=SourceProposalSerializer)
     def get(self, request: Request, proposal_id: str) -> Response:
         return Response(SourceProposalSerializer(self.get_object(request, proposal_id)).data)
 
     @extend_schema(
-        summary="Discard a Source Proposal draft",
+        summary="Discard an unsubmitted or changes-requested Source Proposal",
         request=None,
         responses={204: None},
     )
@@ -96,34 +91,16 @@ class SourceProposalDetailView(APIView):
             raise PermissionDenied(str(exc)) from None
         return Response(status=status.HTTP_204_NO_CONTENT)
 
+
+class SourceProposalSubmitView(APIView):
     @extend_schema(
-        summary="Save Source Proposal website and authority details",
+        summary="Submit complete website corrections for Operator review",
         request=SourceProposalDetailsSerializer,
         responses=SourceProposalSerializer,
     )
-    def patch(self, request: Request, proposal_id: str) -> Response:
+    def post(self, request: Request, proposal_id: str) -> Response:
         serializer = SourceProposalDetailsSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        try:
-            proposal = save_source_proposal_details(
-                proposal=self.get_object(request, proposal_id),
-                actor=cast(User, request.user),
-                validated_data=serializer.validated_data,
-            )
-        except SourceProposalAccessDenied as exc:
-            raise PermissionDenied(str(exc)) from None
-        except DjangoValidationError as exc:
-            raise ValidationError(exc.messages[0]) from None
-        return Response(SourceProposalSerializer(proposal).data)
-
-
-class SourceProposalPreviewView(APIView):
-    @extend_schema(
-        summary="Prepare the no-fetch Source Proposal summary",
-        request=None,
-        responses=SourceProposalSerializer,
-    )
-    def post(self, request: Request, proposal_id: str) -> Response:
         proposal = get_object_or_404(
             SourceProposal,
             id=proposal_id,
@@ -131,59 +108,11 @@ class SourceProposalPreviewView(APIView):
             submitter=request.user,
         )
         try:
-            proposal = generate_proposal_preview(proposal=proposal, actor=cast(User, request.user))
-        except SourceProposalAccessDenied as exc:
-            raise PermissionDenied(str(exc)) from None
-        except DjangoValidationError as exc:
-            raise ValidationError(exc.messages[0]) from None
-        return Response(SourceProposalSerializer(proposal).data)
-
-
-class SourceProposalDraftView(APIView):
-    @extend_schema(
-        summary="Autosave Source Proposal draft fields",
-        request=SourceProposalDraftSerializer,
-        responses=SourceProposalSerializer,
-    )
-    def patch(self, request: Request, proposal_id: str) -> Response:
-        serializer = SourceProposalDraftSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        proposal = get_object_or_404(
-            SourceProposal,
-            id=proposal_id,
-            discarded_at__isnull=True,
-            submitter=request.user,
-        )
-        try:
-            proposal = save_source_proposal_draft(
+            proposal = submit_source_proposal(
                 proposal=proposal,
                 actor=cast(User, request.user),
                 validated_data=serializer.validated_data,
             )
-        except SourceProposalAccessDenied as exc:
-            raise PermissionDenied(str(exc)) from None
-        except DjangoValidationError as exc:
-            raise ValidationError(exc.messages[0]) from None
-        return Response(SourceProposalSerializer(proposal).data)
-
-
-class SourceProposalSubmitView(APIView):
-    @extend_schema(
-        summary="Confirm the URL summary and submit for Operator review",
-        request=SourceProposalSubmitSerializer,
-        responses=SourceProposalSerializer,
-    )
-    def post(self, request: Request, proposal_id: str) -> Response:
-        serializer = SourceProposalSubmitSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        proposal = get_object_or_404(
-            SourceProposal,
-            id=proposal_id,
-            discarded_at__isnull=True,
-            submitter=request.user,
-        )
-        try:
-            proposal = submit_source_proposal(proposal=proposal, actor=cast(User, request.user))
         except SourceProposalAccessDenied as exc:
             raise PermissionDenied(str(exc)) from None
         except DjangoValidationError as exc:
