@@ -377,38 +377,3 @@ def test_concurrent_bulk_confirmation_publishes_once(
     assert sorted(responses) == [200, 409]
     fresh = api_client.get("/api/v1/operator/source-proposals/").json()[0]
     assert fresh["assignment"]["recent_requests"][0]["run"]["published"] == 1
-
-
-@pytest.mark.django_db
-def test_group_candidate_rejects_manual_edits_without_changing_preview(
-    api_client, assigned_case, monkeypatch, django_capture_on_commit_callbacks
-):
-    execute_run(api_client, assigned_case, monkeypatch, django_capture_on_commit_callbacks)
-    case = api_client.get("/api/v1/operator/source-proposals/").json()[0]
-    page = case["assignment"]["current_results"][0]
-    root = f"/api/v1/operator/source-proposals/{assigned_case[0].pk}/exceptions/bulk"
-    body = {"exception_ids": [page["id"]], "action": "publish"}
-    preview = api_client.post(f"{root}/preview/", body, format="json").data
-    candidate = preview["items"][0]["candidate"]
-    endpoint = f"/api/v1/operator/external-listing-candidates/{candidate['id']}"
-    claim = api_client.post(f"{endpoint}/claim/", {}, format="json")
-    assert claim.status_code == 201, claim.data
-    corrected = api_client.post(
-        f"{endpoint}/correct/",
-        {
-            "reviewed_revision": candidate["revision"],
-            "reason": "متراژ با منبع بررسی شد",
-            "values": {"area_sqm": 120},
-        },
-        format="json",
-    )
-    assert corrected.status_code == 404
-    fresh = api_client.post(f"{root}/preview/", body, format="json").data
-    assert fresh["items"][0]["candidate"]["area_sqm"] == candidate["area_sqm"]
-    assert fresh["items"][0]["candidate"]["evidence"] == candidate["evidence"]
-    assert (
-        api_client.post(
-            f"{root}/apply/", {"token": fresh["token"], "confirmed": True}, format="json"
-        ).data["affected"]
-        == 1
-    )

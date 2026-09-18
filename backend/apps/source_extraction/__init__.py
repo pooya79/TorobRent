@@ -15,7 +15,6 @@ from .contract import (
     StructureGroup,
     ValidationPage,
     load_tehran_locations,
-    serialize_contract_result,
 )
 
 __all__ = (
@@ -33,5 +32,4 @@ __all__ = (
     "StructureGroup",
     "ValidationPage",
     "load_tehran_locations",
-    "serialize_contract_result",
 )

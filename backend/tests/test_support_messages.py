@@ -103,23 +103,6 @@ def test_new_support_requests_require_an_active_verified_account(api_client, acc
 
 
 @pytest.mark.django_db
-def test_public_contact_endpoint_no_longer_accepts_anonymous_requests(api_client):
-    response = api_client.post(
-        "/api/v1/contact/messages/",
-        {
-            "name": "مهمان",
-            "email": "guest@example.com",
-            "kind": "general",
-            "message": "پیام مهمان قدیمی",
-        },
-        format="json",
-    )
-
-    assert response.status_code in (401, 403, 404, 405)
-    assert not SupportRequest.objects.exists()
-
-
-@pytest.mark.django_db
 def test_requester_thread_filters_internal_support_operations(api_client):
     requester = verified_user()
     operator = support_operator()

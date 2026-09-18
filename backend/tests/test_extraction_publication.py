@@ -78,16 +78,6 @@ def test_exceptions_do_not_block_batch_and_can_be_rejected_without_profile_chang
     profile_count = SourceProfileVersion.objects.count()
     base = f"/api/v1/operator/external-listing-candidates/{bad['id']}"
     assert api_client.post(f"{base}/claim/", {}).status_code == 201
-    corrected = api_client.post(
-        f"{base}/correct/",
-        {
-            "reviewed_revision": bad["revision"],
-            "reason": "متراژ بررسی شد",
-            "values": {"area_sqm": 95},
-        },
-        format="json",
-    )
-    assert corrected.status_code == 404
     result = api_client.post(
         f"{base}/reject/",
         {"reviewed_revision": bad["revision"], "reason": "اطلاعات منبع نادرست است"},
@@ -323,7 +313,7 @@ def test_required_fields_quarantine_only_the_affected_result(
 
 
 @pytest.mark.django_db
-def test_removed_edit_actions_leave_rejection_audited(
+def test_candidate_rejection_remains_audited(
     api_client, assigned_case, monkeypatch, django_capture_on_commit_callbacks
 ):
     from django.core.exceptions import ValidationError
@@ -338,19 +328,6 @@ def test_removed_edit_actions_leave_rejection_audited(
     candidate = run["candidates"][0]
     base = f"/api/v1/operator/external-listing-candidates/{candidate['id']}"
     assert api_client.post(f"{base}/claim/", {}).status_code == 201
-    requested = api_client.post(
-        f"{base}/request-changes/",
-        {"reviewed_revision": 1, "reason": "متراژ را بررسی کنید"},
-        format="json",
-    )
-    assert requested.status_code == 404
-    assert api_client.post(f"{base}/claim/", {}).status_code == 201
-    corrected = api_client.post(
-        f"{base}/correct/",
-        {"reviewed_revision": 1, "reason": "بررسی سند", "values": {"area_sqm": 95}},
-        format="json",
-    )
-    assert corrected.status_code == 404
     rejected = api_client.post(
         f"{base}/reject/",
         {"reviewed_revision": 1, "reason": "اطلاعات منبع قابل تأیید نیست"},

@@ -824,10 +824,3 @@ def _redact_value(value: Any) -> Any:
 
 def _redact_mapping(value: Mapping[str, Any]) -> Mapping[str, Any]:
     return {name: _redact_value(item) for name, item in value.items()}
-
-
-def serialize_contract_result(value: Any) -> Any:
-    """Return JSON-compatible output for persistence adapters without owning persistence."""
-    if hasattr(value, "__dataclass_fields__"):
-        return asdict(value)
-    raise TypeError("Expected an extraction contract result")

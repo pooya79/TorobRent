@@ -26,7 +26,6 @@ from .models import (
     SourceProfileVersion,
     SourceProposal,
     SourceProposalEvent,
-    SourceProposalReviewClaim,
     SourceProposalState,
     SourceRepresentativeRelationship,
     SourceReservation,
@@ -380,14 +379,6 @@ class SourceProposalSerializer(serializers.ModelSerializer[SourceProposal]):
         if self.context.get("section", "full") != "full":
             return []
         return list(SourceProposalEventSerializer(proposal.events.all(), many=True).data)
-
-
-class SourceProposalReviewClaimSerializer(serializers.ModelSerializer[SourceProposalReviewClaim]):
-    operator_label = serializers.EmailField(source="operator.email", read_only=True)
-
-    class Meta:
-        model = SourceProposalReviewClaim
-        fields = ("id", "operator_label", "revision", "expires_at", "created_at")
 
 
 class SourceProposalDecisionSerializer(serializers.Serializer[Any]):

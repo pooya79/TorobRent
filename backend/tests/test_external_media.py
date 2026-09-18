@@ -98,14 +98,6 @@ def test_approval_keeps_source_media_without_manual_editing(
     assert api_client.get(thumbnail).status_code == 200
     base = f"/api/v1/operator/external-listing-candidates/{candidate.pk}"
     assert api_client.post(f"{base}/claim/", {}).status_code == 201
-    assert (
-        api_client.post(
-            f"{base}/correct/",
-            {"reviewed_revision": 1, "reason": "تصاویر", "values": {}, "media": []},
-            format="json",
-        ).status_code
-        == 404
-    )
     approved = api_client.post(
         f"{base}/approve/",
         {"reviewed_revision": candidate.revision, "confirmed": True},

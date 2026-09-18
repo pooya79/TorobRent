@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Sequence
+from dataclasses import asdict
 from pathlib import Path
 
 import pytest
@@ -11,7 +12,6 @@ from apps.source_extraction.contract import (
     ExtractionPage,
     PageKind,
     SourceProfile,
-    serialize_contract_result,
 )
 from apps.source_extraction.discovery import classify_page
 from apps.source_extraction.fetching import FetchBatch, FetchedPage, FetchRecord
@@ -249,7 +249,7 @@ def test_contract_builds_validated_profile_and_extracts_normalized_listings() ->
     assert all(listing.status == "accepted" for listing in outcome.listings)
     assert outcome.listings[0].normalized["deposit_rial"] == 5_000_000_000
     assert outcome.listings[0].normalized["monthly_rent_rial"] == 200_000_000
-    retained = json.dumps(serialize_contract_result(outcome), ensure_ascii=False)
+    retained = json.dumps(asdict(outcome), ensure_ascii=False)
     assert all(phone not in retained for phone in phones)
     assert "[redacted-phone]" in retained
     assert all(
