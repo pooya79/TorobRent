@@ -306,7 +306,7 @@ test("shows Renter controls and Message Center in the authenticated account menu
   const favorites = within(navbar).getByRole("link", {
     name: "علاقه‌مندی‌ها",
   });
-  expect(favorites).toHaveAttribute("href", "/favorites");
+  expect(favorites).toHaveAttribute("href", "/dashboard/favorites");
   expect(favorites.querySelector("svg")).not.toBeNull();
   expect(within(favorites).getByText("علاقه‌مندی‌ها")).toHaveClass("sr-only");
   expect(within(navbar).queryByRole("link", { name: "ورود" })).toBeNull();
@@ -409,7 +409,7 @@ test("keeps authenticated navigation and repeated Message Center links in the mo
   ).toHaveLength(2);
   expect(
     within(mobileMenu).getByRole("link", { name: "علاقه‌مندی‌ها" }),
-  ).toHaveAttribute("href", "/favorites");
+  ).toHaveAttribute("href", "/dashboard/favorites");
   expect(
     within(mobileMenu).getByRole("region", { name: "فهرست حساب کاربری" }),
   ).toBeVisible();

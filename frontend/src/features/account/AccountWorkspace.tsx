@@ -18,6 +18,12 @@ import { currentUserQuery } from "@/features/session/queries";
 import { cn } from "@/lib/utils";
 
 const submitterLinks = [
+  {
+    to: "/dashboard/favorites",
+    label: "علاقه‌مندی‌ها",
+    icon: Heart,
+    end: false,
+  },
   { to: "/dashboard", label: "آگهی‌های من", icon: LayoutDashboard, end: true },
   {
     to: "/dashboard/profile",
@@ -47,7 +53,12 @@ export function AccountWorkspace({ children }: { children: ReactNode }) {
           end: false,
         },
         { to: "/messages", label: "پیام‌ها", icon: Mail, end: false },
-        { to: "/favorites", label: "علاقه‌مندی‌ها", icon: Heart, end: false },
+        {
+          to: "/dashboard/favorites",
+          label: "علاقه‌مندی‌ها",
+          icon: Heart,
+          end: false,
+        },
       ];
   const name = user.data?.display_name || user.data?.first_name || "حساب من";
   const navigation = (

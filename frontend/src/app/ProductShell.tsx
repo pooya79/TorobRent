@@ -139,7 +139,7 @@ function PrimaryNavigation({
         <NavLink
           className={navigationClass}
           onClick={onNavigate}
-          to="/favorites"
+          to="/dashboard/favorites"
         >
           <Heart className="size-5" aria-hidden="true" />
           <span className={cn(!mobile && "sr-only")}>علاقه‌مندی‌ها</span>

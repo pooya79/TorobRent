@@ -104,7 +104,7 @@ test("opens profile settings for a verified renter without submitter onboarding"
     account.display_name,
   );
   for (const link of screen.getAllByRole("link", { name: "علاقه‌مندی‌ها" })) {
-    expect(link).toHaveAttribute("href", "/favorites");
+    expect(link).toHaveAttribute("href", "/dashboard/favorites");
   }
   expect(screen.queryByRole("link", { name: "آگهی‌های من" })).toBeNull();
 });
