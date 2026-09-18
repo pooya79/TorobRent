@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
-import { MemoryRouter, Outlet, Route, Routes, useLocation } from "react-router";
+import { MemoryRouter, Route, Routes, useLocation } from "react-router";
 import { expect, test, vi } from "vitest";
 
 import {
@@ -97,7 +97,6 @@ function renderWorkspace(
                   </OperatorCapabilityRoute>
                 }
               />
-              <Route path="operator/links" element={<Outlet />} />
             </Route>
             <Route path="login" element={<LoginDestination />} />
           </Routes>

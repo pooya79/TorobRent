@@ -37,7 +37,6 @@ export default [
     route("external-listings", "routes/operator-external-listings.tsx"),
     route("support", "routes/operator-support.tsx"),
     route("conversation-reports", "routes/operator-conversation-reports.tsx"),
-    route("links", "routes/operator-links.tsx"),
     route("review", "routes/operator-review-redirect.tsx"),
   ]),
 ] satisfies RouteConfig;

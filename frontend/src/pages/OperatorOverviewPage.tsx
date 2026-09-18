@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { Activity, ArrowLeft, Layers3, Link2 } from "lucide-react";
+import { Activity, ArrowLeft, Layers3 } from "lucide-react";
 import { Link } from "react-router";
 
 import { PageMain } from "@/components/layout/PageMain";
@@ -249,29 +249,6 @@ export function OperatorOverviewPage() {
             </Card>
           );
         })}
-        <Card className="bg-muted/30 gap-3 rounded-2xl border-dashed shadow-none">
-          <CardHeader>
-            <Link2
-              className="text-muted-foreground size-7"
-              aria-hidden="true"
-            />
-            <CardTitle className="mt-3 text-base">
-              بررسی پیوندها · به‌زودی
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-muted-foreground mb-5 leading-7">
-              بررسی پیوندها برای آینده برنامه‌ریزی شده و هنوز گردش‌کار عملیاتی
-              ندارد.
-            </p>
-            <Link
-              className="text-primary inline-flex min-h-11 items-center font-semibold"
-              to="/operator/links"
-            >
-              درباره این بخش
-            </Link>
-          </CardContent>
-        </Card>
       </section>
     </PageMain>
   );

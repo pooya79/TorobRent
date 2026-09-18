@@ -87,10 +87,6 @@ test("shows parallel workload summaries only for modules the Operator may access
   expect(
     screen.queryByRole("link", { name: "بررسی درخواست‌های ثبت آگهی" }),
   ).toBeNull();
-  expect(screen.getByText("بررسی پیوندها · به‌زودی")).toBeVisible();
-  expect(
-    screen.getByText(/بررسی پیوندها.*هنوز گردش‌کار عملیاتی ندارد/),
-  ).toBeVisible();
   expect(supportSummary).toHaveBeenCalledOnce();
   expect(submissionSummary).not.toHaveBeenCalled();
 });

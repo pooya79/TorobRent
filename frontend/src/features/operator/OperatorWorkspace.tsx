@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { ExternalLink, Home, Link2, Menu, ShieldCheck } from "lucide-react";
+import { ExternalLink, Home, Menu, ShieldCheck } from "lucide-react";
 import type { ReactNode } from "react";
 import { Navigate, NavLink, Outlet, useLocation } from "react-router";
 
@@ -71,11 +71,6 @@ function WorkspaceNavigation({
     ...operatorModules.filter(({ capabilities: required }) =>
       required.some((capability) => capabilities.includes(capability)),
     ),
-    {
-      label: "بررسی پیوندها · به‌زودی",
-      to: "/operator/links",
-      icon: Link2,
-    },
   ];
 
   return (
@@ -115,7 +110,7 @@ function OperatorShell({
   const location = useLocation();
   const currentSection =
     operatorModules.find(({ to }) => location.pathname.startsWith(to))?.label ??
-    (location.pathname === "/operator/links" ? "بررسی پیوندها" : "نمای کلی");
+    "نمای کلی";
   return (
     <div dir="rtl" className="bg-muted/30 min-h-screen">
       <a
