@@ -334,7 +334,7 @@ function MessageCenterContent({
           variant="outline"
           className={cn("rounded-xl", messageId && "hidden xl:inline-flex")}
         >
-          <Link to="/messages/new/support">
+          <Link to="/dashboard/messages/new/support">
             <Headphones aria-hidden="true" />
             درخواست پشتیبانی جدید
           </Link>
@@ -357,8 +357,8 @@ function MessageCenterContent({
             onClick={() => {
               void navigate(
                 item.value === "all"
-                  ? "/messages"
-                  : `/messages?filter=${item.value}`,
+                  ? "/dashboard/messages"
+                  : `/dashboard/messages?filter=${item.value}`,
               );
             }}
             type="button"
@@ -430,7 +430,7 @@ function MessageCenterContent({
               </p>
               {filter !== "all" && (
                 <Button asChild variant="outline" className="mt-4">
-                  <Link to="/messages">نمایش همه پیام‌ها</Link>
+                  <Link to="/dashboard/messages">نمایش همه پیام‌ها</Link>
                 </Button>
               )}
             </div>
@@ -460,7 +460,7 @@ function MessageCenterContent({
                                 !message.read && "bg-muted/40",
                               )}
                               preventScrollReset
-                              to={`/messages/${message.id}${searchParams.size ? `?${searchParams}` : ""}`}
+                              to={`/dashboard/messages/${message.id}${searchParams.size ? `?${searchParams}` : ""}`}
                             >
                               <span className="bg-primary/10 text-primary mt-1 flex size-9 shrink-0 items-center justify-center rounded-full">
                                 {message.kind === "support_request" ? (
@@ -560,7 +560,7 @@ function MessageCenterContent({
             <>
               <Link
                 className="mb-5 inline-flex min-h-11 items-center gap-2 text-sm font-semibold xl:hidden"
-                to={`/messages${searchParams.size ? `?${searchParams}` : ""}`}
+                to={`/dashboard/messages${searchParams.size ? `?${searchParams}` : ""}`}
               >
                 <ArrowRight aria-hidden="true" /> بازگشت به پیام‌ها
               </Link>
@@ -728,7 +728,7 @@ function MessageCenterContent({
                           <AlertDescription>
                             <p>مهلت ادامه این درخواست پایان یافته است.</p>
                             <Button asChild className="mt-3" size="sm">
-                              <Link to="/messages/new/support">
+                              <Link to="/dashboard/messages/new/support">
                                 ایجاد درخواست پشتیبانی جدید
                               </Link>
                             </Button>

@@ -47,7 +47,7 @@ test("does not create a Source Proposal draft merely by opening the empty form",
         new QueryClient({ defaultOptions: { queries: { retry: false } } })
       }
     >
-      <MemoryRouter initialEntries={["/source-proposal?new=1"]}>
+      <MemoryRouter initialEntries={["/dashboard/website?new=1"]}>
         <SourceProposalPage />
       </MemoryRouter>
     </QueryClientProvider>,
@@ -96,7 +96,7 @@ test("cleans up a new empty draft when the first details save is rejected", asyn
         })
       }
     >
-      <MemoryRouter initialEntries={["/source-proposal?new=1"]}>
+      <MemoryRouter initialEntries={["/dashboard/website?new=1"]}>
         <SourceProposalPage />
       </MemoryRouter>
     </QueryClientProvider>,
@@ -332,7 +332,7 @@ test("resumes the Source Proposal selected from the dashboard", async () => {
   render(
     <QueryClientProvider client={queryClient}>
       <MemoryRouter
-        initialEntries={[`/source-proposal?proposal=${proposalId}`]}
+        initialEntries={[`/dashboard/website?proposal=${proposalId}`]}
       >
         <SourceProposalPage />
       </MemoryRouter>
@@ -398,7 +398,7 @@ test("creates a draft from valid details and replaces the one-shot new flag", as
   });
   render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={["/source-proposal?new=1"]}>
+      <MemoryRouter initialEntries={["/dashboard/website?new=1"]}>
         <SourceProposalPage />
         <LocationSearch />
       </MemoryRouter>
@@ -677,7 +677,7 @@ test.each([
           new QueryClient({ defaultOptions: { queries: { retry: false } } })
         }
       >
-        <MemoryRouter initialEntries={["/source-proposal?new=1"]}>
+        <MemoryRouter initialEntries={["/dashboard/website?new=1"]}>
           <SourceProposalPage />
         </MemoryRouter>
       </QueryClientProvider>,
@@ -698,7 +698,7 @@ test.each([
     );
     expect(
       screen.getByRole("link", { name: "هماهنگی با اپراتور در مرکز پیام‌ها" }),
-    ).toHaveAttribute("href", "/messages");
+    ).toHaveAttribute("href", "/dashboard/messages");
   },
 );
 
@@ -729,7 +729,7 @@ test("keeps Contact review team available while correcting a requested revision"
       }
     >
       <MemoryRouter
-        initialEntries={[`/source-proposal?proposal=${proposalId}`]}
+        initialEntries={[`/dashboard/website?proposal=${proposalId}`]}
       >
         <SourceProposalPage />
       </MemoryRouter>
@@ -778,7 +778,7 @@ test.each(["approved", "pending"])(
           new QueryClient({ defaultOptions: { queries: { retry: false } } })
         }
       >
-        <MemoryRouter initialEntries={["/source-proposal?new=1"]}>
+        <MemoryRouter initialEntries={["/dashboard/website?new=1"]}>
           <SourceProposalPage />
         </MemoryRouter>
       </QueryClientProvider>,
@@ -832,7 +832,7 @@ test("refreshes active Source status while the representative keeps the screen o
         new QueryClient({ defaultOptions: { queries: { retry: false } } })
       }
     >
-      <MemoryRouter initialEntries={["/source-proposal?new=1"]}>
+      <MemoryRouter initialEntries={["/dashboard/website?new=1"]}>
         <SourceProposalPage />
       </MemoryRouter>
     </QueryClientProvider>,
@@ -874,7 +874,7 @@ test("resolves the current website again when returning with an old revoked case
   );
   render(
     <QueryClientProvider client={client}>
-      <MemoryRouter initialEntries={["/source-proposal?new=1"]}>
+      <MemoryRouter initialEntries={["/dashboard/website?new=1"]}>
         <SourceProposalPage />
       </MemoryRouter>
     </QueryClientProvider>,

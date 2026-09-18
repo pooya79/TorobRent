@@ -16,7 +16,7 @@ test("creates a Support Request without asking for account identity", async () =
       return HttpResponse.json(
         {
           id: "10000000-0000-4000-8000-000000000097",
-          href: "/messages/10000000-0000-4000-8000-000000000097",
+          href: "/dashboard/messages/10000000-0000-4000-8000-000000000097",
         },
         { status: 201 },
       );
@@ -27,14 +27,14 @@ test("creates a Support Request without asking for account identity", async () =
   });
   render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={["/messages/new/support"]}>
+      <MemoryRouter initialEntries={["/dashboard/messages/new/support"]}>
         <Routes>
           <Route
-            path="messages/new/support"
+            path="dashboard/messages/new/support"
             element={<SupportComposerPage />}
           />
           <Route
-            path="messages/:messageId"
+            path="dashboard/messages/:messageId"
             element={<p>رشته پشتیبانی باز شد</p>}
           />
         </Routes>

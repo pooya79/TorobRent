@@ -266,7 +266,7 @@ test("sends Contact visitors to the protected Support composer", () => {
   renderPage(<ContactPage />);
   expect(
     screen.getByRole("link", { name: "ایجاد درخواست پشتیبانی" }),
-  ).toHaveAttribute("href", "/messages/new/support");
+  ).toHaveAttribute("href", "/dashboard/messages/new/support");
 });
 
 test("shows only managed Contact details that are configured", async () => {

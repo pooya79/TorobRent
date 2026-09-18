@@ -301,7 +301,7 @@ test("shows Renter controls and Message Center in the authenticated account menu
   const messages = await within(navbar).findByRole("link", {
     name: "پیام‌ها",
   });
-  expect(messages).toHaveAttribute("href", "/messages");
+  expect(messages).toHaveAttribute("href", "/dashboard/messages");
   expect(messages.querySelector("svg")).not.toBeNull();
   const favorites = within(navbar).getByRole("link", {
     name: "علاقه‌مندی‌ها",
@@ -325,7 +325,7 @@ test("shows Renter controls and Message Center in the authenticated account menu
   ).toHaveAttribute("href", "/dashboard/profile");
   expect(
     within(account).getByRole("menuitem", { name: "پیام‌ها" }),
-  ).toHaveAttribute("href", "/messages");
+  ).toHaveAttribute("href", "/dashboard/messages");
   expect(
     within(account).getByRole("menuitem", { name: "راهنما" }),
   ).toHaveAttribute("href", "/guide");

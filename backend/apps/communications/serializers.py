@@ -348,7 +348,7 @@ class MessageDetailSerializer(MessageSummarySerializer):
         if isinstance(notification, SourceConversation):
             user = self.context["request"].user
             path = (
-                "/source-proposal"
+                "/dashboard/website"
                 if user.pk == notification.proposal.submitter_id
                 else "/operator/source-proposals"
             )
@@ -393,7 +393,7 @@ class MessageDetailSerializer(MessageSummarySerializer):
                 return None
             return {
                 "label": "مشاهده منبع پیشنهادی",
-                "href": f"/source-proposal?proposal={proposal.id}",
+                "href": f"/dashboard/website?proposal={proposal.id}",
             }
         submission = notification.target_submission
         if (

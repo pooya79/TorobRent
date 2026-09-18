@@ -31,7 +31,7 @@ def test_source_conversation_reply_notifies_without_deciding_proposal(api_client
     assert [item["id"] for item in feed["results"]] == [conversation_id]
     assert api_client.get("/api/v1/messages/unread-count/").json()["count"] == 1
     detail = api_client.get(
-        opened.json()["href"].replace("/messages/", "/api/v1/messages/") + "/"
+        opened.json()["href"].replace("/dashboard/messages/", "/api/v1/messages/") + "/"
     ).json()
     assert detail["entries"][0]["body"] == "لطفا راهنمایی کنید"
     assert detail["reply_allowed"] is True

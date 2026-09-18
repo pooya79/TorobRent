@@ -16,10 +16,10 @@ test("restores the requested Message Center URL after login", async () => {
   });
   render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={["/messages/message-1?from=badge"]}>
+      <MemoryRouter initialEntries={["/dashboard/messages/message-1?from=badge"]}>
         <Routes>
           <Route
-            path="messages/:messageId"
+            path="dashboard/messages/:messageId"
             element={
               <ProtectedMessageCenterRoute>
                 <h1>پیام‌ها</h1>
@@ -34,7 +34,7 @@ test("restores the requested Message Center URL after login", async () => {
 
   expect(
     await screen.findByText(
-      "ورود: ?returnTo=%2Fmessages%2Fmessage-1%3Ffrom%3Dbadge",
+      "ورود: ?returnTo=%2Fdashboard%2Fmessages%2Fmessage-1%3Ffrom%3Dbadge",
     ),
   ).toBeVisible();
 });

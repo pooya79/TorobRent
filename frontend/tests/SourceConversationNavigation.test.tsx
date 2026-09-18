@@ -19,7 +19,7 @@ function renderAction(component: React.ReactNode) {
       <MemoryRouter>
         <Routes>
           <Route path="/" element={component} />
-          <Route path="/messages/thread-id" element={<h1>گفت‌وگوی منبع</h1>} />
+          <Route path="/dashboard/messages/thread-id" element={<h1>گفت‌وگوی منبع</h1>} />
         </Routes>
       </MemoryRouter>
     </QueryClientProvider>,
@@ -39,7 +39,7 @@ test.each([false])(
             .proposal_id;
           return HttpResponse.json({
             id: "thread-id",
-            href: "/messages/thread-id",
+            href: "/dashboard/messages/thread-id",
           });
         },
       ),
@@ -96,7 +96,7 @@ test("operator reads and replies without leaving source review", async () => {
   let replyBody = "";
   server.use(
     http.post("*/api/v1/messages/source-conversations/", () =>
-      HttpResponse.json({ id: "thread-id", href: "/messages/thread-id" }),
+      HttpResponse.json({ id: "thread-id", href: "/dashboard/messages/thread-id" }),
     ),
     http.get("*/api/v1/messages/thread-id/", () =>
       HttpResponse.json({
@@ -153,7 +153,7 @@ test("operator can retry loading and sees read-only conversations in place", asy
   let unavailable = true;
   server.use(
     http.post("*/api/v1/messages/source-conversations/", () =>
-      HttpResponse.json({ id: "thread-id", href: "/messages/thread-id" }),
+      HttpResponse.json({ id: "thread-id", href: "/dashboard/messages/thread-id" }),
     ),
     http.get("*/api/v1/messages/thread-id/", () =>
       unavailable

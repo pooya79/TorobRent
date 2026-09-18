@@ -14,7 +14,7 @@ export function CurrentWebsiteStatus({
         <AlertDescription>
           بیش از یک وب‌سایت جاری دارید. برای انتخاب وب‌سایتی که می‌خواهید ادامه
           دهید، با تیم بررسی تماس بگیرید.
-          <Link className="underline" to="/messages">
+          <Link className="underline" to="/dashboard/messages">
             هماهنگی با اپراتور در مرکز پیام‌ها
           </Link>
         </AlertDescription>
@@ -36,7 +36,7 @@ export function CurrentWebsiteStatus({
               برای جایگزینی وب‌سایت، ابتدا با تیم بررسی هماهنگ کنید. پایان
               همکاری، نمایش آگهی‌های این وب‌سایت را متوقف می‌کند.
             </p>
-            <Link className="underline" to="/messages">
+            <Link className="underline" to="/dashboard/messages">
               هماهنگی با اپراتور در مرکز پیام‌ها
             </Link>
           </details>

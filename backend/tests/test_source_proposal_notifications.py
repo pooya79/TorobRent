@@ -113,7 +113,7 @@ def test_source_proposal_notifications_share_feed_behavior_and_isolate_recipient
     assert detail.data["body"] == "مالکیت دامنه اثبات نشد."
     assert detail.data["target"] == {
         "label": "مشاهده منبع پیشنهادی",
-        "href": f"/source-proposal?proposal={proposal.id}",
+        "href": f"/dashboard/website?proposal={proposal.id}",
     }
     assert api_client.get("/api/v1/messages/unread-count/").data == {"count": 0}
 

@@ -85,7 +85,7 @@ export function SubmitterOnboardingPage() {
         : selectedPath === "submission"
           ? "/add-submission"
           : selectedPath === "source_proposal"
-            ? "/source-proposal"
+            ? "/dashboard/website"
             : null;
       if (destination) void navigate(destination);
     },

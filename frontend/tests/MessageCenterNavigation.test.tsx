@@ -51,12 +51,12 @@ test("desktop, mobile, and account navigation expose the unread Message Center b
   const desktopLink = await within(header).findByRole("link", {
     name: "پیام‌ها، ۳ خوانده‌نشده",
   });
-  expect(desktopLink).toHaveAttribute("href", "/messages");
+  expect(desktopLink).toHaveAttribute("href", "/dashboard/messages");
 
   await user.click(within(header).getByRole("button", { name: "حساب کاربری" }));
   expect(
     await screen.findByRole("menuitem", { name: "پیام‌ها، ۳ خوانده‌نشده" }),
-  ).toHaveAttribute("href", "/messages");
+  ).toHaveAttribute("href", "/dashboard/messages");
   await user.keyboard("{Escape}");
 
   await user.click(

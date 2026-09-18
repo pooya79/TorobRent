@@ -85,14 +85,14 @@ test("restores protected Contact Support composition after login", async ({
   await page.waitForLoadState("networkidle");
   await page.getByRole("link", { name: "ایجاد درخواست پشتیبانی" }).click();
   await expect(page).toHaveURL(
-    /\/login\?returnTo=%2Fmessages%2Fnew%2Fsupport$/,
+    /\/login\?returnTo=%2Fdashboard%2Fmessages%2Fnew%2Fsupport$/,
   );
 
   await page.getByLabel("ایمیل یا شماره تلفن").fill("operator@example.com");
   await page.getByLabel("گذرواژه").fill("operator-password");
   await page.getByRole("button", { name: "ورود" }).click();
 
-  await expect(page).toHaveURL(/\/messages\/new\/support$/);
+  await expect(page).toHaveURL(/\/dashboard\/messages\/new\/support$/);
   await expect(
     page.getByRole("heading", { name: "درخواست پشتیبانی جدید" }),
   ).toBeVisible();
@@ -110,13 +110,13 @@ test("keeps the document scroll position when opening a message", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1280, height: 720 });
-  await page.goto("/messages");
+  await page.goto("/dashboard/messages");
   await page
     .getByLabel("ایمیل یا شماره تلفن")
     .fill("submitter@torobrent.local");
   await page.getByLabel("گذرواژه").fill("dev-submitter");
   await page.getByRole("button", { name: "ورود" }).click();
-  await expect(page).toHaveURL(/\/messages$/);
+  await expect(page).toHaveURL(/\/dashboard\/messages$/);
 
   const firstMessage = page
     .getByRole("region", { name: "فهرست پیام‌ها" })
@@ -131,7 +131,7 @@ test("keeps the document scroll position when opening a message", async ({
   expect(scrollY).toBeGreaterThan(0);
 
   await firstMessage.click();
-  await expect(page).toHaveURL(/\/messages\/[^/]+$/);
+  await expect(page).toHaveURL(/\/dashboard\/messages\/[^/]+$/);
   await expect(page.locator("h2[tabindex='-1']")).toBeFocused();
 
   expect(await page.evaluate(() => window.scrollY)).toBe(scrollY);

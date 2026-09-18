@@ -535,7 +535,7 @@ export function SubmitterDashboardPage() {
         {sourceProposals.data &&
           !sourceProposals.data.some((proposal) => proposal.is_current) && (
             <Button asChild variant="outline">
-              <Link to="/source-proposal">معرفی وب‌سایت تازه</Link>
+              <Link to="/dashboard/website">معرفی وب‌سایت تازه</Link>
             </Button>
           )}
         {sourceProposals.isError && (
@@ -625,7 +625,7 @@ export function SubmitterDashboardPage() {
                     {proposal.is_current &&
                       !proposal.current_website_conflict && (
                         <Button asChild variant="outline">
-                          <Link to={`/source-proposal?proposal=${proposal.id}`}>
+                          <Link to={`/dashboard/website?proposal=${proposal.id}`}>
                             مشاهده وب‌سایت جاری
                           </Link>
                         </Button>
@@ -633,7 +633,7 @@ export function SubmitterDashboardPage() {
                     {!proposal.is_current && (
                       <Link
                         className="text-sm underline"
-                        to={`/source-proposal?proposal=${proposal.id}`}
+                        to={`/dashboard/website?proposal=${proposal.id}`}
                       >
                         مشاهده سابقه وب‌سایت
                       </Link>
@@ -641,7 +641,7 @@ export function SubmitterDashboardPage() {
                     {canEdit && (
                       <Button asChild variant="outline">
                         <Link
-                          to={`/source-proposal?proposal=${proposal.id}`}
+                          to={`/dashboard/website?proposal=${proposal.id}`}
                           aria-label={`${state === "changes_requested" ? "اصلاح" : "ادامه"} پیشنهاد وب‌سایت ${title}`}
                         >
                           {state === "changes_requested" ? "اصلاح" : "ادامه"}{" "}

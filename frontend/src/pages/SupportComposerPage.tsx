@@ -55,7 +55,7 @@ export function SupportComposerPage() {
   return (
     <AccountWorkspace>
       <Link
-        to="/messages"
+        to="/dashboard/messages"
         className="text-muted-foreground mb-5 inline-flex min-h-11 items-center gap-2 text-sm"
       >
         <ArrowRight className="size-4" aria-hidden="true" />

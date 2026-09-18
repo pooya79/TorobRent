@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
 import { MemoryRouter } from "react-router";
 import userEvent from "@testing-library/user-event";
@@ -12,6 +12,9 @@ test("shows Source Proposals separately with status and next action", async () =
   const user = userEvent.setup();
   let discarded = false;
   server.use(
+    http.get("*/api/v1/users/me/", () =>
+      HttpResponse.json({ is_submitter: true, display_name: "مالک" }),
+    ),
     http.get("*/api/v1/submissions/", () => HttpResponse.json([])),
     http.get("*/api/v1/source-proposals/", () =>
       HttpResponse.json([
@@ -56,6 +59,22 @@ test("shows Source Proposals separately with status and next action", async () =
   expect(
     await screen.findByRole("heading", { name: "پیشنهادهای منبع" }),
   ).toBeVisible();
+  const navigation = screen.getAllByRole("navigation", {
+    name: "منوی حساب کاربری",
+  })[0]!;
+  await waitFor(() =>
+    expect(
+      within(navigation)
+        .getAllByRole("link")
+        .map((link) => link.getAttribute("href")),
+    ).toEqual([
+      "/dashboard/profile",
+      "/dashboard",
+      "/dashboard/messages",
+      "/dashboard/favorites",
+      "/dashboard/website",
+    ]),
+  );
   expect(screen.getByRole("link", { name: "پیشنهاد تازه" })).toHaveAttribute(
     "href",
     "/submitter/get-started",
@@ -68,7 +87,7 @@ test("shows Source Proposals separately with status and next action", async () =
     screen.getByRole("link", { name: "ادامه پیشنهاد وب‌سایت خانه‌یاب" }),
   ).toHaveAttribute(
     "href",
-    "/source-proposal?proposal=10000000-0000-4000-8000-000000000087",
+    "/dashboard/website?proposal=10000000-0000-4000-8000-000000000087",
   );
 
   await user.click(
@@ -155,7 +174,7 @@ test("shows a Source Proposal review outcome, reason, revision, and next action"
     screen.getByRole("link", { name: "اصلاح پیشنهاد وب‌سایت خانه‌یاب" }),
   ).toHaveAttribute(
     "href",
-    "/source-proposal?proposal=10000000-0000-4000-8000-000000000088",
+    "/dashboard/website?proposal=10000000-0000-4000-8000-000000000088",
   );
 });
 
@@ -770,7 +789,7 @@ test.each(["draft", "pending", "approved"])(
     expect(await screen.findByText("وب‌سایت جاری شما")).toBeInTheDocument();
     expect(
       screen.getByRole("link", { name: "مشاهده وب‌سایت جاری" }),
-    ).toHaveAttribute("href", "/source-proposal?proposal=current-case");
+    ).toHaveAttribute("href", "/dashboard/website?proposal=current-case");
     expect(
       screen.queryByRole("link", { name: "معرفی وب‌سایت تازه" }),
     ).not.toBeInTheDocument();
@@ -806,10 +825,10 @@ test("keeps closed website history accessible and offers a fresh introduction", 
   );
   expect(
     await screen.findByRole("link", { name: "معرفی وب‌سایت تازه" }),
-  ).toHaveAttribute("href", "/source-proposal");
+  ).toHaveAttribute("href", "/dashboard/website");
   expect(
     screen.getByRole("link", { name: "مشاهده سابقه وب‌سایت" }),
-  ).toHaveAttribute("href", "/source-proposal?proposal=old-case");
+  ).toHaveAttribute("href", "/dashboard/website?proposal=old-case");
 });
 
 test("surfaces legacy conflicts and keeps explicit draft removal available", async () => {

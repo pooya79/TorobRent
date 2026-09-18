@@ -188,7 +188,7 @@ def test_listing_inquiry_is_private_and_resolves_current_display_names(
     )
     inquiry_id = created.data["id"]
     assert created.status_code == 201
-    assert created.data["href"] == f"/messages/{inquiry_id}"
+    assert created.data["href"] == f"/dashboard/messages/{inquiry_id}"
     assert ListingInquiry.objects.count() == ListingInquiryMessage.objects.count() == 1
 
     api_client.force_authenticate(unrelated)

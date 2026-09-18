@@ -28,7 +28,7 @@ const message = {
   },
 };
 
-function renderPage(initialEntry = "/messages") {
+function renderPage(initialEntry = "/dashboard/messages") {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
@@ -36,8 +36,8 @@ function renderPage(initialEntry = "/messages") {
     <QueryClientProvider client={queryClient}>
       <MemoryRouter initialEntries={[initialEntry]}>
         <Routes>
-          <Route path="messages" element={<MessageCenterPage />} />
-          <Route path="messages/:messageId" element={<MessageCenterPage />} />
+          <Route path="dashboard/messages" element={<MessageCenterPage />} />
+          <Route path="dashboard/messages/:messageId" element={<MessageCenterPage />} />
         </Routes>
       </MemoryRouter>
     </QueryClientProvider>,
@@ -101,7 +101,7 @@ test("opens a notification on a stable detail route and can mark it unread", asy
   const link = await within(feed).findByRole("link", {
     name: /اصلاح پیشنهاد لازم است/,
   });
-  expect(link).toHaveAttribute("href", `/messages/${message.id}`);
+  expect(link).toHaveAttribute("href", `/dashboard/messages/${message.id}`);
   await user.click(link);
 
   const detail = await screen.findByRole("region", { name: "جزئیات پیام" });
@@ -119,7 +119,7 @@ test("opens a notification on a stable detail route and can mark it unread", asy
   );
   expect(
     within(detail).getByRole("link", { name: "بازگشت به پیام‌ها" }),
-  ).toHaveAttribute("href", "/messages");
+  ).toHaveAttribute("href", "/dashboard/messages");
 
   await user.click(
     within(detail).getByRole("button", {
@@ -394,7 +394,7 @@ test("renders a Support thread with safe links and lets the requester reply", as
       },
     ),
   );
-  renderPage(`/messages/${support.id}`);
+  renderPage(`/dashboard/messages/${support.id}`);
   const user = userEvent.setup();
 
   expect(await screen.findByText("وضعیت: در حال بررسی")).toBeVisible();
@@ -455,14 +455,14 @@ test("keeps an expired resolved Support thread readable and links to a new reque
     ),
   );
 
-  renderPage(`/messages/${support.id}`);
+  renderPage(`/dashboard/messages/${support.id}`);
 
   expect(await screen.findByText("وضعیت: رسیدگی شد")).toBeVisible();
   expect(screen.getByText("متن درخواست قدیمی")).toBeVisible();
   expect(screen.getAllByText("پاسخ نهایی اپراتور")).toHaveLength(2);
   expect(
     screen.getByRole("link", { name: "ایجاد درخواست پشتیبانی جدید" }),
-  ).toHaveAttribute("href", "/messages/new/support");
+  ).toHaveAttribute("href", "/dashboard/messages/new/support");
   expect(
     screen.queryByRole("textbox", { name: "ادامه گفت‌وگو" }),
   ).not.toBeInTheDocument();
@@ -530,7 +530,7 @@ test("shows a recently resolved Support thread as received after requester reply
       );
     }),
   );
-  renderPage(`/messages/${support.id}`);
+  renderPage(`/dashboard/messages/${support.id}`);
   const user = userEvent.setup();
 
   expect(await screen.findByText("وضعیت: رسیدگی شد")).toBeVisible();
@@ -614,7 +614,7 @@ test("filters and continues a Listing Inquiry thread with current participant na
       },
     ),
   );
-  renderPage(`/messages/${inquiry.id}?filter=listing_inquiry`);
+  renderPage(`/dashboard/messages/${inquiry.id}?filter=listing_inquiry`);
 
   expect(await screen.findByText("گفت‌وگو با مالک تازه")).toBeVisible();
   expect(screen.getByText("نام نمایشی؛ هویت تأییدشده نیست")).toBeVisible();
@@ -696,7 +696,7 @@ test("shows the immutable Listing snapshot beside inactive current availability"
     ),
   );
 
-  renderPage(`/messages/${inquiry.id}`);
+  renderPage(`/dashboard/messages/${inquiry.id}`);
 
   expect(await screen.findByText("اطلاعات هنگام شروع گفت‌وگو")).toBeVisible();
   expect(screen.getByText("۹۰ متر مربع")).toBeVisible();
@@ -755,7 +755,7 @@ test("renders a deleted inquiry participant neutrally without account actions", 
     ),
   );
 
-  renderPage(`/messages/${inquiry.id}`);
+  renderPage(`/dashboard/messages/${inquiry.id}`);
 
   expect(await screen.findByText("گفت‌وگو با حساب حذف‌شده")).toBeVisible();
   expect(
@@ -812,7 +812,7 @@ test("blocks the counterpart globally with an accessible confirmation", async ()
       return HttpResponse.json({ blocked: true });
     }),
   );
-  const { queryClient } = renderPage(`/messages/${inquiry.id}`);
+  const { queryClient } = renderPage(`/dashboard/messages/${inquiry.id}`);
   queryClient.setQueryData(["catalog", "property", inquiry.group.id], {
     cached: true,
   });
@@ -921,7 +921,7 @@ test("renders safe links as plain text content and visibly edits an ordinary inq
       },
     ),
   );
-  renderPage(`/messages/${inquiry.id}`);
+  renderPage(`/dashboard/messages/${inquiry.id}`);
   const user = userEvent.setup();
 
   await screen.findByText("گفت‌وگو با مالک");
@@ -1044,7 +1044,7 @@ test("reports either one inquiry message or the whole conversation with an optio
     ),
   );
   const user = userEvent.setup();
-  renderPage(`/messages/${inquiry.id}`);
+  renderPage(`/dashboard/messages/${inquiry.id}`);
 
   await screen.findByText("گفت‌وگو با مالک");
   await user.click(screen.getByRole("button", { name: "گزارش پیام" }));
@@ -1090,7 +1090,7 @@ test("shows failed support replies without losing the draft", async () => {
       HttpResponse.json({}, { status: 500 }),
     ),
   );
-  renderPage(`/messages/${support.id}`);
+  renderPage(`/dashboard/messages/${support.id}`);
   const user = userEvent.setup();
   const input = await screen.findByRole("textbox", { name: "ادامه گفت‌وگو" });
   await user.type(input, "لطفاً پیگیری کنید.");
@@ -1125,7 +1125,7 @@ test("keeps reply focus when conversation data refreshes", async () => {
     ),
     http.get("*/api/v1/messages/:messageId/", () => HttpResponse.json(detail)),
   );
-  const { queryClient } = renderPage(`/messages/${support.id}`);
+  const { queryClient } = renderPage(`/dashboard/messages/${support.id}`);
   const user = userEvent.setup();
   const input = await screen.findByRole("textbox", { name: "ادامه گفت‌وگو" });
   await user.type(input, "پاسخ من");
@@ -1159,7 +1159,7 @@ test("keeps separate drafts while switching conversations inside the dashboard",
       }),
     ),
   );
-  renderPage(`/messages/${first.id}`);
+  renderPage(`/dashboard/messages/${first.id}`);
   const user = userEvent.setup();
   await user.type(
     await screen.findByRole("textbox", { name: "ادامه گفت‌وگو" }),
@@ -1209,7 +1209,7 @@ test("opens and replies to a source conversation separately from decisions", asy
     listing_context: null,
     target: {
       label: "مشاهده منبع پیشنهادی",
-      href: "/source-proposal?proposal=proposal-id",
+      href: "/dashboard/website?proposal=proposal-id",
     },
     entries: [
       {
@@ -1245,13 +1245,13 @@ test("opens and replies to a source conversation separately from decisions", asy
       },
     ),
   );
-  renderPage(`/messages/${message.id}`);
+  renderPage(`/dashboard/messages/${message.id}`);
   expect(
     await screen.findByRole("list", { name: "گفت‌وگوی منبع" }),
   ).toHaveTextContent("نمونه نشانی را بفرستید");
   expect(
     screen.getByRole("link", { name: "مشاهده منبع پیشنهادی" }),
-  ).toHaveAttribute("href", "/source-proposal?proposal=proposal-id");
+  ).toHaveAttribute("href", "/dashboard/website?proposal=proposal-id");
   expect(
     screen.queryByRole("button", { name: "گزارش گفت‌وگو" }),
   ).not.toBeInTheDocument();
@@ -1294,7 +1294,7 @@ test("opens a Source exception summary with an Operator destination and no reply
       }),
     ),
   );
-  renderPage(`/messages/${notice.id}`);
+  renderPage(`/dashboard/messages/${notice.id}`);
   const detail = await screen.findByRole("region", { name: "جزئیات پیام" });
   expect(await within(detail).findByText(notice.preview)).toBeVisible();
   expect(

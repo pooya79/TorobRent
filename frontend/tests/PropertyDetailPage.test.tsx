@@ -376,7 +376,7 @@ test("chooses an explicitly unverified Display Name and opens the sent inquiry",
       return HttpResponse.json(
         {
           id: "5ad03176-83d3-4f6a-a448-349d21b51f85",
-          href: "/messages/thread",
+          href: "/dashboard/messages/thread",
         },
         { status: 201 },
       );
@@ -403,7 +403,7 @@ test("chooses an explicitly unverified Display Name and opens the sent inquiry",
   await userEvent.click(screen.getByRole("button", { name: "ارسال پیام" }));
 
   await waitFor(() =>
-    expect(navigate).toHaveBeenCalledWith("/messages/thread"),
+    expect(navigate).toHaveBeenCalledWith("/dashboard/messages/thread"),
   );
 });
 

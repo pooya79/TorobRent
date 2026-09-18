@@ -68,7 +68,7 @@ def test_verified_account_creates_a_separate_support_thread_from_account_identit
     assert created.submitter == requester
     assert created.name == "نگار محمدی"
     assert created.email == "requester@example.com"
-    assert first.data["href"] == f"/messages/{created.id}"
+    assert first.data["href"] == f"/dashboard/messages/{created.id}"
 
     initial = created.messages.get(is_initial=True)
     edited = api_client.patch(

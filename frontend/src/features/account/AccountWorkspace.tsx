@@ -19,21 +19,21 @@ import { cn } from "@/lib/utils";
 
 const submitterLinks = [
   {
-    to: "/dashboard/favorites",
-    label: "علاقه‌مندی‌ها",
-    icon: Heart,
-    end: false,
-  },
-  { to: "/dashboard", label: "آگهی‌های من", icon: LayoutDashboard, end: true },
-  {
     to: "/dashboard/profile",
     label: "پروفایل من",
     icon: UserRound,
     end: false,
   },
-  { to: "/messages", label: "پیام‌ها", icon: Mail, end: false },
+  { to: "/dashboard", label: "آگهی‌های من", icon: LayoutDashboard, end: true },
+  { to: "/dashboard/messages", label: "پیام‌ها", icon: Mail, end: false },
   {
-    to: "/source-proposal",
+    to: "/dashboard/favorites",
+    label: "علاقه‌مندی‌ها",
+    icon: Heart,
+    end: false,
+  },
+  {
+    to: "/dashboard/website",
     label: "معرفی وب‌سایت اجاره",
     icon: Globe2,
     end: false,
@@ -52,7 +52,7 @@ export function AccountWorkspace({ children }: { children: ReactNode }) {
           icon: UserRound,
           end: false,
         },
-        { to: "/messages", label: "پیام‌ها", icon: Mail, end: false },
+        { to: "/dashboard/messages", label: "پیام‌ها", icon: Mail, end: false },
         {
           to: "/dashboard/favorites",
           label: "علاقه‌مندی‌ها",
@@ -130,7 +130,7 @@ export function AccountWorkspace({ children }: { children: ReactNode }) {
               ? "آگهی شما پس از بررسی منتشر می‌شود. وضعیت و درخواست‌های اصلاح را از اینجا دنبال کنید."
               : "پیام‌ها، اطلاعات حساب و ملک‌های موردعلاقه خود را از اینجا دنبال کنید."}
             <Link
-              to="/messages/new/support"
+              to="/dashboard/messages/new/support"
               className="text-foreground mt-3 flex min-h-11 items-center gap-2 font-medium"
             >
               <CircleHelp className="size-4" aria-hidden="true" />

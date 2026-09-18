@@ -389,7 +389,7 @@ class ListingInquiryCreateView(APIView):
             )
         )
         return Response(
-            {"id": inquiry.id, "href": f"/messages/{inquiry.id}"},
+            {"id": inquiry.id, "href": f"/dashboard/messages/{inquiry.id}"},
             status=status.HTTP_201_CREATED,
         )
 
@@ -538,7 +538,7 @@ class SupportRequestCreateView(APIView):
             **serializer.validated_data,
         )
         return Response(
-            {"id": support_request.id, "href": f"/messages/{support_request.id}"},
+            {"id": support_request.id, "href": f"/dashboard/messages/{support_request.id}"},
             status=status.HTTP_201_CREATED,
         )
 

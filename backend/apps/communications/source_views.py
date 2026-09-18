@@ -68,7 +68,7 @@ class SourceConversationOpenView(APIView):
         conversation = open_source_conversation(
             actor=cast(User, request.user), **data.validated_data
         )
-        return Response({"id": conversation.pk, "href": f"/messages/{conversation.pk}"})
+        return Response({"id": conversation.pk, "href": f"/dashboard/messages/{conversation.pk}"})
 
 
 class SourceConversationReplyView(APIView):

@@ -42,7 +42,7 @@ export function ContactPage() {
         را در یک رشته امن دنبال کنید.
       </p>
       <Button asChild className="mt-7">
-        <Link to="/messages/new/support">ایجاد درخواست پشتیبانی</Link>
+        <Link to="/dashboard/messages/new/support">ایجاد درخواست پشتیبانی</Link>
       </Button>
       <Alert className="mt-6">
         <AlertDescription className="leading-7">

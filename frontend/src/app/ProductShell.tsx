@@ -211,7 +211,7 @@ function MessageCenterLink({
       aria-label={messageLinkLabel(unreadCount)}
       className={navigationClass}
       onClick={onNavigate}
-      to="/messages"
+      to="/dashboard/messages"
     >
       <span className="relative">
         <MessageCircle className="size-5" aria-hidden="true" />
@@ -387,7 +387,7 @@ function AccountMenu({
           </NavLink>
         </DropdownMenuItem>
         <DropdownMenuItem asChild>
-          <NavLink aria-label={messageLinkLabel(unreadCount)} to="/messages">
+          <NavLink aria-label={messageLinkLabel(unreadCount)} to="/dashboard/messages">
             <MessageCircle aria-hidden="true" />
             <span>پیام‌ها</span>
             {unreadCount > 0 ? (

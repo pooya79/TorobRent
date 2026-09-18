@@ -363,7 +363,7 @@ export function GuidePage() {
               لحظه‌ای نیست. نتیجه هر درخواست و موارد نیازمند پیگیری را در پرونده
               سایت ببینید.
             </p>
-            <ActionLink to="/source-proposal">
+            <ActionLink to="/dashboard/website">
               معرفی یا ادامه پرونده وب‌سایت
             </ActionLink>
           </Section>
@@ -626,7 +626,7 @@ export function GuidePage() {
             ))}
             <div className="flex flex-wrap gap-x-6">
               <ActionLink to="/dashboard">داشبورد من</ActionLink>
-              <ActionLink to="/messages">پیام‌ها و اعلان‌ها</ActionLink>
+              <ActionLink to="/dashboard/messages">پیام‌ها و اعلان‌ها</ActionLink>
               <ActionLink to="/contact">تماس با پشتیبانی</ActionLink>
             </div>
             <p className="text-muted-foreground text-sm">
