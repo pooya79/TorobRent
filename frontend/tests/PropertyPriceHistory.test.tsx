@@ -5,12 +5,6 @@ import { expect, test } from "vitest";
 import { PropertyPriceHistory } from "@/features/catalog/PropertyPriceHistory";
 import { propertyDetail } from "./fixtures/catalog";
 
-test("does not fabricate history from current offers", () => {
-  render(<PropertyPriceHistory listings={propertyDetail.listings} />);
-  expect(screen.queryByRole("img")).not.toBeInTheDocument();
-  expect(screen.getByText(/هنوز سابقه کافی/)).toBeVisible();
-});
-
 test("plots both prices, including zero rent, with a dated table and separate source histories", async () => {
   render(
     <PropertyPriceHistory

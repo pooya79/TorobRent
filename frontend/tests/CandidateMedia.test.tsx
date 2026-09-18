@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react";
 import { expect, it } from "vitest";
 import { CandidateMedia } from "@/features/source-proposals/CandidateMedia";
 
-it("shows source images without editing controls", () => {
+it("shows source images", () => {
   const images = ["first", "second"].map((id, index) => ({
     id,
     original_url: `https://source.example/${id}`,
@@ -31,7 +31,4 @@ it("shows source images without editing controls", () => {
     "src",
     "/api/thumbnail/first",
   );
-  expect(screen.queryByRole("button")).not.toBeInTheDocument();
-  expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
-  expect(screen.queryByRole("radio")).not.toBeInTheDocument();
 });

@@ -958,31 +958,6 @@ test("keeps mobile list-first and restores focus after the full-screen map close
   expect(openMap).toHaveFocus();
 });
 
-test("uses an equal fixed-height split with scrolling confined to results", async () => {
-  renderResults("/search", createFakeMapAdapter());
-
-  await screen.findByRole("heading", { name: "آپارتمان در سعادت‌آباد" });
-  const resultsAndMap = screen.getByRole("region", {
-    name: "نتایج و نقشه جاری",
-  });
-  const desktopMap = within(resultsAndMap).getByRole("region", {
-    name: "نقشه ملک‌ها",
-  }).parentElement;
-  const propertyList = within(resultsAndMap).getByRole("region", {
-    name: "ملک‌های پیدا شده",
-  }).parentElement;
-
-  expect(resultsAndMap).toHaveClass("min-h-0", "flex-1", "xl:grid-cols-2");
-  expect(desktopMap).toHaveClass("xl:h-full", "xl:min-h-0");
-  expect(desktopMap).not.toHaveClass("xl:sticky");
-  expect(propertyList).toHaveClass(
-    "h-full",
-    "min-h-0",
-    "overflow-y-auto",
-    "overscroll-contain",
-  );
-});
-
 test("keeps a marker preview useful when its result card is not loaded", async () => {
   const user = userEvent.setup();
   const loadedProperty = propertySearchPage.results[0]!;

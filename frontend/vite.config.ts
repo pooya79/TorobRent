@@ -17,7 +17,6 @@ export default defineConfig({
       "@radix-ui/react-label",
       "@radix-ui/react-radio-group",
       "@radix-ui/react-select",
-      "@radix-ui/react-separator",
       "@tanstack/react-query",
       "class-variance-authority",
       "clsx",
