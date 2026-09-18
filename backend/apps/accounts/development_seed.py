@@ -7,6 +7,7 @@ from .models import User
 
 DEVELOPMENT_SUBMITTER_EMAIL = "submitter@torobrent.local"
 DEVELOPMENT_SUBMITTER_PASSWORD = "dev-submitter"
+DEVELOPMENT_SUBMITTER_PHONE = "09120000000"
 DEVELOPMENT_OPERATOR_EMAIL = "operator@torobrent.local"
 DEVELOPMENT_OPERATOR_PASSWORD = "dev-operator"
 DEVELOPMENT_RENTER_EMAIL = "renter@torobrent.local"
@@ -31,7 +32,13 @@ class DevelopmentPersonas:
 
 
 def _get_or_create_persona(
-    *, email: str, password: str, display_name: str, operator: bool, submitter: bool
+    *,
+    email: str,
+    password: str,
+    display_name: str,
+    operator: bool,
+    submitter: bool,
+    phone: str | None = None,
 ) -> User:
     user, created = User.objects.get_or_create(
         email=email,
@@ -42,6 +49,8 @@ def _get_or_create_persona(
             "is_superuser": operator,
             "is_submitter": submitter,
             "display_name": display_name,
+            "phone": phone,
+            "phone_verified_at": VERIFIED_AT if phone else None,
         },
     )
     if created:
@@ -57,6 +66,7 @@ def seed_development_personas() -> DevelopmentPersonas:
         display_name="مالک آزمایشی",
         operator=False,
         submitter=True,
+        phone=DEVELOPMENT_SUBMITTER_PHONE,
     )
     operator = _get_or_create_persona(
         email=DEVELOPMENT_OPERATOR_EMAIL,

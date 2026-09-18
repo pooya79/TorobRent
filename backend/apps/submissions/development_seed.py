@@ -13,8 +13,6 @@ from .models import (
     SubmitterRole,
 )
 
-LEGACY_DEVELOPMENT_CONTACT_PHONE = "09120000000"
-
 
 @dataclass(frozen=True)
 class DevelopmentSubmissionSpec:
@@ -60,21 +58,28 @@ def seed_development_submissions(
     property_: Property,
     published_listing: Listing,
     expired_listing: Listing,
+    listings: Sequence[Listing],
 ) -> None:
-    specs = (
+    if not submitter.phone_verified or submitter.phone is None:
+        raise RuntimeError("The development submitter must have a verified phone")
+    specs = [
         DevelopmentSubmissionSpec(SubmissionState.DRAFT),
         DevelopmentSubmissionSpec(SubmissionState.PENDING),
         DevelopmentSubmissionSpec(SubmissionState.CHANGES_REQUESTED),
         DevelopmentSubmissionSpec(SubmissionState.REJECTED),
         DevelopmentSubmissionSpec(SubmissionState.PUBLISHED, published_listing),
         DevelopmentSubmissionSpec(SubmissionState.PUBLISHED, expired_listing),
+    ]
+    specs.extend(
+        DevelopmentSubmissionSpec(SubmissionState.PUBLISHED, listing)
+        for listing in listings
+        if listing.source.is_builtin
+        and listing.state == "published"
+        and listing.pk != published_listing.pk
     )
     for index, spec in enumerate(specs, start=1):
-        contact_phone = (
-            spec.listing.direct_phone
-            if spec.listing is not None and spec.listing.direct_phone
-            else LEGACY_DEVELOPMENT_CONTACT_PHONE
-        )
+        contact_phone = submitter.phone
+        submission_property = spec.listing.property if spec.listing is not None else property_
         submission, created = Submission.objects.get_or_create(
             id=development_fixture_id(DevelopmentFixtureKind.SUBMISSION, index),
             defaults={
@@ -86,24 +91,24 @@ def seed_development_submissions(
                 "listing": spec.listing,
                 "current_step": SubmissionStep.REVIEW,
                 "media_complete": True,
-                "city": property_.city,
-                "district": property_.district,
-                "neighborhood": property_.neighborhood,
+                "city": submission_property.city,
+                "district": submission_property.district,
+                "neighborhood": submission_property.neighborhood,
                 "address": f"نشانی ساختگی محیط توسعه {index}",
-                "property_type": property_.property_type,
-                "area_sqm": property_.area_sqm,
-                "room_count": property_.room_count,
-                "construction_year": property_.construction_year,
-                "floor": property_.floor,
-                "total_floors": property_.total_floors,
-                "units_per_floor": property_.units_per_floor,
+                "property_type": submission_property.property_type,
+                "area_sqm": submission_property.area_sqm,
+                "room_count": submission_property.room_count,
+                "construction_year": submission_property.construction_year,
+                "floor": submission_property.floor,
+                "total_floors": submission_property.total_floors,
+                "units_per_floor": submission_property.units_per_floor,
                 "deposit_rial": 5_000_000_000,
                 "monthly_rent_rial": 100_000_000,
-                "parking": property_.parking,
-                "elevator": property_.elevator,
-                "storage": property_.storage,
-                "balcony": property_.balcony,
-                "furnished": property_.furnished,
+                "parking": submission_property.parking,
+                "elevator": submission_property.elevator,
+                "storage": submission_property.storage,
+                "balcony": submission_property.balcony,
+                "furnished": submission_property.furnished,
                 "description": "پیشنهاد ساختگی برای توسعه گردش کار Submitter و Operator.",
                 "contact_name": "کاربر توسعه",
                 "contact_phone": contact_phone,
@@ -119,13 +124,3 @@ def seed_development_submissions(
                 submitter=submitter,
                 operator=operator,
             )
-        elif (
-            spec.listing is not None
-            and spec.listing.direct_phone
-            and submission.contact_phone == LEGACY_DEVELOPMENT_CONTACT_PHONE
-            and submission.review_data == {"development_seed": True}
-        ):
-            # Repair fixtures created before direct Listings and their approved
-            # Submissions shared the same phone number. Preserve any other edit.
-            submission.contact_phone = spec.listing.direct_phone
-            submission.save(update_fields=("contact_phone",))

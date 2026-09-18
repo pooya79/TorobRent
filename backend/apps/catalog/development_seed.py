@@ -8,6 +8,7 @@ from django.core.files.storage import default_storage
 from django.core.management import call_command
 from PIL import Image
 
+from apps.accounts.development_seed import DEVELOPMENT_SUBMITTER_PHONE
 from apps.common.development_seed import DevelopmentFixtureKind, development_fixture_id
 from apps.common.media import (
     FirstPartyImageInput,
@@ -63,6 +64,7 @@ class DevelopmentCatalog:
     first_property: Property
     published_listing: Listing
     expired_listing: Listing
+    listings_for_submissions: list[Listing]
 
 
 def _load_locations() -> None:
@@ -362,7 +364,7 @@ def _seed_listings(properties: list[Property]) -> list[Listing]:
                 "provenance_note": "داده توسعه؛ موجودی زنده یا داده خزنده نیست.",
                 "external_url": f"https://{source.domain}/listings/{index}" if external else "",
                 "external_media_url": "",
-                "direct_phone": "02100000000" if not external else "",
+                "direct_phone": DEVELOPMENT_SUBMITTER_PHONE if not external else "",
                 "published_at": PUBLISHED_AT,
                 "availability_confirmed_at": PUBLISHED_AT,
                 "available_until": ACTIVE_UNTIL,
@@ -388,4 +390,5 @@ def seed_development_catalog() -> DevelopmentCatalog:
         first_property=properties[0],
         published_listing=listings[0],
         expired_listing=listings[56],
+        listings_for_submissions=listings,
     )

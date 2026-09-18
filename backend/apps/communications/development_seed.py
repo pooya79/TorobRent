@@ -104,6 +104,10 @@ def seed_development_communications(
     decision_events = list(
         SubmissionEvent.objects.filter(
             submission__submitter=submitter,
+            submission_id__in=[
+                development_fixture_id(DevelopmentFixtureKind.SUBMISSION, index)
+                for index in range(1, 7)
+            ],
             new_state__in=(
                 SubmissionState.CHANGES_REQUESTED,
                 SubmissionState.REJECTED,

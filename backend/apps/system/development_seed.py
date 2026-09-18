@@ -29,6 +29,7 @@ def seed_development_data() -> DevelopmentSeedResult:
         property_=catalog.first_property,
         published_listing=catalog.published_listing,
         expired_listing=catalog.expired_listing,
+        listings=catalog.listings_for_submissions,
     )
     communications = seed_development_communications(
         submitter=personas.submitter,
