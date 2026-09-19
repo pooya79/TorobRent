@@ -1622,6 +1622,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/v1/operator/source-proposals/{proposal_id}/results/decide/": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Review selected ads with one summary per requester */
+    post: operations["v1_operator_source_proposals_results_decide_create"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/v1/operator/source-proposals/{proposal_id}/runs/": {
     parameters: {
       query?: never;
@@ -2603,6 +2620,34 @@ export interface components {
     Band182Enum: "likely" | "possible" | "below_threshold";
     /** @enum {unknown} */
     BlankEnum: "";
+    CandidateBatchFailure: {
+      /** Format: uuid */
+      id: string;
+      detail: string;
+    };
+    CandidateBatchItem: {
+      /** Format: uuid */
+      id: string;
+      reviewed_revision: number;
+    };
+    CandidateBatchRequest: {
+      items: components["schemas"]["CandidateBatchItem"][];
+      action: components["schemas"]["CandidateBatchRequestActionEnum"];
+      /** @default  */
+      reason: string;
+      /** @default false */
+      confirmed: boolean;
+    };
+    /**
+     * @description * `approve` - approve
+     *     * `reject` - reject
+     * @enum {string}
+     */
+    CandidateBatchRequestActionEnum: "approve" | "reject";
+    CandidateBatchResult: {
+      succeeded: string[];
+      failed: components["schemas"]["CandidateBatchFailure"][];
+    };
     CandidateImage: {
       /** Format: uuid */
       readonly id: string;
@@ -3137,6 +3182,11 @@ export interface components {
       corrections?: unknown;
       /** Format: date-time */
       readonly created_at: string;
+    };
+    ExternalListingCandidateRejection: {
+      reviewed_revision: number;
+      /** @default  */
+      reason: string;
     };
     ExternalListingCandidateReviewClaim: {
       /** Format: uuid */
@@ -8275,7 +8325,7 @@ export interface operations {
     };
     requestBody: {
       content: {
-        "application/json": components["schemas"]["SourceProposalDecision"];
+        "application/json": components["schemas"]["ExternalListingCandidateRejection"];
       };
     };
     responses: {
@@ -9138,6 +9188,31 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["PaginatedExternalListingCandidateSummaryList"];
+        };
+      };
+    };
+  };
+  v1_operator_source_proposals_results_decide_create: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        proposal_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["CandidateBatchRequest"];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["CandidateBatchResult"];
         };
       };
     };

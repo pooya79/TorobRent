@@ -416,6 +416,7 @@ def _record_candidate_decision(
     claim: ExternalListingCandidateReviewClaim,
     new_state: ExternalListingCandidateState,
     reason: str = "",
+    notify: bool = True,
 ) -> ExternalListingCandidate:
     event = record_candidate_transition(
         candidate=candidate, actor=actor, new_state=new_state, reason=reason
@@ -429,7 +430,7 @@ def _record_candidate_decision(
 
         refresh_run_counts(candidate.extraction_run)
         recipient = candidate.extraction_run.request.requester
-        if recipient is not None:
+        if recipient is not None and notify:
             SystemNotification.objects.create(
                 recipient=recipient,
                 originating_candidate_event=event,
@@ -438,16 +439,14 @@ def _record_candidate_decision(
     return candidate
 
 
-def _candidate_reason(reason: str) -> str:
-    reason = reason.strip()
-    if not reason:
-        raise ValidationError("A rejection requires a reason.")
-    return reason
-
-
 @transaction.atomic
 def reject_external_listing_candidate(
-    *, candidate: ExternalListingCandidate, actor: User, reviewed_revision: int, reason: str
+    *,
+    candidate: ExternalListingCandidate,
+    actor: User,
+    reviewed_revision: int,
+    reason: str = "",
+    notify: bool = True,
 ) -> ExternalListingCandidate:
     candidate = _lock_candidate(candidate)
     _require_candidate_review_authority(candidate=candidate, actor=actor)
@@ -459,13 +458,19 @@ def reject_external_listing_candidate(
         actor=actor,
         claim=claim,
         new_state=ExternalListingCandidateState.REJECTED,
-        reason=_candidate_reason(reason),
+        reason=reason.strip(),
+        notify=notify,
     )
 
 
 @transaction.atomic
 def approve_external_listing_candidate(
-    *, candidate: ExternalListingCandidate, actor: User, reviewed_revision: int, confirmed: bool
+    *,
+    candidate: ExternalListingCandidate,
+    actor: User,
+    reviewed_revision: int,
+    confirmed: bool,
+    notify: bool = True,
 ) -> ExternalListingCandidate:
     if not confirmed:
         raise ValidationError("External Listing approval requires confirmation.")
@@ -482,4 +487,5 @@ def approve_external_listing_candidate(
         actor=actor,
         claim=claim,
         new_state=ExternalListingCandidateState.PUBLISHED,
+        notify=notify,
     )

@@ -2,6 +2,7 @@ from django.urls import path
 
 from . import case_reads
 from .bulk_views import SourceBulkApplyView, SourceBulkPreviewView
+from .candidate_batch_views import OperatorCandidateBatchView
 from .case_reads import OperatorCaseResultsView, OperatorCaseRunsView
 from .exception_views import OperatorSourceExceptionRetryView
 from .exclusion_views import (
@@ -31,6 +32,11 @@ from .run_views import OperatorRunApproveView
 app_name = "operator-source-proposals"
 
 urlpatterns = [
+    path(
+        "<uuid:proposal_id>/results/decide/",
+        OperatorCandidateBatchView.as_view(),
+        name="candidate-batch",
+    ),
     path(
         "<uuid:proposal_id>/runs/<uuid:run_id>/",
         case_reads.OperatorCaseRunDetailView.as_view(),

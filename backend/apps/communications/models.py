@@ -512,6 +512,8 @@ class SystemNotification(models.Model):
         null=True,
         related_name="system_notifications",
     )
+    # A bulk summary is anchored to its first event and retains all successful event IDs.
+    candidate_batch_event_ids = models.JSONField(default=list, blank=True, editable=False)
     originating_source_exception_notice = models.OneToOneField(
         "source_proposals.SourceExceptionNotice",
         on_delete=models.PROTECT,

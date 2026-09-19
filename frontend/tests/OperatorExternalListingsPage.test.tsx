@@ -194,37 +194,46 @@ test("explains a missing old property instead of silently opening an empty queue
   ).toBeVisible();
 });
 
-test("invalid extracted data can be rejected but cannot be edited or approved", async () => {
-  const user = userEvent.setup();
-  let rejection: unknown;
-  server.use(
-    http.post(
-      "*/api/v1/operator/external-listing-candidates/:id/reject/",
-      async ({ request }) => {
-        rejection = await request.json();
-        return HttpResponse.json({ ...property, state: "rejected" });
-      },
-    ),
-  );
-  setup("/operator/source-proposals/source?candidate=property#exceptions");
-  const dialog = within(await screen.findByRole("dialog"));
-  expect(dialog.queryByRole("spinbutton")).not.toBeInTheDocument();
-  expect(
-    dialog.queryByText("اصلاح مشخصات و تصاویر این ملک"),
-  ).not.toBeInTheDocument();
-  await user.click(dialog.getByLabelText("تأیید انتشار آپارتمان نورگیر"));
-  expect(
-    dialog.getByRole("button", { name: "تأیید و انتشار آپارتمان نورگیر" }),
-  ).toBeDisabled();
-  await user.type(
-    dialog.getByLabelText("دلیل رد آپارتمان نورگیر"),
-    "اطلاعات نادرست",
-  );
-  await user.click(dialog.getByRole("button", { name: "رد آپارتمان نورگیر" }));
-  await waitFor(() =>
-    expect(rejection).toEqual({
-      reviewed_revision: 1,
-      reason: "اطلاعات نادرست",
-    }),
-  );
-});
+test.each(["", "اطلاعات نادرست"])(
+  "invalid extracted data can be rejected with optional note (%s)",
+  async (note) => {
+    const user = userEvent.setup();
+    let rejection: unknown;
+    server.use(
+      http.post(
+        "*/api/v1/operator/external-listing-candidates/:id/reject/",
+        async ({ request }) => {
+          rejection = await request.json();
+          return HttpResponse.json({ ...property, state: "rejected" });
+        },
+      ),
+    );
+    setup("/operator/source-proposals/source?candidate=property#exceptions");
+    const dialog = within(await screen.findByRole("dialog"));
+    expect(dialog.queryByRole("spinbutton")).not.toBeInTheDocument();
+    expect(
+      dialog.queryByText("اصلاح مشخصات و تصاویر این ملک"),
+    ).not.toBeInTheDocument();
+    await user.click(dialog.getByLabelText("تأیید انتشار آپارتمان نورگیر"));
+    expect(
+      dialog.getByRole("button", { name: "تأیید و انتشار آپارتمان نورگیر" }),
+    ).toBeDisabled();
+    expect(
+      dialog.getByRole("button", { name: "رد آپارتمان نورگیر" }),
+    ).toBeEnabled();
+    if (note)
+      await user.type(
+        dialog.getByLabelText("دلیل رد آپارتمان نورگیر (اختیاری)"),
+        note,
+      );
+    await user.click(
+      dialog.getByRole("button", { name: "رد آپارتمان نورگیر" }),
+    );
+    await waitFor(() =>
+      expect(rejection).toEqual({
+        reviewed_revision: 1,
+        reason: note,
+      }),
+    );
+  },
+);

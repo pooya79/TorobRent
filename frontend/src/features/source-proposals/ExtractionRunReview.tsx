@@ -1,3 +1,4 @@
+import { useCandidateSelection } from "./useCandidateSelection";
 import { useCaseRecords } from "./CaseRecords";
 import { candidateValidationMessages } from "./candidate-validation";
 import { useState } from "react";
@@ -104,6 +105,15 @@ export function ExtractionRunReview({
   const visible = remote
     ? filtered
     : filtered.slice(currentPage * 20, (currentPage + 1) * 20);
+  const selection = useCandidateSelection({
+    proposalId,
+    runId: run?.id,
+    search,
+    filter,
+    remote,
+    candidates: filtered,
+    enabled: canApprove,
+  });
   return (
     <section className="grid gap-4" aria-label="بررسی نتایج استخراج">
       {!properties && (
@@ -122,8 +132,10 @@ export function ExtractionRunReview({
               key={value}
               size="sm"
               variant={filter === value ? "default" : "outline"}
+              disabled={selection.busy}
               aria-pressed={filter === value}
               onClick={() => {
+                selection.reset();
                 setFilter(value as typeof filter);
                 setPage(0);
               }}
@@ -151,8 +163,10 @@ export function ExtractionRunReview({
         </Label>
         <Input
           id={`result-search-${run?.id}`}
+          disabled={selection.busy}
           value={search}
           onChange={(event) => {
+            selection.reset();
             setSearch(event.target.value);
             setPage(0);
           }}
@@ -170,6 +184,7 @@ export function ExtractionRunReview({
           <Button onClick={() => void records.refetch()}>تلاش دوباره</Button>
         </p>
       )}
+      {selection.toolbar}
       {!visible.length ? (
         <p className="rounded-xl border border-dashed p-6 text-center text-sm">
           {candidates.length
@@ -195,6 +210,14 @@ export function ExtractionRunReview({
             </caption>
             <thead className="bg-muted/50 text-muted-foreground">
               <tr>
+                {canApprove && (
+                  <th scope="col" className="p-3">
+                    {selection.checkbox(
+                      visible,
+                      "انتخاب همه آگهی‌های قابل بررسی این صفحه",
+                    )}
+                  </th>
+                )}
                 {[
                   "آگهی",
                   "وضعیت",
@@ -218,6 +241,14 @@ export function ExtractionRunReview({
                 const messages = candidateValidationMessages(candidate);
                 return (
                   <tr key={candidate.id} className="border-t align-top">
+                    {canApprove && (
+                      <td className="p-3">
+                        {selection.checkbox(
+                          [candidate],
+                          `انتخاب ${candidate.title || candidate.external_url}`,
+                        )}
+                      </td>
+                    )}
                     <th
                       scope="row"
                       className="max-w-80 p-3 text-start font-normal"

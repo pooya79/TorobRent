@@ -160,6 +160,14 @@ class MessageSummarySerializer(serializers.Serializer[MessageItem]):
         if notification.originating_run_decision_id:
             return "نتایج معتبر استخراج منتشر شد"
         if notification.originating_candidate_event is not None:
+            if notification.candidate_batch_event_ids:
+                count = len(notification.candidate_batch_event_ids)
+                action = (
+                    "رد شد"
+                    if notification.originating_candidate_event.new_state == "rejected"
+                    else "منتشر شد"
+                )
+                return f"{count} آگهی {action}"
             return {
                 "pending": "نتیجه استخراج اصلاح شد",
                 "changes_requested": "نتیجه استخراج نیازمند اصلاح است",
@@ -216,6 +224,10 @@ class MessageSummarySerializer(serializers.Serializer[MessageItem]):
             count = len(notification.originating_run_decision.candidate_ids)
             return f"{count} نتیجه معتبر بررسی و منتشر شد."
         if notification.originating_candidate_event is not None:
+            if notification.candidate_batch_event_ids:
+                title = self.get_title(notification)
+                reason = notification.originating_candidate_event.reason
+                return f"{title}. {reason}" if reason else f"{title}."
             return (
                 notification.originating_candidate_event.reason
                 or "نتیجه بررسی آگهی استخراج‌شده ثبت شد."

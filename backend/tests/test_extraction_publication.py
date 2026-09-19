@@ -434,3 +434,35 @@ def test_source_properties_remain_inspectable_outside_recent_run_history(
     paused = api_client.get(endpoint, {"proposal": str(proposal.pk)}).json()[0]
     assert len(paused["properties"]) == 9
     assert not any(item["is_current"] for item in paused["properties"])
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("reason", [None, "", "   ", "اطلاعات نادرست است"])
+def test_optional_rejection_reason_preserves_requester_notification(
+    api_client, assigned_case, monkeypatch, django_capture_on_commit_callbacks, reason
+):
+    from apps.communications.models import SystemNotification
+
+    run = execute_run(api_client, assigned_case, monkeypatch, django_capture_on_commit_callbacks)
+    candidate = run["candidates"][0]
+    payload = {"reviewed_revision": candidate["revision"]}
+    if reason is not None:
+        payload["reason"] = reason
+    response = api_client.post(
+        f"/api/v1/operator/external-listing-candidates/{candidate['id']}/reject/",
+        payload,
+        format="json",
+    )
+    assert response.status_code == 200, response.data
+    assert response.json()["state"] == "rejected"
+    notice = SystemNotification.objects.get(
+        originating_candidate_event__candidate_id=candidate["id"]
+    )
+    assert notice.recipient == assigned_case[3]
+    assert notice.target_source_proposal == assigned_case[0]
+    assert notice.originating_candidate_event.reason == (reason or "").strip()
+    api_client.force_authenticate(assigned_case[3])
+    messages = api_client.get("/api/v1/messages/").json()["results"]
+    message = next(item for item in messages if item["id"] == str(notice.pk))
+    assert message["title"] == "نتیجه استخراج رد شد"
+    assert message["preview"] == ((reason or "").strip() or "نتیجه بررسی آگهی استخراج‌شده ثبت شد.")

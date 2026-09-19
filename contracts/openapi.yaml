@@ -2201,7 +2201,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/SourceProposalDecision'
+              $ref: '#/components/schemas/ExternalListingCandidateRejection'
         required: true
       security:
       - cookieAuth: []
@@ -3282,6 +3282,34 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/PaginatedExternalListingCandidateSummaryList'
+          description: ''
+  /api/v1/operator/source-proposals/{proposal_id}/results/decide/:
+    post:
+      operationId: v1_operator_source_proposals_results_decide_create
+      summary: Review selected ads with one summary per requester
+      parameters:
+      - in: path
+        name: proposal_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CandidateBatchRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CandidateBatchResult'
           description: ''
   /api/v1/operator/source-proposals/{proposal_id}/runs/:
     get:
@@ -5193,6 +5221,71 @@ components:
     BlankEnum:
       enum:
       - ''
+    CandidateBatchFailure:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        detail:
+          type: string
+      required:
+      - detail
+      - id
+    CandidateBatchItem:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        reviewed_revision:
+          type: integer
+          minimum: 1
+      required:
+      - id
+      - reviewed_revision
+    CandidateBatchRequest:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/CandidateBatchItem'
+        action:
+          $ref: '#/components/schemas/CandidateBatchRequestActionEnum'
+        reason:
+          type: string
+          default: ''
+          maxLength: 5000
+        confirmed:
+          type: boolean
+          default: false
+      required:
+      - action
+      - items
+    CandidateBatchRequestActionEnum:
+      enum:
+      - approve
+      - reject
+      type: string
+      description: |-
+        * `approve` - approve
+        * `reject` - reject
+    CandidateBatchResult:
+      type: object
+      properties:
+        succeeded:
+          type: array
+          items:
+            type: string
+            format: uuid
+        failed:
+          type: array
+          items:
+            $ref: '#/components/schemas/CandidateBatchFailure'
+      required:
+      - failed
+      - succeeded
     CandidateImage:
       type: object
       properties:
@@ -6448,6 +6541,18 @@ components:
       - new_state
       - prior_state
       - revision
+    ExternalListingCandidateRejection:
+      type: object
+      properties:
+        reviewed_revision:
+          type: integer
+          minimum: 1
+        reason:
+          type: string
+          default: ''
+          maxLength: 5000
+      required:
+      - reviewed_revision
     ExternalListingCandidateReviewClaim:
       type: object
       properties:

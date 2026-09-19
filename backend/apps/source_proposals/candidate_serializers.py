@@ -145,3 +145,8 @@ class ExternalListingCandidateSerializer(serializers.ModelSerializer[ExternalLis
             "created_at",
             "updated_at",
         )
+
+
+class ExternalListingCandidateRejectionSerializer(serializers.Serializer[dict[str, object]]):
+    reviewed_revision = serializers.IntegerField(min_value=1)
+    reason = serializers.CharField(max_length=5000, required=False, default="", allow_blank=True)

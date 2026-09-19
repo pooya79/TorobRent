@@ -793,7 +793,11 @@ export function ProposalReviewCard({
                       remote
                       properties={proposal.properties ?? []}
                       proposalId={proposal.id}
-                      canApprove={false}
+                      canApprove={
+                        canDecideSource &&
+                        proposal.assignment?.state === "active" &&
+                        !proposal.assignment.source.processing_paused
+                      }
                     />
                   </div>
                 )}
@@ -904,7 +908,7 @@ export function ProposalReviewCard({
               <ExtractionRunReview
                 properties={proposal.properties}
                 proposalId={proposal.id}
-                canApprove={false}
+                canApprove={canDecideSource}
               />
             ) : (
               <div className="bg-muted/30 rounded-xl border border-dashed p-8 text-center">
@@ -1087,7 +1091,7 @@ export function ExternalListingCandidateCard({
           <div className="grid gap-4">
             <div className="grid gap-2">
               <Label htmlFor={`candidate-reason-${candidate.id}`}>
-                دلیل رد {candidate.title}
+                دلیل رد {candidate.title} (اختیاری)
               </Label>
               <Input
                 id={`candidate-reason-${candidate.id}`}
@@ -1096,7 +1100,8 @@ export function ExternalListingCandidateCard({
               />
             </div>
             <p className="text-muted-foreground text-xs">
-              دلیل فقط برای رد لازم است. تأیید انتشار به دلیل نیاز ندارد.
+              دلیل رد اختیاری است و در اعلان داخل برنامه برای درخواست‌کننده
+              استخراج نمایش داده می‌شود.
             </p>
             <label className="flex items-start gap-2 text-sm">
               <input
@@ -1115,7 +1120,7 @@ export function ExternalListingCandidateCard({
             <div className="flex flex-wrap gap-2">
               <Button
                 variant="destructive"
-                disabled={decision.isPending || !reason.trim()}
+                disabled={decision.isPending}
                 onClick={() => decision.mutate("reject")}
                 aria-label={`رد ${candidate.title}`}
               >

@@ -13,6 +13,7 @@ from rest_framework.views import APIView
 
 from apps.accounts.models import User
 
+from .candidate_serializers import ExternalListingCandidateRejectionSerializer
 from .models import ExternalListingCandidate, ExternalListingCandidateState
 from .operator_views import CanReviewSourceProposal
 from .review_claims import SourceProposalReviewConflict
@@ -20,7 +21,6 @@ from .serializers import (
     ExternalListingCandidateReviewClaimSerializer,
     ExternalListingCandidateSerializer,
     SourceProposalApprovalSerializer,
-    SourceProposalDecisionSerializer,
 )
 from .services import (
     approve_external_listing_candidate,
@@ -93,7 +93,9 @@ class OperatorExternalListingCandidateClaimView(APIView):
         )
 
 
-DecisionSerializer = type[SourceProposalDecisionSerializer | SourceProposalApprovalSerializer]
+DecisionSerializer = type[
+    ExternalListingCandidateRejectionSerializer | SourceProposalApprovalSerializer
+]
 
 
 def _decision_response(
@@ -124,14 +126,14 @@ class OperatorExternalListingCandidateRejectView(APIView):
 
     @extend_schema(
         summary="Reject an External Listing candidate",
-        request=SourceProposalDecisionSerializer,
+        request=ExternalListingCandidateRejectionSerializer,
         responses=ExternalListingCandidateSerializer,
     )
     def post(self, request: Request, candidate_id: str) -> Response:
         return _decision_response(
             request=request,
             candidate_id=candidate_id,
-            serializer_class=SourceProposalDecisionSerializer,
+            serializer_class=ExternalListingCandidateRejectionSerializer,
             transition=reject_external_listing_candidate,
         )
 
