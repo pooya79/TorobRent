@@ -28,18 +28,41 @@ CAPABILITY_PERMISSIONS = {
     OperatorCapability.REVIEW_SOURCE_PROPOSALS: "source_proposals.review_source_proposal",
 }
 
-MANAGED_OPERATOR_GROUPS = frozenset({
-    "Catalog Curator",
-    "Conversation Moderator",
-    "Submission Reviewer",
-    "Submission Review Lead",
-    "Source Proposal Reviewer",
-    "Support Operator",
-    "Support Lead",
-    "Privacy Operator",
-    "Privacy Lead",
-    "Operator Queue Manager",
-})
+MANAGED_OPERATOR_GROUP_PERMISSIONS = {
+    "Catalog Curator": frozenset({CAPABILITY_PERMISSIONS[OperatorCapability.CURATE_CATALOG]}),
+    "Conversation Moderator": frozenset({
+        CAPABILITY_PERMISSIONS[OperatorCapability.MODERATE_CONVERSATIONS]
+    }),
+    "Submission Reviewer": frozenset({
+        CAPABILITY_PERMISSIONS[OperatorCapability.REVIEW_SUBMISSIONS]
+    }),
+    "Submission Review Lead": frozenset({
+        CAPABILITY_PERMISSIONS[OperatorCapability.REVIEW_SUBMISSIONS],
+        CAPABILITY_PERMISSIONS[OperatorCapability.MANAGE_OPERATOR_QUEUES],
+    }),
+    "Source Proposal Reviewer": frozenset({
+        CAPABILITY_PERMISSIONS[OperatorCapability.REVIEW_SOURCE_PROPOSALS]
+    }),
+    "Support Operator": frozenset({CAPABILITY_PERMISSIONS[OperatorCapability.HANDLE_SUPPORT]}),
+    "Support Lead": frozenset({
+        CAPABILITY_PERMISSIONS[OperatorCapability.HANDLE_SUPPORT],
+        CAPABILITY_PERMISSIONS[OperatorCapability.MANAGE_OPERATOR_QUEUES],
+    }),
+    "Privacy Operator": frozenset({
+        CAPABILITY_PERMISSIONS[OperatorCapability.HANDLE_SUPPORT],
+        CAPABILITY_PERMISSIONS[OperatorCapability.HANDLE_PRIVACY_REQUESTS],
+    }),
+    "Privacy Lead": frozenset({
+        CAPABILITY_PERMISSIONS[OperatorCapability.HANDLE_SUPPORT],
+        CAPABILITY_PERMISSIONS[OperatorCapability.HANDLE_PRIVACY_REQUESTS],
+        CAPABILITY_PERMISSIONS[OperatorCapability.MANAGE_OPERATOR_QUEUES],
+    }),
+    "Operator Queue Manager": frozenset({
+        CAPABILITY_PERMISSIONS[OperatorCapability.MANAGE_OPERATOR_QUEUES]
+    }),
+}
+
+MANAGED_OPERATOR_GROUPS = frozenset(MANAGED_OPERATOR_GROUP_PERMISSIONS)
 
 
 def capabilities_for(user: User) -> list[OperatorCapability]:

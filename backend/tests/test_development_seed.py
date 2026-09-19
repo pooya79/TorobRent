@@ -2,11 +2,13 @@ from datetime import UTC, datetime
 from io import StringIO
 
 import pytest
+from django.contrib.auth.models import Group
 from django.core.management import call_command
 from django.core.management.base import CommandError
 from django.db.models import Count, Q
 from rest_framework.test import APIClient
 
+from apps.accounts.capabilities import MANAGED_OPERATOR_GROUPS
 from apps.accounts.models import User
 from apps.catalog.models import (
     FeatureState,
@@ -102,6 +104,27 @@ def test_seed_dev_creates_catalog_and_prepared_personas():
     assert operator.check_password("dev-operator")
     assert operator.is_staff is True
     assert "70 Properties, 100 Listings" in output.getvalue()
+
+
+@pytest.mark.django_db
+def test_seed_dev_restores_operator_groups_removed_by_flush():
+    Group.objects.all().delete()
+
+    call_command("seed_dev", verbosity=0)
+
+    assert set(Group.objects.values_list("name", flat=True)) == set(MANAGED_OPERATOR_GROUPS)
+    assert (
+        User.objects
+        .get(email="reviewer@torobrent.local")
+        .groups.filter(name="Submission Reviewer")
+        .exists()
+    )
+    assert (
+        User.objects
+        .get(email="support@torobrent.local")
+        .groups.filter(name="Support Operator")
+        .exists()
+    )
 
 
 @pytest.mark.django_db

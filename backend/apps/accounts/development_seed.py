@@ -4,6 +4,7 @@ from datetime import UTC, datetime
 from django.contrib.auth.models import Group
 
 from .models import User
+from .operator_groups import ensure_managed_operator_groups
 
 DEVELOPMENT_SUBMITTER_EMAIL = "submitter@torobrent.local"
 DEVELOPMENT_SUBMITTER_PASSWORD = "dev-submitter"
@@ -62,6 +63,7 @@ def _get_or_create_persona(
 
 
 def seed_development_personas() -> DevelopmentPersonas:
+    ensure_managed_operator_groups()
     submitter = _get_or_create_persona(
         email=DEVELOPMENT_SUBMITTER_EMAIL,
         password=DEVELOPMENT_SUBMITTER_PASSWORD,
