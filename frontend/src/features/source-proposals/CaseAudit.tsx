@@ -19,6 +19,7 @@ export function CaseAudit({
   const query = useQuery({
     queryKey: ["operator-source-proposals", proposalId, kind, recordId, page],
     enabled: open,
+    refetchInterval: 5000,
     queryFn: async () => {
       if (kind === "attempts") {
         const { data, error } = await api.GET(

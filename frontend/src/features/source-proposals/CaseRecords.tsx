@@ -54,6 +54,7 @@ export function useCaseRecords<K extends keyof CaseRecordTypes>(
       options.state,
     ],
     enabled: options.enabled ?? true,
+    refetchInterval: 5000,
     queryFn: async () => {
       // Each path shares these parameters; the generated client cannot narrow a keyed path.
       const { data, error } = await api.GET(paths[kind], {

@@ -34,14 +34,6 @@ export const caseSections = [
     icon: FileCheck2,
   },
   {
-    id: "responsibility",
-    label: "مسئولیت",
-    title: "نماینده و اپراتور مسئول",
-    description:
-      "نماینده منبع را از اپراتوری که تصمیم‌های آن را ثبت می‌کند جدا ببینید و مسئولیت را مدیریت کنید.",
-    icon: UsersRound,
-  },
-  {
     id: "processing",
     label: "پردازش و انتشار",
     title: "از دریافت صفحه تا انتشار آگهی",
@@ -55,6 +47,14 @@ export const caseSections = [
     title: "بررسی و انتشار ملک‌های وب‌سایت",
     description: "ملک‌ها را ببینید و درباره تأیید یا رد انتشار تصمیم بگیرید.",
     icon: ListFilter,
+  },
+  {
+    id: "responsibility",
+    label: "مسئولیت",
+    title: "نماینده و اپراتور مسئول",
+    description:
+      "نماینده منبع را از اپراتوری که تصمیم‌های آن را ثبت می‌کند جدا ببینید و مسئولیت را مدیریت کنید.",
+    icon: UsersRound,
   },
   {
     id: "history",

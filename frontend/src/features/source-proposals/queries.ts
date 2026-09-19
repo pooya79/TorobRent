@@ -346,9 +346,7 @@ export function operatorSourceContextQueryOptions(
       : candidateId
         ? ["operator-source-proposals", "candidate", candidateId]
         : ["operator-source-proposals"],
-    refetchInterval: ["queue", "overview", "processing"].includes(section)
-      ? 5000
-      : false,
+    refetchInterval: 5000,
     queryFn: async () => {
       const { data, error } = await api.GET(
         "/api/v1/operator/source-proposals/",

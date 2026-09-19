@@ -1118,6 +1118,7 @@ function PastProfile({
       versionId,
     ],
     enabled: open,
+    refetchInterval: 5000,
     queryFn: async () => {
       const { data, error } = await api.GET(
         "/api/v1/operator/source-proposals/{proposal_id}/profiles/{version_id}/",

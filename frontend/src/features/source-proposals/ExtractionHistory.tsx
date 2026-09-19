@@ -52,6 +52,7 @@ export function ExtractionHistory({
       selected?.run?.id,
     ],
     enabled: remote && technicalOpen && Boolean(selected?.run && review),
+    refetchInterval: 5000,
     queryFn: async () => {
       const { data, error } = await api.GET(
         "/api/v1/operator/source-proposals/{proposal_id}/runs/{run_id}/",

@@ -1,11 +1,12 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { MemoryRouter, Route, Routes } from "react-router";
 import { expect, test } from "vitest";
 import { OperatorSourceProposalPage } from "@/pages/OperatorSourceProposalPage";
 import { OperatorSourceProposalDetailPage } from "@/pages/OperatorSourceProposalDetailPage";
+import { CaseRecords } from "@/features/source-proposals/CaseRecords";
 import { server } from "./server";
 
 const source = {
@@ -20,6 +21,76 @@ const source = {
   profile_versions: [],
   authority_declared: true,
 };
+test("refreshes discovery progress without reloading or clearing form input", async () => {
+  let finished = false;
+  server.use(
+    http.get("*/api/v1/operator/source-proposals/", () =>
+      HttpResponse.json([
+        {
+          ...source,
+          state: "approved",
+          discovery_stage: finished ? "complete" : "running",
+          responsibility: { operator: "me", revision: 1, history: [] },
+        },
+      ]),
+    ),
+  );
+  setup("/operator/source-proposals/source-a#url");
+  expect(
+    await screen.findByRole("heading", { name: "در حال کشف صفحات" }),
+  ).toBeVisible();
+  await userEvent.type(screen.getByLabelText("سقف صفحات قابل بررسی"), "50");
+  finished = true;
+  await waitFor(
+    () => {
+      expect(
+        screen.getByRole("heading", {
+          name: "کشف پایان یافت؛ در انتظار بررسی پروفایل",
+        }),
+      ).toBeVisible();
+    },
+    { timeout: 6500 },
+  );
+  expect(screen.getByLabelText("سقف صفحات قابل بررسی")).toHaveValue(50);
+}, 10000);
+
+test("refreshes worker run records and stops polling after unmount", async () => {
+  let requests = 0;
+  server.use(
+    http.get("*/api/v1/operator/source-proposals/:id/runs/", () => {
+      requests += 1;
+      return HttpResponse.json({
+        count: 1,
+        results: [
+          { id: "run", state: requests === 1 ? "running" : "complete" },
+        ],
+      });
+    }),
+  );
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  const view = render(
+    <QueryClientProvider client={client}>
+      <CaseRecords kind="runs" proposalId="source-a">
+        {(rows) => <p>{rows[0]?.state}</p>}
+      </CaseRecords>
+    </QueryClientProvider>,
+  );
+  expect(await screen.findByText("running")).toBeVisible();
+  await waitFor(() => expect(screen.getByText("complete")).toBeVisible(), {
+    timeout: 6500,
+  });
+  view.unmount();
+  expect(
+    client
+      .getQueryCache()
+      .getAll()
+      .every((query) => query.getObserversCount() === 0),
+  ).toBe(true);
+  client.clear();
+}, 10000);
+
 function setup(path = "/operator/source-proposals?filter=all") {
   server.use(
     http.get("*/api/v1/users/me/", () =>

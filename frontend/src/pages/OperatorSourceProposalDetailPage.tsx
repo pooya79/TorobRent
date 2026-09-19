@@ -67,6 +67,7 @@ export function OperatorSourceProposalDetailPage({
   const candidateQuery = useQuery({
     queryKey: ["operator-external-listing-candidates", candidateId],
     enabled: Boolean(candidateId),
+    refetchInterval: 5000,
     queryFn: async () => {
       const { data, error } = await api.GET(
         "/api/v1/operator/external-listing-candidates/{candidate_id}/",
