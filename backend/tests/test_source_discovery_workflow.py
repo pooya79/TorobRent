@@ -766,3 +766,25 @@ def test_legacy_discovery_urls_do_not_invent_fetch_times():
     assert any(row["url"].endswith("/excluded") for row in rows)
     assert all(row["last_fetched_at"] is None for row in rows)
     assert all(row["is_current"] for row in rows)
+
+
+def test_rendering_summary_retains_successful_methods_and_omits_legacy_evidence():
+    from apps.source_extraction.contract import ExtractionContract
+    from apps.source_proposals.discovery_workflow import discovery_evidence
+    from apps.source_proposals.serializers import DiscoveryEvidenceSerializer
+    from tests.test_source_extraction_contract import BrowserFallbackFetcher, listing_html
+
+    seed = "https://source.example/rent"
+    detail = "https://source.example/listing/12345"
+    shell = '<html><head><script src="/app.js"></script></head><body></body></html>'
+    fetcher = BrowserFallbackFetcher(
+        {seed: shell, detail: listing_html()},
+        {seed: f'<h1>رهن و اجاره</h1><a href="{detail}">اجاره آپارتمان تهران</a>'},
+    )
+    discovery = ExtractionContract(fetcher, max_pages=2).discover(seed)
+    evidence = DiscoveryEvidenceSerializer(discovery_evidence(discovery)).data
+    assert evidence["rendering_methods"] == {"browser": 1, "http": 1}
+    assert "rendering_methods" not in DiscoveryEvidenceSerializer({}).data
+
+    failed = ExtractionContract(BrowserFallbackFetcher({seed: shell}, {seed: shell}), max_pages=1)
+    assert discovery_evidence(failed.discover(seed))["rendering_methods"] == {}

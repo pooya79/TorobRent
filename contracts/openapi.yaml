@@ -6016,6 +6016,10 @@ components:
         detail_page_count:
           type: integer
           default: 0
+        rendering_methods:
+          type: object
+          additionalProperties:
+            type: integer
         classifications:
           type: object
           additionalProperties:

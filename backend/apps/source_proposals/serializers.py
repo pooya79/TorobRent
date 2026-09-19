@@ -412,6 +412,7 @@ class DiscoveryEvidenceSerializer(serializers.Serializer[Any]):
     profile_failure = serializers.CharField(required=False)
     page_count = serializers.IntegerField(default=0)
     detail_page_count = serializers.IntegerField(default=0)
+    rendering_methods = serializers.DictField(child=serializers.IntegerField(), required=False)
     classifications = serializers.DictField(child=serializers.IntegerField(), default=dict)
     structures = DiscoveryStructureSerializer(many=True, default=list)
     exclusions = serializers.ListField(child=serializers.CharField(), default=list)

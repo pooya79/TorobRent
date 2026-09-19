@@ -4,8 +4,9 @@ import { apiError } from "@/lib/api/errors";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
-import { History, ScanText, ShieldCheck } from "lucide-react";
+import { History, ScanText, ShieldCheck, Sparkles, Pencil } from "lucide-react";
 import { ProfileRule } from "./ProfileRule";
+import { ProfileOverview } from "./ProfileOverview";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -71,6 +72,16 @@ export function SourceProfileReview({
           کنید یا فیلدهای نادرست را اصلاح کنید.
         </p>
       </header>
+      {latest && (
+        <ProfileOverview
+          version={latest}
+          renderingMethods={
+            latest.reservation === proposal.discovery?.id
+              ? proposal.discovery.evidence.rendering_methods
+              : undefined
+          }
+        />
+      )}
       {active && !latest?.is_active && (
         <p className="bg-muted/30 rounded-xl border p-4 text-sm">
           نسخه فعال فعلی: {active.number.toLocaleString("fa-IR")} · تا تأیید
@@ -607,15 +618,41 @@ function ProfileEvidence({
         </details>
         <details>
           <summary>قواعد این نسخه</summary>
-          <div className="mt-4 grid gap-4 sm:grid-cols-2">
-            {Object.entries(
-              (version.rules ?? {}) as Record<string, unknown>,
-            ).map(([field, rule]) => (
-              <article key={field} className="min-w-0 rounded-lg border p-4">
-                <h5 className="mb-3 font-medium">{fields[field] ?? field}</h5>
-                <ProfileRule rule={rule} />
-              </article>
-            ))}
+          <div
+            className="mt-4 overflow-x-auto rounded-lg border"
+            role="region"
+            aria-label="جدول قواعد استخراج"
+            tabIndex={0}
+          >
+            <table className="w-full min-w-[560px] text-start text-sm">
+              <caption className="sr-only">
+                قواعد استخراج فیلدهای این نسخه
+              </caption>
+              <thead className="bg-muted/50">
+                <tr>
+                  <th scope="col" className="w-40 p-3 text-start">
+                    فیلد
+                  </th>
+                  <th scope="col" className="p-3 text-start">
+                    قواعد استخراج به ترتیب اولویت
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {Object.entries(
+                  (version.rules ?? {}) as Record<string, unknown>,
+                ).map(([field, rule]) => (
+                  <tr key={field} className="even:bg-muted/10 align-top">
+                    <th scope="row" className="p-3 text-start font-medium">
+                      {fields[field] ?? field}
+                    </th>
+                    <td className="p-3">
+                      <ProfileRule rule={rule} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </details>
       </details>
@@ -663,7 +700,10 @@ function ProfileEditor({
   const [limitationsAcknowledged, setLimitationsAcknowledged] = useState(false);
   const [reason, setReason] = useState("");
   const hasLimitations = version.validation.limitations_present;
-  const [mode, setMode] = useState<"" | "approval_required" | "automatic">("");
+  const mode =
+    proposal.assignment?.review_mode === "automatic"
+      ? "automatic"
+      : "approval_required";
   const transform = [
     "floor_area_sqm",
     "bedroom_count",
@@ -706,7 +746,6 @@ function ProfileEditor({
   });
   const approve = useMutation({
     mutationFn: () => {
-      if (!mode) throw new Error("روش بررسی نتایج را انتخاب کنید.");
       return approveSourceProfile(proposal.id, {
         ...common,
         confirmed,
@@ -750,19 +789,30 @@ function ProfileEditor({
   return (
     <div className="grid min-w-0 gap-4">
       <div className="bg-card sticky top-36 z-10 flex flex-wrap items-center justify-between gap-3 rounded-xl border p-3 shadow-sm lg:top-20">
-        <p className="text-sm">
-          {selectedFields.length.toLocaleString("fa-IR")} فیلد برای اصلاح انتخاب
-          شده
-        </p>
-        <div className="flex flex-wrap gap-2">
+        <div
+          role="group"
+          aria-label="اقدام‌های پروفایل"
+          className="bg-muted/40 flex flex-wrap gap-1 rounded-xl p-1"
+        >
           <Button
-            variant="outline"
+            variant={editorAction === "repair" ? "secondary" : "ghost"}
             aria-expanded={editorAction === "repair"}
             onClick={() =>
               setEditorAction(editorAction === "repair" ? "" : "repair")
             }
           >
+            <Sparkles aria-hidden="true" className="size-4" />
             اصلاح هوشمند
+          </Button>
+          <Button
+            variant={editorAction === "edit" ? "secondary" : "ghost"}
+            aria-expanded={editorAction === "edit"}
+            onClick={() =>
+              setEditorAction(editorAction === "edit" ? "" : "edit")
+            }
+          >
+            <Pencil aria-hidden="true" className="size-4" />
+            اصلاح دستی
           </Button>
           <Button
             aria-expanded={editorAction === "approve"}
@@ -770,6 +820,7 @@ function ProfileEditor({
               setEditorAction(editorAction === "approve" ? "" : "approve")
             }
           >
+            <ShieldCheck aria-hidden="true" className="size-4" />
             بررسی و فعال‌سازی
           </Button>
         </div>
@@ -814,17 +865,33 @@ function ProfileEditor({
             {selectedFields.map((name) => fields[name] ?? name).join("، ") ||
               "هنوز فیلدی انتخاب نشده است."}
           </p>
-          <details open={version.samples.length === 0}>
-            <summary>انتخاب از همه فیلدها</summary>
-            <div className="grid gap-2 sm:grid-cols-2">
-              {Object.entries(fields).map(([name, label]) => (
+          <p className="text-muted-foreground text-xs leading-6">
+            نشان زرد یعنی مقدار این فیلد در یک یا چند نمونه استخراج نشده است؛
+            ممکن است خود صفحه هم این اطلاعات را نداشته باشد.
+          </p>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {Object.entries(fields).map(([name, label]) => {
+              const missingCount = version.samples.filter((sample) => {
+                if (sample.conflicts[name]?.length) return false;
+                const value = sample.normalized[name];
+                return (
+                  sample.unresolved.includes(name) ||
+                  value == null ||
+                  value === "" ||
+                  value === "unknown" ||
+                  (Array.isArray(value) && value.length === 0)
+                );
+              }).length;
+              const hintId = `repair-missing-${version.id}-${name}`;
+              return (
                 <label
                   key={name}
-                  className="has-[:checked]:border-primary has-[:checked]:bg-primary/5 flex items-center gap-2 rounded-lg border p-3 text-sm"
+                  className={`has-[:checked]:border-primary has-[:checked]:bg-primary/5 flex flex-wrap items-center gap-2 rounded-lg border p-3 text-sm ${missingCount ? "border-amber-500/30 bg-amber-500/5" : ""}`}
                 >
                   <input
                     type="checkbox"
                     aria-label={`اصلاح هوشمند ${label}`}
+                    aria-describedby={missingCount ? hintId : undefined}
                     checked={selectedFields.includes(name)}
                     disabled={
                       selectedFields.length >= 4 &&
@@ -834,11 +901,20 @@ function ProfileEditor({
                       selection.toggle(name, event.target.checked)
                     }
                   />
-                  {label}
+                  <span>{label}</span>
+                  {missingCount > 0 && (
+                    <span
+                      id={hintId}
+                      className="ms-auto rounded-md bg-amber-500/10 px-2 py-1 text-xs text-amber-800 dark:text-amber-300"
+                    >
+                      استخراج نشده در {missingCount.toLocaleString("fa-IR")} از{" "}
+                      {version.samples.length.toLocaleString("fa-IR")} نمونه
+                    </span>
+                  )}
                 </label>
-              ))}
-            </div>
-          </details>
+              );
+            })}
+          </div>
           <Button
             type="button"
             disabled={!selectedFields.length || busy || pendingRepair}
@@ -858,103 +934,97 @@ function ProfileEditor({
           </Alert>
         )}
       </div>
-      <details className="rounded-xl border p-4">
-        <summary>ابزارهای پیشرفته و اصلاح دستی</summary>
-        <Button variant="outline" onClick={() => setEditorAction("edit")}>
-          اصلاح دستی
-        </Button>
-        <div
-          ref={editorAction === "edit" ? actionPanel : undefined}
-          tabIndex={-1}
-          className={
-            editorAction === "edit"
-              ? "grid scroll-mt-72 gap-4 lg:scroll-mt-40"
-              : "hidden"
-          }
+      <div
+        ref={editorAction === "edit" ? actionPanel : undefined}
+        tabIndex={-1}
+        className={
+          editorAction === "edit"
+            ? "grid scroll-mt-72 gap-4 rounded-xl border p-5 lg:scroll-mt-40"
+            : "hidden"
+        }
+      >
+        <form
+          className="grid gap-3"
+          onSubmit={(event) => {
+            event.preventDefault();
+            edit.mutate();
+          }}
         >
-          <form
-            className="grid gap-3"
-            onSubmit={(event) => {
-              event.preventDefault();
-              edit.mutate();
+          <p>
+            اصلاح یک فیلد، قواعد جایگزین همان فیلد را عوض می‌کند و نسخه تازه‌ای
+            برای اعتبارسنجی می‌سازد.
+          </p>
+          <Label htmlFor={`field-${version.id}`}>فیلد مورد اصلاح</Label>
+          <select
+            id={`field-${version.id}`}
+            className={selectClass}
+            value={field}
+            onChange={(event) => setField(event.target.value)}
+          >
+            {Object.entries(fields).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+          <Label htmlFor={`kind-${version.id}`}>منبع مقدار</Label>
+          <select
+            id={`kind-${version.id}`}
+            className={selectClass}
+            value={kind}
+            onChange={(event) => {
+              setKind(event.target.value);
+              setLocator("");
             }}
           >
-            <p>
-              اصلاح یک فیلد، قواعد جایگزین همان فیلد را عوض می‌کند و نسخه
-              تازه‌ای برای اعتبارسنجی می‌سازد.
-            </p>
-            <Label htmlFor={`field-${version.id}`}>فیلد مورد اصلاح</Label>
-            <select
-              id={`field-${version.id}`}
-              className={selectClass}
-              value={field}
-              onChange={(event) => setField(event.target.value)}
-            >
-              {Object.entries(fields).map(([value, label]) => (
-                <option key={value} value={value}>
-                  {label}
-                </option>
-              ))}
-            </select>
-            <Label htmlFor={`kind-${version.id}`}>منبع مقدار</Label>
-            <select
-              id={`kind-${version.id}`}
-              className={selectClass}
-              value={kind}
-              onChange={(event) => {
-                setKind(event.target.value);
-                setLocator("");
-              }}
-            >
-              <option value="css">عنصر صفحه</option>
-              <option value="json">داده ساخت‌یافته متصل</option>
-            </select>
-            <Label htmlFor={`locator-${version.id}`}>
-              {kind === "css" ? "مسیر عنصر" : "مسیر داده"}
-            </Label>
-            <Input
-              id={`locator-${version.id}`}
-              dir="ltr"
-              value={locator}
-              maxLength={300}
-              onChange={(event) => setLocator(event.target.value)}
-              placeholder={kind === "css" ? ".area" : "$.floorSize.value"}
-            />
-            {kind === "css" && (
-              <>
-                <Label htmlFor={`attribute-${version.id}`}>
-                  ویژگی عنصر (اختیاری)
-                </Label>
-                <Input
-                  id={`attribute-${version.id}`}
-                  dir="ltr"
-                  value={attribute}
-                  onChange={(event) => setAttribute(event.target.value)}
-                  placeholder="content"
-                />
-              </>
-            )}
-            {transform === "money_rial" && (
-              <>
-                <Label htmlFor={`currency-${version.id}`}>واحد مبلغ</Label>
-                <select
-                  id={`currency-${version.id}`}
-                  className={selectClass}
-                  value={currency}
-                  onChange={(event) => setCurrency(event.target.value)}
-                >
-                  <option value="">از متن</option>
-                  <option value="تومان">تومان</option>
-                  <option value="ریال">ریال</option>
-                </select>
-              </>
-            )}
-            <Button disabled={busy || !locator.trim()} type="submit">
-              ثبت نسخه و اعتبارسنجی
-            </Button>
-          </form>
-        </div>
-      </details>
+            <option value="css">عنصر صفحه</option>
+            <option value="json">داده ساخت‌یافته متصل</option>
+          </select>
+          <Label htmlFor={`locator-${version.id}`}>
+            {kind === "css" ? "مسیر عنصر" : "مسیر داده"}
+          </Label>
+          <Input
+            id={`locator-${version.id}`}
+            dir="ltr"
+            value={locator}
+            maxLength={300}
+            onChange={(event) => setLocator(event.target.value)}
+            placeholder={kind === "css" ? ".area" : "$.floorSize.value"}
+          />
+          {kind === "css" && (
+            <>
+              <Label htmlFor={`attribute-${version.id}`}>
+                ویژگی عنصر (اختیاری)
+              </Label>
+              <Input
+                id={`attribute-${version.id}`}
+                dir="ltr"
+                value={attribute}
+                onChange={(event) => setAttribute(event.target.value)}
+                placeholder="content"
+              />
+            </>
+          )}
+          {transform === "money_rial" && (
+            <>
+              <Label htmlFor={`currency-${version.id}`}>واحد مبلغ</Label>
+              <select
+                id={`currency-${version.id}`}
+                className={selectClass}
+                value={currency}
+                onChange={(event) => setCurrency(event.target.value)}
+              >
+                <option value="">از متن</option>
+                <option value="تومان">تومان</option>
+                <option value="ریال">ریال</option>
+              </select>
+            </>
+          )}
+          <Button disabled={busy || !locator.trim()} type="submit">
+            ثبت نسخه و اعتبارسنجی
+          </Button>
+        </form>
+      </div>
       <div
         ref={editorAction === "approve" ? actionPanel : undefined}
         tabIndex={-1}
@@ -966,9 +1036,8 @@ function ProfileEditor({
       >
         <p className="text-muted-foreground text-sm">
           با تأیید این نسخه، قواعد استخراج فعال می‌شود و منبع به نماینده تخصیص
-          می‌یابد. این تصمیم تأیید درستی همه مقادیر نمونه نیست. در حالت نیازمند
-          تأیید اپراتور، آگهی‌ها پیش از انتشار بررسی می‌شوند؛ در حالت خودکار،
-          نتایج تازه پس از عبور از کنترل‌های انتشار منتشر می‌شوند.
+          می‌یابد. این تصمیم تأیید درستی همه مقادیر نمونه نیست. تنظیمات انتشار
+          در تب پردازش مدیریت می‌شود.
         </p>
         {hasLimitations && (
           <div className="bg-muted/30 rounded-lg p-3 text-sm">
@@ -1002,19 +1071,6 @@ function ProfileEditor({
         {proposal.current_website_conflict && (
           <p role="status">ابتدا تعارض وب‌سایت را در نمای کلی برطرف کنید.</p>
         )}
-        <Label htmlFor={`mode-${version.id}`}>روش بررسی نتایج</Label>
-        <select
-          id={`mode-${version.id}`}
-          className={selectClass}
-          value={mode}
-          onChange={(event) => setMode(event.target.value as typeof mode)}
-        >
-          <option value="" disabled>
-            روش بررسی را انتخاب کنید
-          </option>
-          <option value="approval_required">نیازمند تأیید اپراتور</option>
-          <option value="automatic">انتشار خودکار نتایج معتبر</option>
-        </select>
         <label className="flex gap-2 text-sm">
           <input
             type="checkbox"
@@ -1054,7 +1110,6 @@ function ProfileEditor({
           disabled={
             busy ||
             proposal.current_website_conflict ||
-            !mode ||
             !confirmed ||
             version.validation.rules_valid === false ||
             (hasLimitations && (!limitationsAcknowledged || !reason.trim()))

@@ -1,5 +1,5 @@
-import { useId, useState } from "react";
-import { ExternalLink } from "lucide-react";
+import { Fragment, useId, useState } from "react";
+import { ChevronDown, ExternalLink } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -81,7 +81,7 @@ export function ProfileSamples({
   selection?: RepairSelection;
 }) {
   const id = useId();
-  const [showAllFields, setShowAllFields] = useState(false);
+  const [expandedFields, setExpandedFields] = useState<string[]>([]);
   const [selectedUrl, setSelectedUrl] = useState(
     version.samples[0]?.canonical_url ?? "",
   );
@@ -106,7 +106,7 @@ export function ProfileSamples({
       </div>
     );
   const visibleFields = new Set([
-    ...(showAllFields ? Object.keys(fields) : []),
+    ...Object.keys(fields),
     ...Object.keys(sample.normalized),
     ...sample.unresolved,
     ...Object.keys(sample.conflicts),
@@ -175,16 +175,6 @@ export function ProfileSamples({
             جابه‌جایی بین نمونه‌ها حفظ می‌شوند.
           </p>
         )}
-        <Button
-          variant="outline"
-          size="sm"
-          aria-pressed={showAllFields}
-          onClick={() => setShowAllFields(!showAllFields)}
-        >
-          {showAllFields
-            ? "نمایش فیلدهای موجود و مشکلات ثبت‌شده"
-            : "نمایش همه فیلدها"}
-        </Button>
         {sample.structural_drift && (
           <p role="status">
             ساختار این صفحه با ساختار مورد انتظار تفاوت دارد؛ نتایج را بررسی
@@ -211,123 +201,248 @@ export function ProfileSamples({
               className="grid gap-3"
               aria-label={group.title}
             >
-              <h4 className="font-semibold">{group.title}</h4>
-              {shown.map((field) => {
-                const value = sample.normalized[field];
-                const conflicts = sample.conflicts[field] ?? [];
-                const missing =
-                  sample.unresolved.includes(field) ||
-                  value == null ||
-                  value === "" ||
-                  value === "unknown" ||
-                  (Array.isArray(value) && value.length === 0);
-                const evidence = sample.evidence[field] ?? [];
-                const snippets = [
-                  ...new Set(
-                    evidence
-                      .map((item) => item.evidence_snippet)
-                      .filter(
-                        (snippet) => snippet && !/^\s*[[{]/.test(snippet),
-                      ),
-                  ),
-                ];
-                const label = fields[field] ?? field;
-                return (
-                  <article
-                    key={field}
-                    aria-label={label}
-                    className="min-w-0 rounded-xl border p-4"
-                  >
-                    <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-                      <h5 className="font-medium">{label}</h5>
-                      <Badge variant="outline">
-                        {conflicts.length
-                          ? "نیازمند توجه"
-                          : missing
-                            ? "استخراج نشده"
-                            : "استخراج‌شده"}
-                      </Badge>
-                    </div>
-                    <div className="grid min-w-0 gap-4 md:grid-cols-2">
-                      <div className="min-w-0">
-                        <p className="text-muted-foreground mb-1 text-xs">
-                          مقدار استخراج‌شده
-                        </p>
-                        <p className="text-sm leading-7 break-words">
-                          {displayField(field, value)}
-                        </p>
-                        {conflicts.length > 0 ? (
-                          <p className="mt-2 text-sm">
-                            مقادیر متعارض:{" "}
-                            {conflicts
-                              .map((item) => displayField(field, item))
-                              .join("، ")}
-                          </p>
-                        ) : missing ? (
-                          <p className="text-muted-foreground mt-2 text-sm">
-                            مقداری استخراج نشده؛ نبود اطلاعات در صفحه از این
-                            نتیجه قابل تشخیص نیست.
-                          </p>
-                        ) : null}
-                      </div>
-                      <div className="bg-muted/30 min-w-0 rounded-lg p-3">
-                        <p className="text-muted-foreground mb-2 text-xs">
-                          شاهد از متن صفحه
-                        </p>
-                        {snippets.length ? (
-                          snippets.slice(0, 2).map((snippet) => (
-                            <blockquote
-                              key={snippet}
-                              className="border-s-2 ps-3 text-sm leading-7 break-words"
-                            >
-                              {snippet.length > 240
-                                ? `${snippet.slice(0, 240)}…`
-                                : snippet}
-                            </blockquote>
-                          ))
-                        ) : (
-                          <p className="text-muted-foreground text-sm">
-                            شاهد متنی در دسترس نیست.
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                    <div className="mt-3 flex flex-wrap items-start justify-between gap-3 border-t pt-3">
-                      {selection && fields[field] && (
-                        <label className="flex items-center gap-2 text-sm">
-                          <input
-                            type="checkbox"
-                            aria-label={`انتخاب ${label} برای اصلاح`}
-                            checked={selection.fields.includes(field)}
-                            disabled={
-                              selection.disabled ||
-                              (selection.fields.length >= 4 &&
-                                !selection.fields.includes(field))
-                            }
-                            onChange={(event) =>
-                              selection.toggle(field, event.target.checked)
-                            }
-                          />
-                          اصلاح این فیلد
-                        </label>
+              <div
+                className="overflow-x-auto rounded-xl border"
+                role="region"
+                aria-label={`جدول ${group.title}`}
+                tabIndex={0}
+              >
+                <table className="w-full min-w-[900px] table-fixed text-start text-sm">
+                  <caption className="bg-muted/30 border-b px-4 py-3 text-start font-semibold">
+                    {group.title}
+                  </caption>
+                  <thead className="bg-muted/50 text-muted-foreground">
+                    <tr>
+                      {selection && (
+                        <th scope="col" className="w-16 px-3 py-3 text-start">
+                          اصلاح
+                        </th>
                       )}
-                      <details className="w-full min-w-0 text-sm">
-                        <summary>جزئیات فنی {label}</summary>
-                        <ProfileRule
-                          rule={
-                            (version.rules as Record<string, unknown>)[field]
-                          }
-                        />
-                        {evidence.map((item, index) => (
-                          <p key={index} dir="auto" className="mt-2 break-all">
-                            {item.source_locator} — {item.evidence_snippet}
-                          </p>
-                        ))}
-                      </details>
-                    </div>
-                  </article>
-                );
-              })}
+                      <th scope="col" className="w-32 px-4 py-3 text-start">
+                        فیلد
+                      </th>
+                      <th scope="col" className="w-32 px-4 py-3 text-start">
+                        وضعیت
+                      </th>
+                      <th scope="col" className="w-1/4 px-4 py-3 text-start">
+                        مقدار استخراج‌شده
+                      </th>
+                      <th scope="col" className="px-4 py-3 text-start">
+                        شاهد از متن صفحه
+                      </th>
+                      <th scope="col" className="w-56 px-4 py-3 text-start">
+                        قواعد و جزئیات
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {shown.map((field) => {
+                      const value = sample.normalized[field];
+                      const conflicts = sample.conflicts[field] ?? [];
+                      const missing =
+                        sample.unresolved.includes(field) ||
+                        value == null ||
+                        value === "" ||
+                        value === "unknown" ||
+                        (Array.isArray(value) && value.length === 0);
+                      const evidence = sample.evidence[field] ?? [];
+                      const snippets = [
+                        ...new Set(
+                          evidence
+                            .map((item) => item.evidence_snippet)
+                            .filter(
+                              (snippet) => snippet && !/^\s*[[{]/.test(snippet),
+                            ),
+                        ),
+                      ];
+                      const label = fields[field] ?? field;
+                      const expanded = expandedFields.includes(field);
+                      const detailsId = `${id}-details-${field}`;
+                      return (
+                        <Fragment key={field}>
+                          <tr
+                            aria-label={label}
+                            className="hover:bg-muted/30 even:bg-muted/10 align-top"
+                          >
+                            {selection && (
+                              <td className="px-3 py-4">
+                                {fields[field] && (
+                                  <input
+                                    type="checkbox"
+                                    aria-label={`انتخاب ${label} برای اصلاح`}
+                                    className="accent-primary size-4"
+                                    checked={selection.fields.includes(field)}
+                                    disabled={
+                                      selection.disabled ||
+                                      (selection.fields.length >= 4 &&
+                                        !selection.fields.includes(field))
+                                    }
+                                    onChange={(event) =>
+                                      selection.toggle(
+                                        field,
+                                        event.target.checked,
+                                      )
+                                    }
+                                  />
+                                )}
+                              </td>
+                            )}
+                            <th
+                              scope="row"
+                              className="px-4 py-4 text-start font-medium"
+                            >
+                              {label}
+                            </th>
+                            <td className="px-4 py-4">
+                              <Badge
+                                variant="outline"
+                                className={
+                                  conflicts.length
+                                    ? "border-amber-500/30 bg-amber-500/10 text-amber-800 dark:text-amber-300"
+                                    : missing
+                                      ? "border-slate-500/30 bg-slate-500/10 text-slate-700 dark:text-slate-300"
+                                      : "border-emerald-500/30 bg-emerald-500/10 text-emerald-800 dark:text-emerald-300"
+                                }
+                              >
+                                {conflicts.length
+                                  ? "نیازمند توجه"
+                                  : missing
+                                    ? "استخراج نشده"
+                                    : "استخراج‌شده"}
+                              </Badge>
+                            </td>
+                            <td className="px-4 py-4 leading-7 break-words">
+                              <p dir="auto">{displayField(field, value)}</p>
+                              {conflicts.length > 0 ? (
+                                <p className="mt-2 text-amber-800 dark:text-amber-300">
+                                  مقادیر متعارض:{" "}
+                                  {conflicts
+                                    .map((item) => displayField(field, item))
+                                    .join("، ")}
+                                </p>
+                              ) : missing ? (
+                                <p className="text-muted-foreground mt-2 text-xs">
+                                  مقداری استخراج نشده؛ نبود اطلاعات در صفحه از
+                                  این نتیجه قابل تشخیص نیست.
+                                </p>
+                              ) : null}
+                            </td>
+                            <td className="px-4 py-4 leading-7 break-words">
+                              {snippets.length ? (
+                                snippets.slice(0, 2).map((snippet) => (
+                                  <blockquote
+                                    key={snippet}
+                                    className="border-s-2 ps-3"
+                                  >
+                                    {snippet.length > 240
+                                      ? `${snippet.slice(0, 240)}…`
+                                      : snippet}
+                                  </blockquote>
+                                ))
+                              ) : (
+                                <span className="text-muted-foreground">
+                                  شاهد متنی در دسترس نیست.
+                                </span>
+                              )}
+                            </td>
+                            <td className="px-4 py-4">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                aria-expanded={expanded}
+                                aria-controls={detailsId}
+                                onClick={() =>
+                                  setExpandedFields((current) =>
+                                    expanded
+                                      ? current.filter((name) => name !== field)
+                                      : [...current, field],
+                                  )
+                                }
+                              >
+                                جزئیات فنی {label}
+                                <ChevronDown
+                                  aria-hidden="true"
+                                  className={
+                                    expanded ? "size-4 rotate-180" : "size-4"
+                                  }
+                                />
+                              </Button>
+                            </td>
+                          </tr>
+                          <tr
+                            hidden={!expanded}
+                            id={detailsId}
+                            aria-label={`جزئیات ${label}`}
+                          >
+                            <td
+                              colSpan={selection ? 6 : 5}
+                              className="bg-sky-500/5 p-5"
+                            >
+                              {expanded && (
+                                <div className="grid gap-5 lg:grid-cols-2">
+                                  <section
+                                    className="bg-background min-w-0 rounded-xl border p-4"
+                                    aria-label={`قواعد ${label}`}
+                                  >
+                                    <h5 className="mb-4 font-semibold">
+                                      قواعد استخراج {label}
+                                    </h5>
+                                    <ProfileRule
+                                      rule={
+                                        (
+                                          version.rules as Record<
+                                            string,
+                                            unknown
+                                          >
+                                        )[field]
+                                      }
+                                    />
+                                  </section>
+                                  <section
+                                    className="bg-background min-w-0 rounded-xl border p-4"
+                                    aria-label={`شواهد ${label}`}
+                                  >
+                                    <h5 className="mb-4 font-semibold">
+                                      شواهد کامل و محل استخراج
+                                    </h5>
+                                    {evidence.length ? (
+                                      <div className="space-y-4">
+                                        {evidence.map((item, index) => (
+                                          <div
+                                            key={index}
+                                            className="space-y-2 border-b pb-4 last:border-0 last:pb-0"
+                                          >
+                                            <p
+                                              dir="auto"
+                                              className="bg-muted/50 rounded-md px-3 py-2 font-mono text-xs break-all"
+                                            >
+                                              {item.source_locator}
+                                            </p>
+                                            <blockquote
+                                              dir="auto"
+                                              className="border-s-2 ps-3 leading-7 break-words"
+                                            >
+                                              {item.evidence_snippet}
+                                            </blockquote>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    ) : (
+                                      <p className="text-muted-foreground">
+                                        شاهد متنی در دسترس نیست.
+                                      </p>
+                                    )}
+                                  </section>
+                                </div>
+                              )}
+                            </td>
+                          </tr>
+                        </Fragment>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             </section>
           );
         },

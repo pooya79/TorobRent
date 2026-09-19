@@ -445,7 +445,7 @@ test("reviews profile evidence, edits a field, and approves only a validated ver
           reviewed_revision: 1,
           reviewed_profile_version: "profile-2",
           confirmed: true,
-          review_mode: "automatic",
+          review_mode: "approval_required",
           limitations_acknowledged: false,
           reason: "",
         });
@@ -480,7 +480,7 @@ test("reviews profile evidence, edits a field, and approves only a validated ver
   expect(
     screen.getByRole("link", { name: "مشاهده صفحه اصلی" }),
   ).toHaveAttribute("href", "https://khaneh.example/held");
-  const area = within(screen.getByRole("article", { name: "متراژ" }));
+  const area = within(screen.getByRole("row", { name: "متراژ" }));
   expect(area.getByText("نیازمند توجه")).toBeVisible();
   expect(area.getByText("۸۵ متر")).toBeVisible();
   expect(screen.getByText("۵۰۰٬۰۰۰٬۰۰۰ تومان")).toBeVisible();
@@ -489,7 +489,6 @@ test("reviews profile evidence, edits a field, and approves only a validated ver
   expect(
     screen.getByRole("button", { name: "تأیید پروفایل و تخصیص منبع" }),
   ).toBeDisabled();
-  await user.click(screen.getByText("ابزارهای پیشرفته و اصلاح دستی"));
   await user.click(screen.getByRole("button", { name: "اصلاح دستی" }));
   await user.selectOptions(
     screen.getByLabelText("فیلد مورد اصلاح"),
@@ -520,12 +519,9 @@ test("reviews profile evidence, edits a field, and approves only a validated ver
   await openProfileDecision(user);
   expect(
     screen.getByRole("button", { name: "تأیید پروفایل و تخصیص منبع" }),
-  ).toBeDisabled();
+  ).toBeEnabled();
+  expect(screen.queryByLabelText("روش بررسی نتایج")).not.toBeInTheDocument();
   await openProfileDecision(user);
-  await user.selectOptions(
-    screen.getByLabelText("روش بررسی نتایج"),
-    "automatic",
-  );
   await user.click(
     screen.getByRole("button", { name: "تأیید پروفایل و تخصیص منبع" }),
   );
@@ -618,8 +614,10 @@ test("requires field selection for explicit repair and shows failure history", a
   const repair = screen.getByRole("button", { name: "درخواست اصلاح هوشمند" });
   expect(repair).toBeDisabled();
   expect(calls).toEqual([]);
-  await user.click(screen.getByRole("button", { name: "نمایش همه فیلدها" }));
-  const balcony = within(screen.getByRole("article", { name: "بالکن" }));
+  expect(
+    screen.queryByRole("button", { name: "نمایش همه فیلدها" }),
+  ).not.toBeInTheDocument();
+  const balcony = within(screen.getByRole("row", { name: "بالکن" }));
   expect(balcony.getByText("استخراج نشده")).toBeVisible();
   await user.click(balcony.getByLabelText("انتخاب بالکن برای اصلاح"));
   await user.click(balcony.getByLabelText("انتخاب بالکن برای اصلاح"));
@@ -1019,6 +1017,14 @@ test.each([
       ...proposal,
       discovery_stage: "complete",
       discovery: { id: "limited-discovery", evidence: { page_count: 10 } },
+      assignment: {
+        review_mode: mode,
+        state: "active",
+        source: { processing_paused: false },
+        recent_requests: [],
+        exceptions: [],
+        exclusions: [],
+      },
       profile_versions: [version],
     };
     const approvals: unknown[] = [];
@@ -1062,7 +1068,6 @@ test.each([
       screen.getAllByText(/فیلدهای حل‌نشده: متراژ/).length,
     ).toBeGreaterThan(0);
     await openProfileDecision(user);
-    await user.selectOptions(screen.getByLabelText("روش بررسی نتایج"), mode);
     await user.click(
       screen.getByLabelText("نمونه‌ها و اعتبارسنجی پروفایل را بررسی کردم."),
     );
@@ -1208,11 +1213,7 @@ test.each([
         "شواهد محدود بررسی شد.",
       );
     }
-    for (const mode of ["automatic", "approval_required"]) {
-      await openProfileDecision(user);
-      await user.selectOptions(screen.getByLabelText("روش بررسی نتایج"), mode);
-      expect(approve).toBeEnabled();
-    }
+    expect(approve).toBeEnabled();
   },
 );
 
@@ -1359,10 +1360,6 @@ test("compares imperfect repair evidence and requires a fresh explicit approval"
   );
   await screen.findByText("پروفایل منبع — نسخه ۱");
   await openProfileDecision(user);
-  await user.selectOptions(
-    screen.getByLabelText("روش بررسی نتایج"),
-    "automatic",
-  );
   await openProfileDecision(user);
   await user.click(
     screen.getByLabelText("نمونه‌ها و اعتبارسنجی پروفایل را بررسی کردم."),
@@ -1394,10 +1391,6 @@ test("compares imperfect repair evidence and requires a fresh explicit approval"
   expect(approve).toBeDisabled();
   expect(approvalBody).toBeUndefined();
   await openProfileDecision(user);
-  await user.selectOptions(
-    screen.getByLabelText("روش بررسی نتایج"),
-    "approval_required",
-  );
   await openProfileDecision(user);
   await user.click(
     screen.getByLabelText("نمونه‌ها و اعتبارسنجی پروفایل را بررسی کردم."),

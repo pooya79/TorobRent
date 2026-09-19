@@ -22,7 +22,8 @@ export function SourceProcessingStatus({
     return (
       <p className="text-muted-foreground text-sm">
         پس از تأیید پروفایل منبع، وضعیت استخراج و تنظیمات انتشار اینجا نمایش
-        داده می‌شود.
+        داده می‌شود. منابع تازه با نیاز به تأیید اپراتور پیش از انتشار فعال
+        می‌شوند؛ پس از تأیید پروفایل می‌توانید همین‌جا روش انتشار را تغییر دهید.
       </p>
     );
   const requests = [...(assignment.recent_requests ?? [])].sort(

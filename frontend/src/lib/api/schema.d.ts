@@ -2945,6 +2945,9 @@ export interface components {
       page_count: number;
       /** @default 0 */
       detail_page_count: number;
+      rendering_methods?: {
+        [key: string]: number;
+      };
       classifications?: {
         [key: string]: number;
       };

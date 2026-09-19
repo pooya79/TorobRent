@@ -170,6 +170,13 @@ def discovery_evidence(result: SourceDiscovery) -> dict[str, Any]:
         "page_count": result.attempted_page_count,
         "stop_reason": result.stop_reason,
         "detail_page_count": result.detail_page_count,
+        "rendering_methods": dict(
+            Counter(
+                page.rendering_method
+                for page in result.pages
+                if page.sanitized_html is not None and page.rendering_method is not None
+            )
+        ),
         "classifications": dict(Counter(page.classification.kind for page in result.pages)),
         "structures": [asdict(group) for group in result.structures],
         "exclusions": list(result.excluded_detail_page_urls),
