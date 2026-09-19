@@ -4,7 +4,15 @@ import { propertyTypeLabels } from "@/features/catalog/property-taxonomy";
 import { SourceAssignmentSummary } from "@/features/source-proposals/SourceAssignmentSummary";
 import { discoveryStageLabels } from "@/features/source-proposals/discovery-labels";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Clock3, Globe2, Plus, Trash2 } from "lucide-react";
+import {
+  ArrowLeft,
+  Clock3,
+  Globe2,
+  ImageIcon,
+  MapPin,
+  Plus,
+  Trash2,
+} from "lucide-react";
 import { Link } from "react-router";
 
 import { AccountWorkspace } from "@/features/account/AccountWorkspace";
@@ -148,6 +156,153 @@ export function SubmitterDashboardPage() {
         </Alert>
       )}
 
+      <section
+        className="border-primary/20 bg-card mb-8 overflow-hidden rounded-3xl border shadow-sm"
+        aria-labelledby="source-proposals-heading"
+      >
+        <div className="border-primary/10 bg-primary/5 flex items-center gap-4 border-b px-6 py-5">
+          <span className="bg-primary text-primary-foreground flex size-12 shrink-0 items-center justify-center rounded-2xl">
+            <Globe2 className="size-6" aria-hidden="true" />
+          </span>
+          <div>
+            <h2 id="source-proposals-heading" className="text-xl font-semibold">
+              وب‌سایت شما
+            </h2>
+            <p className="text-muted-foreground mt-1 text-sm">
+              یک خانه برای آگهی‌های وب‌سایت شما؛ وضعیت همکاری و بررسی‌ها در یک
+              نگاه.
+            </p>
+          </div>
+        </div>
+        {sourceProposals.isError && (
+          <Alert variant="destructive">
+            <AlertDescription>
+              پیشنهاد وب‌سایت بارگذاری نشد.
+              <Button
+                variant="outline"
+                onClick={() => void sourceProposals.refetch()}
+              >
+                تلاش دوباره
+              </Button>
+            </AlertDescription>
+          </Alert>
+        )}
+        {sourceProposals.isPending && <p>در حال بارگذاری وب‌سایت شما…</p>}
+        {sourceProposals.data && !currentProposal && (
+          <Card className="border-0 shadow-none">
+            <CardContent className="flex flex-wrap items-center justify-between gap-4 p-6">
+              <div>
+                <p className="font-medium">وب‌سایت جاری ندارید.</p>
+                <p className="text-muted-foreground mt-2 text-sm">
+                  وب‌سایت اجاره خود را معرفی کنید و نتیجه بررسی آن را همین‌جا
+                  دنبال کنید.
+                </p>
+              </div>
+              <Button asChild>
+                <Link to="/dashboard/website">
+                  معرفی وب‌سایت تازه <ArrowLeft aria-hidden="true" />
+                </Link>
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+        <div className="grid gap-4">
+          {currentProposal &&
+            (() => {
+              const proposal = currentProposal;
+              const title = proposal.website_name || "پیشنهاد وب‌سایت تازه";
+              const state = proposal.state ?? "draft";
+              const sourceState = sourceProposalStateLabels[state];
+              const canEdit = proposal.available_actions.includes("edit");
+              const canDelete = proposal.available_actions.includes("delete");
+              return (
+                <Card
+                  className="border-0 bg-transparent shadow-none"
+                  key={proposal.id}
+                >
+                  <CardContent className="flex flex-col gap-5 p-6">
+                    <div className="grid min-w-0 gap-5 xl:grid-cols-[1fr_1.5fr]">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-3">
+                          <h3 className="text-2xl font-semibold tracking-tight">
+                            {title}
+                          </h3>
+                          <Badge variant="secondary">{sourceState}</Badge>
+                        </div>
+                        {proposal.website_url && (
+                          <p
+                            dir="ltr"
+                            className="text-muted-foreground mt-2 mb-5 text-end text-sm break-all"
+                          >
+                            {proposal.website_url}
+                          </p>
+                        )}
+                      </div>
+                      <div>
+                        <div className="bg-muted/30 rounded-2xl border p-4 leading-7">
+                          <CurrentWebsiteStatus proposal={proposal} />
+                        </div>
+                        {proposal.is_current && state === "pending" && (
+                          <p className="text-muted-foreground mt-2 text-sm">
+                            پیشرفت بررسی:{" "}
+                            {discoveryStageLabels[proposal.discovery_stage]}
+                          </p>
+                        )}
+                      </div>
+                      {proposal.assignment && (
+                        <div className="xl:col-span-2">
+                          <SourceAssignmentSummary
+                            assignment={proposal.assignment}
+                            proposalId={proposal.id}
+                          />
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {proposal.is_current &&
+                        !proposal.current_website_conflict && (
+                          <Button asChild>
+                            <Link
+                              to={`/dashboard/website?proposal=${proposal.id}`}
+                            >
+                              مشاهده وب‌سایت جاری
+                            </Link>
+                          </Button>
+                        )}
+                      {canEdit && (
+                        <Button asChild variant="outline">
+                          <Link
+                            to={`/dashboard/website?proposal=${proposal.id}`}
+                            aria-label={`${state === "changes_requested" ? "اصلاح" : "تکمیل و ارسال"} پیشنهاد وب‌سایت ${title}`}
+                          >
+                            {state === "changes_requested"
+                              ? "اصلاح"
+                              : "تکمیل و ارسال"}{" "}
+                            <ArrowLeft aria-hidden="true" />
+                          </Link>
+                        </Button>
+                      )}
+                      {canDelete && (
+                        <DeleteDraftDialog
+                          website
+                          label={title}
+                          pending={draftRemoval.isPending}
+                          onDelete={() =>
+                            draftRemoval.mutate({
+                              kind: "source_proposal",
+                              id: proposal.id,
+                            })
+                          }
+                        />
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })()}
+        </div>
+      </section>
+
       <div
         className="mb-8 grid grid-cols-2 gap-3 xl:grid-cols-4"
         aria-label="خلاصه آگهی‌ها"
@@ -264,16 +419,22 @@ export function SubmitterDashboardPage() {
             </Button>
           </div>
         )}
-      <section className="grid gap-4" aria-label="ارسال‌های شما">
+      <section
+        className="grid items-start gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
+        aria-label="ارسال‌های شما"
+      >
         {visibleSubmissions?.map((submission) => {
           const title = submission.location?.neighborhood
             ? `ملک در ${submission.location.neighborhood}`
             : submission.role === "owner"
               ? "پیش‌نویس مالک"
               : "پیش‌نویس نماینده مالک";
-          const cover = submission.images?.find(
-            (image) => image.is_primary && image.status === "ready",
+          const readyImages = (submission.images ?? []).filter(
+            (image) =>
+              image.status === "ready" && submissionImagePreview(image),
           );
+          const cover =
+            readyImages.find((image) => image.is_primary) ?? readyImages[0];
           const preview = cover ? submissionImagePreview(cover) : undefined;
           const currentStep = submission.current_step ?? "location";
           const canEdit =
@@ -301,41 +462,38 @@ export function SubmitterDashboardPage() {
             .find((event) => event.reason)?.reason;
           return (
             <Card
-              className="overflow-hidden rounded-2xl shadow-none"
+              className="group min-w-0 overflow-hidden rounded-2xl shadow-sm transition-shadow hover:shadow-md"
               id={`submission-${submission.id}`}
               key={submission.id}
             >
-              <CardContent className="flex flex-col gap-5">
-                <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
-                  <div className="bg-muted flex size-20 shrink-0 items-center justify-center overflow-hidden rounded-xl">
-                    {preview ? (
-                      <img
-                        src={preview.url}
-                        alt={`تصویر ${title}`}
-                        className="size-full object-cover"
-                      />
-                    ) : (
-                      <Clock3
-                        className="text-muted-foreground size-7"
-                        aria-hidden="true"
-                      />
-                    )}
-                  </div>
+              <SubmissionCover
+                url={preview?.url}
+                title={title}
+                state={submission.state ?? "draft"}
+                imageCount={readyImages.length}
+              />
+              <CardContent className="flex flex-col gap-3 p-3">
+                <div className="flex flex-col gap-3">
                   <div className="min-w-0 flex-1">
                     <div className="mb-2 flex flex-wrap items-center gap-3">
-                      <h3 className="font-semibold">{title}</h3>
-                      <Badge variant="secondary">
-                        {submissionStateLabels[submission.state ?? "draft"]}
-                      </Badge>
+                      <h3 className="flex items-center gap-1.5 text-sm font-semibold">
+                        <MapPin
+                          className="text-primary size-4 shrink-0"
+                          aria-hidden="true"
+                        />
+                        {title}
+                      </h3>
                       {submission.revision && (
                         <span className="text-muted-foreground text-xs">
                           نسخه {submission.revision.toLocaleString("fa-IR")}
                         </span>
                       )}
                     </div>
-                    <p className="text-sm">
-                      مرحله کنونی: {submissionStepLabel(currentStep)}
-                    </p>
+                    {canEdit && submission.state !== "published" && (
+                      <p className="text-muted-foreground text-sm">
+                        مرحله کنونی: {submissionStepLabel(currentStep)}
+                      </p>
+                    )}
                     <p className="text-muted-foreground mt-1 text-xs">
                       آخرین ذخیره:{" "}
                       {new Date(submission.updated_at).toLocaleString("fa-IR")}
@@ -343,7 +501,7 @@ export function SubmitterDashboardPage() {
                   </div>
                   <div className="flex flex-wrap gap-2">
                     {canEdit && (
-                      <Button asChild variant="outline">
+                      <Button asChild variant="outline" size="sm">
                         <Link
                           to={`/add-submission?submission=${submission.id}&step=${editStep}`}
                           aria-label={`${editLabel} ${title}`}
@@ -353,7 +511,7 @@ export function SubmitterDashboardPage() {
                       </Button>
                     )}
                     {canSubmit && (
-                      <Button asChild>
+                      <Button asChild size="sm">
                         <Link
                           to={`/add-submission?submission=${submission.id}&step=review`}
                           aria-label={`ارسال برای بررسی ${title}`}
@@ -390,7 +548,7 @@ export function SubmitterDashboardPage() {
                   </div>
                 </div>
                 {(submission.property_facts || submission.rental_terms) && (
-                  <dl className="bg-muted/70 grid grid-cols-2 gap-4 rounded-xl p-4 text-sm sm:grid-cols-3">
+                  <dl className="bg-muted/50 grid gap-2 rounded-xl p-3 text-xs [&>div]:flex [&>div]:flex-wrap [&>div]:items-baseline [&>div]:justify-between [&>div]:gap-x-2">
                     {submission.property_facts && (
                       <div>
                         <dt className="text-muted-foreground text-xs">
@@ -526,120 +684,56 @@ export function SubmitterDashboardPage() {
           );
         })}
       </section>
-      <section className="mt-10" aria-labelledby="source-proposals-heading">
-        <div className="mb-4">
-          <h2 id="source-proposals-heading" className="text-xl font-semibold">
-            پیشنهاد منبع
-          </h2>
-          <p className="text-muted-foreground mt-1 text-sm">
-            وب‌سایت جاری شما برای اعتبارسنجی اپراتور.
+    </AccountWorkspace>
+  );
+}
+
+function SubmissionCover({
+  url,
+  title,
+  state,
+  imageCount,
+}: {
+  url?: string;
+  title: string;
+  state: NonNullable<Submission["state"]>;
+  imageCount: number;
+}) {
+  const [failedUrl, setFailedUrl] = useState<string>();
+  const showImage = url && failedUrl !== url;
+  return (
+    <div className="bg-muted relative aspect-[16/9] overflow-hidden border-b">
+      {showImage ? (
+        <img
+          src={url}
+          alt={`تصویر ${title}`}
+          loading="lazy"
+          onError={() => setFailedUrl(url)}
+          className="size-full object-cover transition-transform duration-300 motion-safe:group-hover:scale-105"
+        />
+      ) : (
+        <div className="text-muted-foreground from-primary/5 to-muted flex h-full flex-col items-center justify-center gap-3 bg-gradient-to-br">
+          <ImageIcon className="size-9 opacity-50" aria-hidden="true" />
+          <p className="text-sm">
+            {url
+              ? "تصویر ملک در دسترس نیست"
+              : "هنوز تصویری برای این ملک ثبت نشده"}
           </p>
         </div>
-        {sourceProposals.data && !currentProposal && (
-          <Button asChild variant="outline">
-            <Link to="/dashboard/website">معرفی وب‌سایت تازه</Link>
-          </Button>
-        )}
-        {sourceProposals.isError && (
-          <Alert variant="destructive">
-            <AlertDescription>
-              پیشنهاد وب‌سایت بارگذاری نشد.
-              <Button
-                variant="outline"
-                onClick={() => void sourceProposals.refetch()}
-              >
-                تلاش دوباره
-              </Button>
-            </AlertDescription>
-          </Alert>
-        )}
-        {sourceProposals.isPending && <p>در حال بارگذاری پیشنهاد منبع…</p>}
-        {sourceProposals.data && !currentProposal && (
-          <Card className="shadow-none">
-            <CardContent>
-              <p>وب‌سایت جاری ندارید.</p>
-            </CardContent>
-          </Card>
-        )}
-        <div className="grid gap-4">
-          {currentProposal &&
-            (() => {
-              const proposal = currentProposal;
-              const title = proposal.website_name || "پیشنهاد وب‌سایت تازه";
-              const state = proposal.state ?? "draft";
-              const sourceState = sourceProposalStateLabels[state];
-              const canEdit = proposal.available_actions.includes("edit");
-              const canDelete = proposal.available_actions.includes("delete");
-              return (
-                <Card className="shadow-none" key={proposal.id}>
-                  <CardContent className="flex flex-col gap-4 sm:flex-row sm:items-center">
-                    <span className="bg-muted flex size-12 shrink-0 items-center justify-center rounded-full">
-                      <Globe2 className="size-5" aria-hidden="true" />
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-3">
-                        <h3 className="font-semibold">{title}</h3>
-                        <Badge variant="secondary">{sourceState}</Badge>
-                      </div>
-                      <CurrentWebsiteStatus proposal={proposal} />
-                      {proposal.is_current && state === "pending" && (
-                        <p className="text-muted-foreground mt-2 text-sm">
-                          پیشرفت بررسی:{" "}
-                          {discoveryStageLabels[proposal.discovery_stage]}
-                        </p>
-                      )}
-                      {proposal.assignment && (
-                        <SourceAssignmentSummary
-                          assignment={proposal.assignment}
-                          proposalId={proposal.id}
-                        />
-                      )}
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      {proposal.is_current &&
-                        !proposal.current_website_conflict && (
-                          <Button asChild variant="outline">
-                            <Link
-                              to={`/dashboard/website?proposal=${proposal.id}`}
-                            >
-                              مشاهده وب‌سایت جاری
-                            </Link>
-                          </Button>
-                        )}
-                      {canEdit && (
-                        <Button asChild variant="outline">
-                          <Link
-                            to={`/dashboard/website?proposal=${proposal.id}`}
-                            aria-label={`${state === "changes_requested" ? "اصلاح" : "تکمیل و ارسال"} پیشنهاد وب‌سایت ${title}`}
-                          >
-                            {state === "changes_requested"
-                              ? "اصلاح"
-                              : "تکمیل و ارسال"}{" "}
-                            <ArrowLeft aria-hidden="true" />
-                          </Link>
-                        </Button>
-                      )}
-                      {canDelete && (
-                        <DeleteDraftDialog
-                          website
-                          label={title}
-                          pending={draftRemoval.isPending}
-                          onDelete={() =>
-                            draftRemoval.mutate({
-                              kind: "source_proposal",
-                              id: proposal.id,
-                            })
-                          }
-                        />
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })()}
-        </div>
-      </section>
-    </AccountWorkspace>
+      )}
+      <Badge
+        className="bg-background/95 text-foreground absolute start-2 top-2 border shadow-sm"
+        variant="secondary"
+      >
+        {submissionStateLabels[state]}
+      </Badge>
+      {showImage && imageCount > 1 && (
+        <span className="bg-background/95 absolute end-2 bottom-2 flex items-center gap-1.5 rounded-full px-3 py-1 text-xs">
+          <ImageIcon className="size-3.5" aria-hidden="true" />
+          {imageCount.toLocaleString("fa-IR")} تصویر
+        </span>
+      )}
+    </div>
   );
 }
 

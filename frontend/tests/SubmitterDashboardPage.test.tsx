@@ -57,7 +57,7 @@ test("shows Source Proposals separately with status and next action", async () =
   );
 
   expect(
-    await screen.findByRole("heading", { name: "پیشنهاد منبع" }),
+    await screen.findByRole("heading", { name: "وب‌سایت شما" }),
   ).toBeVisible();
   const navigation = screen.getAllByRole("navigation", {
     name: "منوی حساب کاربری",
