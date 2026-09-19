@@ -761,7 +761,7 @@ export function ResultsPage({ mapAdapter }: { mapAdapter?: MapAdapter }) {
           </div>
           <div
             ref={resultsScrollContainer}
-            className="h-full min-h-0 overflow-y-auto overscroll-contain pe-1 pb-8 xl:[direction:rtl]"
+            className="h-full min-h-0 overflow-y-auto overscroll-contain px-2 pt-2 pb-8 xl:[direction:rtl]"
           >
             {search.isPending ? (
               <ResultsLoading />
