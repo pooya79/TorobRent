@@ -8,6 +8,8 @@ server {
   server_name _;
 
   location /api/ {
+    # Submission images allow 10 MiB per file; leave room for multipart headers.
+    client_max_body_size 11m;
     proxy_pass http://${BACKEND_UPSTREAM};
     proxy_set_header Host $host;
     proxy_set_header X-Forwarded-Proto $scheme;
