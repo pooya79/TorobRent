@@ -635,6 +635,7 @@ export function ProposalReviewCard({
             <SourceResponsibilityPanel
               proposal={proposal}
               canManage={Boolean(mayForceRelease)}
+              canRelease={canDecideSource}
               onUpdate={(updated) => {
                 onDecisionSuccess(updated);
               }}

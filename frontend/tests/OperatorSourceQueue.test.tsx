@@ -83,7 +83,7 @@ test("filters and searches the queue without rendering source review forms or fe
   expect(
     screen.queryByRole("button", { name: "شروع بررسی" }),
   ).not.toBeInTheDocument();
-  await user.click(screen.getByRole("button", { name: /آماده پذیرش/ }));
+  await user.click(screen.getByRole("button", { name: /^آماده پذیرش/ }));
   expect(
     screen.queryByRole("link", { name: "خانه سبز" }),
   ).not.toBeInTheDocument();
@@ -257,7 +257,7 @@ test("defaults to my cases and takes durable responsibility from the unassigned 
   expect(
     screen.queryByRole("link", { name: "خانه آبی" }),
   ).not.toBeInTheDocument();
-  await user.click(screen.getByRole("button", { name: /آماده پذیرش/ }));
+  await user.click(screen.getByRole("button", { name: /^آماده پذیرش/ }));
   await user.click(
     await screen.findByRole("button", { name: "پذیرش مسئولیت و شروع کار" }),
   );
@@ -341,7 +341,7 @@ test("queue managers transfer a case without opening its workspace", async () =>
   );
   const user = userEvent.setup();
   await user.click(
-    await screen.findByRole("button", { name: "واگذاری مسئولیت" }),
+    await screen.findByRole("button", { name: "واگذاری یا آزادسازی مسئولیت" }),
   );
   await user.type(
     screen.getByLabelText("ایمیل اپراتور مقصد"),
@@ -354,4 +354,60 @@ test("queue managers transfer a case without opening its workspace", async () =>
   expect(await screen.findByText("next@example.com")).toBeVisible();
   expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   expect(screen.getByRole("heading", { name: "صف بررسی منابع" })).toBeVisible();
+});
+
+test.each([
+  "/operator/source-proposals?filter=mine",
+  "/operator/source-proposals/source-a#responsibility",
+])("responsible operator releases a case from %s", async (path) => {
+  let released = false;
+  const caseData = () => ({
+    ...source,
+    responsibility: {
+      operator: released ? null : "me",
+      operator_label: released ? null : "me@example.com",
+      revision: released ? 2 : 1,
+      history: [],
+    },
+  });
+  server.use(
+    http.get("*/api/v1/operator/source-proposals/", () =>
+      HttpResponse.json([caseData()]),
+    ),
+    http.post(
+      "*/api/v1/operator/source-proposals/:id/responsibility/",
+      async ({ request }) => {
+        expect(await request.json()).toEqual({
+          assignee_email: null,
+          reason: "پایان شیفت",
+          reviewed_responsibility_revision: 1,
+        });
+        released = true;
+        return HttpResponse.json(caseData());
+      },
+    ),
+  );
+  setup(path);
+  const user = userEvent.setup();
+  if (path.includes("filter=mine")) {
+    await user.click(
+      await screen.findByRole("button", { name: "آزادسازی مسئولیت" }),
+    );
+  }
+  const release = await screen.findByRole("button", {
+    name: "آزادسازی مسئولیت منبع",
+  });
+  expect(release).toBeDisabled();
+  expect(screen.queryByLabelText("ایمیل اپراتور مقصد")).not.toBeInTheDocument();
+  await user.type(screen.getByLabelText("دلیل تغییر مسئول"), "پایان شیفت");
+  await user.click(release);
+  if (path.includes("filter=mine")) {
+    await user.click(screen.getByRole("button", { name: /^آماده پذیرش/ }));
+    expect(
+      await screen.findByRole("button", { name: "پذیرش مسئولیت و شروع کار" }),
+    ).toBeVisible();
+  } else {
+    expect(await screen.findByText("مسئول تعیین نشده است")).toBeVisible();
+  }
+  expect(released).toBe(true);
 });

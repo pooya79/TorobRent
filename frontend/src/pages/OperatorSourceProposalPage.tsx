@@ -137,7 +137,7 @@ export function OperatorSourceProposalPage() {
           role="status"
           className="bg-primary/5 mb-4 rounded-xl border p-4 text-sm"
         >
-          واگذاری مسئولیت ثبت شد.
+          تغییر مسئولیت ثبت شد.
         </p>
       )}
       <div className="bg-card rounded-xl border shadow-sm">
@@ -177,8 +177,8 @@ export function OperatorSourceProposalPage() {
             ))}
           </div>
           <p className="text-muted-foreground text-xs">
-            مسئولیت زمان پایان ندارد. پرونده‌های دیگران فقط خواندنی هستند؛
-            واگذاری به اپراتور دیگر با مدیر صف است.
+            مسئولیت زمان پایان ندارد. پرونده‌های دیگران فقط خواندنی هستند؛ مسئول
+            می‌تواند مسئولیت خود را آزاد کند؛ واگذاری با مدیر صف است.
           </p>
         </div>
         {proposals.isPending && (
@@ -382,7 +382,11 @@ export function OperatorSourceProposalPage() {
                             </Link>
                           </Button>
                         )}
-                        {canManage && (
+                        {(canManage ||
+                          (mine &&
+                            currentUser.data?.operator_capabilities.includes(
+                              "review_source_proposals",
+                            ))) && (
                           <Button
                             size="sm"
                             variant="ghost"
@@ -392,7 +396,9 @@ export function OperatorSourceProposalPage() {
                               setTransferId(proposal.id);
                             }}
                           >
-                            واگذاری مسئولیت
+                            {canManage
+                              ? "واگذاری یا آزادسازی مسئولیت"
+                              : "آزادسازی مسئولیت"}
                           </Button>
                         )}
                         {claim.isError && claim.variables === proposal.id && (
@@ -426,16 +432,18 @@ export function OperatorSourceProposalPage() {
             transferTrigger.current?.focus();
           }}
         >
-          <DialogTitle>واگذاری مسئولیت پرونده</DialogTitle>
+          <DialogTitle>تغییر مسئولیت پرونده</DialogTitle>
           <DialogDescription>
             {transferCase?.website_name} — مسئول تازه همه مراحل این پرونده را
-            ادامه می‌دهد. دلیل واگذاری در تاریخچه ثبت می‌شود.
+            ادامه می‌دهد. با آزادسازی، پرونده آماده پذیرش می‌شود. دلیل تغییر در
+            تاریخچه ثبت می‌شود.
           </DialogDescription>
           {transferCase && (
             <SourceResponsibilityPanel
               key={transferCase.id}
               proposal={transferCase}
               canManage={Boolean(canManage)}
+              canRelease={sourceAssignee(transferCase) === currentUser.data?.id}
               onUpdate={() => {
                 setTransferId(null);
                 setTransferred(true);

@@ -16,7 +16,9 @@ from .models import ExternalListingCandidate, SourceResponsibilityChange
 from .review_claims import SourceProposalReviewConflict
 
 
-def record_responsibility(*, source: Source, operator: User, actor: User, reason: str) -> None:
+def record_responsibility(
+    *, source: Source, operator: User | None, actor: User, reason: str
+) -> None:
     source.responsible_operator = operator
     source.responsibility_revision += 1
     source.save(update_fields=("responsible_operator", "responsibility_revision"))

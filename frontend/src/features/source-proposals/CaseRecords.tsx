@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { api } from "@/lib/api/client";
@@ -142,14 +143,26 @@ export function CaseRecords<K extends keyof CaseRecordTypes>({
           <option value="resolved">رفع شده</option>
         </select>
       )}
-      <Input
-        aria-label="جست‌وجو در همه موارد"
-        value={q}
-        onChange={(e) => {
-          setQ(e.target.value);
-          setPage(0);
-        }}
-      />
+      <div className="relative">
+        <Search
+          aria-hidden="true"
+          className="text-muted-foreground pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2"
+        />
+        <Input
+          className="ps-10"
+          aria-label="جست‌وجو در همه موارد"
+          placeholder={
+            kind === "responsibility-history"
+              ? "جست‌وجو در تاریخچه مسئولیت…"
+              : "جست‌وجو در همه موارد…"
+          }
+          value={q}
+          onChange={(e) => {
+            setQ(e.target.value);
+            setPage(0);
+          }}
+        />
+      </div>
       <Button variant="outline" onClick={() => void query.refetch()}>
         تازه‌سازی
       </Button>

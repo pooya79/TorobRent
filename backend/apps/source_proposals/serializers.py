@@ -637,7 +637,9 @@ class SourceProfileRepairSerializer(serializers.ModelSerializer[SourceProfileRep
 
 
 class SourceResponsibilityRequestSerializer(serializers.Serializer[Any]):
-    assignee_email = serializers.EmailField()
+    assignee_email = serializers.EmailField(
+        allow_null=True, help_text="Pass null to release responsibility without a successor."
+    )
     reviewed_responsibility_revision = serializers.IntegerField(min_value=0)
     reason = serializers.CharField(max_length=2000)
 

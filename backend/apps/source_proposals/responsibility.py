@@ -18,7 +18,7 @@ from .source_state import record_responsibility
 
 
 def record_case_responsibility(
-    *, proposal: SourceProposal, operator: User, actor: User, reason: str
+    *, proposal: SourceProposal, operator: User | None, actor: User, reason: str
 ) -> None:
     proposal.responsible_operator = operator
     proposal.responsibility_revision += 1
@@ -68,13 +68,17 @@ def reassign_responsibility(
     *,
     proposal: SourceProposal,
     actor: User,
-    assignee_email: str,
+    assignee_email: str | None,
     reviewed_responsibility_revision: int,
     reason: str,
 ) -> SourceProposal:
     proposal = SourceProposal.objects.select_for_update(no_key=True).get(pk=proposal.pk)
     actor = User.objects.get(pk=actor.pk)
-    if not has_capability(actor, OperatorCapability.MANAGE_OPERATOR_QUEUES):
+    if not has_capability(actor, OperatorCapability.MANAGE_OPERATOR_QUEUES) and not (
+        assignee_email is None
+        and proposal.responsible_operator_id == actor.pk
+        and has_capability(actor, OperatorCapability.REVIEW_SOURCE_PROPOSALS)
+    ):
         raise ValidationError("مدیریت صف اپراتورها لازم است.")
     ensure_independent_reviewer(proposal=proposal, actor=actor)
     if proposal.discarded_at is not None or (
@@ -89,12 +93,19 @@ def reassign_responsibility(
         raise SourceProposalReviewConflict(
             "responsibility_conflict", "مسئول منبع تغییر کرده است؛ پرونده را تازه کنید."
         )
-    operator = User.objects.filter(email__iexact=assignee_email).first()
-    if operator is None or not has_capability(operator, OperatorCapability.REVIEW_SOURCE_PROPOSALS):
-        raise ValidationError("اپراتور مقصد باید اختیار بررسی منبع داشته باشد.")
-    ensure_independent_reviewer(proposal=proposal, actor=operator)
-    if proposal.responsible_operator_id == operator.pk or not reason.strip():
-        raise ValidationError("مسئول تازه و دلیل تغییر لازم است.")
+    operator = None
+    if assignee_email is not None:
+        operator = User.objects.filter(email__iexact=assignee_email).first()
+        if operator is None or not has_capability(
+            operator, OperatorCapability.REVIEW_SOURCE_PROPOSALS
+        ):
+            raise ValidationError("اپراتور مقصد باید اختیار بررسی منبع داشته باشد.")
+        ensure_independent_reviewer(proposal=proposal, actor=operator)
+    if (
+        proposal.responsible_operator_id == (operator.pk if operator else None)
+        or not reason.strip()
+    ):
+        raise ValidationError("مسئول تازه یا آزادسازی مسئولیت و دلیل تغییر لازم است.")
     record_case_responsibility(
         proposal=proposal, operator=operator, actor=actor, reason=reason.strip()
     )

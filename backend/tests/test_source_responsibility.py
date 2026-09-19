@@ -321,3 +321,54 @@ def test_transfer_refuses_exclusion_using_proposal_loaded_before_transfer(
             reason="تغییر قدیمی",
             confirmed=True,
         )
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("as_manager", [False, True])
+def test_release_responsibility_returns_case_to_queue(api_client, assigned_case, as_manager):
+    from apps.source_proposals.responsibility import take_responsibility
+
+    proposal, _, original, _, _ = assigned_case
+    api_client.force_authenticate(queue_manager() if as_manager else original)
+    url = f"/api/v1/operator/source-proposals/{proposal.pk}/responsibility/"
+    payload = {
+        "assignee_email": None,
+        "reviewed_responsibility_revision": 1,
+        "reason": "پایان شیفت",
+    }
+    response = api_client.post(url, payload, format="json")
+    assert response.status_code == 200, response.content
+    assert response.json()["responsibility"]["operator"] is None
+    assert response.json()["responsibility"]["revision"] == 2
+    assert response.json()["assignment"]["review_operator"] is None
+    proposal.refresh_from_db()
+    assert proposal.source.responsible_operator_id is None
+    assert proposal.responsibility_history.last().reason == "پایان شیفت"
+    assert proposal.source.responsibility_history.last().operator_id is None
+    assert not proposal.review_claims.filter(released_at__isnull=True).exists()
+    successor = make_operator(email="successor@example.com")
+    take_responsibility(proposal=proposal, actor=successor)
+    api_client.force_authenticate(queue_manager() if not as_manager else original)
+    assert api_client.post(url, payload, format="json").status_code in (400, 409)
+    proposal.refresh_from_db()
+    assert proposal.responsible_operator_id == successor.pk
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("denial", ["other_operator", "stale", "reason"])
+def test_release_responsibility_rejects_invalid_requests(api_client, assigned_case, denial):
+    proposal, _, original, _, _ = assigned_case
+    actor = make_operator(email="other@example.com") if denial == "other_operator" else original
+    api_client.force_authenticate(actor)
+    response = api_client.post(
+        f"/api/v1/operator/source-proposals/{proposal.pk}/responsibility/",
+        {
+            "assignee_email": None,
+            "reviewed_responsibility_revision": 0 if denial == "stale" else 1,
+            "reason": " " if denial == "reason" else "پایان شیفت",
+        },
+        format="json",
+    )
+    assert response.status_code == (409 if denial == "stale" else 400)
+    proposal.refresh_from_db()
+    assert proposal.responsible_operator_id == original.pk

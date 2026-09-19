@@ -1580,7 +1580,7 @@ export interface paths {
     };
     get?: never;
     put?: never;
-    /** Reassign Source responsibility */
+    /** Reassign or release Source responsibility */
     post: operations["v1_operator_source_proposals_responsibility_create"];
     delete?: never;
     options?: never;
@@ -5473,8 +5473,11 @@ export interface components {
       created_at: string;
     };
     SourceResponsibilityRequest: {
-      /** Format: email */
-      assignee_email: string;
+      /**
+       * Format: email
+       * @description Pass null to release responsibility without a successor.
+       */
+      assignee_email: string | null;
       reviewed_responsibility_revision: number;
       reason: string;
     };

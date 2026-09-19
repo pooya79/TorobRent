@@ -359,7 +359,7 @@ class OperatorSourceResponsibilityView(APIView):
     permission_classes = (CanReleaseSourceProposal,)
 
     @extend_schema(
-        summary="Reassign Source responsibility",
+        summary="Reassign or release Source responsibility",
         request=SourceResponsibilityRequestSerializer,
         responses=OperatorSourceProposalSerializer,
     )

@@ -3157,7 +3157,7 @@ paths:
   /api/v1/operator/source-proposals/{proposal_id}/responsibility/:
     post:
       operationId: v1_operator_source_proposals_responsibility_create
-      summary: Reassign Source responsibility
+      summary: Reassign or release Source responsibility
       parameters:
       - in: path
         name: proposal_id
@@ -12207,8 +12207,11 @@ components:
       type: object
       properties:
         assignee_email:
-          type: string
+          type:
+          - string
+          - 'null'
           format: email
+          description: Pass null to release responsibility without a successor.
         reviewed_responsibility_revision:
           type: integer
           minimum: 0

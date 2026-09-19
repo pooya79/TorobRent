@@ -78,11 +78,9 @@ function workflowStage(proposal: OperatorSourceProposal) {
   };
 }
 export function sourceAssignee(proposal: OperatorSourceProposal) {
-  return (
-    proposal.responsibility?.operator ??
-    proposal.assignment?.review_operator ??
-    null
-  );
+  return proposal.responsibility
+    ? proposal.responsibility.operator
+    : (proposal.assignment?.review_operator ?? null);
 }
 export function sourceWarnings(proposal: OperatorSourceProposal) {
   return [

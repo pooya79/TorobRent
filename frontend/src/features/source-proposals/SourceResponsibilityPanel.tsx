@@ -14,10 +14,12 @@ import {
 export function SourceResponsibilityPanel({
   proposal,
   canManage,
+  canRelease = false,
   onUpdate,
 }: {
   proposal: OperatorSourceProposal;
   canManage: boolean;
+  canRelease?: boolean;
   onUpdate: (proposal: OperatorSourceProposal) => void;
 }) {
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -26,9 +28,9 @@ export function SourceResponsibilityPanel({
   const queryClient = useQueryClient();
   const responsibility = proposal.responsibility;
   const mutation = useMutation({
-    mutationFn: () =>
+    mutationFn: (release: boolean) =>
       reassignSourceResponsibility(proposal.id, {
-        assignee_email: email.trim(),
+        assignee_email: release ? null : email.trim(),
         reason: reason.trim(),
         reviewed_responsibility_revision: responsibility?.revision ?? 0,
       }),
@@ -55,27 +57,32 @@ export function SourceResponsibilityPanel({
       </p>
       <p className="text-muted-foreground text-sm">
         مسئولیت از پذیرش پرونده تا بررسی و نگهداری منبع ادامه دارد و منقضی
-        نمی‌شود. تغییر اپراتور مسئول را مدیر صف انجام می‌دهد.
+        نمی‌شود. مسئول می‌تواند مسئولیت خود را آزاد کند؛ مدیر صف می‌تواند
+        مسئولیت را واگذار یا آزاد کند.
       </p>
-      {canManage && (
+      {(canManage || canRelease) && (
         <form
           className="grid gap-3"
           onSubmit={(event) => {
             event.preventDefault();
-            mutation.mutate();
+            mutation.mutate(!canManage);
           }}
         >
-          <Label htmlFor={`responsible-email-${proposal.id}`}>
-            ایمیل اپراتور مقصد
-          </Label>
-          <Input
-            id={`responsible-email-${proposal.id}`}
-            type="email"
-            dir="ltr"
-            required
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-          />
+          {canManage && (
+            <>
+              <Label htmlFor={`responsible-email-${proposal.id}`}>
+                ایمیل اپراتور مقصد
+              </Label>
+              <Input
+                id={`responsible-email-${proposal.id}`}
+                type="email"
+                dir="ltr"
+                required
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+              />
+            </>
+          )}
           <Label htmlFor={`responsible-reason-${proposal.id}`}>
             دلیل تغییر مسئول
           </Label>
@@ -86,12 +93,24 @@ export function SourceResponsibilityPanel({
             value={reason}
             onChange={(event) => setReason(event.target.value)}
           />
-          <Button
-            type="submit"
-            disabled={!email.trim() || !reason.trim() || mutation.isPending}
-          >
-            واگذاری مسئولیت منبع
-          </Button>
+          {canManage && (
+            <Button
+              type="submit"
+              disabled={!email.trim() || !reason.trim() || mutation.isPending}
+            >
+              واگذاری مسئولیت منبع
+            </Button>
+          )}
+          {responsibility.operator && (
+            <Button
+              type="button"
+              variant="outline"
+              disabled={!reason.trim() || mutation.isPending}
+              onClick={() => mutation.mutate(true)}
+            >
+              آزادسازی مسئولیت منبع
+            </Button>
+          )}
         </form>
       )}
       {mutation.error && (
@@ -118,7 +137,7 @@ export function SourceResponsibilityPanel({
                     </time>
                     <p>{change.reason}</p>
                     <p className="break-all">
-                      مسئول: {change.operator_label ?? "حساب حذف شده"}
+                      مسئول: {change.operator_label ?? "بدون مسئول"}
                     </p>
                     <p className="break-all">
                       ثبت‌کننده: {change.actor_label ?? "حساب حذف شده"}
