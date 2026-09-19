@@ -1,4 +1,4 @@
-.PHONY: help bootstrap dev dev-down seed-dev prod prod-down test-milestone infra-up infra-down migrate makemigrations superuser api-schema api-client api-check test test-backend test-frontend lint format format-check typecheck build check docker-build demo-sources-generate demo-sources-up demo-sources-down
+.PHONY: help bootstrap dev dev-down flush-db seed-dev prod prod-down test-milestone infra-up infra-down migrate makemigrations superuser api-schema api-client api-check test test-backend test-frontend lint format format-check typecheck build check docker-build demo-sources-generate demo-sources-up demo-sources-down
 
 bootstrap: ## Install backend/frontend dependencies and Playwright Chromium.
 	cd backend && uv sync
@@ -10,6 +10,9 @@ dev: ## Build and run the development stack with Docker Compose (foreground).
 
 dev-down: ## Stop and remove development containers and networks; keep volumes.
 	docker compose down
+
+flush-db: ## Delete all development database records; keep schema and volumes.
+	docker compose exec -T backend uv run --no-sync python manage.py flush --no-input
 
 seed-dev: ## Seed development data in the running Compose backend.
 	docker compose exec -T backend uv run --no-sync python manage.py seed_dev
