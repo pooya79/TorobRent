@@ -57,7 +57,7 @@ test("shows Source Proposals separately with status and next action", async () =
   );
 
   expect(
-    await screen.findByRole("heading", { name: "پیشنهادهای منبع" }),
+    await screen.findByRole("heading", { name: "پیشنهاد منبع" }),
   ).toBeVisible();
   const navigation = screen.getAllByRole("navigation", {
     name: "منوی حساب کاربری",
@@ -97,14 +97,14 @@ test("shows Source Proposals separately with status and next action", async () =
   );
   await user.click(screen.getByRole("button", { name: "انصراف از پیشنهاد" }));
 
+  expect(await screen.findByText("وب‌سایت جاری ندارید.")).toBeVisible();
+  expect(screen.queryByText("خانه‌یاب")).not.toBeInTheDocument();
   expect(
-    await screen.findByText(
-      "این پیشنهاد بسته شده است و در سوابق باقی می‌ماند.",
-    ),
+    screen.getByRole("link", { name: "معرفی وب‌سایت تازه" }),
   ).toBeVisible();
 });
 
-test("shows a Source Proposal review outcome, reason, revision, and next action", async () => {
+test("shows the current Source Proposal status and next action without history", async () => {
   server.use(
     http.get("*/api/v1/submissions/", () => HttpResponse.json([])),
     http.get("*/api/v1/source-proposals/", () =>
@@ -112,6 +112,7 @@ test("shows a Source Proposal review outcome, reason, revision, and next action"
         {
           id: "10000000-0000-4000-8000-000000000088",
           state: "changes_requested",
+          is_current: true,
           revision: 1,
           current_step: "preview",
           website_name: "خانه‌یاب",
@@ -162,18 +163,18 @@ test("shows a Source Proposal review outcome, reason, revision, and next action"
     </QueryClientProvider>,
   );
 
+  expect(
+    await screen.findByRole("heading", { name: "خانه‌یاب" }),
+  ).toBeVisible();
   expect((await screen.findAllByText("نیازمند اصلاح")).length).toBeGreaterThan(
     0,
   );
-  expect(await screen.findByText("نسخه ۱")).toBeVisible();
-  expect(await screen.findByText("مدرک اختیار را تکمیل کنید.")).toBeVisible();
-  const history = screen.getByRole("region", {
-    name: "تاریخچه پیشنهاد وب‌سایت خانه‌یاب",
-  });
-  expect(history).toHaveTextContent("در انتظار بررسی — نسخه ۱");
-  expect(history).toHaveTextContent("نیازمند اصلاح — نسخه ۱");
+  expect(screen.queryByText("نسخه ۱")).not.toBeInTheDocument();
   expect(
-    screen.getByRole("link", { name: "اصلاح پیشنهاد وب‌سایت خانه‌یاب" }),
+    screen.queryByRole("region", { name: /تاریخچه پیشنهاد/ }),
+  ).not.toBeInTheDocument();
+  expect(
+    await screen.findByRole("link", { name: "اصلاح پیشنهاد وب‌سایت خانه‌یاب" }),
   ).toHaveAttribute(
     "href",
     "/dashboard/website?proposal=10000000-0000-4000-8000-000000000088",
@@ -544,6 +545,7 @@ test.each([
           {
             id: "assigned-proposal",
             state: "approved",
+            is_current: true,
             discovery_stage: "complete",
             website_name: "پیشنهاد وب‌سایت",
             website_url: "https://www.khaneh.example/rentals",
@@ -589,7 +591,9 @@ test.each([
     expect(await screen.findByText("وب‌سایت تأیید شده است")).toBeVisible();
     expect(screen.queryByText("نسخه فعال پروفایل: ۳")).not.toBeInTheDocument();
     expect(screen.queryByText(explanation)).not.toBeInTheDocument();
-    expect(screen.getByText("پروفایل منبع تأیید شد.")).toBeVisible();
+    expect(
+      screen.queryByText("پروفایل منبع تأیید شد."),
+    ).not.toBeInTheDocument();
     expect(
       screen.queryByText("کشف پایان یافت؛ در انتظار بررسی پروفایل"),
     ).toBeNull();
@@ -634,6 +638,7 @@ test("submits an assigned URL and shows a concise outcome without technical erro
         {
           id: "10000000-0000-4000-8000-000000000087",
           state: "approved",
+          is_current: true,
           website_name: "خانه‌یاب",
           available_actions: [],
           history: [],
@@ -757,6 +762,13 @@ test.each(["draft", "pending", "approved"])(
       http.get("*/api/v1/source-proposals/", () =>
         HttpResponse.json([
           {
+            id: "old-case",
+            state: "revoked",
+            website_name: "وب‌سایت قبلی",
+            is_current: false,
+            available_actions: [],
+          },
+          {
             id: "current-case",
             state,
             website_name: "وب‌سایت فعلی",
@@ -789,6 +801,7 @@ test.each(["draft", "pending", "approved"])(
       </QueryClientProvider>,
     );
     expect(await screen.findByText("وب‌سایت جاری شما")).toBeInTheDocument();
+    expect(screen.queryByText("وب‌سایت قبلی")).not.toBeInTheDocument();
     expect(
       screen.getByRole("link", { name: "مشاهده وب‌سایت جاری" }),
     ).toHaveAttribute("href", "/dashboard/website?proposal=current-case");
@@ -798,7 +811,7 @@ test.each(["draft", "pending", "approved"])(
   },
 );
 
-test("keeps closed website history accessible and offers a fresh introduction", async () => {
+test("hides closed website history and offers a fresh introduction", async () => {
   server.use(
     http.get("*/api/v1/submissions/", () => HttpResponse.json([])),
     http.get("*/api/v1/source-proposals/", () =>
@@ -829,8 +842,10 @@ test("keeps closed website history accessible and offers a fresh introduction", 
     await screen.findByRole("link", { name: "معرفی وب‌سایت تازه" }),
   ).toHaveAttribute("href", "/dashboard/website");
   expect(
-    screen.getByRole("link", { name: "مشاهده سابقه وب‌سایت" }),
-  ).toHaveAttribute("href", "/dashboard/website?proposal=old-case");
+    screen.queryByRole("link", { name: "مشاهده سابقه وب‌سایت" }),
+  ).not.toBeInTheDocument();
+  expect(screen.queryByText("وب‌سایت قبلی")).not.toBeInTheDocument();
+  expect(screen.getByText("وب‌سایت جاری ندارید.")).toBeVisible();
 });
 
 test("surfaces legacy conflicts and keeps explicit draft removal available", async () => {
@@ -839,10 +854,18 @@ test("surfaces legacy conflicts and keeps explicit draft removal available", asy
     http.get("*/api/v1/source-proposals/", () =>
       HttpResponse.json([
         {
-          id: "extra-case",
+          id: "first-extra-case",
           state: "draft",
           is_current: true,
           website_name: "وب‌سایت اضافی",
+          available_actions: ["delete"],
+          current_website_conflict: true,
+        },
+        {
+          id: "extra-case",
+          state: "draft",
+          is_current: true,
+          website_name: "وب‌سایت اضافی دوم",
           available_actions: ["delete"],
           current_website_conflict: true,
         },
@@ -861,6 +884,7 @@ test("surfaces legacy conflicts and keeps explicit draft removal available", asy
     </QueryClientProvider>,
   );
   expect(await screen.findByText("تعارض وب‌سایت‌های جاری")).toBeVisible();
+  expect(screen.queryByText("وب‌سایت اضافی دوم")).not.toBeInTheDocument();
   expect(
     screen.getByRole("button", { name: "انصراف از پیشنهاد وب‌سایت اضافی" }),
   ).toBeEnabled();

@@ -65,6 +65,9 @@ export function SubmitterDashboardPage() {
   const [search, setSearch] = useState("");
   const submissions = useQuery(submissionsQueryOptions);
   const sourceProposals = useQuery(sourceProposalsQueryOptions);
+  const currentProposal = sourceProposals.data?.find(
+    (proposal) => proposal.is_current,
+  );
   const queryClient = useQueryClient();
   const visibleSubmissions = submissions.data
     ? [...submissions.data]
@@ -526,22 +529,21 @@ export function SubmitterDashboardPage() {
       <section className="mt-10" aria-labelledby="source-proposals-heading">
         <div className="mb-4">
           <h2 id="source-proposals-heading" className="text-xl font-semibold">
-            پیشنهادهای منبع
+            پیشنهاد منبع
           </h2>
           <p className="text-muted-foreground mt-1 text-sm">
-            وب‌سایت‌هایی که برای اعتبارسنجی اپراتور معرفی کرده‌اید.
+            وب‌سایت جاری شما برای اعتبارسنجی اپراتور.
           </p>
         </div>
-        {sourceProposals.data &&
-          !sourceProposals.data.some((proposal) => proposal.is_current) && (
-            <Button asChild variant="outline">
-              <Link to="/dashboard/website">معرفی وب‌سایت تازه</Link>
-            </Button>
-          )}
+        {sourceProposals.data && !currentProposal && (
+          <Button asChild variant="outline">
+            <Link to="/dashboard/website">معرفی وب‌سایت تازه</Link>
+          </Button>
+        )}
         {sourceProposals.isError && (
           <Alert variant="destructive">
             <AlertDescription>
-              پیشنهادهای وب‌سایت بارگذاری نشدند.
+              پیشنهاد وب‌سایت بارگذاری نشد.
               <Button
                 variant="outline"
                 onClick={() => void sourceProposals.refetch()}
@@ -551,126 +553,90 @@ export function SubmitterDashboardPage() {
             </AlertDescription>
           </Alert>
         )}
-        {sourceProposals.isPending && <p>در حال بارگذاری پیشنهادهای منبع…</p>}
-        {sourceProposals.data?.length === 0 && (
+        {sourceProposals.isPending && <p>در حال بارگذاری پیشنهاد منبع…</p>}
+        {sourceProposals.data && !currentProposal && (
           <Card className="shadow-none">
             <CardContent>
-              <p>هنوز وب‌سایتی معرفی نکرده‌اید.</p>
+              <p>وب‌سایت جاری ندارید.</p>
             </CardContent>
           </Card>
         )}
         <div className="grid gap-4">
-          {sourceProposals.data?.map((proposal) => {
-            const title = proposal.website_name || "پیشنهاد وب‌سایت تازه";
-            const state = proposal.state ?? "draft";
-            const sourceState = sourceProposalStateLabels[state];
-            const history = proposal.history ?? [];
-            const canEdit = proposal.available_actions.includes("edit");
-            const canDelete = proposal.available_actions.includes("delete");
-            return (
-              <Card className="shadow-none" key={proposal.id}>
-                <CardContent className="flex flex-col gap-4 sm:flex-row sm:items-center">
-                  <span className="bg-muted flex size-12 shrink-0 items-center justify-center rounded-full">
-                    <Globe2 className="size-5" aria-hidden="true" />
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-3">
-                      <h3 className="font-semibold">{title}</h3>
-                      <Badge variant="secondary">{sourceState}</Badge>
-                      <span className="text-muted-foreground text-xs">
-                        نسخه {(proposal.revision ?? 1).toLocaleString("fa-IR")}
-                      </span>
+          {currentProposal &&
+            (() => {
+              const proposal = currentProposal;
+              const title = proposal.website_name || "پیشنهاد وب‌سایت تازه";
+              const state = proposal.state ?? "draft";
+              const sourceState = sourceProposalStateLabels[state];
+              const canEdit = proposal.available_actions.includes("edit");
+              const canDelete = proposal.available_actions.includes("delete");
+              return (
+                <Card className="shadow-none" key={proposal.id}>
+                  <CardContent className="flex flex-col gap-4 sm:flex-row sm:items-center">
+                    <span className="bg-muted flex size-12 shrink-0 items-center justify-center rounded-full">
+                      <Globe2 className="size-5" aria-hidden="true" />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-3">
+                        <h3 className="font-semibold">{title}</h3>
+                        <Badge variant="secondary">{sourceState}</Badge>
+                      </div>
+                      <CurrentWebsiteStatus proposal={proposal} />
+                      {proposal.is_current && state === "pending" && (
+                        <p className="text-muted-foreground mt-2 text-sm">
+                          پیشرفت بررسی:{" "}
+                          {discoveryStageLabels[proposal.discovery_stage]}
+                        </p>
+                      )}
+                      {proposal.assignment && (
+                        <SourceAssignmentSummary
+                          assignment={proposal.assignment}
+                          proposalId={proposal.id}
+                        />
+                      )}
                     </div>
-                    <CurrentWebsiteStatus proposal={proposal} />
-                    {proposal.is_current && state === "pending" && (
-                      <p className="text-muted-foreground mt-2 text-sm">
-                        پیشرفت بررسی:{" "}
-                        {discoveryStageLabels[proposal.discovery_stage]}
-                      </p>
-                    )}
-                    {proposal.assignment && (
-                      <SourceAssignmentSummary
-                        assignment={proposal.assignment}
-                        proposalId={proposal.id}
-                      />
-                    )}
-                    {history.length > 0 && (
-                      <section
-                        className="mt-4 rounded-lg border p-3"
-                        aria-label={`تاریخچه پیشنهاد وب‌سایت ${title}`}
-                      >
-                        <h4 className="font-medium">تاریخچه بررسی</h4>
-                        <ol className="mt-2 grid gap-3 text-sm">
-                          {history.map((event) => (
-                            <li key={event.id}>
-                              <p>
-                                {sourceProposalStateLabels[event.new_state]} —
-                                نسخه {event.revision.toLocaleString("fa-IR")}
-                              </p>
-                              {event.reason && (
-                                <p className="mt-1">{event.reason}</p>
-                              )}
-                              <p className="text-muted-foreground mt-1 text-xs">
-                                {new Date(event.created_at).toLocaleString(
-                                  "fa-IR",
-                                )}
-                              </p>
-                            </li>
-                          ))}
-                        </ol>
-                      </section>
-                    )}
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {proposal.is_current &&
-                      !proposal.current_website_conflict && (
+                    <div className="flex flex-wrap gap-2">
+                      {proposal.is_current &&
+                        !proposal.current_website_conflict && (
+                          <Button asChild variant="outline">
+                            <Link
+                              to={`/dashboard/website?proposal=${proposal.id}`}
+                            >
+                              مشاهده وب‌سایت جاری
+                            </Link>
+                          </Button>
+                        )}
+                      {canEdit && (
                         <Button asChild variant="outline">
                           <Link
                             to={`/dashboard/website?proposal=${proposal.id}`}
+                            aria-label={`${state === "changes_requested" ? "اصلاح" : "تکمیل و ارسال"} پیشنهاد وب‌سایت ${title}`}
                           >
-                            مشاهده وب‌سایت جاری
+                            {state === "changes_requested"
+                              ? "اصلاح"
+                              : "تکمیل و ارسال"}{" "}
+                            <ArrowLeft aria-hidden="true" />
                           </Link>
                         </Button>
                       )}
-                    {!proposal.is_current && (
-                      <Link
-                        className="text-sm underline"
-                        to={`/dashboard/website?proposal=${proposal.id}`}
-                      >
-                        مشاهده سابقه وب‌سایت
-                      </Link>
-                    )}
-                    {canEdit && (
-                      <Button asChild variant="outline">
-                        <Link
-                          to={`/dashboard/website?proposal=${proposal.id}`}
-                          aria-label={`${state === "changes_requested" ? "اصلاح" : "تکمیل و ارسال"} پیشنهاد وب‌سایت ${title}`}
-                        >
-                          {state === "changes_requested"
-                            ? "اصلاح"
-                            : "تکمیل و ارسال"}{" "}
-                          <ArrowLeft aria-hidden="true" />
-                        </Link>
-                      </Button>
-                    )}
-                    {canDelete && (
-                      <DeleteDraftDialog
-                        website
-                        label={title}
-                        pending={draftRemoval.isPending}
-                        onDelete={() =>
-                          draftRemoval.mutate({
-                            kind: "source_proposal",
-                            id: proposal.id,
-                          })
-                        }
-                      />
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
+                      {canDelete && (
+                        <DeleteDraftDialog
+                          website
+                          label={title}
+                          pending={draftRemoval.isPending}
+                          onDelete={() =>
+                            draftRemoval.mutate({
+                              kind: "source_proposal",
+                              id: proposal.id,
+                            })
+                          }
+                        />
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })()}
         </div>
       </section>
     </AccountWorkspace>
@@ -709,7 +675,7 @@ function DeleteDraftDialog({
           </AlertDialogTitle>
           <AlertDialogDescription>
             {website
-              ? `پیشنهاد «${label}» بسته می‌شود و سوابق آن باقی می‌ماند.`
+              ? `پیشنهاد «${label}» بسته و از داشبورد برداشته می‌شود.`
               : `پیش‌نویس «${label}» برای همیشه حذف می‌شود و قابل بازیابی نیست.`}
           </AlertDialogDescription>
         </AlertDialogHeader>
