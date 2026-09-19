@@ -61,7 +61,7 @@ from .services import (
     approve_submission,
     claim_submission_review,
     create_or_resume_submission_draft,
-    delete_submission_draft,
+    discard_submission,
     force_release_submission_review_claim,
     reject_submission,
     release_submission_review_claim,
@@ -176,13 +176,13 @@ class SubmissionDetailView(APIView):
         return Response(SubmissionSerializer(self.get_object(request, submission_id)).data)
 
     @extend_schema(
-        summary="Discard a Submission draft",
+        summary="Discard a draft or rejected Submission",
         request=None,
         responses={204: None},
     )
     def delete(self, request: Request, submission_id: str) -> Response:
         try:
-            delete_submission_draft(
+            discard_submission(
                 submission=self.get_object(request, submission_id),
                 actor=cast(User, request.user),
             )

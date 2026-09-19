@@ -2199,7 +2199,7 @@ export interface paths {
     get: operations["v1_submissions_retrieve"];
     put?: never;
     post?: never;
-    /** Discard a Submission draft */
+    /** Discard a draft or rejected Submission */
     delete: operations["v1_submissions_destroy"];
     options?: never;
     head?: never;

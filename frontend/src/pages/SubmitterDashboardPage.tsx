@@ -40,7 +40,7 @@ import {
 import {
   archiveListing,
   confirmListingAvailability,
-  removeSubmissionDraft,
+  discardSubmission,
   type Submission,
   submissionsQueryOptions,
 } from "@/features/submissions/queries";
@@ -95,7 +95,7 @@ export function SubmitterDashboardPage() {
       id: string;
     }) =>
       target.kind === "submission"
-        ? removeSubmissionDraft(target.id)
+        ? discardSubmission(target.id)
         : removeSourceProposalDraft(target.id),
     onSuccess: (_data, target) => {
       if (target.kind === "submission") {
@@ -150,7 +150,7 @@ export function SubmitterDashboardPage() {
           <AlertDescription>
             {errorMessage(
               draftRemoval.error,
-              "حذف پیش‌نویس انجام نشد. دوباره تلاش کنید.",
+              "حذف انجام نشد. دوباره تلاش کنید.",
             )}
           </AlertDescription>
         </Alert>
@@ -523,6 +523,7 @@ export function SubmitterDashboardPage() {
                     )}
                     {canDelete && (
                       <DeleteDraftDialog
+                        rejected={submission.state === "rejected"}
                         label={title}
                         pending={draftRemoval.isPending}
                         onDelete={() =>
@@ -739,6 +740,7 @@ function SubmissionCover({
 
 function DeleteDraftDialog({
   website = false,
+  rejected = false,
   label,
   pending,
   onDelete,
@@ -747,12 +749,13 @@ function DeleteDraftDialog({
   pending: boolean;
   onDelete: () => void;
   website?: boolean;
+  rejected?: boolean;
 }) {
   return (
     <AlertDialog>
       <AlertDialogTrigger asChild>
         <Button
-          aria-label={`${website ? "انصراف از پیشنهاد" : "حذف پیش‌نویس"} ${label}`}
+          aria-label={`${website ? "انصراف از پیشنهاد" : rejected ? "حذف آگهی ردشده" : "حذف پیش‌نویس"} ${label}`}
           disabled={pending}
           type="button"
           variant="outline"
@@ -765,12 +768,16 @@ function DeleteDraftDialog({
           <AlertDialogTitle>
             {website
               ? "از معرفی این وب‌سایت منصرف می‌شوید؟"
-              : "پیش‌نویس حذف شود؟"}
+              : rejected
+                ? "آگهی ردشده از داشبورد حذف شود؟"
+                : "پیش‌نویس حذف شود؟"}
           </AlertDialogTitle>
           <AlertDialogDescription>
             {website
               ? `پیشنهاد «${label}» بسته و از داشبورد برداشته می‌شود.`
-              : `پیش‌نویس «${label}» برای همیشه حذف می‌شود و قابل بازیابی نیست.`}
+              : rejected
+                ? `آگهی «${label}» از داشبورد شما برداشته می‌شود. سابقه بررسی آن محفوظ می‌ماند.`
+                : `پیش‌نویس «${label}» برای همیشه حذف می‌شود و قابل بازیابی نیست.`}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
@@ -780,7 +787,11 @@ function DeleteDraftDialog({
             disabled={pending}
             onClick={onDelete}
           >
-            {website ? "انصراف از پیشنهاد" : "حذف پیش‌نویس"}
+            {website
+              ? "انصراف از پیشنهاد"
+              : rejected
+                ? "حذف آگهی ردشده"
+                : "حذف پیش‌نویس"}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

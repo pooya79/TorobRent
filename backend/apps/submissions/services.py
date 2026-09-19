@@ -238,10 +238,10 @@ def create_or_resume_submission_draft(
 
 
 @transaction.atomic
-def delete_submission_draft(*, submission: Submission, actor: User) -> None:
+def discard_submission(*, submission: Submission, actor: User) -> None:
     locked = Submission.objects.select_for_update().get(id=submission.id)
     if locked.submitter_id != actor.id or not locked.can_discard:
-        raise SubmissionAccessDenied("فقط پیش‌نویس قابل حذف است.")
+        raise SubmissionAccessDenied("فقط پیش‌نویس یا آگهی ردشده قابل حذف است.")
     locked.discarded_at = timezone.now()
     locked.save(update_fields=("discarded_at", "updated_at"))
 

@@ -109,8 +109,10 @@ def test_verified_submitter_can_create_an_owner_draft(api_client: APIClient):
 
 
 @pytest.mark.django_db
-def test_submitter_can_delete_only_a_submission_draft(
+@pytest.mark.parametrize("state", [SubmissionState.DRAFT, SubmissionState.REJECTED])
+def test_submitter_can_discard_a_draft_or_rejected_submission(
     api_client: APIClient,
+    state: str,
 ):
     submitter = User.objects.create_user(
         phone="09123456789",
@@ -120,21 +122,32 @@ def test_submitter_can_delete_only_a_submission_draft(
     )
     removable_id = create_draft(api_client, submitter)
     removable = Submission.objects.get(id=removable_id)
+    removable.state = state
+    removable.save(update_fields=["state"])
     SubmissionEvent.objects.create(
         submission=removable,
         actor=submitter,
         revision=1,
         prior_state=SubmissionState.CHANGES_REQUESTED,
-        new_state=SubmissionState.DRAFT,
-        reason="نسخه جدید برای ویرایش ایجاد شد.",
+        new_state=state,
+        reason="نتیجه بررسی",
     )
 
     listed = api_client.get("/api/v1/submissions/")
 
+    other_user = User.objects.create_user(phone="09123456780", is_submitter=True)
+    api_client.force_authenticate(other_user)
+    assert api_client.delete(f"/api/v1/submissions/{removable_id}/").status_code == 404
+    api_client.force_authenticate(submitter)
     removed = api_client.delete(f"/api/v1/submissions/{removable_id}/")
 
     assert "delete" in listed.data[0]["available_actions"]
     assert removed.status_code == 204
+    removable.refresh_from_db()
+    assert removable.discarded_at is not None
+    assert removable.state == state
+    assert removable.events.count() == 1
+    assert api_client.get("/api/v1/submissions/").data == []
     assert api_client.get(f"/api/v1/submissions/{removable_id}/").status_code == 404
 
     protected_id = create_draft(api_client, submitter)

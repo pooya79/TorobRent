@@ -4442,7 +4442,7 @@ paths:
           description: ''
     delete:
       operationId: v1_submissions_destroy
-      summary: Discard a Submission draft
+      summary: Discard a draft or rejected Submission
       parameters:
       - in: path
         name: submission_id

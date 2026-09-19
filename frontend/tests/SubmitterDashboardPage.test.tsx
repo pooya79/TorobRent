@@ -892,3 +892,64 @@ test("surfaces legacy conflicts and keeps explicit draft removal available", asy
     screen.queryByRole("link", { name: "معرفی وب‌سایت تازه" }),
   ).not.toBeInTheDocument();
 });
+
+test("removes a rejected ad only after confirmation and allows retry after failure", async () => {
+  const user = userEvent.setup();
+  let attempts = 0;
+  server.use(
+    http.get("*/api/v1/submissions/", () =>
+      HttpResponse.json([
+        {
+          id: "rejected-submission",
+          state: "rejected",
+          role: "owner",
+          location: { neighborhood: "پونک" },
+          images: [],
+          updated_at: "2026-09-19T08:00:00Z",
+          available_actions: ["delete"],
+        },
+      ]),
+    ),
+    http.delete("*/api/v1/submissions/rejected-submission/", () => {
+      attempts += 1;
+      return new HttpResponse(null, { status: attempts === 1 ? 500 : 204 });
+    }),
+  );
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  render(
+    <QueryClientProvider client={client}>
+      <MemoryRouter>
+        <SubmitterDashboardPage />
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+  const remove = await screen.findByRole("button", {
+    name: "حذف آگهی ردشده ملک در پونک",
+  });
+  await user.click(remove);
+  expect(
+    screen.getByText(
+      "آگهی «ملک در پونک» از داشبورد شما برداشته می‌شود. سابقه بررسی آن محفوظ می‌ماند.",
+    ),
+  ).toBeVisible();
+  await user.click(screen.getByRole("button", { name: "انصراف" }));
+  expect(attempts).toBe(0);
+  await user.click(remove);
+  await user.click(screen.getByRole("button", { name: "حذف آگهی ردشده" }));
+  expect(
+    await screen.findByText(
+      "در انجام درخواست مشکلی پیش آمد. دوباره تلاش کنید.",
+    ),
+  ).toBeVisible();
+  expect(screen.getByRole("heading", { name: "ملک در پونک" })).toBeVisible();
+  await user.click(remove);
+  await user.click(screen.getByRole("button", { name: "حذف آگهی ردشده" }));
+  await waitFor(() =>
+    expect(
+      screen.queryByRole("heading", { name: "ملک در پونک" }),
+    ).not.toBeInTheDocument(),
+  );
+  expect(attempts).toBe(2);
+});

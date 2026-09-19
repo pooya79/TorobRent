@@ -164,7 +164,10 @@ class Submission(models.Model):
 
     @property
     def can_discard(self) -> bool:
-        return self.state == SubmissionState.DRAFT and self.discarded_at is None
+        return (
+            self.state in {SubmissionState.DRAFT, SubmissionState.REJECTED}
+            and self.discarded_at is None
+        )
 
 
 class SubmissionContactVerificationChallenge(models.Model):

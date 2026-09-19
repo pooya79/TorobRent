@@ -670,6 +670,8 @@ class SubmissionSerializer(ClaimStatusMixin, serializers.ModelSerializer[Submiss
             if submission.can_discard:
                 actions.append("delete")
             return actions
+        if submission.state == SubmissionState.REJECTED:
+            return ["delete"] if submission.can_discard else []
         if submission.state == SubmissionState.PUBLISHED:
             listing = submission.listing
             if listing is None:

@@ -27,7 +27,7 @@ import {
 } from "@/features/submissions/SubmissionImagesFields";
 import {
   createSubmission,
-  removeSubmissionDraft,
+  discardSubmission,
   requestAlternateContactVerification,
   saveSubmissionStep,
   submitSubmission,
@@ -1065,7 +1065,7 @@ function NewSubmissionLocationFlow({
         const saved = await saveSubmissionStep(created.id, body);
         return { id: created.id, saved };
       } catch (error) {
-        await removeSubmissionDraft(created.id).catch(() => undefined);
+        await discardSubmission(created.id).catch(() => undefined);
         throw error;
       }
     },
