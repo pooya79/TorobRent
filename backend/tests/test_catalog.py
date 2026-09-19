@@ -1700,9 +1700,13 @@ def test_property_search_sort_options_have_deterministic_ties(
 
 
 @pytest.mark.django_db
+@pytest.mark.parametrize("media_prefix", ["submission-media", "external-media", "reviewed-media"])
 def test_property_search_exposes_only_the_reviewed_primary_property_image(
     api_client: APIClient,
+    media_prefix: str,
 ):
+    from django.core.files.base import ContentFile
+
     from apps.catalog.models import (
         ListingImage,
         ListingImageVariant,
@@ -1744,11 +1748,12 @@ def test_property_search_exposes_only_the_reviewed_primary_property_image(
     assert summary["primary_image"] is None
 
     property_asset = MediaAsset.objects.create(
-        file="reviewed-media/property-primary.webp",
         width=960,
         height=720,
         byte_size=1,
     )
+    image_content = b"reviewed property image"
+    property_asset.file.save(f"{media_prefix}/property-primary.webp", ContentFile(image_content))
     property_image = PropertyImage.objects.create(
         property=property_,
         position=0,
@@ -1767,10 +1772,13 @@ def test_property_search_exposes_only_the_reviewed_primary_property_image(
         item for item in with_property_image.data["results"] if item["id"] == str(property_.id)
     )
     assert summary["primary_image"] == {
-        "url": "/reviewed-media/property-primary.webp",
+        "url": f"/api/v1/catalog/media/{property_asset.id}/",
         "width": 960,
         "height": 720,
     }
+    image_response = api_client.get(summary["primary_image"]["url"])
+    assert image_response.status_code == 200
+    assert b"".join(image_response.streaming_content) == image_content
 
 
 @pytest.mark.django_db

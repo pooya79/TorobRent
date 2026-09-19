@@ -2,7 +2,6 @@ import uuid
 from decimal import Decimal
 from typing import Any
 
-from django.core.files.storage import default_storage
 from drf_spectacular.utils import extend_schema_field, extend_schema_serializer
 from rest_framework import serializers
 
@@ -460,12 +459,9 @@ class PropertySummarySerializer(serializers.Serializer[Any]):
         file_name = property_.primary_image_file  # type: ignore[attr-defined]
         if not file_name:
             return None
+        asset_id = uuid.UUID(str(property_.primary_image_asset_id))  # type: ignore[attr-defined]
         return {
-            "url": (
-                f"/api/v1/catalog/media/{property_.primary_image_asset_id}/"  # type: ignore[attr-defined]
-                if str(file_name).startswith("external-media/")
-                else default_storage.url(str(file_name))
-            ),
+            "url": f"/api/v1/catalog/media/{asset_id}/",
             "width": property_.primary_image_width,  # type: ignore[attr-defined]
             "height": property_.primary_image_height,  # type: ignore[attr-defined]
         }
