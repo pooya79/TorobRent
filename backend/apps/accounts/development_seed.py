@@ -29,6 +29,8 @@ class DevelopmentPersonas:
     renter_two: User
     reviewer: User
     support_operator: User
+    source_one: User
+    source_two: User
 
 
 def _get_or_create_persona(
@@ -119,4 +121,20 @@ def seed_development_personas() -> DevelopmentPersonas:
         renter_two=renter_two,
         reviewer=reviewer,
         support_operator=support_operator,
+        source_one=_get_or_create_persona(
+            email="source-one@torobrent.local",
+            password="dev-source-one",
+            display_name="نماینده منبع آزمایشی یک",
+            operator=False,
+            submitter=True,
+            phone="09120000001",
+        ),
+        source_two=_get_or_create_persona(
+            email="source-two@torobrent.local",
+            password="dev-source-two",
+            display_name="نماینده منبع آزمایشی دو",
+            operator=False,
+            submitter=True,
+            phone="09120000002",
+        ),
     )

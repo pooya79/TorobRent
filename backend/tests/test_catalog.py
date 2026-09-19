@@ -38,6 +38,7 @@ from apps.catalog.services import (
     split_listing,
 )
 from apps.catalog.taxonomy_codegen import render_property_taxonomy_module
+from tests.source_fixtures import approve_source_for_publication
 
 
 def test_frontend_property_taxonomy_is_generated_from_the_catalog_mapping(tmp_path: Path):
@@ -1349,6 +1350,7 @@ def test_property_search_excludes_every_non_active_listing_state(api_client: API
         is_active=False,
         outbound_policy="external_link",
     )
+    approve_source_for_publication(inactive_source)
     now = timezone.now()
     scenarios = [
         (ListingState.DRAFT, now + timedelta(days=1), active_source),
@@ -1781,6 +1783,7 @@ def test_operator_merges_duplicate_properties_without_losing_listing_identity_or
         display_name="منبع نمونه",
         outbound_policy="external_link",
     )
+    approve_source_for_publication(source)
     target = Property.objects.create(
         city=neighborhood.district.city,
         district=neighborhood.district,
@@ -2140,6 +2143,7 @@ def test_property_detail_compares_active_source_listings_and_exposes_disagreemen
         outbound_policy="external_link",
         allows_external_media=True,
     )
+    approve_source_for_publication(external_source)
     disabled_source = Source.objects.create(
         name="disabled-comparison",
         domain="disabled-comparison.example",
@@ -2153,6 +2157,7 @@ def test_property_detail_compares_active_source_listings_and_exposes_disagreemen
         outbound_policy="external_link",
         is_active=False,
     )
+    approve_source_for_publication(inactive_source)
     now = timezone.now()
     scenarios = [
         (

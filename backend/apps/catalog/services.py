@@ -23,6 +23,7 @@ from .models import (
     ListingImage,
     ListingImageVariant,
     ListingState,
+    OutboundPolicy,
     ProductEvent,
     ProductEventType,
     Property,
@@ -112,8 +113,41 @@ def record_product_event(
     return True
 
 
+def _require_publication_authority(source_id: UUID) -> None:
+    source = Source.objects.select_for_update().get(pk=source_id)
+    if source.outbound_policy == OutboundPolicy.EXTERNAL_LINK:
+        from django.db.models import F, Q
+
+        from apps.source_proposals.models import SourceAssignment
+
+        if (
+            not SourceAssignment.objects
+            .filter(
+                source=source,
+                revoked_at__isnull=True,
+                representative__isnull=False,
+                proposal__source=source,
+                proposal__submitter_id=F("representative_id"),
+                approval__representative_id=F("representative_id"),
+                approval__event__proposal_id=F("proposal_id"),
+                approval__event__new_state="approved",
+                approval__version__profile__source=source,
+                approval__version_id=F("source__profile__active_version_id"),
+            )
+            .filter(
+                Q(approval__event__actor__isnull=True)
+                | ~Q(approval__event__actor_id=F("representative_id"))
+            )
+            .exists()
+        ):
+            raise ValidationError(
+                "External Listing publication requires an approved Source Assignment."
+            )
+
+
 @transaction.atomic
 def publish_listing(listing: Listing) -> Listing:
+    _require_publication_authority(listing.source_id)
     listing.property.full_clean()
     listing.terms.full_clean()
     listing.full_clean()
@@ -140,6 +174,7 @@ def publish_listing(listing: Listing) -> Listing:
 
 @transaction.atomic
 def confirm_listing_availability(listing: Listing) -> Listing:
+    _require_publication_authority(listing.source_id)
     listing = Listing.objects.select_for_update().select_related("source").get(pk=listing.pk)
     if listing.state not in (ListingState.PUBLISHED, ListingState.EXPIRED):
         raise ValidationError("فقط آگهی منتشرشده یا منقضی قابل تأیید موجودی است.")

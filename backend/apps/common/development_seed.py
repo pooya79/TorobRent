@@ -6,6 +6,9 @@ DEVELOPMENT_SEED_NAMESPACE = uuid.UUID("f8482aec-b7b0-4b43-92bd-a63b27e46619")
 
 class DevelopmentFixtureKind(StrEnum):
     SOURCE = "source"
+    SOURCE_PROPOSAL = "source-proposal"
+    EXTERNAL_CANDIDATE = "external-candidate"
+    EXTERNAL_CANDIDATE_EVENT = "external-candidate-event"
     PROPERTY = "property"
     TERMS = "terms"
     LISTING = "listing"

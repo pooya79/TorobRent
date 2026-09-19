@@ -117,6 +117,13 @@ def seed_development_submissions(
                 "review_data": {"development_seed": True},
             },
         )
+        if (
+            index == 6
+            and submission.listing_id == expired_listing.pk
+            and submission.source_id != expired_listing.source_id
+        ):
+            submission.source = expired_listing.source
+            submission.save(update_fields=("source",))
         if created:
             _seed_events(
                 submission=submission,

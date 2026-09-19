@@ -22,6 +22,7 @@ from apps.catalog.models import (
 )
 from apps.communications.models import SystemNotification
 from apps.submissions.models import Submission, SubmissionState, SubmitterRole
+from tests.source_fixtures import approve_source_for_publication
 
 
 def create_property() -> Property:
@@ -43,6 +44,7 @@ def create_active_listing(
     direct_phone: str = "۰۹۱۲۱۲۳۴۵۶۷",
     external_url: str = "",
 ) -> Listing:
+    approve_source_for_publication(source)
     now = timezone.now()
     return Listing.objects.create(
         property=property_,

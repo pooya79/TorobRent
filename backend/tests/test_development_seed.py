@@ -31,7 +31,39 @@ from apps.contact.models import (
     SupportRequest,
     SupportRequestStatus,
 )
+from apps.source_proposals.models import SourceAssignment
 from apps.submissions.models import Submission, SubmissionEvent, SubmissionState
+
+
+@pytest.mark.django_db
+def test_seed_external_sources_have_distinct_approved_representatives():
+    call_command("seed_dev", verbosity=0)
+    assignments = SourceAssignment.objects.select_related(
+        "source", "representative", "proposal", "approval__event", "approval__version__profile"
+    )
+    assert assignments.count() == 2
+    assert len({assignment.representative_id for assignment in assignments}) == 2
+    for assignment in assignments:
+        assert assignment.representative.phone_verified
+        assert assignment.proposal.submitter == assignment.representative
+        assert assignment.proposal.state == "approved"
+        assert assignment.proposal.source == assignment.source
+        assert assignment.approval.event.actor.email == "operator@torobrent.local"
+        assert assignment.approval.event.new_state == "approved"
+        assert assignment.approval.version.profile.active_version == assignment.approval.version
+        assert assignment.source.responsible_operator == assignment.approval.event.actor
+        assert assignment.source.listings.exists()
+        client = login(
+            assignment.representative.email,
+            "dev-source-one"
+            if assignment.source.domain == "development-one.invalid"
+            else "dev-source-two",
+        )
+        response = client.get(f"/api/v1/source-proposals/{assignment.proposal.pk}/")
+        assert response.status_code == 200
+        assert response.data["assignment"]["id"] == assignment.pk
+    assert not Submission.objects.filter(listing__source__is_builtin=False).exists()
+    assert not ListingInquiry.objects.filter(listing__source__is_builtin=False).exists()
 
 
 def login(email: str, password: str) -> APIClient:

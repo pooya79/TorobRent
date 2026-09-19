@@ -39,6 +39,7 @@ from apps.catalog.tasks import (
     reconcile_property_match_suggestions,
 )
 from apps.submissions.models import Submission, SubmitterRole
+from tests.source_fixtures import approve_source_for_publication
 
 
 def make_operator(email: str = "suggestions@example.com") -> User:
@@ -61,6 +62,7 @@ def make_property(
     area_sqm: int = 90,
     property_id: str | None = None,
 ) -> Property:
+    approve_source_for_publication(source)
     if not Neighborhood.objects.exists():
         call_command("loaddata", "catalog_seed", verbosity=0)
     neighborhood = Neighborhood.objects.get(name_fa="سعادت‌آباد")
@@ -579,7 +581,7 @@ def test_suggestions_api_searches_identity_and_filters_operational_facets(api_cl
         name="queue-facets-source",
         domain="queue-facets.example",
         display_name="منبع ویژه صف",
-        outbound_policy=OutboundPolicy.EXTERNAL_LINK,
+        outbound_policy=OutboundPolicy.DIRECT_CONTACT,
     )
     left = make_property(source, "SPECIAL-REF")
     make_property(source, "OTHER-REF")

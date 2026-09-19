@@ -61,6 +61,8 @@ production settings. The command prepares these login accounts:
 | Persona | Email | Password | Intended surface |
 | --- | --- | --- | --- |
 | Submitter/owner | `submitter@torobrent.local` | `dev-submitter` | Submission states, notifications, support, inquiries |
+| Source Representative one | `source-one@torobrent.local` | `dev-source-one` | Approved `development-one.invalid` website and External Listings |
+| Source Representative two | `source-two@torobrent.local` | `dev-source-two` | Approved `development-two.invalid` website and External Listings |
 | Renter | `renter@torobrent.local` | `dev-renter` | Active unread listing conversation |
 | Second renter | `renter-two@torobrent.local` | `dev-renter-two` | Read-only conversation for an expired listing |
 | Full operator | `operator@torobrent.local` | `dev-operator` | Every operator surface and admin |
@@ -72,6 +74,23 @@ submission decision notifications with both read and unread examples, two listin
 five alternating messages, and support requests in open, in-progress, escalated, and resolved
 states. Seeded workflow rows use stable UUIDs. Rerunning fills in missing fixtures but deliberately
 preserves passwords, message edits, and workflow changes made during manual testing.
+
+The owner has verified fixture phone `09120000000`; the two Source Representatives have
+`09120000001` and `09120000002`, respectively. Each fictional website has a Source Proposal,
+local discovery evidence, an Operator-approved Source Profile, a Source Assignment, and reviewed
+External Listing candidates. Profile approval uses the normal review service with synthetic pages
+served in memory: seeding never fetches these `.invalid` websites or starts extraction workers.
+Revoking a seeded assignment withdraws its published Listings; rerunning the seed preserves that
+revocation. The expired inquiry fixture is a Direct Listing, with its existing ID retained.
+
+Database triggers enforce approved Source authority when an External Listing is published or its
+Source changes, including bulk writes. Direct Submissions cannot reference External Sources or
+External Listings. These cross-table checks cannot be expressed as ordinary SQL CHECK constraints.
+Historical records remain after revocation or account deletion. The migration refuses existing
+unapproved published External Listings rather than inventing approval history or withdrawing them
+silently. On an existing development database, run `make seed-dev` with the updated code **before**
+applying `source_proposals.0002_listing_publication_authority`; this upgrades the old seed data.
+Other legacy Sources must go through review or have their Listings withdrawn before migration.
 
 ## Configuration
 

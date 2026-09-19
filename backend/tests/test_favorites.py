@@ -242,6 +242,16 @@ def test_property_merge_transfers_favorites_without_duplicates(
 def test_permanently_deleting_property_removes_its_favorite_and_leaves_no_api_snapshot(
     api_client: APIClient, user: User, active_property: Property
 ) -> None:
+    # Reviewed Listings retain protected workflow history. Use an unreferenced
+    # Property to exercise permanent deletion independently of that history.
+    active_property = Property.objects.create(
+        city=active_property.city,
+        district=active_property.district,
+        neighborhood=active_property.neighborhood,
+        property_type=active_property.property_type,
+        area_sqm=active_property.area_sqm,
+        room_count=active_property.room_count,
+    )
     Favorite.objects.create(account=user, property=active_property)
     Listing.objects.filter(property=active_property).delete()
     active_property.delete()

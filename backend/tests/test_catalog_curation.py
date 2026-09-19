@@ -26,6 +26,7 @@ from apps.catalog.models import (
 )
 from apps.common.media import MediaVariantKind, compute_image_identity
 from apps.common.models import MediaAsset
+from tests.source_fixtures import approve_source_for_publication
 
 
 def make_operator(*, email: str, capability: str | None = "curate_catalog") -> User:
@@ -47,6 +48,7 @@ def make_current_property(
     latitude: Decimal | None = Decimal("35.774100"),
     longitude: Decimal | None = Decimal("51.356200"),
 ) -> tuple[Property, Listing]:
+    approve_source_for_publication(source)
     if not Neighborhood.objects.exists():
         call_command("loaddata", "catalog_seed", verbosity=0)
     neighborhood = Neighborhood.objects.get(name_fa="سعادت‌آباد")

@@ -21,6 +21,7 @@ from apps.catalog.services import (
     mark_listing_unavailable,
 )
 from apps.source_proposals.models import ExternalListingCandidate, SourceProposal
+from tests.source_fixtures import approve_source_for_publication
 
 
 def make_representative() -> User:
@@ -73,6 +74,8 @@ def test_source_owner_reviews_each_candidate_and_publishes_external_listings(
         source=source,
     )
     from apps.catalog.models import Neighborhood
+
+    approve_source_for_publication(source, proposal=proposal)
 
     neighborhood = Neighborhood.objects.select_related("district").first()
     first, second = [

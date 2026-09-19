@@ -31,6 +31,7 @@ from apps.catalog.tasks import (
     GROUP_CONSISTENCY_RECONCILIATION_LOCK,
     reconcile_grouped_property_consistency,
 )
+from tests.source_fixtures import approve_source_for_publication
 
 
 def make_operator(*, can_curate: bool = True) -> User:
@@ -49,6 +50,7 @@ def make_property(
 ) -> tuple[Property, Listing]:
     from apps.catalog.models import Neighborhood
 
+    approve_source_for_publication(source)
     if not Neighborhood.objects.exists():
         call_command("loaddata", "catalog_seed", verbosity=0)
     neighborhood = Neighborhood.objects.get(name_fa="سعادت‌آباد")

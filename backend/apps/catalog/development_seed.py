@@ -67,38 +67,9 @@ class DevelopmentCatalog:
     listings_for_submissions: list[Listing]
 
 
-def _load_locations() -> None:
+def load_development_locations() -> None:
     if not City.objects.filter(id=TEHRAN_CITY_ID).exists():
         call_command("loaddata", "catalog_seed", verbosity=0)
-
-
-def _seed_sources() -> tuple[Source, Source, Source]:
-    direct = Source.objects.get(is_builtin=True)
-    portal_one, _created = Source.objects.get_or_create(
-        id=development_fixture_id(DevelopmentFixtureKind.SOURCE, 1),
-        defaults={
-            "name": "development-home-one",
-            "domain": "development-one.invalid",
-            "display_name": "نمونه ساختگی یک",
-            "is_active": True,
-            "is_builtin": False,
-            "outbound_policy": OutboundPolicy.EXTERNAL_LINK,
-            "allows_external_media": True,
-        },
-    )
-    portal_two, _created = Source.objects.get_or_create(
-        id=development_fixture_id(DevelopmentFixtureKind.SOURCE, 2),
-        defaults={
-            "name": "development-home-two",
-            "domain": "development-two.invalid",
-            "display_name": "نمونه ساختگی دو",
-            "is_active": True,
-            "is_builtin": False,
-            "outbound_policy": OutboundPolicy.EXTERNAL_LINK,
-            "allows_external_media": False,
-        },
-    )
-    return direct, portal_one, portal_two
 
 
 def _seed_properties() -> list[Property]:
@@ -333,12 +304,14 @@ def _seed_price_history(listings: list[Listing]) -> None:
             )
 
 
-def _seed_listings(properties: list[Property]) -> list[Listing]:
-    sources = _seed_sources()
+def _seed_listings(
+    properties: list[Property], sources: tuple[Source, Source, Source]
+) -> list[Listing]:
     listings: list[Listing] = []
     for index in range(1, 81):
         property_ = properties[(index - 1) % len(properties)]
-        source = sources[(index - 1) % len(sources)]
+        source_index = {55: 2, 57: 0}.get(index, (index - 1) % len(sources))
+        source = sources[source_index]
         terms, _created = RentalTerms.objects.get_or_create(
             id=development_fixture_id(DevelopmentFixtureKind.TERMS, index),
             defaults={
@@ -370,14 +343,21 @@ def _seed_listings(properties: list[Property]) -> list[Listing]:
                 "available_until": ACTIVE_UNTIL,
             },
         )
+        # Repair only the old, deterministic fixture routes. Keep workflow state and edits.
+        legacy_source = sources[(index - 1) % len(sources)]
+        if index in (55, 57) and listing.source_id == legacy_source.pk:
+            listing.source = source
+            listing.external_url = f"https://{source.domain}/listings/{index}" if external else ""
+            listing.direct_phone = DEVELOPMENT_SUBMITTER_PHONE if not external else ""
+            listing.save(update_fields=("source", "external_url", "direct_phone"))
         listings.append(listing)
     return listings
 
 
-def seed_development_catalog() -> DevelopmentCatalog:
-    _load_locations()
+def seed_development_catalog(*, sources: tuple[Source, Source, Source]) -> DevelopmentCatalog:
+    load_development_locations()
     properties = _seed_properties()
-    listings = _seed_listings(properties)
+    listings = _seed_listings(properties, sources)
     assets_by_name = _seed_media_assets()
     _seed_listing_images(listings, assets_by_name)
     _seed_property_images(properties, assets_by_name)
