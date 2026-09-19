@@ -103,7 +103,7 @@ test("reflects refreshed activity, shows counts, and opens results", async () =>
     />,
   );
   expect(screen.getByRole("status")).toHaveTextContent("در حال استخراج");
-  expect(screen.getByText("۱۲")).toBeVisible();
+  expect(screen.getByText("۱۲ / —")).toBeVisible();
   expect(screen.getByText("۸")).toBeVisible();
   expect(screen.getByText(/آخرین دریافت وضعیت/)).toBeVisible();
   await userEvent.click(

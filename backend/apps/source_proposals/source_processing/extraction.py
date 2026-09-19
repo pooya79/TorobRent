@@ -3,6 +3,7 @@
 from collections.abc import Sequence
 from dataclasses import asdict
 from datetime import timedelta
+from time import monotonic
 from typing import Any
 
 from django.core.exceptions import ValidationError
@@ -39,7 +40,14 @@ from .publication_modes import publication_mode
 
 @transaction.atomic
 def submit_request(
-    *, assignment_id: int, proposal_id: str, actor: User, url: str, initiated_by: User | None = None
+    *,
+    assignment_id: int,
+    proposal_id: str,
+    actor: User,
+    url: str,
+    initiated_by: User | None = None,
+    max_pages: int | None = None,
+    target_detail_pages: int | None = None,
 ) -> ExtractionRequest:
     assignment = SourceAssignment.objects.select_related("source").get(pk=assignment_id)
     source = Source.objects.select_for_update().get(pk=assignment.source_id)
@@ -50,6 +58,13 @@ def submit_request(
         raise ValidationError("تخصیص یا پروفایل فعال در دسترس نیست.")
     approval = assignment.approval
     assert approval is not None
+    limits = approval.version.reservation
+    max_pages = limits.max_pages if max_pages is None else max_pages
+    target_detail_pages = (
+        limits.target_detail_pages if target_detail_pages is None else target_detail_pages
+    )
+    if not 1 <= target_detail_pages <= max_pages <= 2147483647:
+        raise ValidationError("تعداد آگهی هدف باید مثبت و حداکثر برابر سقف صفحات باشد.")
     canonical = normalize_url(normalize_public_url(url))
     if normalize_public_domain(canonical) != assignment.source.domain:
         raise ValidationError("نشانی باید روی دامنه دقیق منبع باشد.")
@@ -63,6 +78,14 @@ def submit_request(
         state__in=(ExtractionState.QUEUED, ExtractionState.RUNNING),
     ).first()
     if pending:
+        if (
+            pending.max_pages or limits.max_pages,
+            pending.target_detail_pages or limits.target_detail_pages,
+        ) != (max_pages, target_detail_pages):
+            raise ValidationError(
+                "برای این نشانی استخراجی با حدود دیگر در جریان است؛ "
+                "پس از پایان آن دوباره تلاش کنید."
+            )
         return pending
     mode, revision = publication_mode(approval)
     request = ExtractionRequest.objects.create(
@@ -76,6 +99,8 @@ def submit_request(
         submitted_url=url,
         canonical_url=canonical,
         delivery_pending=True,
+        max_pages=max_pages,
+        target_detail_pages=target_detail_pages,
     )
     from .extraction_delivery import deliver_extraction_request
 
@@ -194,6 +219,8 @@ def run_extraction(request_id: str, generation: int = 0) -> bool:
             run.started_at = timezone.now()
             run.completed_at = None
         run.state = ExtractionState.RUNNING
+        run.stage = "discovering"
+        run.progress_updated_at = timezone.now()
         run.save()
         request.state = ExtractionState.RUNNING
         request.save(update_fields=("state", "updated_at"))
@@ -220,13 +247,32 @@ def run_extraction(request_id: str, generation: int = 0) -> bool:
         limits = request.profile_version.reservation
         contract = ExtractionContract(
             fetcher,
-            max_pages=limits.max_pages,
-            target_detail_pages=limits.target_detail_pages,
+            max_pages=request.max_pages or limits.max_pages,
+            target_detail_pages=request.target_detail_pages or limits.target_detail_pages,
         )
+        last_progress = float("-inf")
+        progress_run_id = run.pk
+
+        def report_discovery(attempted: int, details: int) -> None:
+            nonlocal last_progress
+            now = monotonic()
+            if now - last_progress < 2:
+                return
+            ExtractionRun.objects.filter(
+                pk=progress_run_id,
+                attempts=attempt,
+                discovery_generation=generation,
+                state=ExtractionState.RUNNING,
+            ).update(
+                attempted_pages=attempted, discovered=details, progress_updated_at=timezone.now()
+            )
+            last_progress = now
+
         discovery = contract.discover(
             request.canonical_url,
             checkpoint=run.discovery_checkpoint,
             time_slice_seconds=DISCOVERY_TIME_SLICE_SECONDS,
+            on_progress=report_discovery,
         )
         if discovery.checkpoint:
             with transaction.atomic():
@@ -263,6 +309,17 @@ def run_extraction(request_id: str, generation: int = 0) -> bool:
 
                 transaction.on_commit(lambda: extract_source.delay(request_id, generation + 1))
             return False
+        ExtractionRun.objects.filter(
+            pk=run.pk,
+            attempts=attempt,
+            discovery_generation=generation,
+            state=ExtractionState.RUNNING,
+        ).update(
+            stage="extracting",
+            attempted_pages=len(fetcher.attempted_urls - fetcher.skipped.keys()),
+            discovered=discovery.detail_page_count,
+            progress_updated_at=timezone.now(),
+        )
         pages = []
         skipped_pages = list(fetcher.skipped.values())
         for page in discovery.pages:
@@ -344,6 +401,13 @@ def run_extraction(request_id: str, generation: int = 0) -> bool:
         errors = [
             {"code": "extraction_failed", "detail": "استخراج موقتاً ناموفق بود.", "transient": True}
         ]
+    if state == ExtractionState.COMPLETE:
+        ExtractionRun.objects.filter(
+            pk=run.pk,
+            attempts=attempt,
+            discovery_generation=generation,
+            state=ExtractionState.RUNNING,
+        ).update(stage="preparing", extracted=len(results), progress_updated_at=timezone.now())
     with transaction.atomic():
         Source.objects.select_for_update().get(pk=request.assignment.source_id)
         request = ExtractionRequest.objects.select_for_update().get(pk=request_id)

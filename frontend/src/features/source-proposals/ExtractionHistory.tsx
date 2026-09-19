@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api/client";
 import { apiError } from "@/lib/api/errors";
+import { ExtractionProgress, extractionStateLabel } from "./ExtractionProgress";
 import { PublicationOutcomes } from "./PublicationOutcomes";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -9,14 +10,6 @@ import { discoveryStopLabels } from "./discovery-labels";
 import { ExtractionRunReview } from "./ExtractionRunReview";
 import { readyForRunPublication } from "./run-results";
 import type { components } from "@/lib/api/schema";
-
-const stateLabels: Record<string, string> = {
-  queued: "در صف",
-  running: "در حال استخراج",
-  complete: "پایان یافته",
-  failed: "ناموفق",
-  cancelled: "لغوشده",
-};
 
 export function ExtractionHistory({
   requests,
@@ -33,6 +26,11 @@ export function ExtractionHistory({
   );
   const selected =
     sorted.find((request) => request.id === selectedId) ??
+    sorted.find(
+      (request) =>
+        request.is_current !== false &&
+        ["queued", "running"].includes(request.state),
+    ) ??
     sorted.find(
       (request) =>
         request.is_current !== false &&
@@ -144,7 +142,7 @@ export function ExtractionHistory({
                         request.state === "failed" ? "destructive" : "secondary"
                       }
                     >
-                      {stateLabels[request.state]}
+                      {extractionStateLabel(request)}
                     </Badge>
                     {request.is_current === false && (
                       <p className="text-muted-foreground mt-2 text-xs">
@@ -202,6 +200,7 @@ export function ExtractionHistory({
           onFocusCapture={() => setSelectedId(selected.id)}
           className="grid gap-4 rounded-xl border p-4 sm:p-5"
         >
+          <ExtractionProgress request={selected} />
           {selected.is_current === false && (
             <p className="bg-muted rounded-lg p-3 text-sm">
               سابقه استخراج؛ مجوز انتشار این نتایج پایان یافته است.
@@ -258,7 +257,7 @@ export function ExtractionHistory({
               )}
             </div>
           </details>
-          {selected.run && review ? (
+          {selected.run && review && selected.state === "complete" ? (
             <ExtractionRunReview
               key={selected.run.id}
               run={selected.run}
@@ -268,8 +267,11 @@ export function ExtractionHistory({
             />
           ) : (
             <p className="text-muted-foreground text-sm">
-              این درخواست هنوز نتیجه استخراجی ندارد. وضعیت پس از شروع پردازش
-              به‌روز می‌شود.
+              {selected.state === "failed"
+                ? "پردازش ناموفق بود؛ خطاهای این نوبت را بررسی کنید."
+                : selected.state === "cancelled"
+                  ? "این نوبت لغو شده است."
+                  : "جدول نتایج پس از پایان پردازش آماده می‌شود."}
             </p>
           )}
         </div>

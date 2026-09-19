@@ -610,6 +610,8 @@ class ExtractionState(models.TextChoices):
 
 
 class ExtractionRequest(models.Model):
+    max_pages = models.PositiveIntegerField(null=True, blank=True)
+    target_detail_pages = models.PositiveIntegerField(null=True, blank=True)
     delivery_pending = models.BooleanField(default=False, db_default=False)
     delivery_attempted_at = models.DateTimeField(null=True, blank=True)
     delivery_error = models.TextField(blank=True, default="", db_default="")
@@ -644,6 +646,17 @@ class ExtractionRequest(models.Model):
 
 
 class ExtractionRun(models.Model):
+    stage = models.CharField(
+        max_length=24,
+        default="discovering",
+        db_default="discovering",
+        choices=(
+            ("discovering", "کشف صفحات"),
+            ("extracting", "استخراج اطلاعات"),
+            ("preparing", "آماده‌سازی نتایج"),
+        ),
+    )
+    progress_updated_at = models.DateTimeField(null=True, blank=True)
     discovery_checkpoint = models.JSONField(default=dict, db_default={})
     discovery_generation = models.PositiveIntegerField(default=0, db_default=0)
     discovery_stop_reason = models.CharField(max_length=32, default="", db_default="")

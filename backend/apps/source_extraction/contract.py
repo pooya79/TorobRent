@@ -5,7 +5,7 @@ import heapq
 import json
 import math
 from collections import Counter
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from importlib.resources import files
@@ -242,6 +242,7 @@ class ExtractionContract:
         *,
         checkpoint: Mapping[str, Any] | None = None,
         time_slice_seconds: float | None = None,
+        on_progress: Callable[[int, int], None] | None = None,
     ) -> SourceDiscovery:
         if time_slice_seconds is not None and time_slice_seconds <= 0:
             raise ValueError("time_slice_seconds must be positive")
@@ -271,6 +272,8 @@ class ExtractionContract:
         seen_final_urls = {page.url for page in pages if page.sanitized_html is not None}
 
         while frontier and len(visited) < self._max_pages and details < self._target_detail_pages:
+            if on_progress is not None:
+                on_progress(len(pages), details)
             if deadline is not None and monotonic() >= deadline:
                 paused = True
                 break
@@ -396,6 +399,8 @@ class ExtractionContract:
                     ),
                 )
 
+        if on_progress is not None:
+            on_progress(len(pages), details)
         stop_reason = (
             "target_reached"
             if details >= self._target_detail_pages

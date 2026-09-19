@@ -453,9 +453,18 @@ Operator event; changing a schedule does not invalidate in-flight extraction.
 
 The first due time is one interval after saving. Manual extraction accepts a starting URL on the
 exact assigned domain and leaves the next scheduled time unchanged. Both paths use the current
-approved profile, its crawl limits, current publication mode and exclusions. They retain the
-representative as requester and the current responsible Operator as initiator. Queued/running
-requests with the same entry URL and current processing/profile revision are reused.
+approved profile, current publication mode and exclusions. Manual runs can supply a page ceiling
+and target listing-page count; both must be positive, with the target no greater than the ceiling.
+Each request retains its limits. Scheduled runs and requests without explicit limits inherit the
+profile's discovery limits. They retain the representative as requester and the current responsible
+Operator as initiator. Queued/running requests with the same entry URL and current processing/profile
+revision are reused only when their limits match; differing limits return a validation error.
+
+Processing reports discovery, field extraction, and result preparation as separate stages. Discovery
+writes small progress counters at most once every two seconds, fenced to the current attempt and
+checkpoint generation; the UI polls every five seconds. These counters are independent of the
+seven-minute resumable discovery checkpoints. Candidates are created after discovery and field
+extraction finish, and approval-required results remain unpublished until reviewed.
 
 Paused Sources keep their schedule but do not dispatch; an overdue schedule becomes eligible on
 resume. Missed intervals produce one request, not a backlog. Inactive Assignments do not dispatch.

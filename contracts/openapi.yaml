@@ -6744,6 +6744,16 @@ components:
           items:
             $ref: '#/components/schemas/ExtractionRunDecision'
           readOnly: true
+        stage:
+          allOf:
+          - $ref: '#/components/schemas/StageEnum'
+          readOnly: true
+        progress_updated_at:
+          type:
+          - string
+          - 'null'
+          format: date-time
+          readOnly: true
         state:
           allOf:
           - $ref: '#/components/schemas/State299Enum'
@@ -6823,12 +6833,14 @@ components:
       - needs_attention
       - pipeline_version
       - profile_version
+      - progress_updated_at
       - publication_outcomes
       - published
       - ready_count
       - rejected
       - revision
       - skipped_pages
+      - stage
       - started_at
       - state
       - usable_results
@@ -11107,6 +11119,14 @@ components:
     SourceCrawlControlRequest:
       type: object
       properties:
+        max_pages:
+          type: integer
+          maximum: 2147483647
+          minimum: 1
+        target_detail_pages:
+          type: integer
+          maximum: 2147483647
+          minimum: 1
         action:
           $ref: '#/components/schemas/SourceCrawlControlRequestActionEnum'
         url:
@@ -12288,6 +12308,16 @@ components:
       description: |-
         * `training` - training
         * `held_out` - held_out
+    StageEnum:
+      enum:
+      - discovering
+      - extracting
+      - preparing
+      type: string
+      description: |-
+        * `discovering` - کشف صفحات
+        * `extracting` - استخراج اطلاعات
+        * `preparing` - آماده‌سازی نتایج
     State299Enum:
       enum:
       - queued

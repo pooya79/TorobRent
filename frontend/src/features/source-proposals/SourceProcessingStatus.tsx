@@ -1,3 +1,4 @@
+import { ExtractionProgress, extractionStateLabel } from "./ExtractionProgress";
 import { PublicationOutcomes } from "./PublicationOutcomes";
 import type { ReactNode } from "react";
 import { Activity, CalendarClock, PauseCircle, Workflow } from "lucide-react";
@@ -40,7 +41,7 @@ export function SourceProcessingStatus({
     : paused
       ? "متوقف"
       : running
-        ? "در حال استخراج"
+        ? extractionStateLabel(running)
         : queued
           ? "در صف شروع استخراج"
           : latest?.state === "failed" && latest.is_current !== false
@@ -234,24 +235,8 @@ export function SourceProcessingStatus({
                 انتشار، «مشاهده نتایج و خطاها» را باز کنید.
               </p>
             )}
-          {latest.run && (
-            <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              {(
-                [
-                  ["صفحه بررسی‌شده", latest.run.attempted_pages],
-                  ["آگهی استخراج‌شده", latest.run.extracted],
-                  ["انتشار موفق", latest.run.published],
-                  ["نیازمند رسیدگی", latest.run.needs_attention],
-                ] as const
-              ).map(([label, value]) => (
-                <div key={label} className="bg-muted/30 rounded-lg p-3">
-                  <dt className="text-muted-foreground text-xs">{label}</dt>
-                  <dd className="mt-2 text-xl font-semibold">
-                    {value == null ? "—" : value.toLocaleString("fa-IR")}
-                  </dd>
-                </div>
-              ))}
-            </dl>
+          {latest.is_current !== false && !paused && active && (
+            <ExtractionProgress request={latest} />
           )}
           {latest.run && (
             <div className="grid gap-2 rounded-lg border p-3">

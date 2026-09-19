@@ -941,12 +941,24 @@ class SourceProcessingRequestSerializer(serializers.Serializer[Any]):
 
 
 class SourceCrawlControlRequestSerializer(serializers.Serializer[Any]):
+    max_pages = serializers.IntegerField(min_value=1, max_value=2147483647, required=False)
+    target_detail_pages = serializers.IntegerField(
+        min_value=1, max_value=2147483647, required=False
+    )
     action = serializers.ChoiceField(choices=("run", "schedule"))
     url = serializers.URLField(required=False, max_length=1000)
     interval_hours = serializers.ChoiceField(choices=(0, 1, 6, 12, 24, 72, 168), required=False)
     reviewed_schedule_revision = serializers.IntegerField(min_value=0, required=False)
 
     def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
+        if ("max_pages" in attrs) != ("target_detail_pages" in attrs):
+            raise serializers.ValidationError("سقف صفحات و تعداد آگهی هدف را با هم وارد کنید.")
+        if attrs.get("target_detail_pages", 0) > attrs.get("max_pages", 0):
+            raise serializers.ValidationError({
+                "target_detail_pages": "تعداد آگهی هدف نباید بیشتر از سقف صفحات باشد."
+            })
+        if attrs["action"] == "schedule" and "max_pages" in attrs:
+            raise serializers.ValidationError("حدود بررسی مربوط به اجرای دستی است.")
         if attrs["action"] == "schedule" and (
             "interval_hours" not in attrs or "reviewed_schedule_revision" not in attrs
         ):

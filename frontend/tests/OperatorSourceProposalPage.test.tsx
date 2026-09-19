@@ -742,7 +742,9 @@ test("keeps approved Source cases available for run monitoring", async () => {
     ),
   ).toBeVisible();
   expect(
-    within(screen.getByRole("tabpanel")).getByText("در حال استخراج"),
+    within(screen.getByRole("tabpanel")).getByRole("heading", {
+      name: "در حال استخراج",
+    }),
   ).toBeVisible();
   expect(screen.queryByRole("button", { name: "شروع بررسی" })).toBeNull();
   expect(screen.queryByRole("button", { name: "درخواست استخراج" })).toBeNull();
@@ -2064,6 +2066,14 @@ test("starts a crawl from another page", async () => {
   const url = screen.getByRole("textbox", { name: "نشانی شروع دریافت" });
   await user.clear(url);
   await user.type(url, "https://khaneh.example/more");
+  await user.type(
+    screen.getByRole("spinbutton", { name: "سقف صفحات بررسی‌شده" }),
+    "25",
+  );
+  await user.type(
+    screen.getByRole("spinbutton", { name: "تعداد آگهی هدف" }),
+    "10",
+  );
   await user.click(
     screen.getByRole("button", { name: "دریافت و به‌روزرسانی اکنون" }),
   );
@@ -2071,6 +2081,8 @@ test("starts a crawl from another page", async () => {
     expect(bodies[0]).toEqual({
       action: "run",
       url: "https://khaneh.example/more",
+      max_pages: 25,
+      target_detail_pages: 10,
     }),
   );
 });

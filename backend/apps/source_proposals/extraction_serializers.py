@@ -104,6 +104,8 @@ class ExtractionRunSerializer(serializers.ModelSerializer[ExtractionRun]):
             "candidates",
             "ready_count",
             "decisions",
+            "stage",
+            "progress_updated_at",
             "state",
             "attempts",
             "started_at",
@@ -126,12 +128,17 @@ class ExtractionRunSerializer(serializers.ModelSerializer[ExtractionRun]):
 
 
 class ExtractionRequestSerializer(serializers.ModelSerializer[ExtractionRequest]):
-    max_pages = serializers.IntegerField(
-        source="profile_version.reservation.max_pages", read_only=True
-    )
-    target_detail_pages = serializers.IntegerField(
-        source="profile_version.reservation.target_detail_pages", read_only=True
-    )
+    max_pages = serializers.SerializerMethodField()
+    target_detail_pages = serializers.SerializerMethodField()
+
+    def get_max_pages(self, request: ExtractionRequest) -> int:
+        return request.max_pages or request.profile_version.reservation.max_pages
+
+    def get_target_detail_pages(self, request: ExtractionRequest) -> int:
+        return (
+            request.target_detail_pages or request.profile_version.reservation.target_detail_pages
+        )
+
     is_current = serializers.SerializerMethodField()
 
     def get_is_current(self, request: ExtractionRequest) -> bool:

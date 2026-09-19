@@ -300,3 +300,105 @@ def test_operator_can_disable_schedule_when_execution_is_unavailable(
     source = operator_case(api_client, assigned_case)["assignment"]["source"]
     assert source["crawl_interval_hours"] == 0
     assert source["next_crawl_at"] is None
+
+
+@pytest.mark.django_db
+def test_manual_limits_are_retained_and_used_by_worker(api_client, assigned_case, monkeypatch):
+    from apps.source_proposals.models import ExtractionRequest
+    from apps.source_proposals.source_processing.extraction import run_extraction
+
+    fetcher = assigned_case[4]
+    monkeypatch.setattr(
+        "apps.source_proposals.source_processing.extraction.SourcePageFetcher", lambda **kw: fetcher
+    )
+    assert (
+        control(
+            api_client, assigned_case, action="run", max_pages=3, target_detail_pages=2
+        ).status_code
+        == 200
+    )
+    request = ExtractionRequest.objects.get(assignment_id=assigned_case[1]["id"])
+    assert (request.max_pages, request.target_detail_pages) == (3, 2)
+    from itertools import count
+
+    from apps.source_extraction.contract import ExtractionContract
+    from apps.source_proposals.source_processing import candidate_publication
+
+    ticks = count(step=3)
+    monkeypatch.setattr(
+        "apps.source_proposals.source_processing.extraction.monotonic", lambda: next(ticks)
+    )
+    original_fetch = fetcher.fetch
+    observed = []
+
+    def inspect_fetch(*args, **kwargs):
+        from apps.source_proposals.models import ExtractionRun
+
+        run = ExtractionRun.objects.get(request=request)
+        observed.append((run.stage, run.attempted_pages, run.discovered))
+        # Progress must be committed before candidates are created.
+        assert run.candidates.count() == 0
+        return original_fetch(*args, **kwargs)
+
+    monkeypatch.setattr(fetcher, "fetch", inspect_fetch)
+    original_apply = ExtractionContract.apply_profile
+
+    def inspect_extraction(self, *args, **kwargs):
+        assert type(request.run).objects.get(request=request).stage == "extracting"
+        return original_apply(self, *args, **kwargs)
+
+    monkeypatch.setattr(ExtractionContract, "apply_profile", inspect_extraction)
+    original_create = candidate_publication.create_run_candidates
+
+    def inspect_candidates(run):
+        assert type(run).objects.get(pk=run.pk).stage == "preparing"
+        return original_create(run)
+
+    monkeypatch.setattr(candidate_publication, "create_run_candidates", inspect_candidates)
+    assert run_extraction(str(request.pk)) is False
+    request.refresh_from_db()
+    assert request.state == "complete"
+    assert ("discovering", 2, 1) in observed
+    assert request.run.discovered == 2
+    assert request.run.attempted_pages == 3
+    assert request.run.discovery_stop_reason == "target_reached"
+    record = operator_case(api_client, assigned_case)["assignment"]["recent_requests"][0]
+    assert (record["max_pages"], record["target_detail_pages"]) == (3, 2)
+    assert record["run"]["stage"] == "preparing"
+    assert record["run"]["progress_updated_at"]
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    "limits",
+    [
+        {"max_pages": 0, "target_detail_pages": 1},
+        {"max_pages": 2, "target_detail_pages": 3},
+        {"max_pages": 3},
+        {"max_pages": 2147483648, "target_detail_pages": 1},
+    ],
+)
+def test_manual_crawl_rejects_invalid_limits(api_client, assigned_case, limits):
+    assert control(api_client, assigned_case, action="run", **limits).status_code == 400
+
+
+@pytest.mark.django_db
+def test_manual_crawl_does_not_silently_ignore_changed_limits(api_client, assigned_case):
+    assert (
+        control(
+            api_client, assigned_case, action="run", max_pages=10, target_detail_pages=5
+        ).status_code
+        == 200
+    )
+    assert (
+        control(
+            api_client, assigned_case, action="run", max_pages=20, target_detail_pages=5
+        ).status_code
+        == 400
+    )
+    assert (
+        control(
+            api_client, assigned_case, action="run", max_pages=10, target_detail_pages=5
+        ).status_code
+        == 200
+    )

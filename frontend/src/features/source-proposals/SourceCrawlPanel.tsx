@@ -30,6 +30,18 @@ export function SourceCrawlPanel({
   onExclusions: () => void;
 }) {
   const source = proposal.assignment!.source;
+  const [maxPages, setMaxPages] = useState(
+    String(proposal.assignment!.max_pages ?? ""),
+  );
+  const [targetPages, setTargetPages] = useState(
+    String(proposal.assignment!.target_detail_pages ?? ""),
+  );
+  const validLimits =
+    Number.isInteger(Number(maxPages)) &&
+    Number.isInteger(Number(targetPages)) &&
+    Number(targetPages) > 0 &&
+    Number(targetPages) <= Number(maxPages) &&
+    Number(maxPages) <= 2147483647;
   const [url, setUrl] = useState(proposal.website_url ?? "");
   const [schedule, setSchedule] = useState<{
     interval: (typeof intervals)[number][0];
@@ -86,7 +98,13 @@ export function SourceCrawlPanel({
           aria-label="اجرای دستی استخراج"
           onSubmit={(event) => {
             event.preventDefault();
-            mutation.mutate({ action: "run", url });
+            if (validLimits)
+              mutation.mutate({
+                action: "run",
+                url,
+                max_pages: Number(maxPages),
+                target_detail_pages: Number(targetPages),
+              });
           }}
         >
           <h4 className="flex items-center gap-2 font-medium">
@@ -105,11 +123,55 @@ export function SourceCrawlPanel({
           />
           <p className="text-muted-foreground text-sm">
             برای بررسی صفحات بیشتر، نشانی یک دسته یا صفحه دیگر از همین دامنه را
-            وارد کنید. حدود پروفایل و صفحات مسدود در هر اجرا رعایت می‌شوند.
+            وارد کنید. صفحات مسدود در هر اجرا رعایت می‌شوند.
           </p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-2">
+              <Label htmlFor="crawl-max-pages">سقف صفحات بررسی‌شده</Label>
+              <Input
+                id="crawl-max-pages"
+                type="number"
+                min={1}
+                max={2147483647}
+                step={1}
+                required
+                value={maxPages}
+                onChange={(event) => setMaxPages(event.target.value)}
+                disabled={mutation.isPending || source.processing_paused}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="crawl-target-pages">تعداد آگهی هدف</Label>
+              <Input
+                id="crawl-target-pages"
+                type="number"
+                min={1}
+                max={Number(maxPages) || 2147483647}
+                step={1}
+                required
+                value={targetPages}
+                onChange={(event) => setTargetPages(event.target.value)}
+                disabled={mutation.isPending || source.processing_paused}
+              />
+            </div>
+          </div>
+          <p className="text-muted-foreground text-sm">
+            دریافت با رسیدن به سقف صفحات یا تعداد آگهی هدف پایان می‌یابد. صفحات
+            فهرست هم در سقف بررسی حساب می‌شوند. این حدود فقط برای همین اجرای
+            دستی است.
+          </p>
+          {!validLimits && (
+            <p role="status" className="text-destructive text-sm">
+              عددهای صحیح و مثبت وارد کنید؛ تعداد آگهی هدف نباید از سقف صفحات
+              بیشتر باشد.
+            </p>
+          )}
           <Button
             disabled={
-              mutation.isPending || source.processing_paused || !url.trim()
+              !validLimits ||
+              mutation.isPending ||
+              source.processing_paused ||
+              !url.trim()
             }
           >
             <Play aria-hidden="true" />
@@ -170,7 +232,10 @@ export function SourceCrawlPanel({
           <p className="text-muted-foreground text-sm">
             اولین نوبت پس از فاصله انتخاب‌شده از زمان ذخیره است. در حالت توقف،
             برنامه اجرا نمی‌شود. انتشار نتایج از روش انتشار ذخیره‌شده پیروی
-            می‌کند.
+            می‌کند. حدود دریافت زمان‌بندی‌شده همان حدود پروفایل است:{" "}
+            {proposal.assignment?.max_pages?.toLocaleString("fa-IR")} صفحه و{" "}
+            {proposal.assignment?.target_detail_pages?.toLocaleString("fa-IR")}{" "}
+            آگهی هدف.
           </p>
           <Button
             variant="outline"

@@ -20,6 +20,8 @@ def control_crawl(
     actor: User,
     action: str,
     url: str = "",
+    max_pages: int | None = None,
+    target_detail_pages: int | None = None,
     interval_hours: int = 0,
     reviewed_schedule_revision: int | None = None,
 ) -> SourceProposal:
@@ -46,6 +48,8 @@ def control_crawl(
             actor=assignment.representative,
             initiated_by=actor,
             url=entry_url,
+            max_pages=max_pages,
+            target_detail_pages=target_detail_pages,
         )
     elif action == "schedule":
         set_crawl_schedule(

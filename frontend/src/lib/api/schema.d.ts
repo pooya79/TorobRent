@@ -3237,6 +3237,9 @@ export interface components {
       readonly candidates: components["schemas"]["ExternalListingCandidate"][];
       readonly ready_count: number;
       readonly decisions: components["schemas"]["ExtractionRunDecision"][];
+      readonly stage: components["schemas"]["StageEnum"];
+      /** Format: date-time */
+      readonly progress_updated_at: string | null;
       readonly state: components["schemas"]["State299Enum"];
       readonly attempts: number;
       /** Format: date-time */
@@ -5060,6 +5063,8 @@ export interface components {
       operator: boolean;
     };
     SourceCrawlControlRequest: {
+      max_pages?: number;
+      target_detail_pages?: number;
       action: components["schemas"]["SourceCrawlControlRequestActionEnum"];
       /** Format: uri */
       url?: string;
@@ -5506,6 +5511,13 @@ export interface components {
      * @enum {string}
      */
     SplitEnum: "training" | "held_out";
+    /**
+     * @description * `discovering` - کشف صفحات
+     *     * `extracting` - استخراج اطلاعات
+     *     * `preparing` - آماده‌سازی نتایج
+     * @enum {string}
+     */
+    StageEnum: "discovering" | "extracting" | "preparing";
     /**
      * @description * `queued` - در صف
      *     * `running` - در حال استخراج
