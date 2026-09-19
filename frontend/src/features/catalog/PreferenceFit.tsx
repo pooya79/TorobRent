@@ -1,6 +1,7 @@
 import { ChevronDown, CircleHelp, Star } from "lucide-react";
 import {
   fitBandLabels,
+  fitBandStars,
   preferenceLabels,
   type PreferenceAssessment,
 } from "./preferences";
@@ -22,10 +23,10 @@ export function PreferenceFit({
       >
         <span className="flex items-center gap-1" aria-hidden="true">
           {assessment.band ? (
-            [1, 2, 3].map((star) => (
+            [1, 2, 3, 4, 5].map((star) => (
               <Star
                 key={star}
-                className={`size-5 ${star <= { high: 3, reasonable: 2, weak: 1 }[assessment.band!] ? "fill-amber-500 text-amber-600 dark:text-amber-400" : "text-amber-300/70 dark:text-amber-800"}`}
+                className={`size-5 ${star <= fitBandStars[assessment.band!] ? "fill-amber-500 text-amber-600 dark:text-amber-400" : "text-amber-300/70 dark:text-amber-800"}`}
               />
             ))
           ) : (
@@ -38,7 +39,7 @@ export function PreferenceFit({
         />
       </summary>
       <p className="text-muted-foreground px-2 pt-2 pb-1 text-xs">
-        ستاره‌ها میزان تناسب با ترجیحات شما را نشان می‌دهند.
+        ستاره‌ها میزان تناسب با ترجیحات شما را از ۱ تا ۵ نشان می‌دهند.
       </p>
       {(
         [

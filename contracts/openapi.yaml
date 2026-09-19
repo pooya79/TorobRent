@@ -8913,13 +8913,17 @@ components:
     PreferenceAssessmentBandEnum:
       enum:
       - high
+      - good
       - reasonable
       - weak
+      - very_weak
       type: string
       description: |-
         * `high` - high
+        * `good` - good
         * `reasonable` - reasonable
         * `weak` - weak
+        * `very_weak` - very_weak
     PreferenceIdentifierEnum:
       enum:
       - property_type

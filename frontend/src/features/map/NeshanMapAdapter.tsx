@@ -22,6 +22,7 @@ import {
   MapProviderError,
   markerLabelIsVisible,
   type MapAdapterProps,
+  type MapMarker,
   type MapViewport,
 } from "./adapter";
 import { neshanMapKey } from "./environment";
@@ -99,29 +100,39 @@ function markerStyle(
   selected: boolean,
   label: string,
   showLabel: boolean,
-  fitBand?: "high" | "reasonable" | "weak" | null,
+  fitBand?: MapMarker["fitBand"],
   pinLabel?: string,
 ) {
   const appearance = fitAppearance(fitBand, selected);
   const { color } = appearance;
   const marker = new Style({
-    image:
-      fitBand === "high"
-        ? new RegularShape({
-            points: 5,
-            radius: appearance.radius,
-            radius2: 6,
-            fill: new Fill({ color: appearance.fill }),
-            stroke: new Stroke({ color: appearance.outline, width: 2 }),
-          })
-        : new CircleStyle({
-            radius: appearance.radius,
-            fill: new Fill({ color: appearance.fill }),
-            stroke: new Stroke({
-              color: appearance.outline,
-              width: appearance.outlineWidth,
-            }),
+    image: ["star", "diamond", "square"].includes(appearance.shape)
+      ? new RegularShape({
+          points: appearance.shape === "star" ? 5 : 4,
+          radius: appearance.radius,
+          radius2: appearance.shape === "star" ? 10 : undefined,
+          angle: appearance.shape === "square" ? Math.PI / 4 : 0,
+          fill: new Fill({ color: appearance.fill }),
+          stroke: new Stroke({
+            color: appearance.outline,
+            width: appearance.outlineWidth,
           }),
+        })
+      : new CircleStyle({
+          radius: appearance.radius,
+          fill: new Fill({ color: appearance.fill }),
+          stroke: new Stroke({
+            color: appearance.outline,
+            width: appearance.outlineWidth,
+          }),
+        }),
+    text: new Text({
+      text: appearance.number,
+      font: "700 12px system-ui",
+      fill: new Fill({ color: appearance.textColor }),
+      offsetY: appearance.shape === "star" ? 1 : 0,
+    }),
+    zIndex: selected ? 2 : 1,
   });
   if (!showLabel) return marker;
   const [deposit = "", monthlyRent = ""] = label.split("|");
@@ -132,7 +143,7 @@ function markerStyle(
         text:
           pinLabel ??
           `\u2066${deposit} | ${monthlyRent}\u2069${appearance.symbol ? "\n" + appearance.symbol : ""}`,
-        offsetY: -23,
+        offsetY: fitBand !== undefined ? -36 : -23,
         textAlign: "center",
         font: "700 10px system-ui",
         fill: new Fill({ color: "#ffffff" }),
@@ -144,7 +155,7 @@ function markerStyle(
     new Style({
       text: new Text({
         text: "▼",
-        offsetY: -9,
+        offsetY: fitBand !== undefined ? -22 : -9,
         textAlign: "center",
         font: "700 11px system-ui",
         fill: new Fill({ color }),

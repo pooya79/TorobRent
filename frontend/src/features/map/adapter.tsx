@@ -1,3 +1,4 @@
+import type { PreferenceAssessment } from "@/features/catalog/preferences";
 import { useEffect, type ComponentType } from "react";
 
 import {
@@ -35,7 +36,7 @@ export type MapPropertyPreview = {
 
 export type MapMarker = {
   pinLabel?: string;
-  fitBand?: "high" | "reasonable" | "weak" | null;
+  fitBand?: PreferenceAssessment["band"];
   propertyId: string;
   label: string;
   mapPrices: {

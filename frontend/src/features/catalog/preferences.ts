@@ -21,9 +21,28 @@ export const preferenceLabels = {
 export type PreferenceId = keyof typeof preferenceLabels;
 export const fitBandLabels = {
   high: "تناسب زیاد",
-  reasonable: "تناسب قابل قبول",
+  good: "تناسب خوب",
+  reasonable: "تناسب متوسط",
   weak: "تناسب کم",
+  very_weak: "تناسب بسیار کم",
 } as const;
+export type FitBand = NonNullable<PreferenceAssessment["band"]>;
+export const fitBandStars = {
+  high: 5,
+  good: 4,
+  reasonable: 3,
+  weak: 2,
+  very_weak: 1,
+} as const satisfies Record<FitBand, number>;
+export const fitBands = [
+  "high",
+  "good",
+  "reasonable",
+  "weak",
+  "very_weak",
+] as const;
+export const fitStarSymbol = (band: FitBand) =>
+  "★".repeat(fitBandStars[band]) + "☆".repeat(5 - fitBandStars[band]);
 export const priorityLabels = {
   unimportant: "بی‌اهمیت",
   preferred: "ترجیح می‌دهم",

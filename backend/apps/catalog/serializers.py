@@ -415,7 +415,9 @@ def property_location_data(property_: Property) -> dict[str, Any]:
 
 class PreferenceAssessmentSerializer(serializers.Serializer[Any]):
     version = serializers.CharField()
-    band = serializers.ChoiceField(choices=("high", "reasonable", "weak"), allow_null=True)
+    band = serializers.ChoiceField(
+        choices=("high", "good", "reasonable", "weak", "very_weak"), allow_null=True
+    )
     satisfied = serializers.ListField(child=serializers.ChoiceField(choices=PREFERENCE_IDS))
     trade_offs = serializers.ListField(child=serializers.ChoiceField(choices=PREFERENCE_IDS))
     unknown = serializers.ListField(child=serializers.ChoiceField(choices=PREFERENCE_IDS))

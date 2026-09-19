@@ -4181,11 +4181,14 @@ export interface components {
     };
     /**
      * @description * `high` - high
+     *     * `good` - good
      *     * `reasonable` - reasonable
      *     * `weak` - weak
+     *     * `very_weak` - very_weak
      * @enum {string}
      */
-    PreferenceAssessmentBandEnum: "high" | "reasonable" | "weak";
+    PreferenceAssessmentBandEnum:
+      "high" | "good" | "reasonable" | "weak" | "very_weak";
     /**
      * @description * `property_type` - property_type
      *     * `district` - district

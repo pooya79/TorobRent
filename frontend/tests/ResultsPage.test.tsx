@@ -2683,7 +2683,7 @@ test("applies explicit priorities in the URL and restores canonical order on res
 test("renders returned preference evidence outside the map and passes the same band to its adapter", async () => {
   const user = userEvent.setup();
   const assessment = {
-    version: "explicit-v1",
+    version: "explicit-v2",
     band: "high" as const,
     satisfied: ["elevator" as const],
     trade_offs: ["deposit" as const],

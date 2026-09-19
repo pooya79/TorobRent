@@ -218,7 +218,7 @@ def test_supported_preferences_return_controlled_evidence(
     assessment = response.data["results"][0]["preference_assessment"]
     field = "unknown" if satisfied is None else "satisfied" if satisfied else "trade_offs"
     assert assessment[field] == [identifier]
-    assert assessment["version"] == "explicit-v1"
+    assert assessment["version"] == "explicit-v2"
 
 
 @pytest.mark.django_db
@@ -278,3 +278,31 @@ def test_zoomed_out_map_exposes_high_fit_counts_for_cluster_badges(api_client, c
     cluster = response.data["map"]["clusters"][0]
     assert cluster["property_count"] == 3
     assert cluster["high_fit_count"] == 2
+
+
+@pytest.mark.parametrize(
+    "area,band",
+    [
+        (1, "very_weak"),
+        (19, "very_weak"),
+        (20, "weak"),
+        (39, "weak"),
+        (40, "reasonable"),
+        (59, "reasonable"),
+        (60, "good"),
+        (79, "good"),
+        (80, "high"),
+        (100, "high"),
+        (None, None),
+    ],
+)
+def test_five_star_fit_boundaries_and_unknown(area, band):
+    from apps.catalog.preferences import Preference, assess_preferences
+
+    _, assessment = assess_preferences(
+        {"area": area, "listing_id": "test-listing"},
+        (Preference("area", "preferred", 100),),
+        as_of=timezone.now(),
+    )
+    assert assessment["band"] == band
+    assert assessment["version"] == "explicit-v2"

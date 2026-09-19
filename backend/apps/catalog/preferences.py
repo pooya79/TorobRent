@@ -9,7 +9,7 @@ from typing import Any, cast
 
 from .models import PropertyType
 
-SCORING_VERSION = "explicit-v1"
+SCORING_VERSION = "explicit-v2"
 PRIORITY_WEIGHTS = {"very_important": 3, "preferred": 1, "unimportant": 0}
 FEATURES = ("parking", "elevator", "storage", "balcony", "furnished")
 NUMERIC_BOUNDS = {
@@ -133,9 +133,13 @@ def assess_preferences(
         if not denominator
         else "high"
         if score >= Decimal("0.8")
+        else "good"
+        if score >= Decimal("0.6")
         else "reasonable"
-        if score >= Decimal("0.5")
+        if score >= Decimal("0.4")
         else "weak"
+        if score >= Decimal("0.2")
+        else "very_weak"
     )
     return score, {
         "version": SCORING_VERSION,
