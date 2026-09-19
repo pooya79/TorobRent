@@ -1,9 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, Clock3, MessageSquareWarning, UserRound } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 
 import { PageMain } from "@/components/layout/PageMain";
-import { ExactLocationPicker } from "@/features/map/ExactLocationPicker";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   AlertDialog,
@@ -19,7 +18,6 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   approveSubmission,
@@ -34,7 +32,6 @@ import {
   type OperatorSubmissionQueueItem,
   type OperatorQueueFilters,
   type Submission,
-  type SubmissionApproval,
 } from "@/features/submissions/queries";
 import { SubmissionDetails } from "@/features/submissions/SubmissionDetails";
 import { SubmissionQueueFilters } from "@/features/submissions/SubmissionQueueFilters";
@@ -44,65 +41,10 @@ import {
   notificationStatusLabel,
 } from "@/features/submissions/notification";
 import { ApiError, errorMessage } from "@/lib/api/errors";
-import {
-  propertyTypeGroups,
-  propertyTypeLabels,
-} from "@/features/catalog/property-taxonomy";
-
-type NormalizedProperty = NonNullable<
-  SubmissionApproval["normalized_property"]
->;
-
-const numericCorrectionFields = [
-  "area_sqm",
-  "room_count",
-  "construction_year",
-  "floor",
-  "total_floors",
-  "units_per_floor",
-] as const;
-
-const featureFields = [
-  ["parking", "پارکینگ"],
-  ["elevator", "آسانسور"],
-  ["storage", "انباری"],
-  ["balcony", "بالکن"],
-  ["furnished", "مبله"],
-] as const;
-
 function submissionTitle(submission: Submission | OperatorSubmissionQueueItem) {
   return (
     submission.location?.neighborhood ?? `درخواست ${submission.id.slice(0, 8)}`
   );
-}
-
-function locationFieldLabel(
-  field: "city_id" | "district_id" | "neighborhood_id",
-) {
-  return {
-    city_id: "شناسه شهر نرمال‌شده",
-    district_id: "شناسه منطقه نرمال‌شده",
-    neighborhood_id: "شناسه محله نرمال‌شده",
-  }[field];
-}
-
-function normalizedFieldLabel(field: (typeof numericCorrectionFields)[number]) {
-  return {
-    area_sqm: "متراژ نرمال‌شده",
-    room_count: "تعداد اتاق نرمال‌شده",
-    construction_year: "سال ساخت نرمال‌شده",
-    floor: "طبقه نرمال‌شده",
-    total_floors: "تعداد طبقات نرمال‌شده",
-    units_per_floor: "واحد در طبقه نرمال‌شده",
-  }[field];
-}
-
-function currentNumericValue(
-  submission: Submission,
-  field: (typeof numericCorrectionFields)[number],
-) {
-  const value = submission.property_facts?.[field];
-  return value == null ? "" : String(value);
 }
 
 const reviewConflictMessages: Record<string, string> = {
@@ -141,12 +83,6 @@ export function OperatorReviewPage() {
   const queue = useQuery(operatorQueueQueryOptions(filters));
   const [selectedId, setSelectedId] = useState<string>();
   const [reason, setReason] = useState("");
-  const [propertyId, setPropertyId] = useState("");
-  const [corrections, setCorrections] = useState<Record<string, string>>({});
-  const [description, setDescription] = useState("");
-  const [sourceReference, setSourceReference] = useState("");
-  const [sourceClaims, setSourceClaims] = useState("");
-  const [provenanceNote, setProvenanceNote] = useState("");
   const [internalNote, setInternalNote] = useState("");
   const [reviewConflict, setReviewConflict] = useState<ApiError>();
   const queueItems = queue.data?.results ?? [];
@@ -156,12 +92,6 @@ export function OperatorReviewPage() {
 
   const resetDecisionDraft = () => {
     setReason("");
-    setPropertyId("");
-    setCorrections({});
-    setDescription("");
-    setSourceReference("");
-    setSourceClaims("");
-    setProvenanceNote("");
     setInternalNote("");
   };
   const finishDecision = async () => {
@@ -206,40 +136,11 @@ export function OperatorReviewPage() {
     onError: handleDecisionError,
   });
   const approveMutation = useMutation({
-    mutationFn: () => {
-      const normalizedProperty: NormalizedProperty = {};
-      for (const [field, value] of Object.entries(corrections)) {
-        if (!value) continue;
-        if (field === "exact_latitude" || field === "exact_longitude") {
-          continue;
-        }
-        Object.assign(normalizedProperty, {
-          [field]: (numericCorrectionFields as readonly string[]).includes(
-            field,
-          )
-            ? Number(value)
-            : value,
-        });
-      }
-      if (corrections.exact_latitude && corrections.exact_longitude) {
-        normalizedProperty.exact_location = {
-          latitude: corrections.exact_latitude,
-          longitude: corrections.exact_longitude,
-        };
-      }
-      return approveSubmission(selected!.id, {
+    mutationFn: () =>
+      approveSubmission(selected!.id, {
         reviewed_revision: selected!.revision,
-        ...(propertyId ? { property_id: propertyId } : {}),
-        normalized_property: normalizedProperty,
-        source_metadata: {
-          ...(sourceReference ? { source_reference: sourceReference } : {}),
-          ...(sourceClaims ? { source_claims: JSON.parse(sourceClaims) } : {}),
-          ...(provenanceNote ? { provenance_note: provenanceNote } : {}),
-        },
-        ...(description ? { formatting: { description } } : {}),
         ...(internalNote ? { internal_note: internalNote } : {}),
-      });
-    },
+      }),
     onSuccess: finishDecision,
     onError: handleDecisionError,
   });
@@ -487,187 +388,21 @@ export function OperatorReviewPage() {
                         <AlertDialogHeader>
                           <AlertDialogTitle>آگهی منتشر شود؟</AlertDialogTitle>
                           <AlertDialogDescription>
-                            برای گروه‌بندی، شناسه ملک موجود را وارد کنید؛
-                            خالی‌بودن آن یک ملک تازه می‌سازد.
+                            آگهی با اطلاعات ثبت‌شده منتشر می‌شود.
                           </AlertDialogDescription>
                         </AlertDialogHeader>
-                        <div className="max-h-[60vh] space-y-3 overflow-y-auto pe-1">
-                          <Label>
-                            شناسه ملک موجود (اختیاری)
-                            <Input
-                              value={propertyId}
-                              onChange={(event) =>
-                                setPropertyId(event.target.value)
-                              }
-                            />
+                        <div className="space-y-2">
+                          <Label htmlFor="approval-operator-note">
+                            یادداشت اپراتور (اختیاری)
                           </Label>
-                          {(
-                            [
-                              "city_id",
-                              "district_id",
-                              "neighborhood_id",
-                            ] as const
-                          ).map((field) => (
-                            <Label key={field}>
-                              {locationFieldLabel(field)}
-                              <Input
-                                value={corrections[field] ?? ""}
-                                onChange={(event) =>
-                                  setCorrections({
-                                    ...corrections,
-                                    [field]: event.target.value,
-                                  })
-                                }
-                              />
-                            </Label>
-                          ))}
-                          <ExactLocationPicker
-                            key={selected.id}
-                            value={{
-                              latitude: Number(
-                                corrections.exact_latitude ??
-                                  selected.location?.exact_location?.latitude ??
-                                  35.7219,
-                              ),
-                              longitude: Number(
-                                corrections.exact_longitude ??
-                                  selected.location?.exact_location
-                                    ?.longitude ??
-                                  51.3347,
-                              ),
-                            }}
-                            onChange={(coordinates) =>
-                              setCorrections({
-                                ...corrections,
-                                exact_latitude: String(coordinates.latitude),
-                                exact_longitude: String(coordinates.longitude),
-                              })
+                          <textarea
+                            id="approval-operator-note"
+                            className="border-input bg-background min-h-24 w-full rounded-md border px-3 py-2"
+                            value={internalNote}
+                            onChange={(event) =>
+                              setInternalNote(event.target.value)
                             }
                           />
-                          <Label>
-                            نوع ملک نرمال‌شده
-                            <select
-                              className="border-input bg-background mt-1 h-11 w-full rounded-md border px-3"
-                              value={corrections.property_type ?? ""}
-                              onChange={(event) =>
-                                setCorrections({
-                                  ...corrections,
-                                  property_type: event.target.value,
-                                })
-                              }
-                            >
-                              <option value="">بدون تغییر</option>
-                              {propertyTypeGroups.map((group) => (
-                                <optgroup
-                                  key={group.category}
-                                  label={group.label}
-                                >
-                                  {group.types.map((type) => (
-                                    <option key={type} value={type}>
-                                      {propertyTypeLabels[type]}
-                                    </option>
-                                  ))}
-                                </optgroup>
-                              ))}
-                            </select>
-                          </Label>
-                          {numericCorrectionFields.map((field) => (
-                            <Label key={field}>
-                              {normalizedFieldLabel(field)}
-                              <Input
-                                inputMode="numeric"
-                                value={corrections[field] ?? ""}
-                                placeholder={currentNumericValue(
-                                  selected,
-                                  field,
-                                )}
-                                onChange={(event) =>
-                                  setCorrections({
-                                    ...corrections,
-                                    [field]: event.target.value,
-                                  })
-                                }
-                              />
-                            </Label>
-                          ))}
-                          {featureFields.map(([field, label]) => (
-                            <Label key={field}>
-                              {label}
-                              <select
-                                className="border-input bg-background mt-1 h-11 w-full rounded-md border px-3"
-                                value={corrections[field] ?? ""}
-                                onChange={(event) =>
-                                  setCorrections({
-                                    ...corrections,
-                                    [field]: event.target.value,
-                                  })
-                                }
-                              >
-                                <option value="">بدون تغییر</option>
-                                <option value="unknown">نامشخص</option>
-                                <option value="present">دارد</option>
-                                <option value="absent">ندارد</option>
-                              </select>
-                            </Label>
-                          ))}
-                          <Label>
-                            یادداشت مکانی اپراتور
-                            <Input
-                              value={corrections.operator_location_notes ?? ""}
-                              onChange={(event) =>
-                                setCorrections({
-                                  ...corrections,
-                                  operator_location_notes: event.target.value,
-                                })
-                              }
-                            />
-                          </Label>
-                          <Label>
-                            شناسه در منبع
-                            <Input
-                              value={sourceReference}
-                              onChange={(event) =>
-                                setSourceReference(event.target.value)
-                              }
-                            />
-                          </Label>
-                          <Label>
-                            ادعاهای منبع (داده ساخت‌یافته)
-                            <textarea
-                              className="border-input bg-background mt-1 min-h-20 w-full rounded-md border px-3 py-2"
-                              value={sourceClaims}
-                              onChange={(event) =>
-                                setSourceClaims(event.target.value)
-                              }
-                            />
-                          </Label>
-                          <Label>
-                            یادداشت منشأ
-                            <Input
-                              value={provenanceNote}
-                              onChange={(event) =>
-                                setProvenanceNote(event.target.value)
-                              }
-                            />
-                          </Label>
-                          <Label>
-                            یادداشت داخلی (اختیاری)
-                            <Input
-                              value={internalNote}
-                              onChange={(event) =>
-                                setInternalNote(event.target.value)
-                              }
-                            />
-                          </Label>
-                          <Label>
-                            قالب‌بندی توضیحات
-                            <Input
-                              value={description || selected.description || ""}
-                              onChange={(event) =>
-                                setDescription(event.target.value)
-                              }
-                            />
-                          </Label>
                         </div>
                         <AlertDialogFooter>
                           <AlertDialogCancel>انصراف</AlertDialogCancel>
@@ -785,6 +520,8 @@ function DecisionDialog({
   pending: boolean;
   onConfirm: () => void;
 }) {
+  const reasonId = useId();
+
   return (
     <AlertDialog>
       <AlertDialogTrigger asChild>
@@ -800,13 +537,16 @@ function DecisionDialog({
             دلیل برای ثبت‌کننده و در تاریخچه قابل مشاهده است.
           </AlertDialogDescription>
         </AlertDialogHeader>
-        <Label>
-          {label}
-          <Input
+        <div className="space-y-2">
+          <Label htmlFor={reasonId}>{label}</Label>
+          <textarea
+            id={reasonId}
+            className="border-input bg-background min-h-24 w-full rounded-md border px-3 py-2"
+            required
             value={reason}
             onChange={(event) => setReason(event.target.value)}
           />
-        </Label>
+        </div>
         <AlertDialogFooter>
           <AlertDialogCancel>انصراف</AlertDialogCancel>
           <AlertDialogAction

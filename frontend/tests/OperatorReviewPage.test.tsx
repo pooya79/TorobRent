@@ -212,56 +212,47 @@ test("shows the permission state when the review API denies access", async () =>
   expect(screen.queryByText("سعادت‌آباد")).not.toBeInTheDocument();
 });
 
-test("approves and groups a Submission with an existing Property", async () => {
-  const user = userEvent.setup();
-  let propertyId: string | undefined;
-  serveSubmission(claimedSubmission);
-  server.use(
-    http.post(
-      "*/api/v1/operator/submissions/:id/approve/",
-      async ({ request }) => {
-        propertyId = ((await request.json()) as { property_id?: string })
-          .property_id;
-        return HttpResponse.json({
-          ...claimedSubmission,
-          state: "published",
-          listing_id: "50000000-0000-4000-8000-000000000005",
-        });
-      },
-    ),
-  );
-  renderPage();
+test.each(["", "مدارک بررسی شد."])(
+  "approves with optional operator note %j",
+  async (note) => {
+    const user = userEvent.setup();
+    let approvalBody: unknown;
+    serveSubmission(claimedSubmission);
+    server.use(
+      http.post(
+        "*/api/v1/operator/submissions/:id/approve/",
+        async ({ request }) => {
+          approvalBody = await request.json();
+          return HttpResponse.json({
+            ...claimedSubmission,
+            state: "published",
+            listing_id: "50000000-0000-4000-8000-000000000005",
+          });
+        },
+      ),
+    );
+    renderPage();
 
-  await user.click(
-    await screen.findByRole("button", { name: "تأیید و انتشار" }),
-  );
-  expect(screen.getByLabelText("شناسه شهر نرمال‌شده")).toBeVisible();
-  expect(screen.getByLabelText("تعداد اتاق نرمال‌شده")).toBeVisible();
-  for (const label of [
-    "آپارتمان",
-    "خانه",
-    "ویلا",
-    "دفتر اداری",
-    "مغازه",
-    "انبار",
-    "کارگاه",
-  ]) {
-    expect(screen.getByRole("option", { name: label })).toBeInTheDocument();
-  }
-  expect(screen.getByLabelText("پارکینگ")).toBeVisible();
-  expect(screen.getByLabelText("ادعاهای منبع (داده ساخت‌یافته)")).toBeVisible();
-  await user.type(
-    screen.getByLabelText("شناسه ملک موجود (اختیاری)"),
-    "60000000-0000-4000-8000-000000000006",
-  );
-  await user.click(
-    screen.getByRole("button", { name: "تأیید نهایی و انتشار" }),
-  );
+    await user.click(
+      await screen.findByRole("button", { name: "تأیید و انتشار" }),
+    );
+    const noteInput = screen.getByRole("textbox", {
+      name: "یادداشت اپراتور (اختیاری)",
+    });
+    expect(screen.getAllByRole("textbox")).toHaveLength(1);
+    if (note) await user.type(noteInput, note);
+    await user.click(
+      screen.getByRole("button", { name: "تأیید نهایی و انتشار" }),
+    );
 
-  await waitFor(() =>
-    expect(propertyId).toBe("60000000-0000-4000-8000-000000000006"),
-  );
-});
+    await waitFor(() =>
+      expect(approvalBody).toEqual({
+        reviewed_revision: claimedSubmission.revision,
+        ...(note ? { internal_note: note } : {}),
+      }),
+    );
+  },
+);
 
 test("shows historical queue entries without decision controls", async () => {
   const user = userEvent.setup();
@@ -425,9 +416,8 @@ test("preserves decision drafts and requires refresh and reclaim after a stale c
   await user.click(
     await screen.findByRole("button", { name: "تأیید و انتشار" }),
   );
-  await user.type(screen.getByLabelText("متراژ نرمال‌شده"), "112");
   await user.type(
-    screen.getByLabelText("یادداشت داخلی (اختیاری)"),
+    screen.getByLabelText("یادداشت اپراتور (اختیاری)"),
     "مدارک بررسی شد.",
   );
   await user.click(
@@ -454,8 +444,7 @@ test("preserves decision drafts and requires refresh and reclaim after a stale c
     await screen.findByRole("button", { name: "تأیید و انتشار" }),
   );
 
-  expect(screen.getByLabelText("متراژ نرمال‌شده")).toHaveValue("112");
-  expect(screen.getByLabelText("یادداشت داخلی (اختیاری)")).toHaveValue(
+  expect(screen.getByLabelText("یادداشت اپراتور (اختیاری)")).toHaveValue(
     "مدارک بررسی شد.",
   );
   expect(approvalAttempts).toBe(1);
