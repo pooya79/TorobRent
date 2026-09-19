@@ -34,8 +34,65 @@ from apps.contact.models import (
     SupportRequest,
     SupportRequestStatus,
 )
-from apps.source_proposals.models import SourceAssignment
+from apps.source_proposals.models import SourceAssignment, SourceProposal, SourceReservation
 from apps.submissions.models import Submission, SubmissionEvent, SubmissionState
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("custom_domain", [False, True])
+def test_seed_demo_websites_await_first_review(monkeypatch, custom_domain):
+    domain = "sources.example.org" if custom_domain else "demo.example.com"
+    scheme = "https" if custom_domain else "http"
+    for key in ("DEMO_BASE_DOMAIN", "DEMO_SCHEME"):
+        monkeypatch.delenv(key, raising=False)
+    if custom_domain:
+        monkeypatch.setenv("DEMO_BASE_DOMAIN", domain)
+        monkeypatch.setenv("DEMO_SCHEME", scheme)
+
+    call_command("seed_dev", verbosity=0)
+
+    for index, slug in enumerate(("jsonld", "legacy", "javascript", "mixed"), 11):
+        user = User.objects.get(email=f"demo-{slug}@torobrent.local")
+        assert user.phone == f"091200000{index}"
+        assert user.phone_verified and user.email_verified and user.is_submitter
+        assert user.submitter_onboarding_path == "source_proposal"
+        assert not user.is_staff and not user.is_superuser
+        assert user.check_password("dev-demo-sources")
+        client = APIClient()
+        client.force_authenticate(user)
+        proposal = user.source_proposals.get()
+        assert proposal.website_url == f"{scheme}://{slug}.{domain}/rentals/"
+        assert proposal.sitemap_url == f"{scheme}://{slug}.{domain}/sitemap.xml"
+        assert proposal.state == "pending" and proposal.discovery_stage == "awaiting_url"
+        assert proposal.responsible_operator_id is None and proposal.source_id is None
+        assert proposal.responsibility_revision == 0 and proposal.revision == 1
+        assert proposal.pending_since and proposal.preview_confirmed and proposal.authority_declared
+        assert not proposal.review_claims.exists()
+        assert not SourceReservation.objects.filter(proposal=proposal).exists()
+        assert proposal.events.get().actor == user
+        assert client.get(f"/api/v1/source-proposals/{proposal.pk}/").status_code == 200
+
+
+@pytest.mark.django_db
+def test_seed_demo_websites_preserves_existing_manual_cases_and_passwords():
+    user = User.objects.create_user(
+        email="demo-jsonld@torobrent.local", password="changed-password"
+    )
+    proposal = SourceProposal.objects.create(
+        submitter=user, state="rejected", website_name="Manually reviewed case"
+    )
+
+    call_command("seed_dev", verbosity=0)
+    ids = set(SourceProposal.objects.values_list("pk", flat=True))
+    call_command("seed_dev", verbosity=0)
+
+    user.refresh_from_db()
+    proposal.refresh_from_db()
+    assert user.check_password("changed-password")
+    assert user.source_proposals.get() == proposal
+    assert proposal.state == "rejected" and proposal.website_name == "Manually reviewed case"
+    assert set(SourceProposal.objects.values_list("pk", flat=True)) == ids
+    assert User.objects.filter(email__startswith="demo-").count() == 4
 
 
 @pytest.mark.django_db

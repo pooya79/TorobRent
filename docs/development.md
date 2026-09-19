@@ -63,6 +63,10 @@ production settings. The command prepares these login accounts:
 | Submitter/owner | `submitter@torobrent.local` | `dev-submitter` | Submission states, notifications, support, inquiries |
 | Source Representative one | `source-one@torobrent.local` | `dev-source-one` | Approved `development-one.invalid` website and External Listings |
 | Source Representative two | `source-two@torobrent.local` | `dev-source-two` | Approved `development-two.invalid` website and External Listings |
+| JSON-LD demo representative | `demo-jsonld@torobrent.local` | `dev-demo-sources` | Unreviewed خانه روشن website |
+| Legacy demo representative | `demo-legacy@torobrent.local` | `dev-demo-sources` | Unreviewed ملک تهران website |
+| JavaScript demo representative | `demo-javascript@torobrent.local` | `dev-demo-sources` | Unreviewed آشیانه website |
+| Mixed demo representative | `demo-mixed@torobrent.local` | `dev-demo-sources` | Unreviewed چهارسو ملک website |
 | Renter | `renter@torobrent.local` | `dev-renter` | Active unread listing conversation |
 | Second renter | `renter-two@torobrent.local` | `dev-renter-two` | Read-only conversation for an expired listing |
 | Full operator | `operator@torobrent.local` | `dev-operator` | Every operator surface and admin |
@@ -74,6 +78,16 @@ submission decision notifications with both read and unread examples, two listin
 five alternating messages, and support requests in open, in-progress, escalated, and resolved
 states. Seeded workflow rows use stable UUIDs. Rerunning fills in missing fixtures but deliberately
 preserves passwords, message edits, and workflow changes made during manual testing.
+
+The four demo representatives have verified fixture phones `09120000011` through `09120000014`,
+in the table's order. Each has one pending website introduction at the initial `awaiting_url`
+stage, with no Operator, review claim, reservation, or extraction activity. Their URLs are
+`http://<prefix>.demo.example.com/rentals/`, with `/sitemap.xml` supplied. Set `DEMO_BASE_DOMAIN`
+and `DEMO_SCHEME` in `.env` before starting Compose to match your demo hosts; host-based seeding
+reads these from the process environment. See [Demo Source websites](../demo_sources/README.md)
+for serving the sites. Seeding itself does not fetch them. Existing demo accounts and proposals,
+including previously created manual cases, are preserved on reruns; changing the domain does not
+rewrite an existing proposal.
 
 The catalog contains 70 Properties and 100 Listings. Ten Properties each have exactly one
 published External Listing and one published Direct Listing, with a contact phone and a prepared

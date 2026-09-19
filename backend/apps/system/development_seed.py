@@ -9,6 +9,7 @@ from apps.communications.development_seed import seed_development_communications
 from apps.communications.models import SystemNotification
 from apps.contact.development_seed import seed_development_support_requests
 from apps.source_proposals.development_seed import (
+    seed_development_demo_sources,
     seed_development_external_candidates,
     seed_development_sources,
 )
@@ -28,6 +29,7 @@ class DevelopmentSeedResult:
 @transaction.atomic
 def seed_development_data() -> DevelopmentSeedResult:
     personas = seed_development_personas()
+    seed_development_demo_sources()
     load_development_locations()
     sources = seed_development_sources(
         representatives=(personas.source_one, personas.source_two), operator=personas.operator

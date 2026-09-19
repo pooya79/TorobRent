@@ -1,5 +1,6 @@
-"""Prepare fictional approved websites without any network or worker activity."""
+"""Prepare fictional websites without any network or worker activity."""
 
+import os
 from collections.abc import Sequence
 from datetime import timedelta
 
@@ -23,6 +24,64 @@ from .models import (
 )
 from .services import claim_source_proposal_review
 from .source_processing.profiles import approve_profile, retain_discovered_profile
+
+
+def seed_development_demo_sources() -> None:
+    """Add unreviewed demo introductions; retain existing accounts and case history."""
+    base_domain = os.environ.get("DEMO_BASE_DOMAIN", "demo.example.com")
+    scheme = os.environ.get("DEMO_SCHEME", "http")
+    sites = (
+        ("jsonld", "خانه روشن", "more_than_200"),
+        ("legacy", "ملک تهران", "more_than_200"),
+        ("javascript", "آشیانه", "51_200"),
+        ("mixed", "چهارسو ملک", "more_than_200"),
+    )
+    for index, (slug, name, inventory) in enumerate(sites, 11):
+        representative, created = User.objects.get_or_create(
+            email=f"demo-{slug}@torobrent.local",
+            defaults={
+                "display_name": f"نماینده {name}",
+                "phone": f"091200000{index}",
+                "phone_verified_at": timezone.now(),
+                "email_verified_at": timezone.now(),
+                "is_submitter": True,
+                "submitter_onboarding_path": "source_proposal",
+            },
+        )
+        if created:
+            representative.set_password("dev-demo-sources")
+            representative.save(update_fields=("password",))
+        # Also adopt the original manually created demo cases, which have random IDs.
+        if representative.source_proposals.exists():
+            continue
+        domain = f"{slug}.{base_domain}"
+        proposal, created = SourceProposal.objects.get_or_create(
+            id=development_fixture_id(DevelopmentFixtureKind.SOURCE_PROPOSAL, index),
+            defaults={
+                "submitter": representative,
+                "state": SourceProposalState.PENDING,
+                "current_step": "preview",
+                "website_name": name,
+                "website_url": f"{scheme}://{domain}/rentals/",
+                "sitemap_url": f"{scheme}://{domain}/sitemap.xml",
+                "normalized_domain": domain,
+                "relationship": "website_owner",
+                "inventory_range": inventory,
+                "authority_declared": True,
+                "preview_confirmed": True,
+                "pending_since": timezone.now(),
+            },
+        )
+        if created:
+            proposal.preview = proposal.confirmation_summary()
+            proposal.save(update_fields=("preview",))
+            SourceProposalEvent.objects.create(
+                proposal=proposal,
+                actor=representative,
+                revision=1,
+                prior_state="draft",
+                new_state="pending",
+            )
 
 
 class DevelopmentPageFetcher:

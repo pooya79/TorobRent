@@ -38,6 +38,8 @@ services:
     command: sh -c "uv sync --locked && uv run --no-sync python manage.py migrate"
     working_dir: /app/backend
     environment: &backend-environment
+      DEMO_BASE_DOMAIN: ${DEMO_BASE_DOMAIN:-demo.example.com}
+      DEMO_SCHEME: ${DEMO_SCHEME:-http}
       SOURCE_PROFILE_REPAIR_API_KEY: ${SOURCE_PROFILE_REPAIR_API_KEY:-}
       SOURCE_PROFILE_REPAIR_MODEL: ${SOURCE_PROFILE_REPAIR_MODEL:-}
       SOURCE_PROFILE_REPAIR_BASE_URL: ${SOURCE_PROFILE_REPAIR_BASE_URL:-https://api.openai.com/v1}
