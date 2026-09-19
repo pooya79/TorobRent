@@ -234,7 +234,7 @@ function LocationFields({
   return (
     <div className="grid gap-5">
       <div
-        className="space-y-2"
+        className="grid gap-2"
         onBlur={(event) => {
           if (!event.currentTarget.contains(event.relatedTarget)) {
             setSuggestionsOpen(false);
@@ -310,7 +310,7 @@ function LocationFields({
           )}
         <input name="neighborhood_id" type="hidden" value={selectedId} />
       </div>
-      <div className="space-y-2">
+      <div className="grid gap-2">
         <Label htmlFor="address">نشانی دقیق</Label>
         <Input
           id="address"
@@ -374,7 +374,7 @@ function PropertyFactsFields({
   const unitsError = fieldMessage(validation, "property_facts.units_per_floor");
   return (
     <div className="grid gap-5 sm:grid-cols-2">
-      <Label className="space-y-2">
+      <Label className="grid gap-2">
         <span>نوع ملک</span>
         <select
           className="border-input bg-background min-h-11 w-full rounded-md border px-3"
@@ -398,7 +398,7 @@ function PropertyFactsFields({
         </select>
         <FieldError id="property-type-error" message={typeError} />
       </Label>
-      <div className="space-y-2">
+      <div className="grid gap-2">
         <Label htmlFor="area">متراژ</Label>
         <Input
           id="area"
@@ -410,7 +410,7 @@ function PropertyFactsFields({
         />
         <FieldError id="area-error" message={areaError} />
       </div>
-      <Label className="space-y-2">
+      <Label className="grid gap-2">
         <span>{roomCountLabel}</span>
         <Input
           name="room_count"
@@ -422,7 +422,7 @@ function PropertyFactsFields({
         />
         <FieldError id="rooms-error" message={roomsError} />
       </Label>
-      <Label className="space-y-2">
+      <Label className="grid gap-2">
         <span>سال ساخت</span>
         <Input
           name="construction_year"
@@ -434,7 +434,7 @@ function PropertyFactsFields({
         />
         <FieldError id="year-error" message={yearError} />
       </Label>
-      <Label className="space-y-2">
+      <Label className="grid gap-2">
         <span>طبقه</span>
         <Input
           name="floor"
@@ -446,7 +446,7 @@ function PropertyFactsFields({
         />
         <FieldError id="floor-error" message={floorError} />
       </Label>
-      <Label className="space-y-2">
+      <Label className="grid gap-2">
         <span>تعداد کل طبقات</span>
         <Input
           name="total_floors"
@@ -458,7 +458,7 @@ function PropertyFactsFields({
         />
         <FieldError id="floors-error" message={floorsError} />
       </Label>
-      <Label className="space-y-2">
+      <Label className="grid gap-2">
         <span>واحد در هر طبقه</span>
         <Input
           name="units_per_floor"
@@ -474,6 +474,26 @@ function PropertyFactsFields({
   );
 }
 
+function rentalAmountPreview(value: string) {
+  const normalized = normalizeNumericEntry(value);
+  if (!/^\d+$/.test(normalized)) return "";
+  const amount = Number(normalized);
+  if (!Number.isSafeInteger(amount)) return "";
+  const unit =
+    amount >= 1_000_000_000
+      ? 1_000_000_000
+      : amount >= 1_000_000
+        ? 1_000_000
+        : 1;
+  const label =
+    unit === 1_000_000_000
+      ? "میلیارد تومان"
+      : unit === 1_000_000
+        ? "میلیون تومان"
+        : "تومان";
+  return `${(amount / unit).toLocaleString("fa-IR", { maximumFractionDigits: 9 })} ${label}`;
+}
+
 function RentalTermsFields({
   submission,
   validation,
@@ -482,6 +502,8 @@ function RentalTermsFields({
   validation?: ValidationState;
 }) {
   const terms = submission.rental_terms;
+  const [deposit, setDeposit] = useState(String(terms?.deposit_toman ?? ""));
+  const [rent, setRent] = useState(String(terms?.monthly_rent_toman ?? ""));
   const sharedError = fieldMessage(validation, "rental_terms.non_field_errors");
   const depositError =
     fieldMessage(validation, "rental_terms.deposit_toman") ?? sharedError;
@@ -489,28 +511,50 @@ function RentalTermsFields({
     fieldMessage(validation, "rental_terms.monthly_rent_toman") ?? sharedError;
   return (
     <div className="grid gap-5 sm:grid-cols-2">
-      <div className="space-y-2">
+      <div className="grid gap-2">
         <Label htmlFor="deposit">رهن، تومان</Label>
         <Input
           id="deposit"
           name="deposit_toman"
           inputMode="numeric"
-          defaultValue={terms?.deposit_toman}
+          value={deposit}
+          onChange={(event) => setDeposit(event.target.value)}
           aria-invalid={Boolean(depositError)}
-          aria-describedby={depositError ? "deposit-error" : undefined}
+          aria-describedby={
+            depositError ? "deposit-preview deposit-error" : "deposit-preview"
+          }
         />
+        <p
+          id="deposit-preview"
+          className="text-muted-foreground text-sm"
+          aria-live="polite"
+          aria-atomic="true"
+        >
+          {rentalAmountPreview(deposit)}
+        </p>
         <FieldError id="deposit-error" message={depositError} />
       </div>
-      <div className="space-y-2">
+      <div className="grid gap-2">
         <Label htmlFor="rent">اجاره ماهانه، تومان</Label>
         <Input
           id="rent"
           name="monthly_rent_toman"
           inputMode="numeric"
-          defaultValue={terms?.monthly_rent_toman}
+          value={rent}
+          onChange={(event) => setRent(event.target.value)}
           aria-invalid={Boolean(rentError)}
-          aria-describedby={rentError ? "rent-error" : undefined}
+          aria-describedby={
+            rentError ? "rent-preview rent-error" : "rent-preview"
+          }
         />
+        <p
+          id="rent-preview"
+          className="text-muted-foreground text-sm"
+          aria-live="polite"
+          aria-atomic="true"
+        >
+          {rentalAmountPreview(rent)}
+        </p>
         <FieldError id="rent-error" message={rentError} />
       </div>
       <Label className="flex min-h-11 items-center gap-3">
@@ -568,7 +612,7 @@ function FeaturesFields({
           </fieldset>
         );
       })}
-      <Label className="space-y-2">
+      <Label className="grid gap-2">
         <span>توضیحات</span>
         <textarea
           className="border-input min-h-32 w-full rounded-md border p-3"
@@ -647,7 +691,7 @@ function ContactFields({
   );
   return (
     <div className="grid gap-5">
-      <Label className="space-y-2">
+      <Label className="grid gap-2">
         <span>نام تماس</span>
         <Input
           name="name"
@@ -694,7 +738,7 @@ function ContactFields({
           </>
         ) : (
           <div className="grid gap-3 rounded-lg border p-4">
-            <Label className="space-y-2">
+            <Label className="grid gap-2">
               <span>شماره دیگر</span>
               <Input
                 name="phone"
@@ -727,7 +771,7 @@ function ContactFields({
             {!alternateVerified &&
               (developmentOtp || requestVerification.isSuccess) && (
                 <div className="grid gap-3">
-                  <Label className="space-y-2">
+                  <Label className="grid gap-2">
                     <span>کد تأیید شماره دیگر</span>
                     <Input
                       aria-label="کد تأیید شماره دیگر"

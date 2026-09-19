@@ -445,6 +445,12 @@ test("normalizes Persian Toman input before saving and resumes at the next step"
 
   await user.type(await screen.findByLabelText("رهن، تومان"), "۱٬۰۰۰٬۰۰۰٬۰۰۰");
   await user.type(screen.getByLabelText("اجاره ماهانه، تومان"), "۲۵٬۰۰۰٬۰۰۰");
+  expect(screen.getByLabelText("رهن، تومان")).toHaveAccessibleDescription(
+    "۱ میلیارد تومان",
+  );
+  expect(
+    screen.getByLabelText("اجاره ماهانه، تومان"),
+  ).toHaveAccessibleDescription("۲۵ میلیون تومان");
   await user.click(screen.getByRole("button", { name: "ذخیره و ادامه" }));
 
   await waitFor(() =>
@@ -800,4 +806,43 @@ test("rejects negative rental amounts and Enter saves to the next step", async (
   await user.type(deposit, "100000{Enter}");
   expect(await screen.findByText("وضعیت پارکینگ")).toBeVisible();
   expect(saves).toBe(1);
+});
+
+test("previews rental amounts at unit boundaries and clears invalid or empty previews", async () => {
+  const user = userEvent.setup();
+  server.use(
+    http.get("*/api/v1/submissions/:id/", () =>
+      HttpResponse.json({
+        ...draft,
+        current_step: "rental_terms",
+        rental_terms: {
+          deposit_toman: 1_500_000_000,
+          monthly_rent_toman: 0,
+          is_negotiable: false,
+          is_convertible: false,
+        },
+      }),
+    ),
+  );
+  renderPage(`/add-submission?submission=${draft.id}&step=rental_terms`);
+  const deposit = await screen.findByLabelText("رهن، تومان");
+  expect(deposit).toHaveAccessibleDescription("۱٫۵ میلیارد تومان");
+  expect(
+    screen.getByLabelText("اجاره ماهانه، تومان"),
+  ).toHaveAccessibleDescription("۰ تومان");
+  for (const [value, preview] of [
+    ["999999", "۹۹۹٬۹۹۹ تومان"],
+    ["1000000", "۱ میلیون تومان"],
+    ["999999999", "۹۹۹٫۹۹۹۹۹۹ میلیون تومان"],
+    ["1000000000", "۱ میلیارد تومان"],
+    ["١٢٥٠٠٠٠", "۱٫۲۵ میلیون تومان"],
+    ["1000000000000", "۱٬۰۰۰ میلیارد تومان"],
+    ["-1", ""],
+    ["abc", ""],
+    ["", ""],
+  ]) {
+    await user.clear(deposit);
+    if (value) await user.type(deposit, value);
+    expect(deposit).toHaveAccessibleDescription(preview);
+  }
 });
