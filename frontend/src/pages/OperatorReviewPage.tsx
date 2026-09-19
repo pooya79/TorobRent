@@ -36,6 +36,7 @@ import {
   type Submission,
   type SubmissionApproval,
 } from "@/features/submissions/queries";
+import { SubmissionDetails } from "@/features/submissions/SubmissionDetails";
 import { SubmissionQueueFilters } from "@/features/submissions/SubmissionQueueFilters";
 import { submissionStateLabels } from "@/features/submissions/steps";
 import {
@@ -46,7 +47,6 @@ import { ApiError, errorMessage } from "@/lib/api/errors";
 import {
   propertyTypeGroups,
   propertyTypeLabels,
-  roomCountLabels,
 } from "@/features/catalog/property-taxonomy";
 
 type NormalizedProperty = NonNullable<
@@ -409,57 +409,7 @@ export function OperatorReviewPage() {
               </p>
             </CardHeader>
             <CardContent className="space-y-5 px-0">
-              <dl className="[&_dt]:text-muted-foreground grid gap-x-6 gap-y-3 border-y py-4 text-sm sm:grid-cols-2 [&_dd]:mt-1 [&_dt]:text-xs">
-                <div className="min-w-0 break-words">
-                  <dt>نوع و دسته ملک</dt>
-                  <dd className="font-semibold">
-                    {selected.property_facts?.property_type_label}
-                  </dd>
-                  <dd className="text-muted-foreground mt-1">
-                    {selected.property_facts?.property_category_label}
-                  </dd>
-                </div>
-                <div className="min-w-0 break-words">
-                  <dt>متراژ</dt>
-                  <dd className="font-semibold">
-                    {selected.property_facts?.area_sqm.toLocaleString("fa-IR")}{" "}
-                    متر
-                  </dd>
-                </div>
-                {selected.property_facts?.room_count != null && (
-                  <div className="min-w-0 break-words">
-                    <dt>
-                      {
-                        roomCountLabels[
-                          selected.property_facts.property_category
-                        ].field
-                      }
-                    </dt>
-                    <dd className="font-semibold">
-                      {selected.property_facts.room_count.toLocaleString(
-                        "fa-IR",
-                      )}
-                    </dd>
-                  </div>
-                )}
-                <div className="min-w-0 break-words">
-                  <dt>شرایط اجاره</dt>
-                  <dd className="font-semibold">
-                    {selected.rental_terms?.deposit_toman.toLocaleString(
-                      "fa-IR",
-                    )}{" "}
-                    تومان رهن
-                  </dd>
-                </div>
-                <div className="min-w-0 break-words">
-                  <dt>تماس</dt>
-                  <dd className="font-semibold">{selected.contact?.phone}</dd>
-                </div>
-                <div className="min-w-0 break-words">
-                  <dt>توضیحات</dt>
-                  <dd className="font-semibold">{selected.description}</dd>
-                </div>
-              </dl>
+              <SubmissionDetails submission={selected} />
               {selected.notification && (
                 <Alert
                   variant={notificationAlertVariant(

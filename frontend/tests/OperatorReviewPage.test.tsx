@@ -275,7 +275,7 @@ test("shows historical queue entries without decision controls", async () => {
   expect(screen.getByRole("radio", { name: "ردشده" })).toBeInTheDocument();
   await user.click(screen.getByText("محدوده، تاریخ و فیلترهای بیشتر"));
   expect(screen.getByLabelText("شهر")).toBeInTheDocument();
-  expect(screen.getByText("منطقه")).toBeInTheDocument();
+  expect(screen.getByText("منطقه", { selector: "p" })).toBeInTheDocument();
   expect(screen.getByLabelText("ورود به صف از تاریخ")).toBeInTheDocument();
 });
 
@@ -444,7 +444,9 @@ test("preserves decision drafts and requires refresh and reclaim after a stale c
     screen.getByRole("button", { name: "به‌روزرسانی درخواست ثبت آگهی" }),
   );
   expect(await screen.findAllByText("اکباتان")).toHaveLength(1);
-  expect(await screen.findByText("بلوار دریا")).toBeVisible();
+  expect(
+    await screen.findByText("بلوار دریا", { selector: "dd" }),
+  ).toBeVisible();
   await user.click(
     await screen.findByRole("button", { name: "پذیرفتن مسئولیت بررسی" }),
   );
@@ -492,4 +494,59 @@ test("applies submission filters immediately and resets pagination", async () =>
     expect(params.get("state")).toBe("rejected");
     expect(params.get("assignee")).toBe("mine");
   });
+});
+
+test("shows complete submitted evidence and lets the operator inspect every image", async () => {
+  const user = userEvent.setup();
+  serveSubmission({
+    ...pendingSubmission,
+    images: [
+      {
+        id: "first",
+        position: 0,
+        is_primary: true,
+        status: "ready",
+        variants: [
+          { kind: "medium", url: "/first.jpg" },
+          { kind: "large", url: "/first-large.jpg" },
+        ],
+      },
+      {
+        id: "second",
+        position: 1,
+        status: "ready",
+        variants: [{ kind: "medium", url: "/second.jpg" }],
+      },
+    ],
+    location: {
+      ...pendingSubmission.location,
+      exact_location: { latitude: "35.78", longitude: "51.37" },
+    },
+    description: "نورگیر و آرام\nدارای حیاط اختصاصی",
+  });
+  renderPage();
+  expect(
+    await screen.findByRole("img", { name: "تصویر 1 ملک" }),
+  ).toHaveAttribute("src", "/first.jpg");
+  expect(screen.getByText("۲۵٬۰۰۰٬۰۰۰ تومان")).toBeVisible();
+  expect(screen.getByText("سال ساخت")).toBeVisible();
+  expect(screen.getByText("سارا احمدی")).toBeVisible();
+  expect(screen.getByText("35.78")).toBeVisible();
+  expect(screen.getByText("نورگیر و آرام دارای حیاط اختصاصی")).toHaveClass(
+    "whitespace-pre-wrap",
+  );
+  expect(screen.getByText("رضایت انتشار شماره")).toBeVisible();
+  await user.click(screen.getByRole("button", { name: "بزرگ‌نمایی تصویر" }));
+  expect(screen.getByRole("dialog")).toBeVisible();
+  expect(
+    screen
+      .getAllByRole("img", { name: "تصویر 1 ملک" })
+      .some((image) => image.getAttribute("src") === "/first-large.jpg"),
+  ).toBe(true);
+  await user.keyboard("{Escape}");
+  await user.click(screen.getByRole("button", { name: "نمایش تصویر 2" }));
+  expect(screen.getByRole("img", { name: "تصویر 2 ملک" })).toHaveAttribute(
+    "src",
+    "/second.jpg",
+  );
 });
