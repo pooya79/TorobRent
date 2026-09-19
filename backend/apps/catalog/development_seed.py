@@ -74,10 +74,10 @@ def load_development_locations() -> None:
 
 def _seed_properties() -> list[Property]:
     neighborhoods = list(
-        Neighborhood.objects.select_related("district").order_by("district__number", "name_fa")[:60]
+        Neighborhood.objects.select_related("district").order_by("district__number", "name_fa")[:70]
     )
-    if len(neighborhoods) != 60:
-        raise RuntimeError("The catalog location fixture must provide at least 60 neighborhoods")
+    if len(neighborhoods) != 70:
+        raise RuntimeError("The catalog location fixture must provide at least 70 neighborhoods")
     properties: list[Property] = []
     feature_states = tuple(FeatureState.values)
     property_types = tuple(PropertyType.values)
@@ -308,9 +308,15 @@ def _seed_listings(
     properties: list[Property], sources: tuple[Source, Source, Source]
 ) -> list[Listing]:
     listings: list[Listing] = []
-    for index in range(1, 81):
-        property_ = properties[(index - 1) % len(properties)]
-        source_index = {55: 2, 57: 0}.get(index, (index - 1) % len(sources))
+    for index in range(1, 101):
+        if index <= 80:
+            # Preserve the original fixture IDs and grouping when reseeding existing data.
+            property_ = properties[(index - 1) % 60]
+            source_index = {55: 2, 57: 0}.get(index, (index - 1) % len(sources))
+        else:
+            pair_index, listing_in_pair = divmod(index - 81, 2)
+            property_ = properties[60 + pair_index]
+            source_index = 0 if listing_in_pair == 0 else 1 + pair_index % 2
         source = sources[source_index]
         terms, _created = RentalTerms.objects.get_or_create(
             id=development_fixture_id(DevelopmentFixtureKind.TERMS, index),

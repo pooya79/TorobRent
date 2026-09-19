@@ -75,6 +75,10 @@ five alternating messages, and support requests in open, in-progress, escalated,
 states. Seeded workflow rows use stable UUIDs. Rerunning fills in missing fixtures but deliberately
 preserves passwords, message edits, and workflow changes made during manual testing.
 
+The catalog contains 70 Properties and 100 Listings. Ten Properties each have exactly one
+published External Listing and one published Direct Listing, with a contact phone and a prepared
+owner Submission. Rerunning `make seed-dev` adds these fixtures to existing development data.
+
 The owner has verified fixture phone `09120000000`; the two Source Representatives have
 `09120000001` and `09120000002`, respectively. Each fictional website has a Source Proposal,
 local discovery evidence, an Operator-approved Source Profile, a Source Assignment, and reviewed

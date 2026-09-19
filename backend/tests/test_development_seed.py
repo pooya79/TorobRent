@@ -13,6 +13,7 @@ from apps.catalog.models import (
     Listing,
     ListingImage,
     ListingState,
+    OutboundPolicy,
     Property,
     PropertyGroupConsistencyMeasurement,
     PropertyImage,
@@ -83,8 +84,8 @@ def test_seed_dev_creates_catalog_and_prepared_personas():
 
     call_command("seed_dev", stdout=output)
 
-    assert Property.objects.count() == 60
-    assert Listing.objects.count() == 80
+    assert Property.objects.count() == 70
+    assert Listing.objects.count() == 100
     assert (
         Property.objects
         .filter(
@@ -94,13 +95,45 @@ def test_seed_dev_creates_catalog_and_prepared_personas():
         )
         .exclude(location_precision="")
         .count()
-        == 60
+        == 70
     )
     assert User.objects.get(email="submitter@torobrent.local").check_password("dev-submitter")
     operator = User.objects.get(email="operator@torobrent.local")
     assert operator.check_password("dev-operator")
     assert operator.is_staff is True
-    assert "60 Properties, 80 Listings" in output.getvalue()
+    assert "70 Properties, 100 Listings" in output.getvalue()
+
+
+@pytest.mark.django_db
+def test_seed_dev_creates_ten_properties_with_external_and_direct_listings():
+    call_command("seed_dev", verbosity=0)
+    call_command("seed_dev", verbosity=0)
+
+    properties = Property.objects.annotate(
+        total=Count("listings"),
+        direct=Count(
+            "listings",
+            filter=Q(listings__source__outbound_policy=OutboundPolicy.DIRECT_CONTACT),
+        ),
+        external=Count(
+            "listings",
+            filter=Q(listings__source__outbound_policy=OutboundPolicy.EXTERNAL_LINK),
+        ),
+    ).filter(total=2, direct=1, external=1)
+    assert set(properties.values_list("id", flat=True)) == {
+        development_fixture_id(DevelopmentFixtureKind.PROPERTY, index) for index in range(61, 71)
+    }
+    client = APIClient()
+    for property_ in properties:
+        response = client.get(f"/api/v1/catalog/properties/{property_.id}/")
+        assert response.status_code == 200
+        assert len(response.data["listings"]) == 2
+        direct = property_.listings.get(source__is_builtin=True)
+        external = property_.listings.get(source__is_builtin=False)
+        assert direct.state == external.state == ListingState.PUBLISHED
+        assert direct.direct_phone and not direct.external_url
+        assert external.external_url and not external.direct_phone
+        assert Submission.objects.filter(listing=direct, state=SubmissionState.PUBLISHED).exists()
 
 
 @pytest.mark.django_db
@@ -134,14 +167,14 @@ def test_seed_dev_catalog_exercises_review_scenarios():
         assert set(Property.objects.values_list(field, flat=True)) == set(FeatureState.values)
     assert RentalTerms.objects.filter(deposit_rial=0, monthly_rent_rial__gt=0).exists()
     assert RentalTerms.objects.filter(deposit_rial__gt=0, monthly_rent_rial=0).exists()
-    assert Property.objects.annotate(total=Count("listings")).filter(total__gt=1).count() == 20
-    assert PropertyGroupConsistencyMeasurement.objects.count() == 20
+    assert Property.objects.annotate(total=Count("listings")).filter(total__gt=1).count() == 30
+    assert PropertyGroupConsistencyMeasurement.objects.count() == 30
     assert (
         Property.objects
         .annotate(total=Count("listings"))
         .filter(total__gt=1, current_consistency_measurement__isnull=False)
         .count()
-        == 20
+        == 30
     )
     assert Listing.objects.exclude(source_claims={}).exists()
     image_counts = set(
@@ -159,8 +192,8 @@ def test_seed_dev_catalog_exercises_review_scenarios():
         == 0
     )
     assert ListingImage.objects.annotate(total=Count("variants")).exclude(total=3).count() == 0
-    assert Property.objects.filter(images__isnull=False).distinct().count() == 30
-    assert PropertyImage.objects.filter(is_primary=True).count() == 30
+    assert Property.objects.filter(images__isnull=False).distinct().count() == 35
+    assert PropertyImage.objects.filter(is_primary=True).count() == 35
     assert PropertyImage.objects.annotate(total=Count("variants")).exclude(total=3).count() == 0
     assert set(Listing.objects.values_list("state", flat=True)) == set(ListingState.values)
     assert (
@@ -253,8 +286,8 @@ def test_seed_dev_prepares_submitter_workflows_and_is_idempotent():
         state=SubmissionState.PUBLISHED, listing__state=ListingState.EXPIRED
     ).exists()
     assert submissions.filter(state=SubmissionState.PENDING).exists()
-    assert Property.objects.count() == 60
-    assert Listing.objects.count() == 80
+    assert Property.objects.count() == 70
+    assert Listing.objects.count() == 100
 
 
 @pytest.mark.django_db
