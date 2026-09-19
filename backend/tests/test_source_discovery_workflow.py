@@ -72,6 +72,8 @@ def test_discovery_delivery_is_idempotent_and_evidence_is_visible(
     assert fetched == [proposal.website_url]
     case = api_client.get("/api/v1/operator/source-proposals/").data[0]
     assert case["discovery_stage"] == "complete"
+    assert case["discovery"]["pages"][0]["last_fetched_at"] is not None
+    assert case["discovery"]["pages"][0]["http_status"] == 200
     assert case["discovery"]["evidence"]["page_count"] == 1
     assert case["discovery"]["evidence"]["classifications"] == {"irrelevant": 1}
     api_client.force_authenticate(representative)
@@ -644,3 +646,123 @@ def test_discovery_continuation_retains_progress_and_rechecks_reservation(
     assert len(fetcher.calls) == 16
     assert progress == list(range(1, 17))
     assert SourceProfileVersion.objects.filter(reservation=reservation).count() == 1
+
+
+@pytest.mark.django_db
+def test_discovery_url_history_merges_runs_without_losing_old_urls():
+    from django.utils import timezone
+
+    from apps.catalog.models import Source
+    from apps.source_proposals.models import SourceReservation
+    from apps.source_proposals.serializers import SourceDiscoverySerializer
+
+    proposal = make_pending_proposal(submitter=make_user(email="urls@example.com", submitter=True))
+    source = Source.objects.create(name="url-history", domain=proposal.normalized_domain)
+    fetched_at = "2026-09-19T09:00:00+00:00"
+    old = SourceReservation.objects.create(
+        source=source,
+        proposal=proposal,
+        revision=1,
+        approved_url=proposal.website_url,
+        expires_at=timezone.now(),
+        evidence={
+            "pages": [
+                {
+                    "url": "https://example.com/old",
+                    "classification": "rental_index",
+                    "description": "Old index",
+                    "last_fetched_at": fetched_at,
+                    "http_status": 200,
+                },
+                {
+                    "url": "https://example.com/shared",
+                    "classification": "rental_listing",
+                    "description": "Listing",
+                    "last_fetched_at": fetched_at,
+                    "http_status": 200,
+                },
+            ]
+        },
+    )
+    old.released_at = timezone.now()
+    old.save(update_fields=["released_at"])
+    latest = SourceReservation.objects.create(
+        source=source,
+        proposal=proposal,
+        revision=2,
+        approved_url=proposal.website_url,
+        expires_at=timezone.now(),
+        evidence={
+            "pages": [
+                {
+                    "url": "https://example.com/shared",
+                    "classification": "fetch_error",
+                    "description": "Fetch failed",
+                    "last_fetched_at": None,
+                    "http_status": None,
+                },
+                {
+                    "url": "https://example.com/new",
+                    "classification": "rental_listing",
+                    "description": "New listing",
+                    "last_fetched_at": fetched_at,
+                    "http_status": 200,
+                },
+            ]
+        },
+    )
+    rows = {row["url"]: row for row in SourceDiscoverySerializer(latest).data["pages"]}
+    assert len(rows) == 3
+    assert rows["https://example.com/old"]["is_current"] is False
+    assert rows["https://example.com/new"]["is_current"] is True
+    assert rows["https://example.com/shared"] == {
+        "url": "https://example.com/shared",
+        "classification": "fetch_error",
+        "description": "Fetch failed",
+        "last_fetched_at": fetched_at,
+        "http_status": None,
+        "is_current": True,
+    }
+    assert len(SourceDiscoverySerializer(old).data["pages"]) == 2
+
+
+@pytest.mark.django_db
+def test_legacy_discovery_urls_do_not_invent_fetch_times():
+    from django.utils import timezone
+
+    from apps.catalog.models import Source
+    from apps.source_proposals.models import SourceReservation
+    from apps.source_proposals.serializers import SourceDiscoverySerializer
+
+    proposal = make_pending_proposal(
+        submitter=make_user(email="legacy@example.com", submitter=True)
+    )
+    source = Source.objects.create(name="legacy-urls", domain=proposal.normalized_domain)
+    run = SourceReservation.objects.create(
+        source=source,
+        proposal=proposal,
+        revision=1,
+        approved_url=proposal.website_url,
+        expires_at=timezone.now(),
+        evidence={
+            "structures": [{"page_urls": ["https://example.com/listing"]}],
+            "exclusions": ["https://example.com/excluded"],
+            "failures": [{"url": "https://example.com/failed", "detail": "Fetch failed"}],
+            "samples": [
+                {
+                    "url": "https://example.com/index",
+                    "classification": "rental_index",
+                    "evidence": ["Index links"],
+                }
+            ],
+        },
+    )
+    rows = SourceDiscoverySerializer().get_pages(run)
+    assert len(rows) == 4
+    assert (
+        next(row for row in rows if row["url"].endswith("/failed"))["classification"]
+        == "fetch_error"
+    )
+    assert any(row["url"].endswith("/excluded") for row in rows)
+    assert all(row["last_fetched_at"] is None for row in rows)
+    assert all(row["is_current"] for row in rows)

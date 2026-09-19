@@ -6111,6 +6111,33 @@ components:
       - representative_url_shape
       - selected
       - supported_page_urls
+    DiscoveryUrl:
+      type: object
+      properties:
+        url:
+          type: string
+        classification:
+          type: string
+        description:
+          type: string
+        last_fetched_at:
+          type:
+          - string
+          - 'null'
+          format: date-time
+        http_status:
+          type:
+          - integer
+          - 'null'
+        is_current:
+          type: boolean
+      required:
+      - classification
+      - description
+      - http_status
+      - is_current
+      - last_fetched_at
+      - url
     DisplayName:
       type: object
       properties:
@@ -11150,10 +11177,16 @@ components:
           allOf:
           - $ref: '#/components/schemas/DiscoveryEvidence'
           readOnly: true
+        pages:
+          type: array
+          items:
+            $ref: '#/components/schemas/DiscoveryUrl'
+          readOnly: true
       required:
       - evidence
       - expires_at
       - id
+      - pages
     SourceExceptionAttempt:
       type: object
       properties:

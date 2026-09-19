@@ -191,6 +191,32 @@ test("URL approval keeps the case visible with Discovery evidence and ongoing re
     discovery: {
       max_pages: 250,
       target_detail_pages: 200,
+      pages: [
+        {
+          url: "https://khaneh.example/unsupported",
+          classification: "rental_listing",
+          description: "",
+          is_current: true,
+          last_fetched_at: null,
+          http_status: null,
+        },
+        {
+          url: "https://khaneh.example/rent/1",
+          classification: "rental_listing",
+          description: "مبلغ اجاره شناسایی شد",
+          is_current: true,
+          last_fetched_at: null,
+          http_status: 200,
+        },
+        {
+          url: "https://khaneh.example/unavailable",
+          classification: "fetch_error",
+          description: "زمان دریافت به پایان رسید",
+          is_current: true,
+          last_fetched_at: null,
+          http_status: null,
+        },
+      ],
       expires_at: "2026-09-06T08:00:00Z",
       evidence: {
         page_count: 8,
@@ -281,12 +307,22 @@ test("URL approval keeps the case visible with Discovery evidence and ongoing re
     await screen.findByText("کشف پایان یافت؛ در انتظار بررسی پروفایل"),
   ).toBeVisible();
   expect(screen.getByRole("heading", { name: "خانه‌یاب" })).toBeVisible();
-  expect(screen.getByText(/صفحات بررسی‌شده: ۸/)).toBeVisible();
+  expect(screen.getByText("صفحات بررسی‌شده").parentElement).toHaveTextContent(
+    "۸",
+  );
   expect(screen.getByText("پیوند تازه‌ای برای ادامه پیدا نشد.")).toBeVisible();
+  expect(screen.getByText(/حدود بررسی: ۲۵۰ صفحه · هدف: ۲۰۰/)).toBeVisible();
+  expect(screen.getByText("ساختار غالب").parentElement).toHaveTextContent(
+    "۷۵٪",
+  );
+  const report = screen.getByRole("region", { name: "نتیجه کشف صفحات" });
+  expect(within(report).queryByText(/https:\/\//)).not.toBeInTheDocument();
   expect(
-    screen.getByText(/حدود تأییدشده: سقف ۲۵۰ صفحه؛ هدف ۲۰۰/),
+    within(screen.getByRole("table")).getByText("خارج از پوشش"),
   ).toBeVisible();
-  expect(screen.getByText(/ساختار غالب؛ پوشش: ۷۵/)).toBeVisible();
+  expect(
+    within(screen.getByRole("table")).getByText("نمونه نماینده"),
+  ).toBeVisible();
   expect(screen.getByText("https://khaneh.example/unsupported")).toBeVisible();
   expect(screen.getByText("مبلغ اجاره شناسایی شد")).toBeVisible();
   expect(screen.getByText("زمان دریافت به پایان رسید")).toBeVisible();

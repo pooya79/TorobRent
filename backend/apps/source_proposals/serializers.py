@@ -419,8 +419,63 @@ class DiscoveryEvidenceSerializer(serializers.Serializer[Any]):
     failures = DiscoveryFailureSerializer(many=True, default=list)
 
 
+class DiscoveryUrlSerializer(serializers.Serializer[Any]):
+    url = serializers.CharField()
+    classification = serializers.CharField()
+    description = serializers.CharField()
+    last_fetched_at = serializers.DateTimeField(allow_null=True)
+    http_status = serializers.IntegerField(allow_null=True)
+    is_current = serializers.BooleanField()
+
+
 class SourceDiscoverySerializer(serializers.ModelSerializer[SourceReservation]):
     evidence = DiscoveryEvidenceSerializer(read_only=True)
+    pages = serializers.SerializerMethodField()
+
+    @extend_schema_field(DiscoveryUrlSerializer(many=True))
+    def get_pages(self, reservation: SourceReservation) -> list[dict[str, Any]]:
+        pages: dict[str, dict[str, Any]] = {}
+        runs = reservation.proposal.reservations.filter(
+            source_id=reservation.source_id, created_at__lte=reservation.created_at
+        ).order_by("created_at")
+        for run in runs:
+            evidence = run.evidence
+            rows = evidence.get("pages")
+            if rows is None:
+                # Older runs retained samples and structure URLs, but no fetch timestamps.
+                legacy = {
+                    url: {"url": url, "classification": "rental_listing", "evidence": []}
+                    for group in evidence.get("structures", [])
+                    for url in group.get("page_urls", [])
+                }
+                for url in evidence.get("exclusions", []):
+                    legacy.setdefault(url, {"url": url, "classification": "rental_listing"})
+                legacy.update({
+                    row["url"]: {
+                        "url": row["url"],
+                        "classification": "fetch_error",
+                        "evidence": [row.get("detail", "")],
+                    }
+                    for row in evidence.get("failures", [])
+                    if row.get("url")
+                })
+                legacy.update({row["url"]: row for row in evidence.get("samples", [])})
+                rows = [
+                    {**row, "description": "؛ ".join(row.get("evidence", []))}
+                    for row in legacy.values()
+                ]
+            for row in rows:
+                previous = pages.get(row["url"], {})
+                pages[row["url"]] = {
+                    "url": row["url"],
+                    "classification": row.get("classification", "unknown"),
+                    "description": row.get("description", ""),
+                    "last_fetched_at": row.get("last_fetched_at")
+                    or previous.get("last_fetched_at"),
+                    "http_status": row.get("http_status"),
+                    "is_current": run.pk == reservation.pk,
+                }
+        return sorted(pages.values(), key=lambda page: (not page["is_current"], page["url"]))
 
     class Meta:
         model = SourceReservation
@@ -434,6 +489,7 @@ class SourceDiscoverySerializer(serializers.ModelSerializer[SourceReservation]):
             "started_at",
             "completed_at",
             "evidence",
+            "pages",
         )
 
 

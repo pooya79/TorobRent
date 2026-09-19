@@ -1,3 +1,4 @@
+import { DiscoveryUrlsTable } from "./DiscoveryUrlsTable";
 import { SourceCrawlPanel } from "./SourceCrawlPanel";
 import { candidateValidationMessages } from "./candidate-validation";
 import { SourceProcessingStatus } from "./SourceProcessingStatus";
@@ -332,11 +333,11 @@ export function ProposalReviewCard({
             </dl>
           </CaseSection>
           <CaseSection id="url" title="تأیید نشانی و کشف صفحات">
-            <div className="grid items-start gap-5 xl:grid-cols-2">
-              <div className="min-w-0">
+            <div className="grid items-start gap-5 xl:h-144 xl:grid-cols-2">
+              <div className="h-144 min-w-0">
                 <DiscoveryEvidence proposal={proposal} />
               </div>
-              <div className="grid min-w-0 gap-4">
+              <div className="grid min-w-0 gap-4 xl:max-h-144 xl:overflow-y-auto xl:pe-2">
                 <p className="text-muted-foreground text-sm">
                   ابتدا نشانی و اختیار نماینده را بررسی کنید، سپس حدود بررسی را
                   وارد کنید و دریافت صفحات را تأیید کنید. پس از کشف صفحات، روش
@@ -582,6 +583,7 @@ export function ProposalReviewCard({
                 )}
               </div>
             </div>
+            <DiscoveryUrlsTable key={proposal.id} proposal={proposal} />
           </CaseSection>
           <CaseSection id="profile" title="پروفایل منبع">
             <div id={`source-profile-${proposal.id}`} />

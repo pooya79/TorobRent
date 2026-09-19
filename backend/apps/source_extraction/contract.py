@@ -7,6 +7,7 @@ import math
 from collections import Counter
 from collections.abc import Mapping, Sequence
 from dataclasses import asdict, dataclass, field
+from datetime import UTC, datetime
 from importlib.resources import files
 from itertools import count
 from time import monotonic
@@ -70,6 +71,7 @@ class DiscoveryPage:
     rendering_method: str | None
     fetch_failure: FetchFailure | None = None
     http_status: int | None = None
+    fetched_at: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -348,6 +350,7 @@ class ExtractionContract:
                 sanitized_html=retained_html,
                 rendering_method=rendering_method,
                 http_status=fetched.status_code,
+                fetched_at=datetime.now(UTC).isoformat(),
             )
             pages.append(page)
             if classification.kind is PageKind.RENTAL_LISTING:

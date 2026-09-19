@@ -173,6 +173,16 @@ def discovery_evidence(result: SourceDiscovery) -> dict[str, Any]:
         "classifications": dict(Counter(page.classification.kind for page in result.pages)),
         "structures": [asdict(group) for group in result.structures],
         "exclusions": list(result.excluded_detail_page_urls),
+        "pages": [
+            {
+                "url": page.url,
+                "classification": page.classification.kind,
+                "description": "؛ ".join(page.classification.evidence),
+                "last_fetched_at": page.fetched_at,
+                "http_status": page.http_status,
+            }
+            for page in result.pages
+        ],
         "samples": [
             {
                 "url": url,

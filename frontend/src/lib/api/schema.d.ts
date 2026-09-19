@@ -2989,6 +2989,15 @@ export interface components {
       coverage: number;
       selected: boolean;
     };
+    DiscoveryUrl: {
+      url: string;
+      classification: string;
+      description: string;
+      /** Format: date-time */
+      last_fetched_at: string | null;
+      http_status: number | null;
+      is_current: boolean;
+    };
     DisplayName: {
       display_name: string;
       identity_verified: boolean;
@@ -5082,6 +5091,7 @@ export interface components {
       /** Format: date-time */
       completed_at?: string | null;
       readonly evidence: components["schemas"]["DiscoveryEvidence"];
+      readonly pages: components["schemas"]["DiscoveryUrl"][];
     };
     SourceExceptionAttempt: {
       /** Format: uuid */
