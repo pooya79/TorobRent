@@ -584,17 +584,24 @@ export function ProposalReviewCard({
             </div>
           </CaseSection>
           <CaseSection id="profile" title="پروفایل منبع">
-            {!proposal.profile_versions?.length &&
-              !proposal.discovery?.evidence.profile_failure && (
-                <p className="text-muted-foreground text-sm">
-                  پروفایل پس از تأیید نشانی و پایان کشف صفحات آماده بررسی
-                  می‌شود.
-                </p>
-              )}
             <div id={`source-profile-${proposal.id}`} />
             <SourceProfileReview
               proposal={proposal}
-              canReviewPendingProposal={canReviewPendingProposal && canReview}
+              canReviewSource={canReview}
+              unavailableReason={
+                currentUser.isPending
+                  ? "در حال بررسی دسترسی شما…"
+                  : currentUser.isError
+                    ? "بررسی دسترسی شما ممکن نشد؛ صفحه را تازه کنید."
+                    : currentUser.data?.id === proposal.submitter?.id
+                      ? "نمی‌توانید درباره منبعی که خودتان معرفی کرده‌اید تصمیم بگیرید."
+                      : !currentUser.data?.operator_capabilities.includes(
+                            "review_source_proposals",
+                          )
+                        ? "حساب شما دسترسی بررسی منابع را ندارد."
+                        : "برای تغییر قواعد، ابتدا مسئولیت این پرونده را در تب مسئولیت بپذیرید."
+              }
+              onOpenDiscovery={() => onSectionChange("url")}
               onUpdate={onDecisionSuccess}
             />
           </CaseSection>
@@ -1166,17 +1173,19 @@ function CaseSection({
         active ? "focus-visible:outline-ring grid min-w-0 gap-5" : "hidden"
       }
     >
-      <header className="flex items-start gap-3 border-b pb-5">
-        <span className="bg-primary/10 text-primary rounded-xl p-3">
-          <Icon className="size-5" aria-hidden="true" />
-        </span>
-        <div>
-          <h2 className="text-xl font-semibold">{section.title}</h2>
-          <p className="text-muted-foreground mt-1 max-w-2xl text-sm leading-6">
-            {section.description}
-          </p>
-        </div>
-      </header>
+      {id !== "profile" && (
+        <header className="flex items-start gap-3 border-b pb-5">
+          <span className="bg-primary/10 text-primary rounded-xl p-3">
+            <Icon className="size-5" aria-hidden="true" />
+          </span>
+          <div>
+            <h2 className="text-xl font-semibold">{section.title}</h2>
+            <p className="text-muted-foreground mt-1 max-w-2xl text-sm leading-6">
+              {section.description}
+            </p>
+          </div>
+        </header>
+      )}
       {children}
     </section>
   );

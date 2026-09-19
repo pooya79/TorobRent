@@ -265,7 +265,7 @@ test("defaults to my cases and takes durable responsibility from the unassigned 
   expect(
     screen.getByRole("button", { name: "تأیید نشانی و شروع کشف" }),
   ).toBeVisible();
-  await user.click(screen.getByRole("tab", { name: "پروفایل" }));
+  await user.click(screen.getByRole("tab", { name: "استخراج اطلاعات" }));
   expect(
     screen.queryByRole("button", { name: "پذیرش بررسی پروفایل" }),
   ).not.toBeInTheDocument();

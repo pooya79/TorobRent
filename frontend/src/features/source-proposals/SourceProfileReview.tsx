@@ -2,15 +2,16 @@ import { CaseRecords } from "./CaseRecords";
 import { api } from "@/lib/api/client";
 import { apiError } from "@/lib/api/errors";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
-import { History, ScanText, ShieldCheck, Sparkles } from "lucide-react";
+import { History, ScanText, ShieldCheck } from "lucide-react";
 import { ProfileRule } from "./ProfileRule";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { propertyTypeLabels } from "@/features/catalog/property-taxonomy";
+import { fields, display, displayField } from "./profile-presentation";
+import { ProfileSamples, type RepairSelection } from "./ProfileSamples";
 import { errorMessage } from "@/lib/api/errors";
 import type { components } from "@/lib/api/schema";
 import {
@@ -20,42 +21,7 @@ import {
   type OperatorSourceProposal,
 } from "./queries";
 
-import { CandidateMedia } from "./CandidateMedia";
-
 type Version = components["schemas"]["SourceProfileVersion"];
-const fields: Record<string, string> = {
-  city: "شهر",
-  district: "منطقه",
-  neighborhood: "محله",
-  property_type: "نوع ملک",
-  floor_area_sqm: "متراژ",
-  bedroom_count: "اتاق خواب",
-  deposit_rial: "رهن",
-  monthly_rent_rial: "اجاره ماهانه",
-  construction_year: "سال ساخت",
-  floor: "طبقه",
-  total_floors: "تعداد طبقات",
-  units_per_floor: "واحد در طبقه",
-  parking: "پارکینگ",
-  elevator: "آسانسور",
-  storage: "انباری",
-  balcony: "بالکن",
-  furnished: "مبله",
-  heating: "گرمایش",
-  cooling: "سرمایش",
-  is_negotiable: "قابل مذاکره",
-  is_convertible: "قابل تبدیل",
-  title: "عنوان",
-  description: "توضیحات",
-  source_reference: "شناسه آگهی",
-  source_url: "نشانی آگهی",
-  published_at: "زمان انتشار",
-  availability_confirmed_at: "تأیید موجود بودن",
-  latitude: "عرض جغرافیایی",
-  longitude: "طول جغرافیایی",
-  source_location_text: "متن موقعیت",
-  image_urls: "نشانی تصاویر",
-};
 const coreFields = Object.keys(fields).slice(0, 8);
 function formatProfileDate(value?: string | null) {
   if (!value || Number.isNaN(Date.parse(value))) return "ثبت نشده";
@@ -65,54 +31,30 @@ function formatProfileDate(value?: string | null) {
   }).format(new Date(value));
 }
 const selectClass = "border-input bg-background rounded-md border p-2 text-sm";
-function display(value: unknown): string {
-  const labels: Record<string, string> = {
-    ...propertyTypeLabels,
-    unknown: "نامشخص",
-    present: "دارد",
-    absent: "ندارد",
-  };
-  if (typeof value === "string") return labels[value] ?? value;
-  if (typeof value === "number") return value.toLocaleString("fa-IR");
-  if (value == null) return "ثبت نشده";
-  if (typeof value === "boolean") return value ? "بله" : "خیر";
-  if (Array.isArray(value)) return value.map(display).join("، ") || "ثبت نشده";
-  if (typeof value === "object")
-    return Object.entries(value)
-      .map(
-        ([key, item]: [string, unknown]) =>
-          `${fields[key] ?? key}: ${display(item)}`,
-      )
-      .join(" · ");
-  return "—";
-}
-
-function displayField(field: string, value: unknown): string {
-  if (
-    ["deposit_rial", "monthly_rent_rial"].includes(field) &&
-    typeof value === "number"
-  ) {
-    return `${(value / 10).toLocaleString("fa-IR")} تومان`;
-  }
-  return display(value);
-}
 
 export function SourceProfileReview({
   proposal,
-  canReviewPendingProposal,
+  canReviewSource,
+  unavailableReason,
+  onOpenDiscovery,
   onUpdate,
 }: {
   proposal: OperatorSourceProposal;
-  canReviewPendingProposal: boolean;
+  canReviewSource: boolean;
+  unavailableReason: string;
+  onOpenDiscovery: () => void;
   onUpdate: (proposal: OperatorSourceProposal) => void;
 }) {
   const versions = proposal.profile_versions ?? [];
   const latest = versions[0];
-  const parent = versions.find((version) => version.id === latest?.parent);
-  if (!latest)
-    return proposal.discovery?.evidence.profile_failure ? (
-      <p role="status">{proposal.discovery.evidence.profile_failure}</p>
-    ) : null;
+  const canEdit =
+    canReviewSource &&
+    proposal.state === "pending" &&
+    proposal.discovery_stage === "complete" &&
+    latest?.reservation === proposal.discovery?.id &&
+    latest?.status === "proposed";
+  const active = proposal.assignment?.active_profile_version;
+  const [repairHistoryOpen, setRepairHistoryOpen] = useState(false);
   return (
     <section
       className="[&_summary]:focus-visible:outline-ring grid min-w-0 gap-6 [&_summary]:cursor-pointer [&_summary]:rounded-md [&_summary]:py-2 [&_summary]:font-medium [&_summary]:focus-visible:outline-2"
@@ -129,196 +71,183 @@ export function SourceProfileReview({
           کنید یا فیلدهای نادرست را اصلاح کنید.
         </p>
       </header>
-      <div className="grid grid-cols-1 items-start gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]">
-        <div className="min-w-0 rounded-xl border p-4">
-          <ProfileEvidence version={latest} />
-          {parent && (
-            <details>
-              <summary>تغییر قواعد نسبت به نسخه پیشین</summary>
-              {Object.keys({
-                ...(parent.rules as Record<string, unknown>),
-                ...(latest.rules as Record<string, unknown>),
-              })
-                .filter(
-                  (field) =>
-                    JSON.stringify(
-                      (parent.rules as Record<string, unknown>)[field],
-                    ) !==
-                    JSON.stringify(
-                      (latest.rules as Record<string, unknown>)[field],
-                    ),
-                )
-                .map((field) => (
-                  <div key={field}>
-                    <h4>{fields[field] ?? field}</h4>
-                    <p>پیش از اصلاح</p>
-                    <ProfileRule
-                      rule={(parent.rules as Record<string, unknown>)[field]}
-                    />
-                    <p>پس از اصلاح</p>
-                    <ProfileRule
-                      rule={(latest.rules as Record<string, unknown>)[field]}
-                    />
-                  </div>
-                ))}
-            </details>
-          )}
-        </div>
-        <aside className="bg-card min-w-0 rounded-xl border p-5 xl:sticky xl:top-20">
-          {canReviewPendingProposal &&
-            proposal.discovery_stage === "complete" &&
-            latest.reservation === proposal.discovery?.id &&
-            latest.status === "proposed" && (
-              <ProfileEditor
-                key={latest.id}
-                proposal={proposal}
-                version={latest}
-                onUpdate={onUpdate}
-              />
-            )}
-          {canReviewPendingProposal &&
-            !(
-              proposal.discovery_stage === "complete" &&
-              latest.reservation === proposal.discovery?.id &&
-              latest.status === "proposed"
-            ) && (
-              <p className="text-muted-foreground text-sm leading-7">
-                {latest.is_active
-                  ? "این نسخه فعال است و برای خواندن آگهی‌های سایت استفاده می‌شود."
-                  : "در حال حاضر نسخه‌ای آماده تصمیم‌گیری نیست. وضعیت بررسی منبع را دنبال کنید."}
-              </p>
-            )}
-          {!canReviewPendingProposal && (
-            <p className="text-muted-foreground text-sm">
-              ثبت تصمیم و اصلاح فیلدها فقط در اختیار اپراتور مسئول پرونده است.
+      {active && !latest?.is_active && (
+        <p className="bg-muted/30 rounded-xl border p-4 text-sm">
+          نسخه فعال فعلی: {active.number.toLocaleString("fa-IR")} · تا تأیید
+          نسخه تازه، همین قواعد استفاده می‌شوند.
+        </p>
+      )}
+      {canEdit && latest ? (
+        <ProfileEditor
+          key={latest.id}
+          proposal={proposal}
+          version={latest}
+          onUpdate={onUpdate}
+        />
+      ) : (
+        <>
+          <div className="grid gap-3 rounded-xl border p-4 text-sm leading-7">
+            <p role="status">
+              {!canReviewSource
+                ? unavailableReason
+                : proposal.state === "approved"
+                  ? "این منبع تأیید شده است. برای تغییر قواعد، بررسی تازه‌ای آغاز کنید؛ نسخه فعال تا تأیید نسخه جایگزین برقرار می‌ماند."
+                  : proposal.state !== "pending"
+                    ? "این پرونده در انتظار بررسی نیست؛ تصمیم ثبت‌شده را در سوابق ببینید."
+                    : ["queued", "running"].includes(
+                          proposal.discovery_stage ?? "",
+                        )
+                      ? "دریافت و بررسی صفحات در حال انجام است؛ پس از پایان، نسخه پیشنهادی اینجا نمایش داده می‌شود."
+                      : "هنوز نسخه‌ای آماده تصمیم‌گیری نیست. وضعیت نشانی و کشف صفحات را بررسی کنید."}
             </p>
-          )}
-        </aside>
-      </div>
-      <section
-        className="bg-card rounded-xl border p-5 sm:p-6"
-        aria-label="تاریخچه اصلاح هوشمند"
-      >
-        <div className="mb-5 flex items-start gap-3">
-          <History
-            className="text-muted-foreground mt-1 size-5 shrink-0"
-            aria-hidden="true"
-          />
-          <div>
-            <h4 className="font-semibold">تاریخچه اصلاح هوشمند</h4>
-            <p className="text-muted-foreground mt-1 text-sm leading-7">
-              هر درخواست، روش خواندن فیلدهای انتخاب‌شده از سایت را بازبینی
-              می‌کند. نسخه پیشنهادی فقط پس از بررسی و تأیید شما فعال می‌شود.
-            </p>
+            {proposal.discovery?.evidence.profile_failure && (
+              <p role="alert">{proposal.discovery.evidence.profile_failure}</p>
+            )}
+            <Button variant="outline" onClick={onOpenDiscovery}>
+              {proposal.state === "approved" && canReviewSource
+                ? "بهبود استخراج"
+                : "مشاهده وضعیت نشانی و کشف"}
+            </Button>
           </div>
-          <Badge variant="secondary">
-            {(proposal.profile_repairs ?? []).length.toLocaleString("fa-IR")}
-          </Badge>
-        </div>
-        <CaseRecords kind="repairs" proposalId={proposal.id}>
-          {(repairs) => (
-            <>
-              {!repairs?.length ? (
-                <p className="bg-muted/40 text-muted-foreground rounded-lg p-4 text-sm">
-                  هنوز درخواستی برای اصلاح هوشمند ثبت نشده است.
+          {latest && <ProfileEvidence key={latest.id} version={latest} />}
+        </>
+      )}
+      <details
+        onToggle={(event) => setRepairHistoryOpen(event.currentTarget.open)}
+        className="rounded-xl border p-4"
+      >
+        <summary>تاریخچه اصلاح هوشمند</summary>
+        {repairHistoryOpen && (
+          <section
+            className="bg-card rounded-xl border p-5 sm:p-6"
+            aria-label="تاریخچه اصلاح هوشمند"
+          >
+            <div className="mb-5 flex items-start gap-3">
+              <History
+                className="text-muted-foreground mt-1 size-5 shrink-0"
+                aria-hidden="true"
+              />
+              <div>
+                <h4 className="font-semibold">تاریخچه اصلاح هوشمند</h4>
+                <p className="text-muted-foreground mt-1 text-sm leading-7">
+                  هر درخواست، روش خواندن فیلدهای انتخاب‌شده از سایت را بازبینی
+                  می‌کند. نسخه پیشنهادی فقط پس از بررسی و تأیید شما فعال می‌شود.
                 </p>
-              ) : (
-                <ol className="grid gap-4">
-                  {repairs.map((repair) => {
-                    const result = versions.find(
-                      (version) => version.id === repair.result_version,
-                    );
-                    const labels: Record<string, string> = {
-                      pending: "در حال بررسی",
-                      succeeded: "نسخه پیشنهادی آماده است",
-                      timeout: "پایان مهلت پاسخ",
-                      interrupted: "درخواست متوقف شد",
-                      stale_review: "نیازمند بررسی دوباره",
-                      validation_failed: "اعتبارسنجی ناموفق",
-                      not_configured: "سرویس آماده نیست",
-                      provider_error: "خطا در سرویس اصلاح",
-                      malformed_output: "پاسخ نامعتبر",
-                    };
-                    return (
-                      <li
-                        key={repair.id}
-                        className="grid gap-3 rounded-lg border p-4"
-                      >
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <Badge
-                            variant={
-                              repair.outcome === "succeeded"
-                                ? "secondary"
-                                : repair.outcome === "pending"
-                                  ? "outline"
-                                  : "destructive"
-                            }
+              </div>
+              <Badge variant="secondary">
+                {(proposal.profile_repairs ?? []).length.toLocaleString(
+                  "fa-IR",
+                )}
+              </Badge>
+            </div>
+            <CaseRecords kind="repairs" proposalId={proposal.id}>
+              {(repairs) => (
+                <>
+                  {!repairs?.length ? (
+                    <p className="bg-muted/40 text-muted-foreground rounded-lg p-4 text-sm">
+                      هنوز درخواستی برای اصلاح هوشمند ثبت نشده است.
+                    </p>
+                  ) : (
+                    <ol className="grid gap-4">
+                      {repairs.map((repair) => {
+                        const result = versions.find(
+                          (version) => version.id === repair.result_version,
+                        );
+                        const labels: Record<string, string> = {
+                          pending: "در حال بررسی",
+                          succeeded: "نسخه پیشنهادی آماده است",
+                          timeout: "پایان مهلت پاسخ",
+                          interrupted: "درخواست متوقف شد",
+                          stale_review: "نیازمند بررسی دوباره",
+                          validation_failed: "اعتبارسنجی ناموفق",
+                          not_configured: "سرویس آماده نیست",
+                          provider_error: "خطا در سرویس اصلاح",
+                          malformed_output: "پاسخ نامعتبر",
+                        };
+                        return (
+                          <li
+                            key={repair.id}
+                            className="grid gap-3 rounded-lg border p-4"
                           >
-                            {labels[repair.outcome] ?? "اصلاح انجام نشد"}
-                          </Badge>
-                          <time
-                            className="text-muted-foreground text-xs"
-                            dateTime={repair.started_at}
-                          >
-                            {formatProfileDate(repair.started_at)}
-                          </time>
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                          {repair.selected_fields.map((field) => (
-                            <Badge key={field} variant="outline">
-                              {fields[field] ?? field}
-                            </Badge>
-                          ))}
-                        </div>
-                        <p role="status" className="text-sm leading-7">
-                          {repair.detail}
-                        </p>
-                        {result && (
-                          <p className="text-sm">
-                            نسخه {result.number.toLocaleString("fa-IR")} ·{" "}
-                            {result.is_active
-                              ? "نسخه فعال"
-                              : result.status === "proposed"
-                                ? "در انتظار بررسی و تأیید"
-                                : "ثبت‌شده در تاریخچه نسخه‌ها"}
-                          </p>
-                        )}
-                        <details className="text-sm">
-                          <summary>جزئیات درخواست</summary>
-                          <dl className="mt-3 grid gap-3 sm:grid-cols-3">
-                            <div>
-                              <dt className="text-muted-foreground">مدل</dt>
-                              <dd dir="auto" className="break-all">
-                                {repair.model || "ثبت نشده"}
-                              </dd>
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <Badge
+                                variant={
+                                  repair.outcome === "succeeded"
+                                    ? "secondary"
+                                    : repair.outcome === "pending"
+                                      ? "outline"
+                                      : "destructive"
+                                }
+                              >
+                                {labels[repair.outcome] ?? "اصلاح انجام نشد"}
+                              </Badge>
+                              <time
+                                className="text-muted-foreground text-xs"
+                                dateTime={repair.started_at}
+                              >
+                                {formatProfileDate(repair.started_at)}
+                              </time>
                             </div>
-                            <div>
-                              <dt className="text-muted-foreground">
-                                زمان پایان
-                              </dt>
-                              <dd>{formatProfileDate(repair.finished_at)}</dd>
+                            <div className="flex flex-wrap gap-2">
+                              {repair.selected_fields.map((field) => (
+                                <Badge key={field} variant="outline">
+                                  {fields[field] ?? field}
+                                </Badge>
+                              ))}
                             </div>
-                            <div>
-                              <dt className="text-muted-foreground">
-                                مدت پردازش
-                              </dt>
-                              <dd>
-                                {repair.duration_ms == null
-                                  ? "ثبت نشده"
-                                  : `${(repair.duration_ms / 1000).toLocaleString("fa-IR", { maximumFractionDigits: 1 })} ثانیه`}
-                              </dd>
-                            </div>
-                          </dl>
-                        </details>
-                      </li>
-                    );
-                  })}
-                </ol>
+                            <p role="status" className="text-sm leading-7">
+                              {repair.detail}
+                            </p>
+                            {result && (
+                              <p className="text-sm">
+                                نسخه {result.number.toLocaleString("fa-IR")} ·{" "}
+                                {result.is_active
+                                  ? "نسخه فعال"
+                                  : result.status === "proposed"
+                                    ? "در انتظار بررسی و تأیید"
+                                    : "ثبت‌شده در تاریخچه نسخه‌ها"}
+                              </p>
+                            )}
+                            <details className="text-sm">
+                              <summary>جزئیات درخواست</summary>
+                              <dl className="mt-3 grid gap-3 sm:grid-cols-3">
+                                <div>
+                                  <dt className="text-muted-foreground">مدل</dt>
+                                  <dd dir="auto" className="break-all">
+                                    {repair.model || "ثبت نشده"}
+                                  </dd>
+                                </div>
+                                <div>
+                                  <dt className="text-muted-foreground">
+                                    زمان پایان
+                                  </dt>
+                                  <dd>
+                                    {formatProfileDate(repair.finished_at)}
+                                  </dd>
+                                </div>
+                                <div>
+                                  <dt className="text-muted-foreground">
+                                    مدت پردازش
+                                  </dt>
+                                  <dd>
+                                    {repair.duration_ms == null
+                                      ? "ثبت نشده"
+                                      : `${(repair.duration_ms / 1000).toLocaleString("fa-IR", { maximumFractionDigits: 1 })} ثانیه`}
+                                  </dd>
+                                </div>
+                              </dl>
+                            </details>
+                          </li>
+                        );
+                      })}
+                    </ol>
+                  )}
+                </>
               )}
-            </>
-          )}
-        </CaseRecords>
-      </section>
+            </CaseRecords>
+          </section>
+        )}
+      </details>
       <ProfileHistory proposalId={proposal.id} />
     </section>
   );
@@ -326,10 +255,28 @@ export function SourceProfileReview({
 
 function ProfileComparison({ version }: { version: Version }) {
   if (version.provenance !== "llm" || !version.comparison) return null;
+  const unchangedProblems = [
+    ...new Set(
+      version.samples.flatMap((sample) =>
+        [
+          ...new Set([...sample.unresolved, ...Object.keys(sample.conflicts)]),
+        ].filter(
+          (field) =>
+            !version.comparison.some(
+              (item) =>
+                item.field === field &&
+                item.samples.some(
+                  (change) => change.url === sample.canonical_url,
+                ),
+            ),
+        ),
+      ),
+    ),
+  ];
   const resultLabels = {
-    resolved: "حل‌شده",
-    missing: "حل‌نشده",
-    conflict: "متعارض",
+    resolved: "استخراج‌شده",
+    missing: "استخراج نشده",
+    conflict: "نیازمند توجه",
   };
   const changeLabels = {
     improved: "بهبود",
@@ -359,6 +306,12 @@ function ProfileComparison({ version }: { version: Version }) {
       {version.status === "proposed" && (
         <p className="text-sm">
           این نسخه پیش‌نویس است؛ نسخه فعال تا تأیید صریح شما تغییر نمی‌کند.
+        </p>
+      )}
+      {unchangedProblems.length > 0 && (
+        <p>
+          مشکلات بدون تغییر:{" "}
+          {unchangedProblems.map((field) => fields[field] ?? field).join("، ")}
         </p>
       )}
       {version.comparison.length === 0 && (
@@ -405,7 +358,7 @@ function ProfileComparison({ version }: { version: Version }) {
               </div>
             </div>
           </details>
-          <details>
+          <details open>
             <summary>صفحات نمونه تحت تأثیر</summary>
             {item.samples.length === 0 && (
               <p className="text-sm">
@@ -417,9 +370,21 @@ function ProfileComparison({ version }: { version: Version }) {
                 key={sample.url}
                 className="grid gap-2 border-t py-3 text-sm"
               >
-                <p className="break-all" dir="ltr">
-                  {sample.url}
-                </p>
+                {/^https?:\/\//i.test(sample.url) ? (
+                  <a
+                    href={sample.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary break-all underline"
+                    dir="ltr"
+                  >
+                    {sample.url}
+                  </a>
+                ) : (
+                  <p dir="ltr" className="break-all">
+                    {sample.url}
+                  </p>
+                )}
                 <p>
                   <strong>{changeLabels[sample.change]}</strong> ·{" "}
                   <span>
@@ -460,7 +425,13 @@ function ProfileComparison({ version }: { version: Version }) {
   );
 }
 
-function ProfileEvidence({ version }: { version: Version }) {
+function ProfileEvidence({
+  version,
+  selection,
+}: {
+  version: Version;
+  selection?: RepairSelection;
+}) {
   const trainingCount = version.validation.training_page_urls.length;
   const validationCount = version.validation.held_out_page_urls.length;
   return (
@@ -538,175 +509,116 @@ function ProfileEvidence({ version }: { version: Version }) {
         )}
       </div>
       <ProfileComparison version={version} />
-      <details>
-        <summary>یافته‌های هر صفحه اعتبارسنجی</summary>
-        {(version.validation.pages ?? []).map((page) => (
-          <div key={page.url} className="grid gap-1 border-b py-2 text-sm">
-            <p dir="ltr" className="break-all">
-              {page.url}
-            </p>
-            <p>
-              {page.unresolved.length || Object.keys(page.conflicts).length
-                ? "نیازمند بررسی"
-                : "بدون فیلد اصلی حل‌نشده یا متعارض"}
-            </p>
-            <p>
-              فیلدهای حل‌نشده:{" "}
-              {page.unresolved
-                .map((field) => fields[field] ?? field)
-                .join("، ") || "ندارد"}
-            </p>
-            {Object.entries(page.conflicts).map(([field, values]) => (
-              <p key={field}>
-                تعارض {fields[field] ?? field}:{" "}
-                {values.map((value) => displayField(field, value)).join("، ")}
+      <ProfileSamples
+        key={version.id}
+        version={version}
+        selection={selection}
+      />
+      <details className="rounded-xl border p-4">
+        <summary>گزارش فنی و قواعد استخراج</summary>
+        <details>
+          <summary>یافته‌های هر صفحه اعتبارسنجی</summary>
+          {(version.validation.pages ?? []).map((page) => (
+            <div key={page.url} className="grid gap-1 border-b py-2 text-sm">
+              <p dir="ltr" className="break-all">
+                {page.url}
               </p>
-            ))}
+              <p>
+                {page.unresolved.length || Object.keys(page.conflicts).length
+                  ? "نیازمند بررسی"
+                  : "بدون فیلد اصلی حل‌نشده یا متعارض"}
+              </p>
+              <p>
+                فیلدهای حل‌نشده:{" "}
+                {page.unresolved
+                  .map((field) => fields[field] ?? field)
+                  .join("، ") || "ندارد"}
+              </p>
+              {Object.entries(page.conflicts).map(([field, values]) => (
+                <p key={field}>
+                  تعارض {fields[field] ?? field}:{" "}
+                  {values.map((value) => displayField(field, value)).join("، ")}
+                </p>
+              ))}
+            </div>
+          ))}
+        </details>
+        <details className="rounded-lg border p-3">
+          <summary className="cursor-pointer text-sm font-medium">
+            گزارش پوشش و تعارض فیلدها
+          </summary>
+          <div className="mt-3 overflow-x-auto">
+            <table className="w-full text-start text-sm">
+              <caption className="text-start font-medium">
+                پوشش فیلدها در صفحات کنارگذاشته‌شده برای اعتبارسنجی
+              </caption>
+              <thead>
+                <tr>
+                  <th className="text-start">فیلد</th>
+                  <th>پوشش</th>
+                  <th>تعارض</th>
+                  <th>نتیجه</th>
+                </tr>
+              </thead>
+              <tbody>
+                {Object.entries(version.validation.fields).map(
+                  ([field, report]) => (
+                    <tr key={field}>
+                      <th className="py-1 text-start font-normal">
+                        {fields[field] ?? field}
+                        {coreFields.includes(field) ? " (اصلی)" : " (اختیاری)"}
+                      </th>
+                      <td className="text-center">
+                        {validationCount === 0 || report.coverage === null
+                          ? "—"
+                          : `${Math.round(report.coverage * 100).toLocaleString("fa-IR")}٪`}
+                      </td>
+                      <td className="text-center">
+                        {report.conflicts.toLocaleString("fa-IR")}
+                      </td>
+                      <td className="text-center">
+                        {validationCount === 0 || report.passed === null
+                          ? "ارزیابی نشده"
+                          : report.passed
+                            ? "موفق"
+                            : "نیازمند بررسی"}
+                      </td>
+                    </tr>
+                  ),
+                )}
+              </tbody>
+            </table>
           </div>
-        ))}
-      </details>
-      <details className="rounded-lg border p-3">
-        <summary className="cursor-pointer text-sm font-medium">
-          گزارش پوشش و تعارض فیلدها
-        </summary>
-        <div className="mt-3 overflow-x-auto">
-          <table className="w-full text-start text-sm">
-            <caption className="text-start font-medium">
-              پوشش فیلدها در صفحات کنارگذاشته‌شده برای اعتبارسنجی
-            </caption>
-            <thead>
-              <tr>
-                <th className="text-start">فیلد</th>
-                <th>پوشش</th>
-                <th>تعارض</th>
-                <th>نتیجه</th>
-              </tr>
-            </thead>
-            <tbody>
-              {Object.entries(version.validation.fields).map(
-                ([field, report]) => (
-                  <tr key={field}>
-                    <th className="py-1 text-start font-normal">
-                      {fields[field] ?? field}
-                      {coreFields.includes(field) ? " (اصلی)" : " (اختیاری)"}
-                    </th>
-                    <td className="text-center">
-                      {validationCount === 0 || report.coverage === null
-                        ? "—"
-                        : `${Math.round(report.coverage * 100).toLocaleString("fa-IR")}٪`}
-                    </td>
-                    <td className="text-center">
-                      {report.conflicts.toLocaleString("fa-IR")}
-                    </td>
-                    <td className="text-center">
-                      {validationCount === 0 || report.passed === null
-                        ? "ارزیابی نشده"
-                        : report.passed
-                          ? "موفق"
-                          : "نیازمند بررسی"}
-                    </td>
-                  </tr>
-                ),
-              )}
-            </tbody>
-          </table>
-        </div>
-      </details>
-      <details>
-        <summary>صفحات آموزش و اعتبارسنجی</summary>
-        <p>آموزش</p>
-        {version.validation.training_page_urls.map((url) => (
-          <p className="break-all" dir="ltr" key={url}>
-            {url}
-          </p>
-        ))}
-        <p>اعتبارسنجی مستقل</p>
-        {version.validation.held_out_page_urls.map((url) => (
-          <p className="break-all" dir="ltr" key={url}>
-            {url}
-          </p>
-        ))}
-      </details>
-      <details>
-        <summary>قواعد این نسخه</summary>
-        <div className="mt-4 grid gap-4 sm:grid-cols-2">
-          {Object.entries((version.rules ?? {}) as Record<string, unknown>).map(
-            ([field, rule]) => (
+        </details>
+        <details>
+          <summary>صفحات آموزش و اعتبارسنجی</summary>
+          <p>آموزش</p>
+          {version.validation.training_page_urls.map((url) => (
+            <p className="break-all" dir="ltr" key={url}>
+              {url}
+            </p>
+          ))}
+          <p>اعتبارسنجی مستقل</p>
+          {version.validation.held_out_page_urls.map((url) => (
+            <p className="break-all" dir="ltr" key={url}>
+              {url}
+            </p>
+          ))}
+        </details>
+        <details>
+          <summary>قواعد این نسخه</summary>
+          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            {Object.entries(
+              (version.rules ?? {}) as Record<string, unknown>,
+            ).map(([field, rule]) => (
               <article key={field} className="min-w-0 rounded-lg border p-4">
                 <h5 className="mb-3 font-medium">{fields[field] ?? field}</h5>
                 <ProfileRule rule={rule} />
               </article>
-            ),
-          )}
-        </div>
-      </details>
-      <div>
-        <h4 className="font-medium">نمونه‌های استخراج و شواهد فیلدها</h4>
-        {version.samples.map((sample, sampleIndex) => (
-          <details
-            className="mt-3 rounded-xl border p-4"
-            key={sample.canonical_url}
-            open={sampleIndex === 0}
-          >
-            <summary>
-              نمونه {(sampleIndex + 1).toLocaleString("fa-IR")} ·{" "}
-              {typeof sample.normalized.title === "string"
-                ? sample.normalized.title
-                : "آگهی استخراج‌شده"}
-            </summary>
-            <p
-              dir="ltr"
-              className="text-muted-foreground my-3 text-xs break-all"
-            >
-              {sample.canonical_url}
-            </p>
-            <p className="text-sm">
-              فیلدهای حل‌نشده:{" "}
-              {sample.unresolved
-                .map((field) => fields[field] ?? field)
-                .join("، ") || "ندارد"}
-            </p>
-            <CandidateMedia
-              images={
-                version.media_candidates?.find(
-                  (candidate) =>
-                    candidate.external_url === sample.canonical_url,
-                )?.media ?? []
-              }
-            />
-            <dl className="grid min-w-0 grid-cols-1 gap-3 text-sm sm:grid-cols-2">
-              {Object.entries(sample.normalized).map(([field, value]) => (
-                <div key={field} className="bg-muted/40 rounded-lg p-3">
-                  <dt className="text-muted-foreground mb-1">
-                    {fields[field] ?? field}
-                  </dt>
-                  <dd className="break-words">{displayField(field, value)}</dd>
-                </div>
-              ))}
-            </dl>
-            {Object.entries(sample.conflicts).map(([field, values]) => (
-              <p key={field}>
-                تعارض {fields[field] ?? field}:{" "}
-                {values.map((value) => displayField(field, value)).join("، ")}
-              </p>
             ))}
-            <details open={Object.keys(sample.conflicts).length > 0}>
-              <summary>شواهد فیلدها</summary>
-              {Object.entries(sample.evidence).map(([field, evidence]) => (
-                <div key={field} className="my-2 text-sm">
-                  <h5>{fields[field] ?? field}</h5>
-                  {evidence.map((item, i) => (
-                    <p key={i} className="break-words">
-                      {item.evidence_snippet}{" "}
-                      <span dir="ltr">({item.source_locator})</span>
-                    </p>
-                  ))}
-                </div>
-              ))}
-            </details>
-          </details>
-        ))}
-      </div>
+          </div>
+        </details>
+      </details>
       {Array.isArray(version.exclusions) && version.exclusions.length > 0 && (
         <div>
           <h4>ساختارهای کنارگذاشته‌شده</h4>
@@ -730,7 +642,16 @@ function ProfileEditor({
   version: Version;
   onUpdate: (proposal: OperatorSourceProposal) => void;
 }) {
-  const [editorAction, setEditorAction] = useState("approve");
+  const actionPanel = useRef<HTMLDivElement>(null);
+  const [editorAction, setEditorAction] = useState("");
+  useEffect(() => {
+    if (!editorAction) return;
+    actionPanel.current?.focus({ preventScroll: true });
+    actionPanel.current?.scrollIntoView?.({
+      block: "start",
+      behavior: "instant",
+    });
+  }, [editorAction]);
   const [selectedFields, setSelectedFields] = useState<string[]>([]);
   const [requestId, setRequestId] = useState(() => crypto.randomUUID());
   const [field, setField] = useState("city");
@@ -813,34 +734,68 @@ function ProfileEditor({
   const pendingRepair = proposal.profile_repairs?.some(
     (attempt) => attempt.parent === version.id && attempt.outcome === "pending",
   );
+  const selection: RepairSelection = {
+    fields: selectedFields,
+    disabled: busy || Boolean(pendingRepair),
+    toggle: (name, checked) => {
+      setSelectedFields((current) =>
+        checked ? [...current, name] : current.filter((item) => item !== name),
+      );
+      setRequestId(crypto.randomUUID());
+    },
+  };
+  const lastRepair = proposal.profile_repairs?.find(
+    (attempt) => attempt.parent === version.id,
+  );
   return (
-    <div className="grid gap-4">
-      <h3 className="flex items-center gap-2 font-semibold">
-        <Sparkles className="text-primary size-4" aria-hidden="true" />
-        تصمیم درباره این نسخه
-      </h3>
-      <div
-        className="bg-muted flex flex-wrap gap-1 rounded-lg p-1"
-        aria-label="اقدام روی پروفایل"
-      >
-        {[
-          ["approve", "تأیید نسخه"],
-          ["repair", "اصلاح هوشمند"],
-          ["edit", "اصلاح دستی"],
-        ].map(([value, label]) => (
+    <div className="grid min-w-0 gap-4">
+      <div className="bg-card sticky top-36 z-10 flex flex-wrap items-center justify-between gap-3 rounded-xl border p-3 shadow-sm lg:top-20">
+        <p className="text-sm">
+          {selectedFields.length.toLocaleString("fa-IR")} فیلد برای اصلاح انتخاب
+          شده
+        </p>
+        <div className="flex flex-wrap gap-2">
           <Button
-            key={value}
-            type="button"
-            variant={editorAction === value ? "secondary" : "ghost"}
-            size="sm"
-            aria-pressed={editorAction === value}
-            onClick={() => setEditorAction(value!)}
+            variant="outline"
+            aria-expanded={editorAction === "repair"}
+            onClick={() =>
+              setEditorAction(editorAction === "repair" ? "" : "repair")
+            }
           >
-            {label}
+            اصلاح هوشمند
           </Button>
-        ))}
+          <Button
+            aria-expanded={editorAction === "approve"}
+            onClick={() =>
+              setEditorAction(editorAction === "approve" ? "" : "approve")
+            }
+          >
+            بررسی و فعال‌سازی
+          </Button>
+        </div>
       </div>
-      <div className={editorAction === "repair" ? "grid gap-4" : "hidden"}>
+      {(repair.isPending || pendingRepair) && (
+        <p role="status">
+          در حال اصلاح قواعد؛ شواهد نسخه فعلی همچنان قابل بررسی است.
+        </p>
+      )}
+      {lastRepair &&
+        lastRepair.outcome !== "pending" &&
+        lastRepair.outcome !== "succeeded" && (
+          <p role="alert" className="rounded-xl border p-4 text-sm">
+            {lastRepair.detail}
+          </p>
+        )}
+
+      <div
+        ref={editorAction === "repair" ? actionPanel : undefined}
+        tabIndex={-1}
+        className={
+          editorAction === "repair"
+            ? "grid scroll-mt-72 gap-4 lg:scroll-mt-40"
+            : "hidden"
+        }
+      >
         <fieldset
           disabled={busy || pendingRepair}
           className="grid gap-3 rounded-md border p-3"
@@ -849,36 +804,41 @@ function ProfileEditor({
             اصلاح هوشمند فیلدهای انتخاب‌شده
           </legend>
           <p className="text-sm">
-            یک تا چهار فیلد را انتخاب کنید. فقط شواهد محدود و بدون شماره تماس
-            برای مدل ارسال می‌شود. قواعد معتبر حتی با وجود خطای کیفیت، پیش‌نویس
-            تازه‌ای می‌سازند که پیش از تأیید باید بررسی کنید.
+            اصلاح، قواعد خواندن اطلاعات را تغییر می‌دهد؛ اطلاعات نمونه را ویرایش
+            نمی‌کند. یک تا چهار فیلد را انتخاب کنید. فقط شواهد محدود و بدون
+            شماره تماس برای مدل ارسال می‌شود. قواعد معتبر حتی با وجود خطای
+            کیفیت، پیش‌نویس تازه‌ای می‌سازند که پیش از تأیید باید بررسی کنید.
           </p>
-          <div className="grid gap-2 sm:grid-cols-2">
-            {Object.entries(fields).map(([name, label]) => (
-              <label
-                key={name}
-                className="has-[:checked]:border-primary has-[:checked]:bg-primary/5 flex items-center gap-2 rounded-lg border p-3 text-sm"
-              >
-                <input
-                  type="checkbox"
-                  aria-label={`اصلاح هوشمند ${label}`}
-                  checked={selectedFields.includes(name)}
-                  disabled={
-                    selectedFields.length >= 4 && !selectedFields.includes(name)
-                  }
-                  onChange={(event) => {
-                    setSelectedFields((current) =>
-                      event.target.checked
-                        ? [...current, name]
-                        : current.filter((field) => field !== name),
-                    );
-                    setRequestId(crypto.randomUUID());
-                  }}
-                />
-                {label}
-              </label>
-            ))}
-          </div>
+          <p className="text-sm">
+            فیلدهای انتخاب‌شده:{" "}
+            {selectedFields.map((name) => fields[name] ?? name).join("، ") ||
+              "هنوز فیلدی انتخاب نشده است."}
+          </p>
+          <details open={version.samples.length === 0}>
+            <summary>انتخاب از همه فیلدها</summary>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {Object.entries(fields).map(([name, label]) => (
+                <label
+                  key={name}
+                  className="has-[:checked]:border-primary has-[:checked]:bg-primary/5 flex items-center gap-2 rounded-lg border p-3 text-sm"
+                >
+                  <input
+                    type="checkbox"
+                    aria-label={`اصلاح هوشمند ${label}`}
+                    checked={selectedFields.includes(name)}
+                    disabled={
+                      selectedFields.length >= 4 &&
+                      !selectedFields.includes(name)
+                    }
+                    onChange={(event) =>
+                      selection.toggle(name, event.target.checked)
+                    }
+                  />
+                  {label}
+                </label>
+              ))}
+            </div>
+          </details>
           <Button
             type="button"
             disabled={!selectedFields.length || busy || pendingRepair}
@@ -898,94 +858,150 @@ function ProfileEditor({
           </Alert>
         )}
       </div>
-      <div className={editorAction === "edit" ? "grid gap-4" : "hidden"}>
-        <form
-          className="grid gap-3"
-          onSubmit={(event) => {
-            event.preventDefault();
-            edit.mutate();
-          }}
+      <details className="rounded-xl border p-4">
+        <summary>ابزارهای پیشرفته و اصلاح دستی</summary>
+        <Button variant="outline" onClick={() => setEditorAction("edit")}>
+          اصلاح دستی
+        </Button>
+        <div
+          ref={editorAction === "edit" ? actionPanel : undefined}
+          tabIndex={-1}
+          className={
+            editorAction === "edit"
+              ? "grid scroll-mt-72 gap-4 lg:scroll-mt-40"
+              : "hidden"
+          }
         >
-          <p>
-            اصلاح یک فیلد، قواعد جایگزین همان فیلد را عوض می‌کند و نسخه تازه‌ای
-            برای اعتبارسنجی می‌سازد.
-          </p>
-          <Label htmlFor={`field-${version.id}`}>فیلد مورد اصلاح</Label>
-          <select
-            id={`field-${version.id}`}
-            className={selectClass}
-            value={field}
-            onChange={(event) => setField(event.target.value)}
-          >
-            {Object.entries(fields).map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </select>
-          <Label htmlFor={`kind-${version.id}`}>منبع مقدار</Label>
-          <select
-            id={`kind-${version.id}`}
-            className={selectClass}
-            value={kind}
-            onChange={(event) => {
-              setKind(event.target.value);
-              setLocator("");
+          <form
+            className="grid gap-3"
+            onSubmit={(event) => {
+              event.preventDefault();
+              edit.mutate();
             }}
           >
-            <option value="css">عنصر صفحه</option>
-            <option value="json">داده ساخت‌یافته متصل</option>
-          </select>
-          <Label htmlFor={`locator-${version.id}`}>
-            {kind === "css" ? "مسیر عنصر" : "مسیر داده"}
-          </Label>
-          <Input
-            id={`locator-${version.id}`}
-            dir="ltr"
-            value={locator}
-            maxLength={300}
-            onChange={(event) => setLocator(event.target.value)}
-            placeholder={kind === "css" ? ".area" : "$.floorSize.value"}
-          />
-          {kind === "css" && (
-            <>
-              <Label htmlFor={`attribute-${version.id}`}>
-                ویژگی عنصر (اختیاری)
-              </Label>
-              <Input
-                id={`attribute-${version.id}`}
-                dir="ltr"
-                value={attribute}
-                onChange={(event) => setAttribute(event.target.value)}
-                placeholder="content"
-              />
-            </>
-          )}
-          {transform === "money_rial" && (
-            <>
-              <Label htmlFor={`currency-${version.id}`}>واحد مبلغ</Label>
-              <select
-                id={`currency-${version.id}`}
-                className={selectClass}
-                value={currency}
-                onChange={(event) => setCurrency(event.target.value)}
-              >
-                <option value="">از متن</option>
-                <option value="تومان">تومان</option>
-                <option value="ریال">ریال</option>
-              </select>
-            </>
-          )}
-          <Button disabled={busy || !locator.trim()} type="submit">
-            ثبت نسخه و اعتبارسنجی
-          </Button>
-        </form>
-      </div>
-      <div className={editorAction === "approve" ? "grid gap-4" : "hidden"}>
+            <p>
+              اصلاح یک فیلد، قواعد جایگزین همان فیلد را عوض می‌کند و نسخه
+              تازه‌ای برای اعتبارسنجی می‌سازد.
+            </p>
+            <Label htmlFor={`field-${version.id}`}>فیلد مورد اصلاح</Label>
+            <select
+              id={`field-${version.id}`}
+              className={selectClass}
+              value={field}
+              onChange={(event) => setField(event.target.value)}
+            >
+              {Object.entries(fields).map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
+            <Label htmlFor={`kind-${version.id}`}>منبع مقدار</Label>
+            <select
+              id={`kind-${version.id}`}
+              className={selectClass}
+              value={kind}
+              onChange={(event) => {
+                setKind(event.target.value);
+                setLocator("");
+              }}
+            >
+              <option value="css">عنصر صفحه</option>
+              <option value="json">داده ساخت‌یافته متصل</option>
+            </select>
+            <Label htmlFor={`locator-${version.id}`}>
+              {kind === "css" ? "مسیر عنصر" : "مسیر داده"}
+            </Label>
+            <Input
+              id={`locator-${version.id}`}
+              dir="ltr"
+              value={locator}
+              maxLength={300}
+              onChange={(event) => setLocator(event.target.value)}
+              placeholder={kind === "css" ? ".area" : "$.floorSize.value"}
+            />
+            {kind === "css" && (
+              <>
+                <Label htmlFor={`attribute-${version.id}`}>
+                  ویژگی عنصر (اختیاری)
+                </Label>
+                <Input
+                  id={`attribute-${version.id}`}
+                  dir="ltr"
+                  value={attribute}
+                  onChange={(event) => setAttribute(event.target.value)}
+                  placeholder="content"
+                />
+              </>
+            )}
+            {transform === "money_rial" && (
+              <>
+                <Label htmlFor={`currency-${version.id}`}>واحد مبلغ</Label>
+                <select
+                  id={`currency-${version.id}`}
+                  className={selectClass}
+                  value={currency}
+                  onChange={(event) => setCurrency(event.target.value)}
+                >
+                  <option value="">از متن</option>
+                  <option value="تومان">تومان</option>
+                  <option value="ریال">ریال</option>
+                </select>
+              </>
+            )}
+            <Button disabled={busy || !locator.trim()} type="submit">
+              ثبت نسخه و اعتبارسنجی
+            </Button>
+          </form>
+        </div>
+      </details>
+      <div
+        ref={editorAction === "approve" ? actionPanel : undefined}
+        tabIndex={-1}
+        className={
+          editorAction === "approve"
+            ? "grid scroll-mt-72 gap-4 rounded-xl border p-5 lg:scroll-mt-40"
+            : "hidden"
+        }
+      >
         <p className="text-muted-foreground text-sm">
-          با تأیید این نسخه، پروفایل منبع فعال می‌شود. روش بررسی آگهی‌های حاصل
-          از آن را انتخاب کنید.
+          با تأیید این نسخه، قواعد استخراج فعال می‌شود و منبع به نماینده تخصیص
+          می‌یابد. این تصمیم تأیید درستی همه مقادیر نمونه نیست. در حالت نیازمند
+          تأیید اپراتور، آگهی‌ها پیش از انتشار بررسی می‌شوند؛ در حالت خودکار،
+          نتایج تازه پس از عبور از کنترل‌های انتشار منتشر می‌شوند.
         </p>
+        {hasLimitations && (
+          <div className="bg-muted/30 rounded-lg p-3 text-sm">
+            <p>
+              شواهد بررسی:{" "}
+              {version.validation.training_page_urls.length.toLocaleString(
+                "fa-IR",
+              )}{" "}
+              صفحه ساخت قواعد و{" "}
+              {version.validation.held_out_page_urls.length.toLocaleString(
+                "fa-IR",
+              )}{" "}
+              صفحه اعتبارسنجی مستقل.
+            </p>
+            <p>
+              فیلدهای نیازمند توجه:{" "}
+              {Object.entries(version.validation.fields)
+                .filter(([, report]) => report.passed === false)
+                .map(([field]) => fields[field] ?? field)
+                .join("، ") ||
+                "محدودیت تعداد نمونه یا شواهد؛ گزارش این نسخه را بررسی کنید."}
+            </p>
+          </div>
+        )}
+        {version.validation.rules_valid === false && (
+          <p role="status">
+            قواعد از نظر فنی قابل اجرا نیستند؛ پیش از فعال‌سازی آن‌ها را اصلاح
+            کنید.
+          </p>
+        )}
+        {proposal.current_website_conflict && (
+          <p role="status">ابتدا تعارض وب‌سایت را در نمای کلی برطرف کنید.</p>
+        )}
         <Label htmlFor={`mode-${version.id}`}>روش بررسی نتایج</Label>
         <select
           id={`mode-${version.id}`}
@@ -1048,6 +1064,7 @@ function ProfileEditor({
           تأیید پروفایل و تخصیص منبع
         </Button>
       </div>
+      <ProfileEvidence version={version} selection={selection} />
       {(edit.error || approve.error) && (
         <Alert variant="destructive">
           <AlertDescription>

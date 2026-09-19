@@ -77,6 +77,11 @@ beforeEach(() => {
   );
 });
 
+async function openProfileDecision(user: ReturnType<typeof userEvent.setup>) {
+  const button = screen.getByRole("button", { name: "بررسی و فعال‌سازی" });
+  if (button.getAttribute("aria-expanded") !== "true") await user.click(button);
+}
+
 const proposal = {
   responsibility: {
     operator: "operator",
@@ -329,6 +334,13 @@ test("reviews profile evidence, edits a field, and approves only a validated ver
     },
     samples: [
       {
+        canonical_url: "https://khaneh.example/second",
+        normalized: { title: "آپارتمان دوم", city: "کرج" },
+        conflicts: {},
+        unresolved: [],
+        evidence: {},
+      },
+      {
         canonical_url: "https://khaneh.example/held",
         normalized: { city: "تهران", deposit_rial: 5_000_000_000 },
         conflicts: { floor_area_sqm: [85, 500] },
@@ -418,12 +430,30 @@ test("reviews profile evidence, edits a field, and approves only a validated ver
     </QueryClientProvider>,
   );
   expect(await screen.findByText("پروفایل منبع — نسخه ۱")).toBeVisible();
-  expect(screen.getByText("۸۵ متر")).toBeVisible();
+  expect(screen.getByRole("tab", { name: "استخراج اطلاعات" })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+  expect(screen.getByText("کرج")).toBeVisible();
+  expect(screen.queryByText("۸۵ متر")).not.toBeInTheDocument();
+  await user.selectOptions(
+    screen.getByLabelText("صفحه نمونه"),
+    "https://khaneh.example/held",
+  );
+  expect(screen.queryByText("کرج")).not.toBeInTheDocument();
+  expect(
+    screen.getByRole("link", { name: "مشاهده صفحه اصلی" }),
+  ).toHaveAttribute("href", "https://khaneh.example/held");
+  const area = within(screen.getByRole("article", { name: "متراژ" }));
+  expect(area.getByText("نیازمند توجه")).toBeVisible();
+  expect(area.getByText("۸۵ متر")).toBeVisible();
   expect(screen.getByText("۵۰۰٬۰۰۰٬۰۰۰ تومان")).toBeVisible();
   expect(screen.getByText("https://khaneh.example/unsupported")).toBeVisible();
+  await openProfileDecision(user);
   expect(
     screen.getByRole("button", { name: "تأیید پروفایل و تخصیص منبع" }),
   ).toBeDisabled();
+  await user.click(screen.getByText("ابزارهای پیشرفته و اصلاح دستی"));
   await user.click(screen.getByRole("button", { name: "اصلاح دستی" }));
   await user.selectOptions(
     screen.getByLabelText("فیلد مورد اصلاح"),
@@ -447,12 +477,15 @@ test("reviews profile evidence, edits a field, and approves only a validated ver
       },
     },
   ]);
+  await openProfileDecision(user);
   await user.click(
     screen.getByLabelText("نمونه‌ها و اعتبارسنجی پروفایل را بررسی کردم."),
   );
+  await openProfileDecision(user);
   expect(
     screen.getByRole("button", { name: "تأیید پروفایل و تخصیص منبع" }),
   ).toBeDisabled();
+  await openProfileDecision(user);
   await user.selectOptions(
     screen.getByLabelText("روش بررسی نتایج"),
     "automatic",
@@ -480,7 +513,15 @@ test("requires field selection for explicit repair and shows failure history", a
       training_page_urls: [],
       held_out_page_urls: [],
     },
-    samples: [],
+    samples: [
+      {
+        canonical_url: "https://khaneh.example/held",
+        normalized: {},
+        unresolved: ["floor_area_sqm"],
+        conflicts: {},
+        evidence: {},
+      },
+    ],
     exclusions: [],
   };
   const caseData = {
@@ -541,7 +582,12 @@ test("requires field selection for explicit repair and shows failure history", a
   const repair = screen.getByRole("button", { name: "درخواست اصلاح هوشمند" });
   expect(repair).toBeDisabled();
   expect(calls).toEqual([]);
-  await user.click(screen.getByLabelText("اصلاح هوشمند متراژ"));
+  await user.click(screen.getByRole("button", { name: "نمایش همه فیلدها" }));
+  const balcony = within(screen.getByRole("article", { name: "بالکن" }));
+  expect(balcony.getByText("استخراج نشده")).toBeVisible();
+  await user.click(balcony.getByLabelText("انتخاب بالکن برای اصلاح"));
+  await user.click(balcony.getByLabelText("انتخاب بالکن برای اصلاح"));
+  await user.click(screen.getByLabelText("انتخاب متراژ برای اصلاح"));
   expect(calls).toEqual([]);
   await user.click(repair);
   expect(
@@ -557,7 +603,15 @@ test("requires field selection for explicit repair and shows failure history", a
       selected_fields: ["floor_area_sqm"],
     },
   ]);
-  const history = screen.getByRole("region", { name: "تاریخچه اصلاح هوشمند" });
+  expect(screen.getByLabelText("انتخاب متراژ برای اصلاح")).toBeChecked();
+  expect(
+    screen.getByRole("button", { name: "درخواست اصلاح هوشمند" }),
+  ).toBeEnabled();
+  await user.click(screen.getByText("تاریخچه اصلاح هوشمند"));
+  const history = await screen.findByRole("region", {
+    name: "تاریخچه اصلاح هوشمند",
+  });
+  await within(history).findByText("پایان مهلت پاسخ");
   expect(within(history).getByText("پایان مهلت پاسخ")).toBeVisible();
   expect(within(history).getByText("متراژ")).toBeVisible();
   await user.click(within(history).getByText("جزئیات درخواست"));
@@ -971,10 +1025,12 @@ test.each([
     expect(
       screen.getAllByText(/فیلدهای حل‌نشده: متراژ/).length,
     ).toBeGreaterThan(0);
+    await openProfileDecision(user);
     await user.selectOptions(screen.getByLabelText("روش بررسی نتایج"), mode);
     await user.click(
       screen.getByLabelText("نمونه‌ها و اعتبارسنجی پروفایل را بررسی کردم."),
     );
+    await openProfileDecision(user);
     const approve = screen.getByRole("button", {
       name: "تأیید پروفایل و تخصیص منبع",
     });
@@ -1090,7 +1146,9 @@ test.each([
       expect(
         screen.queryByText("شواهد محدود", { exact: true }),
       ).not.toBeInTheDocument();
+    await user.click(screen.getByText("گزارش فنی و قواعد استخراج"));
     await user.click(screen.getByText("گزارش پوشش و تعارض فیلدها"));
+    await openProfileDecision(user);
     if (!heldOut) {
       expect(screen.getByText("ارزیابی نشده")).toBeVisible();
       expect(screen.queryByText(/^[۰-۹]+٪$/)).not.toBeInTheDocument();
@@ -1101,6 +1159,7 @@ test.each([
     await user.click(
       screen.getByLabelText("نمونه‌ها و اعتبارسنجی پروفایل را بررسی کردم."),
     );
+    await openProfileDecision(user);
     const approve = screen.getByRole("button", {
       name: "تأیید پروفایل و تخصیص منبع",
     });
@@ -1114,6 +1173,7 @@ test.each([
       );
     }
     for (const mode of ["automatic", "approval_required"]) {
+      await openProfileDecision(user);
       await user.selectOptions(screen.getByLabelText("روش بررسی نتایج"), mode);
       expect(approve).toBeEnabled();
     }
@@ -1158,6 +1218,15 @@ test("compares imperfect repair evidence and requires a fresh explicit approval"
     number: 2,
     provenance: "llm",
     is_active: false,
+    samples: [
+      {
+        canonical_url: "https://khaneh.example/listing/10001",
+        normalized: { monthly_rent_rial: 200000000 },
+        conflicts: {},
+        unresolved: ["city"],
+        evidence: {},
+      },
+    ],
     comparison: [
       {
         field: "monthly_rent_rial",
@@ -1253,10 +1322,12 @@ test("compares imperfect repair evidence and requires a fresh explicit approval"
     </QueryClientProvider>,
   );
   await screen.findByText("پروفایل منبع — نسخه ۱");
+  await openProfileDecision(user);
   await user.selectOptions(
     screen.getByLabelText("روش بررسی نتایج"),
     "automatic",
   );
+  await openProfileDecision(user);
   await user.click(
     screen.getByLabelText("نمونه‌ها و اعتبارسنجی پروفایل را بررسی کردم."),
   );
@@ -1273,21 +1344,25 @@ test("compares imperfect repair evidence and requires a fresh explicit approval"
   const rentComparison = within(
     screen.getByRole("article", { name: "مقایسه اجاره ماهانه" }),
   );
-  await user.click(rentComparison.getByText("صفحات نمونه تحت تأثیر"));
+
   expect(
     screen.getByText("https://khaneh.example/listing/10001"),
   ).toBeVisible();
-  expect(screen.getByText("۲۰٬۰۰۰٬۰۰۰ تومان")).toBeVisible();
+  expect(rentComparison.getByText("۲۰٬۰۰۰٬۰۰۰ تومان")).toBeVisible();
+  expect(screen.getByText("مشکلات بدون تغییر: شهر")).toBeVisible();
   expect(rentComparison.getByText("اعتبارسنجی مستقل")).toBeVisible();
+  await openProfileDecision(user);
   const approve = screen.getByRole("button", {
     name: "تأیید پروفایل و تخصیص منبع",
   });
   expect(approve).toBeDisabled();
   expect(approvalBody).toBeUndefined();
+  await openProfileDecision(user);
   await user.selectOptions(
     screen.getByLabelText("روش بررسی نتایج"),
     "approval_required",
   );
+  await openProfileDecision(user);
   await user.click(
     screen.getByLabelText("نمونه‌ها و اعتبارسنجی پروفایل را بررسی کردم."),
   );
@@ -1874,7 +1949,7 @@ test("lets the responsible operator work across tabs without claiming or renewin
   expect(
     screen.getByRole("button", { name: "تأیید نشانی و شروع کشف" }),
   ).toBeEnabled();
-  await user.click(screen.getByRole("tab", { name: "پروفایل" }));
+  await user.click(screen.getByRole("tab", { name: "استخراج اطلاعات" }));
   expect(
     screen.queryByRole("button", { name: "تمدید مهلت بررسی" }),
   ).not.toBeInTheDocument();
@@ -2133,4 +2208,79 @@ test("loads the selected section and fetches listing evidence only when opened",
   await user.click(screen.getByRole("link", { name: "بررسی آگهی" }));
   await screen.findByRole("dialog");
   await waitFor(() => expect(requests).toContain("candidate"));
+});
+
+test("offers the responsible operator a fresh review from an active profile tab", async () => {
+  const user = userEvent.setup();
+  server.use(
+    http.get("*/api/v1/operator/source-proposals/", () =>
+      caseJson([
+        {
+          ...proposal,
+          state: "approved",
+          discovery_stage: "complete",
+          discovery: { id: "discovery-1", evidence: {} },
+          assignment: {
+            id: 8,
+            source: {
+              domain: "khaneh.example",
+              display_name: "خانه‌یاب",
+              processing_paused: false,
+            },
+            review_operator: "operator",
+            state: "active",
+            active_profile_version: { id: "profile-1", number: 1 },
+            recent_requests: [],
+          },
+          profile_versions: [
+            {
+              id: "profile-1",
+              number: 1,
+              reservation: "discovery-1",
+              is_active: true,
+              status: "approved",
+              rules: {},
+              validation: {
+                training_page_urls: [],
+                held_out_page_urls: [],
+                fields: {},
+                rules_valid: true,
+              },
+              samples: [],
+              exclusions: [],
+            },
+          ],
+        },
+      ]),
+    ),
+  );
+  render(
+    <QueryClientProvider
+      client={
+        new QueryClient({ defaultOptions: { queries: { retry: false } } })
+      }
+    >
+      <MemoryRouter initialEntries={["/#profile"]}>
+        <OperatorSourceProposalDetailPage proposalId={proposal.id} />
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+  expect(await screen.findByText("نسخه فعال", { exact: true })).toBeVisible();
+  expect(
+    screen.queryByText(/برای تغییر قواعد، مسئولیت پرونده/),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.getByText(/نمونه‌ای برای نمایش در این نسخه موجود نیست/),
+  ).toBeVisible();
+  expect(
+    screen.queryByRole("button", { name: "بررسی و فعال‌سازی" }),
+  ).not.toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "بهبود استخراج" }));
+  expect(
+    await screen.findByRole("button", { name: "آغاز بررسی نسخه تازه پروفایل" }),
+  ).toBeDisabled();
+  expect(screen.getByRole("tab", { name: "نشانی و کشف" })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
 });
