@@ -1,5 +1,6 @@
 """Translate retained extraction evidence into catalog-ready candidates."""
 
+from decimal import Decimal, InvalidOperation
 from typing import Any
 
 from django.core.exceptions import ValidationError
@@ -26,8 +27,34 @@ PROPERTY_FIELDS = ("city", "district", "neighborhood", "property_type", "area_sq
 TERMS_FIELDS = ("deposit_rial", "monthly_rent_rial")
 
 
+def candidate_coordinates(candidate: ExternalListingCandidate) -> dict[str, Decimal]:
+    """Use only selected, valid coordinate pairs from retained extraction evidence."""
+    coordinates: dict[str, Decimal] = {}
+    for name, limit in (("latitude", 90), ("longitude", 180)):
+        if name in candidate.conflicts:
+            return {}
+        selected = [
+            item.get("normalized_value")
+            for item in candidate.evidence.get(name, [])
+            if isinstance(item, dict) and item.get("disposition") == "selected"
+        ]
+        if len(selected) != 1 or isinstance(selected[0], bool):
+            return {}
+        try:
+            value = Decimal(str(selected[0]))
+            if not value.is_finite() or not -limit <= value <= limit:
+                return {}
+            coordinates[name] = value.quantize(Decimal("0.000001"))
+        except InvalidOperation:
+            return {}
+    return coordinates
+
+
 def property_values(candidate: ExternalListingCandidate) -> dict[str, Any]:
-    return {name: getattr(candidate, name) for name in PROPERTY_FIELDS}
+    return {
+        **{name: getattr(candidate, name) for name in PROPERTY_FIELDS},
+        **candidate_coordinates(candidate),
+    }
 
 
 def validation_errors(candidate: ExternalListingCandidate) -> dict[str, Any]:
@@ -156,7 +183,9 @@ def create_run_candidates(run: ExtractionRun) -> None:
 def _published_content(listing: Listing) -> tuple[object, ...]:
     """Compare published content, excluding run provenance and availability refresh timestamps."""
     return (
-        tuple(getattr(listing.property, name) for name in PROPERTY_FIELDS),
+        tuple(
+            getattr(listing.property, name) for name in (*PROPERTY_FIELDS, "latitude", "longitude")
+        ),
         tuple(getattr(listing.terms, name) for name in TERMS_FIELDS),
         listing.description,
         listing.source_claims,

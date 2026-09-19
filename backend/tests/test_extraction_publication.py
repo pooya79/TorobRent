@@ -466,3 +466,91 @@ def test_optional_rejection_reason_preserves_requester_notification(
     message = next(item for item in messages if item["id"] == str(notice.pk))
     assert message["title"] == "نتیجه استخراج رد شد"
     assert message["preview"] == ((reason or "").strip() or "نتیجه بررسی آگهی استخراج‌شده ثبت شد.")
+
+
+@pytest.mark.django_db
+def test_publication_uses_retained_coordinate_evidence_after_run_payload_cleanup(
+    api_client, assigned_case, monkeypatch, django_capture_on_commit_callbacks
+):
+    from decimal import Decimal
+
+    from apps.catalog.models import Listing
+    from apps.source_proposals.models import ExtractionRun
+
+    fetcher = assigned_case[4]
+    for url, html in list(fetcher.pages.items()):
+        if "/listing/" in url:
+            fetcher.pages[url] = html.replace(
+                "</head>",
+                '<meta property="place:location:latitude" content="35.750123">'
+                '<meta property="place:location:longitude" content="51.380456"></head>',
+            )
+    run = execute_run(api_client, assigned_case, monkeypatch, django_capture_on_commit_callbacks)
+    assert ExtractionRun.objects.get(pk=run["id"]).results == []
+    assert any(
+        item["disposition"] == "selected" for item in run["candidates"][0]["evidence"]["latitude"]
+    )
+    response = api_client.post(
+        f"/api/v1/operator/source-proposals/{assigned_case[0].pk}/runs/{run['id']}/approve/",
+        {"reviewed_revision": run["revision"], "confirmed": True},
+        format="json",
+    )
+    assert response.status_code == 200, response.data
+    property_ = Listing.objects.get(pk=response.json()["candidates"][0]["listing_id"]).property
+    assert property_.latitude == Decimal("35.750123")
+    assert property_.longitude == Decimal("51.380456")
+    assert property_.approximate_latitude is not None
+    assert property_.approximate_longitude is not None
+    assert property_.location_precision == "approximate"
+    assert (property_.approximate_latitude, property_.approximate_longitude) != (
+        property_.latitude,
+        property_.longitude,
+    )
+
+    api_client.force_authenticate(None)
+    search = api_client.get(
+        "/api/v1/catalog/properties/",
+        {
+            "viewport_north": "35.80",
+            "viewport_east": "51.46",
+            "viewport_south": "35.70",
+            "viewport_west": "51.30",
+            "viewport_zoom": "14",
+        },
+    )
+    assert search.status_code == 200
+    assert str(property_.pk) in {marker["id"] for marker in search.data["map"]["markers"]}
+    detail = api_client.get(f"/api/v1/catalog/properties/{property_.pk}/")
+    assert detail.status_code == 200
+    assert "35.750123" not in str(detail.data)
+    assert "51.380456" not in str(detail.data)
+
+
+@pytest.mark.parametrize(
+    ("latitude", "longitude", "disposition", "conflicts"),
+    [
+        ("91", "51", "selected", {}),
+        ("35", "-181", "selected", {}),
+        ("NaN", "51", "selected", {}),
+        ("Infinity", "51", "selected", {}),
+        ("invalid", "51", "selected", {}),
+        (True, "51", "selected", {}),
+        ("35", None, "selected", {}),
+        ("35", "51", "alternative_evidence", {}),
+        ("35", "51", "selected", {"latitude": [35, 36]}),
+    ],
+)
+def test_publication_does_not_use_invalid_or_unselected_coordinate_pairs(
+    latitude, longitude, disposition, conflicts
+):
+    from apps.source_proposals.models import ExternalListingCandidate
+    from apps.source_proposals.source_processing.candidate_publication import candidate_coordinates
+
+    candidate = ExternalListingCandidate(
+        evidence={
+            "latitude": [{"normalized_value": latitude, "disposition": disposition}],
+            "longitude": [{"normalized_value": longitude, "disposition": disposition}],
+        },
+        conflicts=conflicts,
+    )
+    assert candidate_coordinates(candidate) == {}
