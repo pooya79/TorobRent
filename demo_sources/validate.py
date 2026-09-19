@@ -19,11 +19,20 @@ def main() -> None:
     root = arguments.path.resolve()
     manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
     assert manifest["listing_count"] == sum(EXPECTED_COUNTS.values())
+    coordinates: set[tuple[str, str]] = set()
     for site in manifest["sites"]:
         key = site["site"]
         site_root = root / key
         pages = list((site_root / "property").glob("*/index.html"))
         assert len(pages) == EXPECTED_COUNTS[key], (key, len(pages))
+        for page in pages:
+            content = page.read_text(encoding="utf-8")
+            latitude = re.search(r'property="place:location:latitude" content="([^"]+)"', content)
+            longitude = re.search(r'property="place:location:longitude" content="([^"]+)"', content)
+            assert latitude and longitude, page
+            point = (latitude[1], longitude[1])
+            assert point not in coordinates, ("Duplicate listing coordinates", page, point)
+            coordinates.add(point)
         assert (site_root / "rentals" / "index.html").is_file()
         assert (site_root / "robots.txt").is_file()
         assert (site_root / "sitemap.xml").is_file()

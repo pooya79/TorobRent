@@ -86,11 +86,27 @@ def toman(value: int) -> str:
     return f"{value:,} تومان"
 
 
+def listing_coordinates(identifier: int, latitude: str, longitude: str) -> tuple[str, str]:
+    """Scatter fictional homes within 2,000 meters of their neighborhood point."""
+    randomizer = random.Random(f"demo-location-{identifier}")
+    # Square root gives an even spread over the disk instead of crowding its center.
+    radius = 2_000 * math.sqrt(randomizer.random())
+    angle = randomizer.uniform(0, math.tau)
+    center_latitude = float(latitude)
+    north = radius * math.cos(angle)
+    east = radius * math.sin(angle)
+    return (
+        f"{center_latitude + north / 111_320:.6f}",
+        f"{float(longitude) + east / (111_320 * math.cos(math.radians(center_latitude))):.6f}",
+    )
+
+
 def make_listings(site: Site) -> list[Listing]:
     randomizer = random.Random(20260908 + site.first_id)
     listings: list[Listing] = []
     for offset in range(site.count):
         neighborhood, district, latitude, longitude = NEIGHBORHOODS[offset % len(NEIGHBORHOODS)]
+        latitude, longitude = listing_coordinates(site.first_id + offset, latitude, longitude)
         property_type, schema_type = PROPERTY_TYPES[offset % len(PROPERTY_TYPES)]
         bedrooms = randomizer.choice((1, 2, 2, 3, 3, 4))
         area = randomizer.randrange(max(45, bedrooms * 28), min(220, bedrooms * 55) + 1)

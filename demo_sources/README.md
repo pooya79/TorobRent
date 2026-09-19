@@ -15,6 +15,11 @@ All people, contact details, properties, prices, and images are fictional. Searc
 discouraged with `robots.txt`, page metadata, and the `X-Robots-Tag` response header. TorobRent's
 named crawler remains allowed.
 
+Each listing has a reproducible random location within 2,000 meters of its neighborhood point,
+so homes spread out on the map instead of sharing one pin. These are fictional positions,
+not verified addresses or neighborhood boundaries. Rebuild the demo container and fetch the
+listings again to replace previously imported coordinates.
+
 ## Generate locally
 
 Choose the real base domain that will serve the four exact hosts:
