@@ -1,5 +1,9 @@
 import { useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  useIsMutating,
+  useMutation,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { api } from "@/lib/api/client";
@@ -84,7 +88,10 @@ export function useCandidateSelection({
       setOutcome("");
     },
   });
+  const decisionKey = ["source-candidate-decision", proposalId];
+  const pendingDecisions = useIsMutating({ mutationKey: decisionKey });
   const decision = useMutation({
+    mutationKey: decisionKey,
     mutationFn: async (action: "approve" | "reject") => {
       const { data, error } = await api.POST(
         "/api/v1/operator/source-proposals/{proposal_id}/results/decide/",
@@ -102,25 +109,28 @@ export function useCandidateSelection({
         },
       );
       if (error || !data) throw apiError(error);
-      return {
-        succeeded: data.succeeded.length,
-        failed: selected.filter((candidate) =>
-          data.failed.some((item) => item.id === candidate.id),
-        ),
-        errors: data.failed.map((item) => {
-          const candidate = selected.find(
-            (candidate) => candidate.id === item.id,
-          );
-          return `${candidate?.title || candidate?.external_url || item.id}: ${item.detail}`;
-        }),
-      };
+      return data;
     },
-    onSuccess: async ({ failed, errors, succeeded }) => {
-      setSelected(failed);
+    onSuccess: ({ failed, succeeded }) => {
+      // Failed selections can contain outdated revisions or already decided ads.
+      // Require a fresh selection from the refreshed results before retrying.
+      setSelected([]);
       setConfirmed(false);
+      const reasons = new Map<string, number>();
+      for (const item of failed) {
+        reasons.set(item.detail, (reasons.get(item.detail) ?? 0) + 1);
+      }
+      const errors = [...reasons]
+        .slice(0, 5)
+        .map(
+          ([detail, count]) =>
+            `${count.toLocaleString("fa-IR")} مورد: ${detail}`,
+        );
       setOutcome(
-        `${succeeded.toLocaleString("fa-IR")} تصمیم ثبت شد.${failed.length ? ` ${failed.length.toLocaleString("fa-IR")} مورد ناموفق بود؛ انتخاب آن‌ها حفظ شد. ${errors.join(" · ")}` : ""}`,
+        `${succeeded.length.toLocaleString("fa-IR")} تصمیم ثبت شد.${failed.length ? ` ${failed.length.toLocaleString("fa-IR")} مورد ناموفق بود. نتایج تازه را بررسی و دوباره انتخاب کنید. ${errors.join(" · ")}${reasons.size > 5 ? " · دلایل دیگری نیز وجود دارد." : ""}` : ""}`,
       );
+    },
+    onSettled: async () => {
       await Promise.all([
         client.invalidateQueries({ queryKey: ["operator-source-proposals"] }),
         client.invalidateQueries({
@@ -129,7 +139,7 @@ export function useCandidateSelection({
       ]);
     },
   });
-  const busy = selectAll.isPending || decision.isPending;
+  const busy = selectAll.isPending || pendingDecisions > 0;
   const reset = () => {
     setSelected([]);
     setConfirmed(false);
@@ -234,7 +244,12 @@ export function useCandidateSelection({
           )}
         </>
       )}
-      {busy && <p role="status">در حال انجام…</p>}
+      {busy && (
+        <p role="status">
+          در حال انجام… تغییر صفحه در برنامه این درخواست را لغو نمی‌کند. تا
+          دریافت نتیجه، درخواست دیگری برای این منبع ارسال نکنید.
+        </p>
+      )}
       {selectAll.isError && <p role="alert">{selectAll.error.message}</p>}
       {decision.isError && <p role="alert">{decision.error.message}</p>}
       {outcome && <p role="status">{outcome}</p>}

@@ -50,7 +50,7 @@ function mockRows(count = 22) {
   return rows;
 }
 
-test("selects across pages, rejects without a note and retains only failures", async () => {
+test("selects across pages, rejects without a note and clears selections before a fresh review", async () => {
   const rows = mockRows();
   const bodies: unknown[] = [];
   server.use(
@@ -83,7 +83,7 @@ test("selects across pages, rejects without a note and retains only failures", a
     confirmed: false,
     items: rows.map((row) => ({ id: row.id, reviewed_revision: 3 })),
   });
-  expect(screen.getByText("۱ آگهی انتخاب شده")).toBeVisible();
+  expect(screen.getByText("۰ آگهی انتخاب شده")).toBeVisible();
   expect(screen.getByText(/نتیجه تغییر کرده است/)).toBeVisible();
 });
 
@@ -142,4 +142,113 @@ test("read-only operators have no selection controls", async () => {
   await screen.findByText("آگهی 0");
   expect(screen.queryByRole("checkbox")).toBeNull();
   expect(screen.queryByRole("button", { name: /انتخاب همه/ })).toBeNull();
+});
+
+function deferred() {
+  let resolve = () => {};
+  const promise = new Promise<void>((done) => {
+    resolve = done;
+  });
+  return { promise, resolve };
+}
+
+test("keeps bulk decisions busy after leaving and returning to the table", async () => {
+  const rows = mockRows(2);
+  const pending = deferred();
+  const started = deferred();
+  server.use(
+    http.post(
+      "*/api/v1/operator/source-proposals/source/results/decide/",
+      async () => {
+        started.resolve();
+        await pending.promise;
+        return HttpResponse.json({
+          succeeded: rows.map((row) => row.id),
+          failed: [],
+        });
+      },
+    ),
+  );
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  const view = (visible: boolean) => (
+    <QueryClientProvider client={client}>
+      <MemoryRouter>
+        {visible && (
+          <ExtractionRunReview
+            proposalId="source"
+            properties={[]}
+            remote
+            canApprove
+          />
+        )}
+      </MemoryRouter>
+    </QueryClientProvider>
+  );
+  const { rerender } = render(view(true));
+  const user = userEvent.setup();
+  await screen.findByText("آگهی 0");
+  await user.click(
+    screen.getByRole("button", {
+      name: "انتخاب همه آگهی‌های قابل بررسی مطابق فیلتر",
+    }),
+  );
+  await screen.findByText("۲ آگهی انتخاب شده");
+  await user.click(
+    screen.getByRole("checkbox", {
+      name: "آگهی‌های انتخاب‌شده را بررسی و انتشار آن‌ها را تأیید می‌کنم",
+    }),
+  );
+  await user.click(
+    screen.getByRole("button", { name: "تأیید و انتشار انتخاب‌شده‌ها" }),
+  );
+  await started.promise;
+  try {
+    rerender(view(false));
+    rerender(view(true));
+    await screen.findByText("آگهی 0");
+    expect(
+      screen.getByRole("button", {
+        name: "انتخاب همه آگهی‌های قابل بررسی مطابق فیلتر",
+      }),
+    ).toBeDisabled();
+  } finally {
+    pending.resolve();
+  }
+  await waitFor(() =>
+    expect(
+      screen.getByRole("button", {
+        name: "انتخاب همه آگهی‌های قابل بررسی مطابق فیلتر",
+      }),
+    ).toBeEnabled(),
+  );
+});
+
+test("summarizes repeated conflicts and clears stale selections", async () => {
+  const rows = mockRows(22);
+  server.use(
+    http.post("*/api/v1/operator/source-proposals/source/results/decide/", () =>
+      HttpResponse.json({
+        succeeded: [],
+        failed: rows.map((row) => ({
+          id: row.id,
+          detail: "Another decision already changed this candidate.",
+        })),
+      }),
+    ),
+  );
+  renderTable();
+  const user = userEvent.setup();
+  await screen.findByText("آگهی 0");
+  await user.click(
+    screen.getByRole("button", {
+      name: "انتخاب همه آگهی‌های قابل بررسی مطابق فیلتر",
+    }),
+  );
+  await screen.findByText("۲۲ آگهی انتخاب شده");
+  await user.click(screen.getByRole("button", { name: "رد انتخاب‌شده‌ها" }));
+  const summary = await screen.findByText(/۰ تصمیم ثبت شد/);
+  expect(summary.textContent.length).toBeLessThan(500);
+  expect(screen.getByText("۰ آگهی انتخاب شده")).toBeVisible();
 });
