@@ -8,6 +8,9 @@ from apps.common.development_seed import DevelopmentFixtureKind, development_fix
 from .models import (
     Submission,
     SubmissionEvent,
+    SubmissionImage,
+    SubmissionImageStatus,
+    SubmissionImageVariant,
     SubmissionState,
     SubmissionStep,
     SubmitterRole,
@@ -18,6 +21,30 @@ from .models import (
 class DevelopmentSubmissionSpec:
     state: SubmissionState
     listing: Listing | None = None
+
+
+def _seed_image(*, submission: Submission, listing: Listing, index: int) -> None:
+    if submission.images.exists():
+        return
+    listing_image = listing.images.get(is_primary=True)
+    image = SubmissionImage.objects.create(
+        id=development_fixture_id(DevelopmentFixtureKind.SUBMISSION_IMAGE, index),
+        submission=submission,
+        status=SubmissionImageStatus.READY,
+        position=0,
+        is_primary=True,
+    )
+    for variant in listing_image.variants.select_related("asset"):
+        asset = variant.asset
+        SubmissionImageVariant.objects.create(
+            image=image,
+            kind=variant.kind,
+            asset=asset,
+            file=asset.file.name,
+            width=asset.width,
+            height=asset.height,
+            byte_size=asset.byte_size,
+        )
 
 
 def _seed_events(*, submission: Submission, index: int, submitter: User, operator: User) -> None:
@@ -114,9 +141,16 @@ def seed_development_submissions(
                 "contact_phone": contact_phone,
                 "authorization_declared": True,
                 "phone_publication_consent": True,
-                "review_data": {"development_seed": True},
+                "review_data": {"development_seed": True, "accuracy_confirmed": True},
             },
         )
+        # Repair the original fixture payload without replacing user-edited review data.
+        if not created and submission.review_data == {"development_seed": True}:
+            _seed_image(
+                submission=submission, listing=spec.listing or published_listing, index=index
+            )
+            submission.review_data = {"development_seed": True, "accuracy_confirmed": True}
+            submission.save(update_fields=("review_data",))
         if (
             index == 6
             and submission.listing_id == expired_listing.pk
@@ -125,6 +159,9 @@ def seed_development_submissions(
             submission.source = expired_listing.source
             submission.save(update_fields=("source",))
         if created:
+            _seed_image(
+                submission=submission, listing=spec.listing or published_listing, index=index
+            )
             _seed_events(
                 submission=submission,
                 index=index,

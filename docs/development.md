@@ -75,7 +75,8 @@ production settings. The command prepares these login accounts:
 
 The dataset includes all catalog listing states, all six submission states with review history,
 submission decision notifications with both read and unread examples, two listing inquiries with
-five alternating messages, and support requests in open, in-progress, escalated, and resolved
+five alternating messages, three pending Conversation Reports linked to the renter/owner accounts
+(with frozen message evidence), and support requests in open, in-progress, escalated, and resolved
 states. Seeded workflow rows use stable UUIDs. Rerunning fills in missing fixtures but deliberately
 preserves passwords, message edits, and workflow changes made during manual testing.
 

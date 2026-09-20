@@ -16,6 +16,7 @@ class Command(BaseCommand):
                 f"Development data ready: {result.properties} Properties, "
                 f"{result.listings} Listings, {result.inquiries} Listing Inquiries, "
                 f"{result.messages} Messages, {result.notifications} Notifications, "
-                f"{result.support_requests} Support Requests"
+                f"{result.support_requests} Support Requests, "
+                f"{result.reports} Conversation Reports"
             )
         )

@@ -24,6 +24,7 @@ class DevelopmentSeedResult:
     messages: int
     notifications: int
     support_requests: int
+    reports: int
 
 
 @transaction.atomic
@@ -72,4 +73,5 @@ def seed_development_data() -> DevelopmentSeedResult:
         messages=communications.messages + support.messages,
         notifications=communications.notifications + source_approval_notifications,
         support_requests=support.requests,
+        reports=communications.reports,
     )
