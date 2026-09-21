@@ -298,8 +298,14 @@ function AdvancedFiltersSheet({
   return (
     <Sheet open={open} onOpenChange={changeOpen}>
       <SheetTrigger asChild>
-        <Button variant="outline" className="px-2 sm:px-4">
-          <SlidersHorizontal aria-hidden="true" /> فیلترهای پیشرفته
+        <Button
+          variant="outline"
+          className="px-2 sm:px-4"
+          aria-label="فیلترهای پیشرفته"
+        >
+          <SlidersHorizontal aria-hidden="true" />
+          <span className="sm:hidden">فیلترها</span>
+          <span className="hidden sm:inline">فیلترهای پیشرفته</span>
         </Button>
       </SheetTrigger>
       <SheetContent
@@ -532,11 +538,19 @@ export function ResultsPage({ mapAdapter }: { mapAdapter?: MapAdapter }) {
           void loadMore();
         }
       },
-      { root: resultsScrollContainer.current, rootMargin: "400px" },
+      {
+        root: desktopMapEnabled ? resultsScrollContainer.current : null,
+        rootMargin: "400px",
+      },
     );
     observer.observe(sentinel);
     return () => observer.disconnect();
-  }, [loadMore, search.hasNextPage, search.isFetchNextPageError]);
+  }, [
+    desktopMapEnabled,
+    loadMore,
+    search.hasNextPage,
+    search.isFetchNextPageError,
+  ]);
   const isReplacingResults =
     search.isFetching && !search.isPending && !search.isFetchingNextPage;
   const handleViewportChange = useCallback(
@@ -606,7 +620,7 @@ export function ResultsPage({ mapAdapter }: { mapAdapter?: MapAdapter }) {
   };
 
   return (
-    <PageMain className="flex h-full min-h-0 flex-col pt-0 pb-2 sm:pt-0 sm:pb-3">
+    <PageMain className="flex min-h-0 flex-col pt-0 pb-2 sm:pt-0 sm:pb-3 xl:h-full">
       <header className="shrink-0">
         <SearchToolbar
           searchParams={searchParams}
@@ -675,9 +689,10 @@ export function ResultsPage({ mapAdapter }: { mapAdapter?: MapAdapter }) {
               "جست‌وجوی ملک‌ها"
             )}
           </p>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="grid w-full grid-cols-2 items-stretch gap-2 xl:flex xl:w-auto xl:flex-wrap xl:items-center [&_button]:h-auto [&_button]:min-h-11 [&_button]:whitespace-normal">
             {mapAvailable && (
               <Button
+                className="col-span-2"
                 type="button"
                 size="sm"
                 variant={mapFilterDisabled ? "secondary" : "outline"}
@@ -692,8 +707,12 @@ export function ResultsPage({ mapAdapter }: { mapAdapter?: MapAdapter }) {
               search.data ? (
                 <Sheet open={mobileMapOpen} onOpenChange={setMobileMapOpen}>
                   <SheetTrigger asChild>
-                    <Button className="xl:hidden" size="sm">
-                      <MapIcon aria-hidden="true" /> نمایش نقشه تمام‌صفحه
+                    <Button
+                      className="xl:hidden"
+                      size="sm"
+                      aria-label="نمایش نقشه تمام‌صفحه"
+                    >
+                      <MapIcon aria-hidden="true" /> نمایش نقشه
                     </Button>
                   </SheetTrigger>
                   <SheetContent
@@ -712,12 +731,17 @@ export function ResultsPage({ mapAdapter }: { mapAdapter?: MapAdapter }) {
                   </SheetContent>
                 </Sheet>
               ) : (
-                <Button className="xl:hidden" size="sm" disabled>
-                  <MapIcon aria-hidden="true" /> نمایش نقشه تمام‌صفحه
+                <Button
+                  className="xl:hidden"
+                  size="sm"
+                  aria-label="نمایش نقشه تمام‌صفحه"
+                  disabled
+                >
+                  <MapIcon aria-hidden="true" /> نمایش نقشه
                 </Button>
               )
             ) : null}
-            <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <div className="contents xl:flex xl:min-w-0 xl:flex-wrap xl:items-center xl:gap-2">
               <AdvancedFiltersSheet
                 open={filtersOpen}
                 onOpenChange={setFiltersOpen}
@@ -761,7 +785,7 @@ export function ResultsPage({ mapAdapter }: { mapAdapter?: MapAdapter }) {
           </div>
           <div
             ref={resultsScrollContainer}
-            className="h-full min-h-0 overflow-y-auto overscroll-contain px-2 pt-2 pb-8 xl:[direction:rtl]"
+            className="min-h-0 px-2 pt-2 pb-8 xl:h-full xl:overflow-y-auto xl:overscroll-contain xl:[direction:rtl]"
           >
             {search.isPending ? (
               <ResultsLoading />

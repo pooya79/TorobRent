@@ -387,7 +387,10 @@ function AccountMenu({
           </NavLink>
         </DropdownMenuItem>
         <DropdownMenuItem asChild>
-          <NavLink aria-label={messageLinkLabel(unreadCount)} to="/dashboard/messages">
+          <NavLink
+            aria-label={messageLinkLabel(unreadCount)}
+            to="/dashboard/messages"
+          >
             <MessageCircle aria-hidden="true" />
             <span>پیام‌ها</span>
             {unreadCount > 0 ? (
@@ -474,7 +477,7 @@ export function ProductShell({ children }: { children: ReactNode }) {
       className={cn(
         "overflow-x-clip",
         isSearchPage
-          ? "flex h-dvh flex-col overflow-y-hidden"
+          ? "flex min-h-dvh flex-col xl:h-dvh xl:overflow-y-hidden"
           : "flex min-h-screen flex-col",
       )}
     >
@@ -539,7 +542,7 @@ export function ProductShell({ children }: { children: ReactNode }) {
       <div
         className={
           isSearchPage
-            ? "min-h-0 flex-1 overflow-hidden"
+            ? "min-h-0 flex-1 xl:overflow-hidden"
             : "flex flex-1 flex-col"
         }
       >

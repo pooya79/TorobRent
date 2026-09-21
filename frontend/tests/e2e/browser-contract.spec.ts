@@ -170,6 +170,44 @@ test("keeps the mobile layout contained and restores visible focus", async ({
   expect(focusedIndicator).not.toBe(restingIndicator);
 });
 
+test.describe("mobile search touch controls", () => {
+  test.use({ hasTouch: true });
+  for (const viewport of [
+    { width: 320, height: 568 },
+    { width: 568, height: 320 },
+  ]) {
+    test(`keeps actions and results reachable at ${viewport.width}×${viewport.height}`, async ({
+      page,
+    }) => {
+      await page.setViewportSize(viewport);
+      await page.goto("/search");
+      await expect(
+        page.getByRole("region", { name: "نتایج و نقشه جاری" }),
+      ).toBeVisible();
+      // Input scrolling matters: locator.tap() can programmatically scroll
+      // overflow-hidden ancestors and conceal controls users cannot reach.
+      await page.mouse.move(280, 280);
+      await page.mouse.wheel(0, 300);
+      for (const name of [
+        "برآورد هزینه",
+        "فیلترهای پیشرفته",
+        "ترجیحات من",
+        "نمایش نقشه تمام‌صفحه",
+      ]) {
+        const trigger = page.getByRole("button", { name, exact: true });
+        await expect(trigger).toBeInViewport();
+        await trigger.tap();
+        await expect(page.getByRole("dialog")).toBeVisible();
+        await page.getByRole("button", { name: "بستن", exact: true }).tap();
+        await expect(page.getByRole("dialog")).not.toBeVisible();
+      }
+      await page.mouse.move(280, 280);
+      await page.mouse.wheel(0, 300);
+      await expect(page.getByRole("article").first()).toBeInViewport();
+    });
+  }
+});
+
 test("applies an explicit theme before hydration", async ({ page }) => {
   await initializeTheme(page, "dark");
   await page.route("**/*", async (route) => {
