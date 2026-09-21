@@ -246,12 +246,22 @@ def test_revocation_during_inflight_extraction_discards_stale_results(
     from threading import Event
 
     from django.db import close_old_connections, connection
-    from rest_framework.test import APIClient
 
     from apps.catalog.models import Listing
+    from apps.source_proposals.source_processing.extraction import run_extraction
 
     if connection.vendor != "postgresql":
         pytest.skip("In-flight cancellation requires PostgreSQL")
+    # Deliver after the request transaction commits, as a separate worker would.
+    # Eager Celery execution otherwise holds the delivery lock throughout the fetch.
+    monkeypatch.setattr("apps.source_proposals.tasks.extract_source.delay", lambda *args: None)
+    response = api_client.post(
+        f"/api/v1/source-proposals/{assigned_case[0].pk}/extraction-requests/",
+        {"assignment": assigned_case[1]["id"], "url": assigned_case[0].website_url},
+        format="json",
+    )
+    assert response.status_code == 201
+    request_id = response.json()["id"]
     entered, resume = Event(), Event()
     fetcher = assigned_case[4]
 
@@ -269,16 +279,7 @@ def test_revocation_during_inflight_extraction_discards_stale_results(
     def extract():
         close_old_connections()
         try:
-            client = APIClient()
-            client.force_authenticate(assigned_case[3])
-            return client.post(
-                f"/api/v1/source-proposals/{assigned_case[0].pk}/extraction-requests/",
-                {
-                    "assignment": assigned_case[1]["id"],
-                    "url": assigned_case[0].website_url,
-                },
-                format="json",
-            ).status_code
+            return run_extraction(request_id)
         finally:
             close_old_connections()
 
@@ -290,7 +291,7 @@ def test_revocation_during_inflight_extraction_discards_stale_results(
             assert revoke(api_client, assigned_case).status_code == 200
         finally:
             resume.set()
-        assert future.result(timeout=20) == 201
+        assert future.result(timeout=20) is False
     api_client.force_authenticate(assigned_case[3])
     detail = api_client.get(f"/api/v1/source-proposals/{assigned_case[0].pk}/").json()
     request = detail["assignment"]["recent_requests"][0]

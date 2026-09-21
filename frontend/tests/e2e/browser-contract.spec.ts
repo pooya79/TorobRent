@@ -110,6 +110,8 @@ test("keeps the document scroll position when opening a message", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1280, height: 720 });
+  // Disable smooth scrolling before login can start a focus-scroll animation.
+  await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/dashboard/messages");
   await page
     .getByLabel("ایمیل یا شماره تلفن")

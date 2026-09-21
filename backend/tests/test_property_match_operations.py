@@ -724,4 +724,6 @@ def test_overlapping_operation_deliveries_are_serialized_by_postgresql(monkeypat
     assert operation.processed_targets == 0
     assert operation.evaluated_pairs == 1
     assert PropertyMatchSuggestion.objects.count() == 1
-    assert PropertyMatchSuggestion.objects.get().evaluations.count() == existing_evaluations + 1
+    # Unchanged evidence reuses the evaluation created by the listing signal.
+    assert existing_evaluations == 1
+    assert PropertyMatchSuggestion.objects.get().evaluations.count() == existing_evaluations

@@ -289,7 +289,8 @@ def test_concurrent_delivery_rechecks_extraction_and_publication_authority(
     request = ExtractionRequest.objects.get(pk=record["id"])
     if change == "mode":
         assert request.state == "complete"
-        assert len(request.run.results) == 10
+        assert request.run.results == []
+        assert request.run.extracted == request.run.candidates.count() == 10
         assert request.run.published == 0
         assert all(candidate.state == "pending" for candidate in request.run.candidates.all())
     else:
