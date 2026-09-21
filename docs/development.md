@@ -27,6 +27,10 @@
   Firefox, and WebKit.
 - `cd frontend && pnpm test:e2e:compose`: run the Chromium contract through the nginx gateway after
   `make dev` is ready.
+- `cd frontend && pnpm test:lighthouse`: build the frontend, migrate and seed the audit database,
+  then run Lighthouse. Database preparation runs before the server readiness timer because seeding
+  can exceed its two-minute limit on CI runners. Use this command instead of calling `lhci autorun`
+  directly; `pnpm lighthouse:prepare` is available for standalone audit database preparation.
 - `make check`: run the full local validation suite.
 - `make test-milestone`: run all repository gates, the cross-browser contract, and Lighthouse.
 - `make docker-build`: verify both production images.
