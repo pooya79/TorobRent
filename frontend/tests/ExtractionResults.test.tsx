@@ -56,7 +56,10 @@ test("makes results beyond the first five inspectable with pagination, search, a
     "/operator/source-proposals/proposal?candidate=candidate-25#exceptions",
   );
   await user.type(screen.getByLabelText("جست‌وجوی عنوان یا نشانی آگهی"), "25");
-  expect(screen.getByRole("status")).toHaveTextContent("۱ نتیجه مطابق فیلتر");
+  expect(screen.getByText(/۱ نتیجه مطابق فیلتر/)).toHaveAttribute(
+    "role",
+    "status",
+  );
   expect(screen.getByText(/این اقدام همه ۲۴ نتیجه/)).toBeVisible();
   await user.click(
     screen.getByRole("button", { name: /آماده تأیید انتشار ·/ }),
@@ -74,7 +77,9 @@ test("requires fresh confirmation when refreshed results have a new revision", a
     <ExtractionRunReview run={run} proposalId="proposal" canApprove />,
     { wrapper: setup() },
   );
-  const confirmation = screen.getByRole("checkbox");
+  const confirmation = screen.getByRole("checkbox", {
+    name: /نتایج را بررسی و انتشار همه موارد/,
+  });
   await user.click(confirmation);
   expect(
     screen.getByRole("button", { name: "انتشار همه نتایج معتبر" }),
@@ -86,7 +91,9 @@ test("requires fresh confirmation when refreshed results have a new revision", a
       canApprove
     />,
   );
-  expect(screen.getByRole("checkbox")).not.toBeChecked();
+  expect(
+    screen.getByRole("checkbox", { name: /نتایج را بررسی و انتشار همه موارد/ }),
+  ).not.toBeChecked();
   expect(
     screen.getByRole("button", { name: "انتشار همه نتایج معتبر" }),
   ).toBeDisabled();

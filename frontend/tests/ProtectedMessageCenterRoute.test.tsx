@@ -16,7 +16,9 @@ test("restores the requested Message Center URL after login", async () => {
   });
   render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={["/dashboard/messages/message-1?from=badge"]}>
+      <MemoryRouter
+        initialEntries={["/dashboard/messages/message-1?from=badge"]}
+      >
         <Routes>
           <Route
             path="dashboard/messages/:messageId"

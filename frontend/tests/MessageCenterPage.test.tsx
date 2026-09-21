@@ -37,7 +37,10 @@ function renderPage(initialEntry = "/dashboard/messages") {
       <MemoryRouter initialEntries={[initialEntry]}>
         <Routes>
           <Route path="dashboard/messages" element={<MessageCenterPage />} />
-          <Route path="dashboard/messages/:messageId" element={<MessageCenterPage />} />
+          <Route
+            path="dashboard/messages/:messageId"
+            element={<MessageCenterPage />}
+          />
         </Routes>
       </MemoryRouter>
     </QueryClientProvider>,
