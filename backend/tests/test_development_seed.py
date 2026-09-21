@@ -508,3 +508,44 @@ def test_seed_dev_rejects_non_development_settings(settings):
 
     with pytest.raises(CommandError, match="development or test settings"):
         call_command("seed_dev", verbosity=0)
+
+
+@pytest.mark.django_db
+def test_seed_reports_link_real_accounts_and_preserve_moderation_on_rerun():
+    from apps.communications.models import ConversationReport, ConversationReportStatus
+    from apps.communications.services import decide_conversation_report
+
+    call_command("seed_dev", verbosity=0)
+    reports = list(ConversationReport.objects.select_related("reporter", "inquiry"))
+    assert len(reports) == 3
+    assert {report.target_kind for report in reports} == {"message", "inquiry"}
+    operator = User.objects.get(email="operator@torobrent.local")
+    client = APIClient()
+    client.force_authenticate(operator)
+    response = client.get("/api/v1/operator/conversation-reports/")
+    assert response.status_code == 200
+    assert response.data["count"] == 3
+    for report in reports:
+        assert report.reporter_id in (report.inquiry.renter_id, report.inquiry.submitter_id)
+        assert report.reporter.display_name == report.reporter_display_name_snapshot
+        detail = client.get(f"/api/v1/operator/conversation-reports/{report.pk}/")
+        assert detail.status_code == 200
+        for message in detail.data["evidence"]["messages"]:
+            assert User.objects.filter(pk=message["author_id"]).exists()
+            assert report.evidence_holds.filter(message_id=message["id"]).exists()
+
+    decided = decide_conversation_report(
+        report=reports[0],
+        actor=operator,
+        decision=ConversationReportStatus.DISMISSED,
+        internal_note="Reviewed during manual testing",
+        restrict_pair=False,
+        suspend_account_id=None,
+    ).report
+    call_command("seed_dev", verbosity=0)
+    decided.refresh_from_db()
+    assert ConversationReport.objects.count() == 3
+    assert decided.status == ConversationReportStatus.DISMISSED
+    assert decided.internal_note == "Reviewed during manual testing"
+    assert decided.evidence is None
+    assert not decided.evidence_holds.exists()

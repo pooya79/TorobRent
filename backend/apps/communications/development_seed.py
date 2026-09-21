@@ -10,6 +10,9 @@ from apps.common.development_seed import DevelopmentFixtureKind, development_fix
 from apps.submissions.models import SubmissionEvent, SubmissionState
 
 from .models import (
+    ConversationReport,
+    ConversationReportEvidenceHold,
+    ConversationReportTarget,
     ListingInquiry,
     ListingInquiryMessage,
     SystemNotification,
@@ -22,6 +25,7 @@ class DevelopmentCommunicationResult:
     inquiries: int
     messages: int
     notifications: int
+    reports: int
 
 
 def _fingerprint(body: str) -> str:
@@ -71,6 +75,52 @@ def _seed_inquiry(
     return inquiry
 
 
+def _seed_report(
+    *, index: int, inquiry: ListingInquiry, reporter: User, explanation: str, message_target: bool
+) -> None:
+    report_id = development_fixture_id(DevelopmentFixtureKind.CONVERSATION_REPORT, index)
+    if ConversationReport.objects.filter(id=report_id).exists():
+        return
+    # Preserve edited conversations and skip fixtures whose participants were deleted.
+    messages = list(inquiry.messages.select_related("author").all())
+    if inquiry.has_deleted_participant or any(message.author is None for message in messages):
+        return
+    target = messages[1] if message_target else None
+    report = ConversationReport.objects.create(
+        id=report_id,
+        inquiry=inquiry,
+        reporter=reporter,
+        reporter_display_name_snapshot=reporter.display_name,
+        target_message=target,
+        target_kind=ConversationReportTarget.MESSAGE
+        if target
+        else ConversationReportTarget.INQUIRY,
+        explanation=explanation,
+        evidence={
+            "inquiry_id": str(inquiry.id),
+            "target_message_id": str(target.id) if target else None,
+            "participants": {
+                "renter_id": str(inquiry.renter_id),
+                "submitter_id": str(inquiry.submitter_id),
+            },
+            "messages": [
+                {
+                    "id": str(message.id),
+                    "author_id": str(message.author_id),
+                    "author_display_name": message.author.display_name if message.author else "",
+                    "body": message.body,
+                    "created_at": message.created_at.isoformat(),
+                    "edited_at": message.edited_at.isoformat() if message.edited_at else None,
+                }
+                for message in messages
+            ],
+        },
+    )
+    ConversationReportEvidenceHold.objects.bulk_create([
+        ConversationReportEvidenceHold(report=report, message=message) for message in messages
+    ])
+
+
 def seed_development_communications(
     *,
     submitter: User,
@@ -79,7 +129,7 @@ def seed_development_communications(
     published_listing: Listing,
     expired_listing: Listing,
 ) -> DevelopmentCommunicationResult:
-    _seed_inquiry(
+    active_inquiry = _seed_inquiry(
         index=1,
         listing=published_listing,
         renter=renter,
@@ -90,7 +140,7 @@ def seed_development_communications(
             "ممنون، لطفا ساعت دقیق را اعلام کنید.",
         ),
     )
-    _seed_inquiry(
+    expired_inquiry = _seed_inquiry(
         index=2,
         listing=expired_listing,
         renter=renter_two,
@@ -100,6 +150,25 @@ def seed_development_communications(
             "این آگهی اکنون منقضی شده و گفت و گو فقط خواندنی است.",
         ),
     )
+
+    for index, inquiry, reporter, explanation, message_target in (
+        (1, active_inquiry, renter, "زمان بازدید در پیام مشخص نیست؛ لطفا بررسی کنید.", True),
+        (2, active_inquiry, submitter, "درخواست بررسی گفت‌وگو و هماهنگی بازدید را دارم.", False),
+        (
+            3,
+            expired_inquiry,
+            renter_two,
+            "آگهی منقضی شده اما شرایط اجاره هنوز برای من روشن نیست.",
+            True,
+        ),
+    ):
+        _seed_report(
+            index=index,
+            inquiry=inquiry,
+            reporter=reporter,
+            explanation=explanation,
+            message_target=message_target,
+        )
 
     decision_events = list(
         SubmissionEvent.objects.filter(
@@ -143,4 +212,10 @@ def seed_development_communications(
             ]
         ).count(),
         notifications=len(notifications),
+        reports=ConversationReport.objects.filter(
+            id__in=[
+                development_fixture_id(DevelopmentFixtureKind.CONVERSATION_REPORT, index)
+                for index in (1, 2, 3)
+            ]
+        ).count(),
     )
